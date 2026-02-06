@@ -1,0 +1,46 @@
+# Order file (internal use only)
+claude-shogun-orders.md
+
+# Claude Code settings
+.claude/*
+!.claude/settings.json
+.mcp.json
+
+# Test outputs (generated during testing)
+test_output/
+
+# Generated skills (local development)
+skills/
+
+# Temporary files
+*.tmp
+*.bak
+
+# Demo/analysis outputs (generated during tasks)
+demo_output/
+
+# Runtime data (generated during operation)
+output/
+queue/research/
+queue/tasks/
+queue/reports/
+
+# Memory MCP data (local to each installation)
+memory/
+
+# Project context (local to each installation, except README)
+context/
+!context/README.md
+queue/*.yaml
+dashboard.md
+config/projects.yaml
+status/
+config/settings.yaml
+logs/
+
+# Project details (contains client/confidential info)
+projects/
+
+# Internal docs (operation logs, test plans, article drafts)
+docs/
+archive/
