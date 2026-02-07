@@ -1,0 +1,31 @@
+# Model configuration by mode
+modes:
+  normal:
+    shogun_model: github-copilot/claude-sonnet-4.5
+    shogun_label: Sonnet 4.5
+    karo_model: github-copilot/claude-sonnet-4.5
+    karo_label: Sonnet 4.5
+    ashigaru_1_4_model: github-copilot/grok-code-fast-1
+    ashigaru_1_4_label: Grok Fast
+    ashigaru_5_8_model: github-copilot/gpt-5-mini
+    ashigaru_5_8_label: GPT-5 Mini
+
+  kessen:
+    shogun_model: github-copilot/claude-opus-4.6
+    shogun_label: Opus 4.6
+    karo_model: github-copilot/claude-opus-4.6
+    karo_label: Opus 4.6
+    ashigaru_1_4_model: github-copilot/claude-sonnet-4.5
+    ashigaru_1_4_label: Sonnet 4.5
+    ashigaru_5_8_model: github-copilot/gpt-5.2-codex
+    ashigaru_5_8_label: GPT-5.2 Codex
+
+  setsuyaku:
+    shogun_model: github-copilot/gemini-3-flash-preview
+    shogun_label: Gemini 3 Flash
+    karo_model: github-copilot/claude-haiku-4.5
+    karo_label: Haiku 4.5
+    ashigaru_1_4_model: github-copilot/grok-code-fast-1
+    ashigaru_1_4_label: Grok Fast
+    ashigaru_5_8_model: github-copilot/gpt-5-mini
+    ashigaru_5_8_label: GPT-5 Mini

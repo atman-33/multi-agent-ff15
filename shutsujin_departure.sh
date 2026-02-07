@@ -75,8 +75,9 @@ generate_prompt() {
 SETUP_ONLY=false
 OPEN_TERMINAL=false
 CLEAN_MODE=false
-KESSEN_MODE=false
+MODE="normal"
 SHELL_OVERRIDE=""
+MODE_CONFIG_FILE="./config/models.yaml"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -89,7 +90,19 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -k|--kessen)
-            KESSEN_MODE=true
+            if [ "$MODE" != "normal" ]; then
+                echo "エラー: モードは1つのみ指定できます"
+                exit 1
+            fi
+            MODE="kessen"
+            shift
+            ;;
+        -e|--economy|--setsuyaku)
+            if [ "$MODE" != "normal" ]; then
+                echo "エラー: モードは1つのみ指定できます"
+                exit 1
+            fi
+            MODE="setsuyaku"
             shift
             ;;
         -t|--terminal)
@@ -114,8 +127,8 @@ while [[ $# -gt 0 ]]; do
             echo "オプション:"
             echo "  -c, --clean         キューとダッシュボードをリセットして起動（クリーンスタート）"
             echo "                      未指定時は前回の状態を維持して起動"
-            echo "  -k, --kessen        決戦の陣（全足軽をOpus Thinkingで起動）"
-            echo "                      未指定時は平時の陣（足軽1-4=Sonnet, 足軽5-8=Opus）"
+            echo "  -k, --kessen        決戦の陣で起動"
+            echo "  -e, --economy       節約の陣で起動（--setsuyaku も可）"
             echo "  -s, --setup-only    tmuxセッションのセットアップのみ（OpenCode起動なし）"
             echo "  -t, --terminal      Windows Terminal で新しいタブを開く"
             echo "  -shell, --shell SH  シェルを指定（bash または zsh）"
@@ -128,19 +141,18 @@ while [[ $# -gt 0 ]]; do
             echo "  ./shutsujin_departure.sh -s           # セットアップのみ（手動でOpenCode起動）"
             echo "  ./shutsujin_departure.sh -t           # 全エージェント起動 + ターミナルタブ展開"
             echo "  ./shutsujin_departure.sh -shell bash  # bash用プロンプトで起動"
-            echo "  ./shutsujin_departure.sh -k           # 決戦の陣（全足軽Opus Thinking）"
-            echo "  ./shutsujin_departure.sh -c -k         # クリーンスタート＋決戦の陣"
+            echo "  ./shutsujin_departure.sh -k           # 決戦の陣で出陣"
+            echo "  ./shutsujin_departure.sh -e           # 節約の陣で出陣"
+            echo "  ./shutsujin_departure.sh -c -k        # クリーンスタート＋決戦の陣"
             echo "  ./shutsujin_departure.sh -shell zsh   # zsh用プロンプトで起動"
             echo ""
             echo "モデル構成:"
-            echo "  将軍:      Opus（thinking無効）"
-            echo "  家老:      Opus Thinking"
-            echo "  足軽1-4:   Sonnet Thinking"
-            echo "  足軽5-8:   Opus Thinking"
+            echo "  config/models.yaml を参照"
             echo ""
             echo "陣形:"
-            echo "  平時の陣（デフォルト）: 足軽1-4=Sonnet Thinking, 足軽5-8=Opus Thinking"
-            echo "  決戦の陣（--kessen）:   全足軽=Opus Thinking"
+            echo "  平時の陣（デフォルト）: --kessen / --economy 未指定"
+            echo "  決戦の陣（--kessen）:   高性能構成"
+            echo "  節約の陣（--economy）:  低コスト構成"
             echo ""
             echo "エイリアス:"
             echo "  csst  → cd /mnt/c/tools/multi-agent-shogun && ./shutsujin_departure.sh"
@@ -166,6 +178,66 @@ if [ -n "$SHELL_OVERRIDE" ]; then
         exit 1
     fi
 fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# モデル設定の読み込み
+# ═══════════════════════════════════════════════════════════════════════════════
+get_mode_value() {
+    local mode="$1"
+    local key="$2"
+    local block
+
+    if [ ! -f "$MODE_CONFIG_FILE" ]; then
+        echo ""
+        return 1
+    fi
+
+    block=$(awk -v mode="$mode" '
+        $1 == "modes:" {in_modes=1; next}
+        in_modes && $1 == mode":" {in_mode=1; next}
+        in_modes && in_mode && $1 ~ "^[a-zA-Z0-9_-]+:" && $2 == "" {exit}
+        in_mode {print}
+    ' "$MODE_CONFIG_FILE")
+
+    if [ -z "$block" ]; then
+        echo ""
+        return 1
+    fi
+
+    echo "$block" | awk -v key="$key" '$1 == key":" {print $2; exit}'
+}
+
+require_mode_value() {
+    local mode="$1"
+    local key="$2"
+    local value
+
+    value=$(get_mode_value "$mode" "$key")
+    if [ -z "$value" ]; then
+        echo "エラー: ${MODE_CONFIG_FILE} の ${mode}.${key} が見つかりません"
+        exit 1
+    fi
+    echo "$value"
+}
+
+case "$MODE" in
+    normal) MODE_NAME="平時の陣" ;;
+    kessen) MODE_NAME="決戦の陣" ;;
+    setsuyaku) MODE_NAME="節約の陣" ;;
+    *)
+        echo "エラー: 未対応のモード: $MODE"
+        exit 1
+        ;;
+esac
+
+SHOGUN_MODEL=$(require_mode_value "$MODE" "shogun_model")
+SHOGUN_LABEL=$(require_mode_value "$MODE" "shogun_label")
+KARO_MODEL=$(require_mode_value "$MODE" "karo_model")
+KARO_LABEL=$(require_mode_value "$MODE" "karo_label")
+ASHIGARU_1_4_MODEL=$(require_mode_value "$MODE" "ashigaru_1_4_model")
+ASHIGARU_1_4_LABEL=$(require_mode_value "$MODE" "ashigaru_1_4_label")
+ASHIGARU_5_8_MODEL=$(require_mode_value "$MODE" "ashigaru_5_8_model")
+ASHIGARU_5_8_LABEL=$(require_mode_value "$MODE" "ashigaru_5_8_label")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 出陣バナー表示（CC0ライセンスASCIIアート使用）
@@ -465,22 +537,14 @@ tmux split-window -v
 # ペインラベル設定（プロンプト用: モデル名なし）
 PANE_LABELS=("karo" "ashigaru1" "ashigaru2" "ashigaru3" "ashigaru4" "ashigaru5" "ashigaru6" "ashigaru7" "ashigaru8")
 # ペインタイトル設定（tmuxタイトル用: モデル名付き）
-if [ "$KESSEN_MODE" = true ]; then
-    PANE_TITLES=("karo(Opus)" "ashigaru1(Opus)" "ashigaru2(Opus)" "ashigaru3(Opus)" "ashigaru4(Opus)" "ashigaru5(Opus)" "ashigaru6(Opus)" "ashigaru7(Opus)" "ashigaru8(Opus)")
-else
-    PANE_TITLES=("karo(Opus)" "ashigaru1(Sonnet)" "ashigaru2(Sonnet)" "ashigaru3(Sonnet)" "ashigaru4(Sonnet)" "ashigaru5(Opus)" "ashigaru6(Opus)" "ashigaru7(Opus)" "ashigaru8(Opus)")
-fi
+PANE_TITLES=("karo(${KARO_LABEL})" "ashigaru1(${ASHIGARU_1_4_LABEL})" "ashigaru2(${ASHIGARU_1_4_LABEL})" "ashigaru3(${ASHIGARU_1_4_LABEL})" "ashigaru4(${ASHIGARU_1_4_LABEL})" "ashigaru5(${ASHIGARU_5_8_LABEL})" "ashigaru6(${ASHIGARU_5_8_LABEL})" "ashigaru7(${ASHIGARU_5_8_LABEL})" "ashigaru8(${ASHIGARU_5_8_LABEL})")
 # 色設定（karo: 赤, ashigaru: 青）
 PANE_COLORS=("red" "blue" "blue" "blue" "blue" "blue" "blue" "blue" "blue")
 
 AGENT_IDS=("karo" "ashigaru1" "ashigaru2" "ashigaru3" "ashigaru4" "ashigaru5" "ashigaru6" "ashigaru7" "ashigaru8")
 
 # モデル名設定（pane-border-format で常時表示するため）
-if [ "$KESSEN_MODE" = true ]; then
-    MODEL_NAMES=("Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking")
-else
-    MODEL_NAMES=("Opus Thinking" "Sonnet Thinking" "Sonnet Thinking" "Sonnet Thinking" "Sonnet Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking" "Opus Thinking")
-fi
+MODEL_NAMES=("${KARO_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_5_8_LABEL}" "${ASHIGARU_5_8_LABEL}" "${ASHIGARU_5_8_LABEL}" "${ASHIGARU_5_8_LABEL}")
 
 for i in {0..8}; do
     p=$((PANE_BASE + i))
@@ -513,49 +577,36 @@ if [ "$SETUP_ONLY" = false ]; then
     log_war "👑 全軍に OpenCode Code を召喚中..."
 
     # 将軍
-    tmux send-keys -t shogun:main "opencode --model anthropic/claude-3-opus"
+    tmux send-keys -t shogun:main "opencode --model ${SHOGUN_MODEL}"
     tmux send-keys -t shogun:main Enter
-    log_info "  └─ 将軍、召喚完了"
+    log_info "  └─ 将軍（${SHOGUN_LABEL}）、召喚完了"
 
     # 少し待機（安定のため）
     sleep 1
 
-    # 家老（pane 0）: Opus Thinking
+    # 家老（pane 0）
     p=$((PANE_BASE + 0))
-    tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-opus"
+    tmux send-keys -t "multiagent:agents.${p}" "opencode --model ${KARO_MODEL}"
     tmux send-keys -t "multiagent:agents.${p}" Enter
-    log_info "  └─ 家老（Opus Thinking）、召喚完了"
+    log_info "  └─ 家老（${KARO_LABEL}）、召喚完了"
 
-    if [ "$KESSEN_MODE" = true ]; then
-        # 決戦の陣: 全足軽 Opus Thinking
-        for i in {1..8}; do
-            p=$((PANE_BASE + i))
-            tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-opus"
-            tmux send-keys -t "multiagent:agents.${p}" Enter
-        done
-        log_info "  └─ 足軽1-8（Opus Thinking）、決戦の陣で召喚完了"
-    else
-        # 平時の陣: 足軽1-4=Sonnet, 足軽5-8=Opus
-        for i in {1..4}; do
-            p=$((PANE_BASE + i))
-            tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-5-sonnet"
-            tmux send-keys -t "multiagent:agents.${p}" Enter
-        done
-        log_info "  └─ 足軽1-4（Sonnet Thinking）、召喚完了"
+    # 足軽1-4
+    for i in {1..4}; do
+        p=$((PANE_BASE + i))
+        tmux send-keys -t "multiagent:agents.${p}" "opencode --model ${ASHIGARU_1_4_MODEL}"
+        tmux send-keys -t "multiagent:agents.${p}" Enter
+    done
+    log_info "  └─ 足軽1-4（${ASHIGARU_1_4_LABEL}）、召喚完了"
 
-        for i in {5..8}; do
-            p=$((PANE_BASE + i))
-            tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-opus"
-            tmux send-keys -t "multiagent:agents.${p}" Enter
-        done
-        log_info "  └─ 足軽5-8（Opus Thinking）、召喚完了"
-    fi
+    # 足軽5-8
+    for i in {5..8}; do
+        p=$((PANE_BASE + i))
+        tmux send-keys -t "multiagent:agents.${p}" "opencode --model ${ASHIGARU_5_8_MODEL}"
+        tmux send-keys -t "multiagent:agents.${p}" Enter
+    done
+    log_info "  └─ 足軽5-8（${ASHIGARU_5_8_LABEL}）、召喚完了"
 
-    if [ "$KESSEN_MODE" = true ]; then
-        log_success "✅ 決戦の陣で出陣！全軍Opus！"
-    else
-        log_success "✅ 平時の陣で出陣"
-    fi
+    log_success "✅ ${MODE_NAME}で出陣（将軍: ${SHOGUN_LABEL}, 家老: ${KARO_LABEL}, 足軽1-4: ${ASHIGARU_1_4_LABEL}, 足軽5-8: ${ASHIGARU_5_8_LABEL}）"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
