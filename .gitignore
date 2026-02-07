@@ -44,3 +44,6 @@ projects/
 # Internal docs (operation logs, test plans, article drafts)
 docs/
 archive/
+
+# Serena MCP
+.serena/

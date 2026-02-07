@@ -5,7 +5,7 @@
 # 使用方法:
 #   ./shutsujin_departure.sh           # 全エージェント起動（前回の状態を維持）
 #   ./shutsujin_departure.sh -c        # キューをリセットして起動（クリーンスタート）
-#   ./shutsujin_departure.sh -s        # セットアップのみ（Claude起動なし）
+#   ./shutsujin_departure.sh -s        # セットアップのみ（OpenCode起動なし）
 #   ./shutsujin_departure.sh -h        # ヘルプ表示
 
 set -e
@@ -116,7 +116,7 @@ while [[ $# -gt 0 ]]; do
             echo "                      未指定時は前回の状態を維持して起動"
             echo "  -k, --kessen        決戦の陣（全足軽をOpus Thinkingで起動）"
             echo "                      未指定時は平時の陣（足軽1-4=Sonnet, 足軽5-8=Opus）"
-            echo "  -s, --setup-only    tmuxセッションのセットアップのみ（Claude起動なし）"
+            echo "  -s, --setup-only    tmuxセッションのセットアップのみ（OpenCode起動なし）"
             echo "  -t, --terminal      Windows Terminal で新しいタブを開く"
             echo "  -shell, --shell SH  シェルを指定（bash または zsh）"
             echo "                      未指定時は config/settings.yaml の設定を使用"
@@ -125,7 +125,7 @@ while [[ $# -gt 0 ]]; do
             echo "例:"
             echo "  ./shutsujin_departure.sh              # 前回の状態を維持して出陣"
             echo "  ./shutsujin_departure.sh -c           # クリーンスタート（キューリセット）"
-            echo "  ./shutsujin_departure.sh -s           # セットアップのみ（手動でClaude起動）"
+            echo "  ./shutsujin_departure.sh -s           # セットアップのみ（手動でOpenCode起動）"
             echo "  ./shutsujin_departure.sh -t           # 全エージェント起動 + ターミナルタブ展開"
             echo "  ./shutsujin_departure.sh -shell bash  # bash用プロンプトで起動"
             echo "  ./shutsujin_departure.sh -k           # 決戦の陣（全足軽Opus Thinking）"
@@ -491,7 +491,7 @@ for i in {0..8}; do
     tmux send-keys -t "multiagent:agents.${p}" "cd \"$(pwd)\" && export PS1='${PROMPT_STR}' && clear" Enter
 done
 
-# pane-border-format でモデル名を常時表示（Claude Codeがペインタイトルを上書きしても消えない）
+# pane-border-format でモデル名を常時表示（OpenCode Codeがペインタイトルを上書きしても消えない）
 tmux set-option -t multiagent -w pane-border-status top
 tmux set-option -t multiagent -w pane-border-format '#{pane_index} #{@agent_id} (#{?#{==:#{@model_name},},unknown,#{@model_name}})'
 
@@ -499,21 +499,21 @@ log_success "  └─ 家老・足軽の陣、構築完了"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 6: Claude Code 起動（-s / --setup-only のときはスキップ）
+# STEP 6: OpenCode Code 起動（-s / --setup-only のときはスキップ）
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$SETUP_ONLY" = false ]; then
-    # Claude Code CLI の存在チェック
-    if ! command -v claude &> /dev/null; then
-        log_info "⚠️  claude コマンドが見つかりません"
+    # OpenCode Code CLI の存在チェック
+    if ! command -v opencode &> /dev/null; then
+        log_info "⚠️  opencode コマンドが見つかりません"
         echo "  first_setup.sh を再実行してください:"
         echo "    ./first_setup.sh"
         exit 1
     fi
 
-    log_war "👑 全軍に Claude Code を召喚中..."
+    log_war "👑 全軍に OpenCode Code を召喚中..."
 
     # 将軍
-    tmux send-keys -t shogun:main "MAX_THINKING_TOKENS=0 claude --model opus --dangerously-skip-permissions"
+    tmux send-keys -t shogun:main "opencode --model anthropic/claude-3-opus"
     tmux send-keys -t shogun:main Enter
     log_info "  └─ 将軍、召喚完了"
 
@@ -522,7 +522,7 @@ if [ "$SETUP_ONLY" = false ]; then
 
     # 家老（pane 0）: Opus Thinking
     p=$((PANE_BASE + 0))
-    tmux send-keys -t "multiagent:agents.${p}" "claude --model opus --dangerously-skip-permissions"
+    tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-opus"
     tmux send-keys -t "multiagent:agents.${p}" Enter
     log_info "  └─ 家老（Opus Thinking）、召喚完了"
 
@@ -530,7 +530,7 @@ if [ "$SETUP_ONLY" = false ]; then
         # 決戦の陣: 全足軽 Opus Thinking
         for i in {1..8}; do
             p=$((PANE_BASE + i))
-            tmux send-keys -t "multiagent:agents.${p}" "claude --model opus --dangerously-skip-permissions"
+            tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-opus"
             tmux send-keys -t "multiagent:agents.${p}" Enter
         done
         log_info "  └─ 足軽1-8（Opus Thinking）、決戦の陣で召喚完了"
@@ -538,14 +538,14 @@ if [ "$SETUP_ONLY" = false ]; then
         # 平時の陣: 足軽1-4=Sonnet, 足軽5-8=Opus
         for i in {1..4}; do
             p=$((PANE_BASE + i))
-            tmux send-keys -t "multiagent:agents.${p}" "claude --model sonnet --dangerously-skip-permissions"
+            tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-5-sonnet"
             tmux send-keys -t "multiagent:agents.${p}" Enter
         done
         log_info "  └─ 足軽1-4（Sonnet Thinking）、召喚完了"
 
         for i in {5..8}; do
             p=$((PANE_BASE + i))
-            tmux send-keys -t "multiagent:agents.${p}" "claude --model opus --dangerously-skip-permissions"
+            tmux send-keys -t "multiagent:agents.${p}" "opencode --model anthropic/claude-3-opus"
             tmux send-keys -t "multiagent:agents.${p}" Enter
         done
         log_info "  └─ 足軽5-8（Opus Thinking）、召喚完了"
@@ -629,12 +629,12 @@ NINJA_EOF
     echo -e "                               \033[0;36m[ASCII Art: syntax-samurai/ryu - CC0 1.0 Public Domain]\033[0m"
     echo ""
 
-    echo "  Claude Code の起動を待機中（最大30秒）..."
+    echo "  OpenCode Code の起動を待機中（最大30秒）..."
 
     # 将軍の起動を確認（最大30秒待機）
     for i in {1..30}; do
         if tmux capture-pane -t shogun:main -p | grep -q "bypass permissions"; then
-            echo "  └─ 将軍の Claude Code 起動確認完了（${i}秒）"
+            echo "  └─ 将軍の OpenCode Code 起動確認完了（${i}秒）"
             break
         fi
         sleep 1
@@ -707,18 +707,18 @@ echo "  ╚═══════════════════════
 echo ""
 
 if [ "$SETUP_ONLY" = true ]; then
-    echo "  ⚠️  セットアップのみモード: Claude Codeは未起動です"
+    echo "  ⚠️  セットアップのみモード: OpenCode Codeは未起動です"
     echo ""
-    echo "  手動でClaude Codeを起動するには:"
+    echo "  手動でOpenCodeを起動するには:"
     echo "  ┌──────────────────────────────────────────────────────────┐"
     echo "  │  # 将軍を召喚                                            │"
-    echo "  │  tmux send-keys -t shogun:main \\                         │"
-    echo "  │    'claude --dangerously-skip-permissions' Enter         │"
+    echo "  │  tmux send-keys -t shogun:main \                         │"
+    echo "  │    'opencode' Enter                                      │"
     echo "  │                                                          │"
     echo "  │  # 家老・足軽を一斉召喚                                  │"
-    echo "  │  for p in \$(seq $PANE_BASE $((PANE_BASE+8))); do                                 │"
-    echo "  │      tmux send-keys -t multiagent:agents.\$p \\            │"
-    echo "  │      'claude --dangerously-skip-permissions' Enter       │"
+    echo "  │  for p in \$(seq $PANE_BASE $((PANE_BASE+8))); do         │"
+    echo "  │      tmux send-keys -t multiagent:agents.\$p \           │"
+    echo "  │      'opencode' Enter                                    │"
     echo "  │  done                                                    │"
     echo "  └──────────────────────────────────────────────────────────┘"
     echo ""

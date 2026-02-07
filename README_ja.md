@@ -2,12 +2,12 @@
 
 <div align="center">
 
-**Claude Code マルチエージェント統率システム**
+**OpenCode マルチエージェント統率システム**
 
 *コマンド1つで、8体のAIエージェントが並列稼働*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Claude Code](https://img.shields.io/badge/Claude-Code-blueviolet)](https://claude.ai)
+[![OpenCode](https://img.shields.io/badge/OpenCode-blue)](https://opencode.ai)
 [![tmux](https://img.shields.io/badge/tmux-required-green)](https://github.com/tmux/tmux)
 
 [English](README.md) | [日本語](README_ja.md)
@@ -18,7 +18,7 @@
 
 ## これは何？
 
-**multi-agent-shogun** は、複数の Claude Code インスタンスを同時に実行し、戦国時代の軍制のように統率するシステムです。
+**multi-agent-shogun** は、複数の OpenCode インスタンスを同時に実行し、戦国時代の軍制のように統率するシステムです。
 
 **なぜ使うのか？**
 - 1つの命令で、8体のAIワーカーが並列で実行
@@ -124,14 +124,14 @@ cd /mnt/c/tools/multi-agent-shogun
 # 1. PATHの反映
 source ~/.bashrc
 
-# 2. OAuthログイン + Bypass Permissions承認（1コマンドで完了）
-claude --dangerously-skip-permissions
-#    → ブラウザが開く → Anthropicアカウントでログイン → CLIに戻る
-#    → 「Bypass Permissions」の承認画面 → 「Yes, I accept」を選択（↓キーで2を選んでEnter）
+# 2. OpenCodeを起動
+opencode
+#    → 使用するAIモデルプロバイダーを選択
+#    → 認証プロンプトに従う
 #    → /exit で退出
 ```
 
-認証情報は `~/.claude/` に保存され、以降は不要。
+認証情報は `~/.opencode/` に保存され、以降は不要。
 
 #### 📅 毎日の起動（初回セットアップ後）
 
@@ -241,8 +241,8 @@ wsl --install
 | スクリプト | 用途 | 実行タイミング |
 |-----------|------|---------------|
 | `install.bat` | Windows: WSL2 + Ubuntu のセットアップ | 初回のみ |
-| `first_setup.sh` | tmux、Node.js、Claude Code CLI のインストール + Memory MCP設定 | 初回のみ |
-| `shutsujin_departure.sh` | tmuxセッション作成 + Claude Code起動 + 指示書読み込み | 毎日 |
+| `first_setup.sh` | tmux、依存関係、OpenCode CLI のインストール + Memory MCP設定 | 初回のみ |
+| `shutsujin_departure.sh` | tmuxセッション作成 + OpenCode起動 + 指示書読み込み | 毎日 |
 
 ### `install.bat` が自動で行うこと：
 - ✅ WSL2がインストールされているかチェック（未インストールなら案内）
@@ -251,7 +251,7 @@ wsl --install
 
 ### `shutsujin_departure.sh` が行うこと：
 - ✅ tmuxセッションを作成（shogun + multiagent）
-- ✅ 全エージェントでClaude Codeを起動
+- ✅ 全エージェントでOpenCodeを起動
 - ✅ 各エージェントに指示書を自動読み込み
 - ✅ キューファイルをリセットして新しい状態に
 
@@ -272,7 +272,7 @@ wsl --install
 | Ubuntuをデフォルトに設定 | `wsl --set-default Ubuntu` | スクリプトの動作に必要 |
 | tmux | `sudo apt install tmux` | ターミナルマルチプレクサ |
 | Node.js v20+ | `nvm install 20` | MCPサーバーに必要 |
-| Claude Code CLI | `curl -fsSL https://claude.ai/install.sh \| bash` | Anthropic公式CLI（ネイティブ版を推奨。npm版は非推奨） |
+| OpenCode CLI | `npm install -g opencode` または公式サイトから | OpenCode公式CLI |
 
 </details>
 
@@ -381,7 +381,7 @@ AIがあなたの好みを記憶します：
 
 ### 📸 5. スクリーンショット連携
 
-VSCode拡張のClaude Codeはスクショを貼り付けて事象を説明できます。このCLIシステムでも同等の機能を実現：
+VSCode拡張のAIコーディングツールはスクショを貼り付けて事象を説明できます。このCLIシステムでも同等の機能を実現：
 
 ```
 # config/settings.yaml でスクショフォルダを設定
@@ -410,7 +410,7 @@ screenshot:
 | Layer 1: Memory MCP | `memory/shogun_memory.jsonl` | プロジェクト横断・セッションを跨ぐ長期記憶 |
 | Layer 2: Project | `config/projects.yaml`, `projects/<id>.yaml`, `context/{project}.md` | プロジェクト固有情報・技術知見 |
 | Layer 3: YAML Queue | `queue/shogun_to_karo.yaml`, `queue/tasks/`, `queue/reports/` | タスク管理・指示と報告の正データ |
-| Layer 4: Session | CLAUDE.md, instructions/*.md | 作業中コンテキスト（/clearで破棄） |
+| Layer 4: Session | AGENTS.md, instructions/*.md | 作業中コンテキスト（/clearで破棄） |
 
 この設計により：
 - どの足軽でも任意のプロジェクトを担当可能
@@ -424,7 +424,7 @@ screenshot:
 
 `/clear` 後の足軽の復帰コスト: **約1,950トークン**（目標5,000の39%）
 
-1. CLAUDE.md（自動読み込み）→ shogunシステムの一員と認識
+1. AGENTS.md（自動読み込み）→ shogunシステムの一員と認識
 2. `tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'` → 自分の番号を確認
 3. Memory MCP 読み込み → 殿の好みを復元（~700トークン）
 4. タスクYAML 読み込み → 次の仕事を確認（~800トークン）
@@ -522,7 +522,7 @@ tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
 ```
 `-t "$TMUX_PANE"` が必須。省略するとアクティブペイン（操作中のペイン）の値が返り、誤認識の原因になる。
 
-モデル名も `@model_name` として保存され、`pane-border-format` で常時表示。Claude Codeがペインタイトルを上書きしてもモデル名は消えない。
+モデル名も `@model_name` として保存され、`pane-border-format` で常時表示。OpenCodeがペインタイトルを上書きしてもモデル名は消えない。
 
 ### なぜ dashboard.md は家老のみが更新するのか
 
@@ -544,7 +544,7 @@ tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
 
 **1. スキルはコミット対象外**
 
-`.claude/commands/` 配下のスキルはリポジトリにコミットしない設計。理由：
+`.opencode/skills/` 配下のスキルはリポジトリにコミットしない設計。理由：
 - 各ユーザの業務・ワークフローは異なる
 - 汎用的なスキルを押し付けるのではなく、ユーザが自分に必要なスキルを育てていく
 
@@ -566,43 +566,57 @@ dashboard.md の「スキル化候補」に上がる
 
 ## 🔌 MCPセットアップガイド
 
-MCP（Model Context Protocol）サーバはClaudeの機能を拡張します。セットアップ方法：
+MCP（Model Context Protocol）サーバはOpenCodeの機能を拡張します。セットアップ方法：
 
 ### MCPとは？
 
-MCPサーバはClaudeに外部ツールへのアクセスを提供します：
+MCPサーバはOpenCodeに外部ツールへのアクセスを提供します：
 - **Notion MCP** → Notionページの読み書き
 - **GitHub MCP** → PR作成、Issue管理
 - **Memory MCP** → セッション間で記憶を保持
 
 ### MCPサーバのインストール
 
-以下のコマンドでMCPサーバを追加：
+OpenCodeは設定ファイルでMCPサーバを管理します。`~/.config/opencode/opencode.json`に追加してください：
 
-```bash
-# 1. Notion - Notionワークスペースに接続
-claude mcp add notion -e NOTION_TOKEN=your_token_here -- npx -y @notionhq/notion-mcp-server
-
-# 2. Playwright - ブラウザ自動化
-claude mcp add playwright -- npx @playwright/mcp@latest
-# 注意: 先に `npx playwright install chromium` を実行してください
-
-# 3. GitHub - リポジトリ操作
-claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=your_pat_here -- npx -y @modelcontextprotocol/server-github
-
-# 4. Sequential Thinking - 複雑な問題を段階的に思考
-claude mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
-
-# 5. Memory - セッション間の長期記憶（推奨！）
-# ✅ first_setup.sh で自動設定済み
-# 手動で再設定する場合:
-claude mcp add memory -e MEMORY_FILE_PATH="$PWD/memory/shogun_memory.jsonl" -- npx -y @modelcontextprotocol/server-memory
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "environment": {
+        "MEMORY_FILE_PATH": "$PWD/memory/shogun_memory.jsonl"
+      },
+      "enabled": true
+    },
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_pat_here"
+      },
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "enabled": true
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true
+    }
+  }
+}
 ```
 
 ### インストール確認
 
 ```bash
-claude mcp list
+opencode mcp list
 ```
 
 全サーバが「Connected」ステータスで表示されるはずです。
@@ -621,7 +635,7 @@ claude mcp list
 2. 家老が割り当て:
    - 足軽1: GitHub Copilotを調査
    - 足軽2: Cursorを調査
-   - 足軽3: Claude Codeを調査
+   - 足軽3: OpenCodeを調査
    - 足軽4: Codeiumを調査
    - 足軽5: Amazon CodeWhispererを調査
 3. 5体が同時に調査
@@ -675,7 +689,7 @@ language: en   # 日本語 + 英訳併記
 │      │                                                              │
 │      ├── tmuxのチェック/インストール                                  │
 │      ├── Node.js v20+のチェック/インストール (nvm経由)                │
-│      ├── Claude Code CLIのチェック/インストール（ネイティブ版）       │
+│      ├── OpenCode CLIのチェック/インストール                         │
 │      │       ※ npm版検出時はネイティブ版への移行を提案                │
 │      └── Memory MCPサーバー設定                                      │
 │                                                                     │
@@ -691,7 +705,7 @@ language: en   # 日本語 + 英訳併記
 │      │                                                              │
 │      ├──▶ キューファイルとダッシュボードをリセット                     │
 │      │                                                              │
-│      └──▶ 全エージェントでClaude Codeを起動                          │
+│      └──▶ 全エージェントでOpenCodeを起動                             │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -702,10 +716,10 @@ language: en   # 日本語 + 英訳併記
 <summary><b>shutsujin_departure.sh オプション</b>（クリックで展開）</summary>
 
 ```bash
-# デフォルト: フル起動（tmuxセッション + Claude Code起動）
+# デフォルト: フル起動（tmuxセッション + OpenCode起動）
 ./shutsujin_departure.sh
 
-# セッションセットアップのみ（Claude Code起動なし）
+# セッションセットアップのみ（OpenCode起動なし）
 ./shutsujin_departure.sh -s
 ./shutsujin_departure.sh --setup-only
 
@@ -741,9 +755,9 @@ tmux attach-session -t shogun     # 接続してコマンドを出す
 ```bash
 ./shutsujin_departure.sh -s       # セッションのみ作成
 
-# 特定のエージェントでClaude Codeを手動起動
-tmux send-keys -t shogun:0 'claude --dangerously-skip-permissions' Enter
-tmux send-keys -t multiagent:0.0 'claude --dangerously-skip-permissions' Enter
+# 特定のエージェントでOpenCodeを手動起動
+tmux send-keys -t shogun:0 'opencode' Enter
+tmux send-keys -t multiagent:0.0 'opencode' Enter
 ```
 
 **クラッシュ後の再起動：**
@@ -806,7 +820,7 @@ multi-agent-shogun/
 │
 ├── memory/                   # Memory MCP保存場所
 ├── dashboard.md              # リアルタイム状況一覧
-└── CLAUDE.md                 # Claude用プロジェクトコンテキスト
+└── AGENTS.md                 # OpenCode用プロジェクトコンテキスト
 ```
 
 </details>
@@ -858,24 +872,7 @@ current_tasks:
 
 ## 🔧 トラブルシューティング
 
-<details>
-<summary><b>npm版のClaude Code CLIを使っている？</b></summary>
 
-npm版（`npm install -g @anthropic-ai/claude-code`）は公式で非推奨（deprecated）になりました。`first_setup.sh` を再実行すると、npm版を検出してネイティブ版への移行を提案します。
-
-```bash
-# first_setup.sh を再実行
-./first_setup.sh
-
-# npm版が検出されると以下のメッセージが表示される:
-# ⚠️ npm版 Claude Code CLI が検出されました（公式非推奨）
-# ネイティブ版をインストールしますか? [Y/n]:
-
-# Y を選択後、npm版をアンインストール:
-npm uninstall -g @anthropic-ai/claude-code
-```
-
-</details>
 
 <details>
 <summary><b>MCPツールが動作しない？</b></summary>
@@ -899,7 +896,7 @@ mcp__memory__read_graph()  ← 動作！
 `--dangerously-skip-permissions` 付きで起動していることを確認：
 
 ```bash
-claude --dangerously-skip-permissions --system-prompt "..."
+opencode
 ```
 
 </details>
@@ -916,23 +913,23 @@ tmux attach-session -t multiagent
 </details>
 
 <details>
-<summary><b>将軍やエージェントが落ちた？（Claude Codeプロセスがkillされた）</b></summary>
+<summary><b>将軍やエージェントが落ちた？（OpenCodeプロセスがkillされた）</b></summary>
 
 **`css` 等のtmuxセッション起動エイリアスを使って再起動してはいけません。** これらのエイリアスはtmuxセッションを作成するため、既存のtmuxペイン内で実行するとセッションがネスト（入れ子）になり、入力が壊れてペインが使用不能になります。
 
 **正しい再起動方法：**
 
 ```bash
-# 方法1: ペイン内でclaudeを直接実行
-claude --model opus --dangerously-skip-permissions
+# 方法1: ペイン内でopencodeを直接実行
+opencode
 
 # 方法2: 家老がrespawn-paneで強制再起動（ネストも解消される）
-tmux respawn-pane -t shogun:0.0 -k 'claude --model opus --dangerously-skip-permissions'
+tmux respawn-pane -t shogun:0.0 -k 'opencode'
 ```
 
 **誤ってtmuxをネストしてしまった場合：**
 1. `Ctrl+B` の後 `d` でデタッチ（内側のセッションから離脱）
-2. その後 `claude` を直接実行（`css` は使わない）
+2. その後 `opencode` を直接実行（`css` は使わない）
 3. デタッチが効かない場合は、別のペインから `tmux respawn-pane -k` で強制リセット
 
 </details>
@@ -966,7 +963,7 @@ tmux respawn-pane -t shogun:0.0 -k 'claude --model opus --dangerously-skip-permi
 
 ## 🙏 クレジット
 
-[Claude-Code-Communication](https://github.com/Akira-Papa/Claude-Code-Communication) by Akira-Papa をベースに開発。
+OpenCodeエコシステムとマルチエージェントAI開発パターンにインスパイアされて開発。
 
 ---
 

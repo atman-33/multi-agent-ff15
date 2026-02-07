@@ -4,11 +4,12 @@
 
 **Command your AI army like a feudal warlord.**
 
-Run 8 Claude Code agents in parallel — orchestrated through a samurai-inspired hierarchy with zero coordination overhead.
+Run 8 OpenCode agents in parallel — orchestrated through a samurai-inspired hierarchy with zero coordination overhead.
 
 [![GitHub Stars](https://img.shields.io/github/stars/yohey-w/multi-agent-shogun?style=social)](https://github.com/yohey-w/multi-agent-shogun)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Claude Code](https://img.shields.io/badge/Built_for-Claude_Code-blueviolet)](https://code.claude.com)
+[![OpenCode](https://img.shields.io/badge/Built_for-OpenCode-blue)](https://opencode.ai)
+[![OhMyOpenCode](https://img.shields.io/badge/Powered_by-OhMyOpenCode-purple)](https://ohmyopencode.com)
 [![Shell](https://img.shields.io/badge/Shell%2FBash-100%25-green)]()
 
 [English](README.md) | [日本語](README_ja.md)
@@ -23,7 +24,9 @@ Run 8 Claude Code agents in parallel — orchestrated through a samurai-inspired
 
 ---
 
-Give a single command. The **Shogun** (general) delegates to the **Karo** (steward), who distributes work across up to **8 Ashigaru** (foot soldiers) — all running as independent Claude Code processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
+Give a single command. The **Shogun** (general) delegates to the **Karo** (steward), who distributes work across up to **8 Ashigaru** (foot soldiers) — all running as independent OpenCode processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
+
+
 
 <!-- TODO: add demo.gif — record with asciinema or vhs -->
 
@@ -49,14 +52,14 @@ These principles are documented in detail: **[docs/philosophy.md](docs/philosoph
 
 Most multi-agent frameworks burn API tokens on coordination. Shogun doesn't.
 
-| | Claude Code `Task` tool | LangGraph | CrewAI | **multi-agent-shogun** |
+| | OpenCode | LangGraph | CrewAI | **multi-agent-shogun** |
 |---|---|---|---|---|
-| **Architecture** | Subagents inside one process | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
-| **Parallelism** | Sequential (one at a time) | Parallel nodes (v0.2+) | Limited | **8 independent agents** |
-| **Coordination cost** | API calls per Task | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
-| **Observability** | Claude logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + dashboard |
+| **Architecture** | Agents with tools | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
+| **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **8 independent agents** |
+| **Coordination cost** | API calls | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
+| **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + dashboard |
 | **Skill discovery** | None | None | None | **Bottom-up auto-proposal** |
-| **Setup** | Built into Claude Code | Heavy (infra required) | pip install | Shell scripts |
+| **Setup** | CLI install | Heavy (infra required) | pip install | Shell scripts |
 
 ### What makes this different
 
@@ -84,12 +87,14 @@ Reports in YAML:  skill_candidate:
                      name: "api-endpoint-scaffold"
                      reason: "Same REST scaffold pattern used in 3 projects"
     ↓
-Appears in dashboard.md → You approve → Skill created in .claude/commands/
+Appears in dashboard.md → You approve → Skill created in .opencode/skills/
     ↓
 Any agent can now invoke /api-endpoint-scaffold
 ```
 
 Skills grow organically from real work — not from a predefined template library. Your skill set becomes a reflection of **your** workflow.
+
+> **Framework**: Built on [OpenCode](https://opencode.ai) with [Oh My OpenCode](https://ohmyopencode.com) orchestration layer.
 
 ---
 
@@ -128,7 +133,7 @@ Skills grow organically from real work — not from a predefined template librar
 | Memory MCP | Preferences, rules, cross-project knowledge | Everything |
 | Project files | `config/projects.yaml`, `context/*.md` | Everything |
 | YAML Queue | Tasks, reports (source of truth) | Everything |
-| Session | `CLAUDE.md`, instructions | `/clear` wipes it |
+| Session | `AGENTS.md`, instructions | `/clear` wipes it |
 
 After `/clear`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its task YAML. No expensive re-prompting.
 
@@ -165,7 +170,7 @@ git clone https://github.com/yohey-w/multi-agent-shogun.git C:\tools\multi-agent
 
 # 3. In Ubuntu terminal:
 cd /mnt/c/tools/multi-agent-shogun
-./first_setup.sh          # One-time: installs tmux, Node.js, Claude Code CLI
+./first_setup.sh          # One-time: installs tmux, dependencies, OpenCode CLI
 ./shutsujin_departure.sh  # Deploy your army
 ```
 
@@ -189,14 +194,14 @@ After `first_setup.sh`, run these commands once to authenticate:
 # 1. Apply PATH changes
 source ~/.bashrc
 
-# 2. OAuth login + Bypass Permissions approval (one command)
-claude --dangerously-skip-permissions
-#    → Browser opens → Log in with Anthropic account → Return to CLI
-#    → "Bypass Permissions" prompt appears → Select "Yes, I accept" (↓ to option 2, Enter)
+# 2. Start OpenCode
+opencode
+#    → Select your preferred AI model provider
+#    → Follow authentication prompts
 #    → Type /exit to quit
 ```
 
-This saves credentials to `~/.claude/` — you won't need to do it again.
+This saves credentials to `~/.opencode/` — you won't need to do it again.
 
 ### Daily startup
 
@@ -339,18 +344,40 @@ language: en   # Samurai Japanese + English translation
 
 ### MCP servers
 
+OpenCode uses a config file to manage MCP servers. Add servers to your `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "environment": {
+        "MEMORY_FILE_PATH": "$PWD/memory/shogun_memory.jsonl"
+      },
+      "enabled": true
+    },
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_pat_here"
+      },
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "enabled": true
+    }
+  }
+}
+```
+
+To check MCP server status:
 ```bash
-# Memory (auto-configured by first_setup.sh)
-claude mcp add memory -e MEMORY_FILE_PATH="$PWD/memory/shogun_memory.jsonl" -- npx -y @modelcontextprotocol/server-memory
-
-# Notion
-claude mcp add notion -e NOTION_TOKEN=your_token -- npx -y @notionhq/notion-mcp-server
-
-# GitHub
-claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=your_pat -- npx -y @modelcontextprotocol/server-github
-
-# Playwright (browser automation)
-claude mcp add playwright -- npx @playwright/mcp@latest
+opencode mcp list
 ```
 
 ### Screenshot integration
@@ -389,38 +416,16 @@ multi-agent-shogun/
 │
 ├── memory/                    # Memory MCP persistent storage
 ├── dashboard.md               # Human-readable status board
-└── CLAUDE.md                  # System instructions (auto-loaded)
+└── AGENTS.md                  # OpenCode system instructions (auto-loaded)
 ```
 
 ---
 
 ## Troubleshooting
 
-<details>
-<summary><b>Using npm version of Claude Code CLI?</b></summary>
 
-The npm version (`npm install -g @anthropic-ai/claude-code`) is officially deprecated. Re-run `first_setup.sh` to detect and migrate to the native version.
 
-```bash
-# Re-run first_setup.sh
-./first_setup.sh
 
-# If npm version is detected:
-# ⚠️ npm version of Claude Code CLI detected (officially deprecated)
-# Install native version? [Y/n]:
-
-# After selecting Y, uninstall npm version:
-npm uninstall -g @anthropic-ai/claude-code
-```
-
-</details>
-
-<details>
-<summary><b>Agents asking for permissions?</b></summary>
-
-Agents should start with `--dangerously-skip-permissions`. This is handled automatically by `shutsujin_departure.sh`.
-
-</details>
 
 <details>
 <summary><b>MCP tools not loading?</b></summary>
@@ -440,10 +445,10 @@ Don't use `css`/`csm` aliases inside an existing tmux session (causes nesting). 
 
 ```bash
 # From the crashed pane:
-claude --model opus --dangerously-skip-permissions
+opencode
 
 # Or from another pane:
-tmux respawn-pane -t shogun:0.0 -k 'claude --model opus --dangerously-skip-permissions'
+tmux respawn-pane -t shogun:0.0 -k 'opencode'
 ```
 
 </details>
@@ -483,7 +488,7 @@ Issues and pull requests are welcome.
 
 ## Credits
 
-Based on [Claude-Code-Communication](https://github.com/Akira-Papa/Claude-Code-Communication) by Akira-Papa.
+Inspired by multi-agent AI development patterns and the OpenCode ecosystem.
 
 ## License
 

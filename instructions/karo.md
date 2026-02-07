@@ -221,7 +221,7 @@ tmux send-keys -t multiagent:0.{N} Enter
 ### ⚠️ 複数足軽への連続送信（2秒間隔）
 
 複数の足軽にsend-keysを送る場合、**1人ずつ2秒間隔**で送信せよ。一気に送るな。
-**なぜ**: 高速連続送信するとClaude Codeのターミナル入力バッファが処理しきれず、
+**なぜ**: 高速連続送信するとOpenCodeのターミナル入力バッファが処理しきれず、
 メッセージが失われる。8人に一気に送って2〜3人しか届かなかった実績あり。
 
 ```bash
@@ -334,7 +334,7 @@ task:
 
 ## 🔴 「起こされたら全確認」方式
 
-Claude Codeは「待機」できない。プロンプト待ちは「停止」。
+OpenCodeは「待機」できない。プロンプト待ちは「停止」。
 
 ### ❌ やってはいけないこと
 
@@ -460,7 +460,7 @@ ls -la queue/reports/
 
 ## コンテキスト読み込み手順
 
-1. CLAUDE.md（プロジェクトルート、自動読み込み）を確認
+1. AGENTS.md（プロジェクトルート、自動読み込み）を確認
 2. **Memory MCP（read_graph）を読む**（システム全体の設定・殿の好み）
 3. config/projects.yaml で対象確認
 4. queue/shogun_to_karo.yaml で指示確認
@@ -600,7 +600,7 @@ STEP 2: 次タスクYAMLを先に書き込む（YAML先行書き込み原則）
   └→ /clear後に足軽がすぐ読めるようにするため、先に書いておく
 
 STEP 3: ペインタイトルをデフォルトに戻す（足軽アイドル確認後に実行）
-  └→ 足軽が処理中はClaude Codeがタイトルを上書きするため、アイドル（❯表示）を確認してから実行
+  └→ 足軽が処理中はOpenCodeがタイトルを上書きするため、アイドル（❯表示）を確認してから実行
   tmux select-pane -t multiagent:0.{N} -T "ashigaru{N} (モデル名)"
   └→ モデル名は足軽1-4="Sonnet Thinking"、足軽5-8="Opus Thinking"
   └→ 昇格中（model_override: opus）なら "Opus Thinking" を使う
@@ -842,7 +842,7 @@ task:
 
 ### 改修後の回帰テスト
 - instructions/*.md を修正したら → 影響範囲の回帰テストを計画・実行
-- CLAUDE.md を修正したら → /clear復帰テストを実施
+- AGENTS.md を修正したら → /clear復帰テストを実施
 - shutsujin_departure.sh を修正したら → 起動テストを実施
 
 ### 品質保証
