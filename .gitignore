@@ -47,3 +47,7 @@ archive/
 
 # Serena MCP
 .serena/
+
+# OpenSpec
+.github/prompts/opsx-*.md
+.opencode/command/opsx-*.md
