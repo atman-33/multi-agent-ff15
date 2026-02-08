@@ -50,7 +50,7 @@ HAS_ERROR=false
 
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════════╗"
-echo "  ║  🏯 multi-agent-ff15 インストーラー                         ║"
+echo "  ║  ⚔️ multi-agent-ff15 インストーラー                         ║"
 echo "  ║     Initial Setup Script for Ubuntu / WSL                    ║"
 echo "  ╚══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -485,16 +485,16 @@ fi
 RESULTS+=("設定ファイル: OK")
 
 # ============================================================
-# STEP 8: Kingsglaive用タスク・レポートファイル初期化
+# STEP 8: Worker用タスク・レポートファイル初期化
 # ============================================================
 log_step "STEP 8: キューファイル初期化"
 
-# Kingsglaive用タスクファイル作成
-for i in {1..8}; do
-    TASK_FILE="$SCRIPT_DIR/queue/tasks/kingsglaive${i}.yaml"
+# Worker用タスクファイル作成
+for WORKER_NAME in gladiolus prompto lunafreya iris; do
+    TASK_FILE="$SCRIPT_DIR/queue/tasks/${WORKER_NAME}.yaml"
     if [ ! -f "$TASK_FILE" ]; then
         cat > "$TASK_FILE" << EOF
-# Kingsglaive${i}専用タスクファイル
+# ${WORKER_NAME} task file
 task:
   task_id: null
   parent_cmd: null
@@ -505,14 +505,14 @@ task:
 EOF
     fi
 done
-log_info "Kingsglaiveタスクファイル (1-8) を確認/作成しました"
+log_info "Workerタスクファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
 
-# Kingsglaive用レポートファイル作成
-for i in {1..8}; do
-    REPORT_FILE="$SCRIPT_DIR/queue/reports/kingsglaive${i}_report.yaml"
+# Worker用レポートファイル作成
+for WORKER_NAME in gladiolus prompto lunafreya iris; do
+    REPORT_FILE="$SCRIPT_DIR/queue/reports/${WORKER_NAME}_report.yaml"
     if [ ! -f "$REPORT_FILE" ]; then
         cat > "$REPORT_FILE" << EOF
-worker_id: kingsglaive${i}
+worker_id: ${WORKER_NAME}
 task_id: null
 timestamp: ""
 status: idle
@@ -520,7 +520,7 @@ result: null
 EOF
     fi
 done
-log_info "Kingsglaiveレポートファイル (1-8) を確認/作成しました"
+log_info "Workerレポートファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
 
 RESULTS+=("キューファイル: OK")
 
@@ -531,7 +531,7 @@ log_step "STEP 9: 実行権限設定"
 
 SCRIPTS=(
     "setup.sh"
-    "shutsujin_departure.sh"
+    "standby.sh"
     "first_setup.sh"
 )
 
@@ -577,7 +577,7 @@ if [ -f "$BASHRC_FILE" ]; then
         log_info "alias csn は既に正しく設定されています"
     fi
 
-    # csk alias (Ignis・Kingsglaiveウィンドウの起動)
+    # csk alias (Ignis・Workersウィンドウの起動)
     EXPECTED_CSM="alias csk='tmux attach-session -t kingsglaive'"
     if ! grep -q "alias csk=" "$BASHRC_FILE" 2>/dev/null; then
         if [ "$ALIAS_ADDED" = false ]; then
@@ -585,7 +585,7 @@ if [ -f "$BASHRC_FILE" ]; then
             echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
         fi
         echo "$EXPECTED_CSM" >> "$BASHRC_FILE"
-        log_info "alias csk を追加しました（Ignis・Kingsglaiveウィンドウの起動）"
+        log_info "alias csk を追加しました（Ignis・Workersウィンドウの起動）"
         ALIAS_ADDED=true
     elif ! grep -qF "$EXPECTED_CSM" "$BASHRC_FILE" 2>/dev/null; then
         if sed -i "s|alias csk=.*|$EXPECTED_CSM|" "$BASHRC_FILE" 2>/dev/null; then
@@ -776,14 +776,14 @@ echo "     ※ 一度認証すれば ~/.opencode/ に保存され、以降は不
 echo ""
 echo "  ────────────────────────────────────────────────────────────────"
 echo ""
-echo "  出撃（全エージェント起動）:"
-echo "     ./shutsujin_departure.sh"
+echo "  Stand by Me！（全エージェント起動）:"
+echo "     ./standby.sh"
 echo ""
 echo "  オプション:"
-echo "     ./shutsujin_departure.sh -s            # セットアップのみ（OpenCode手動起動）"
-echo "     ./shutsujin_departure.sh -t            # Windows Terminalタブ展開"
-echo "     ./shutsujin_departure.sh -shell bash   # bash用プロンプトで起動"
-echo "     ./shutsujin_departure.sh -shell zsh    # zsh用プロンプトで起動"
+echo "     ./standby.sh -s            # セットアップのみ（OpenCode手動起動）"
+echo "     ./standby.sh -t            # Windows Terminalタブ展開"
+echo "     ./standby.sh -shell bash   # bash用プロンプトで起動"
+echo "     ./standby.sh -shell zsh    # zsh用プロンプトで起動"
 echo ""
 echo "  ※ シェル設定は config/settings.yaml の shell: でも変更可能です"
 echo ""

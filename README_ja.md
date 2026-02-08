@@ -4,7 +4,7 @@
 
 **OpenCode マルチエージェント統率システム**
 
-*コマンド1つで、8体のAIエージェントが並列稼働*
+*コマンド1つで、6体のAIエージェントが並列稼働*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenCode](https://img.shields.io/badge/OpenCode-blue)](https://opencode.ai)
@@ -21,7 +21,7 @@
 **multi-agent-ff15** は、複数の OpenCode インスタンスを同時に実行し、FF15時代の軍制のように統率するシステムです。
 
 **なぜ使うのか？**
-- 1つの命令で、8体のAIワーカーが並列で実行
+- 1つの命令で、4名のAIワーカーが並列で実行
 - 待ち時間なし - タスクがバックグラウンドで実行中も次の命令を出せる
 - AIがセッションを跨いであなたの好みを記憶（Memory MCP）
 - ダッシュボードでリアルタイム進捗確認
@@ -38,10 +38,10 @@
     │    IGNIS     │  ← タスクをワーカーに分配
     └──────┬──────┘
            │
-  ┌─┬─┬─┬─┴─┬─┬─┬─┐
-  │1│2│3│4│5│6│7│8│  ← 8体のワーカーが並列実行
-  └─┴─┴─┴─┴─┴─┴─┴─┘
-      KINGSGLAIVE
+  ┌────┬────┴────┬────┐
+  │GLAD│PROM│LUNA│IRIS│ ← 4名のComradeが並列実行
+  └────┴────┴────┴────┘
+        Comrades
 ```
 
 ---
@@ -106,10 +106,10 @@ cd /mnt/c/tools/multi-agent-ff15
 </td>
 <td>
 
-✅ **出撃！**
+✅ **Stand by Me！**
 
 ```bash
-./shutsujin_departure.sh
+./standby.sh
 ```
 
 </td>
@@ -139,7 +139,7 @@ opencode
 
 ```bash
 cd /mnt/c/tools/multi-agent-ff15
-./shutsujin_departure.sh
+./standby.sh
 ```
 
 ### 📱 スマホからアクセス（どこからでも指揮）
@@ -173,12 +173,12 @@ cd /mnt/c/tools/multi-agent-ff15
 4. ＋ボタンで新しいウィンドウを開いて、部下の様子も見る：
    ```sh
    ssh あなたのユーザー名@あなたのTailscale IP
-   csm    # Ignis+Kingsglaiveの9ペインが広がる
+   csm    # Ignis+Comradesの5ペインが広がる
    ```
 
 **切り方：** Termuxのウィンドウをスワイプで閉じるだけ。tmuxセッションは生き残る。AI部下は黙々と作業を続けている。
 
-**音声入力：** スマホの音声入力で喋れば、Noctisが自然言語を理解して全軍に指示を出す。音声認識の誤字も文脈で解釈してくれる。
+**音声入力：** スマホの音声入力で喋れば、Noctisが自然言語を理解して全員に指示を出す。音声認識の誤字も文脈で解釈してくれる。
 
 ---
 
@@ -203,7 +203,7 @@ chmod +x *.sh
 
 ```bash
 cd ~/multi-agent-ff15
-./shutsujin_departure.sh
+./standby.sh
 ```
 
 </details>
@@ -242,14 +242,14 @@ wsl --install
 |-----------|------|---------------|
 | `install.bat` | Windows: WSL2 + Ubuntu のセットアップ | 初回のみ |
 | `first_setup.sh` | tmux、依存関係、OpenCode CLI のインストール + Memory MCP設定 | 初回のみ |
-| `shutsujin_departure.sh` | tmuxセッション作成 + OpenCode起動 + 指示書読み込み | 毎日 |
+| `standby.sh` | tmuxセッション作成 + OpenCode起動 + 指示書読み込み | 毎日 |
 
 ### `install.bat` が自動で行うこと：
 - ✅ WSL2がインストールされているかチェック（未インストールなら案内）
 - ✅ Ubuntuがインストールされているかチェック（未インストールなら案内）
 - ✅ 次のステップ（`first_setup.sh` の実行方法）を案内
 
-### `shutsujin_departure.sh` が行うこと：
+### `standby.sh` が行うこと：
 - ✅ tmuxセッションを作成（noctis + kingsglaive）
 - ✅ 全エージェントでOpenCodeを起動
 - ✅ 各エージェントに指示書を自動読み込み
@@ -280,17 +280,17 @@ wsl --install
 
 ### ✅ セットアップ後の状態
 
-どちらのオプションでも、**10体のAIエージェント**が自動起動します：
+どちらのオプションでも、**6体のAIエージェント**が自動起動します：
 
 | エージェント | 役割 | 数 |
 |-------------|------|-----|
-| 🏯 Noctis（Noctis） | 総大将 - あなたの命令を受ける | 1 |
+| 👑 Noctis（Noctis） | 王子 - あなたの命令を受ける | 1 |
 | 📋 Ignis（Ignis） | 管理者 - タスクを分配 | 1 |
-| ⚔️ Kingsglaive（Kingsglaive） | ワーカー - 並列でタスク実行 | 8 |
+| ⚔️ Comrades（Gladiolus, Prompto, Lunafreya, Iris） | ワーカー - 並列でタスク実行 | 4 |
 
 tmuxセッションが作成されます：
 - `noctis` - ここに接続してコマンドを出す
-- `kingsglaive` - ワーカーがバックグラウンドで稼働
+- `kingsglaive` - Ignis + Comradesがバックグラウンドで稼働
 
 ---
 
@@ -298,7 +298,7 @@ tmuxセッションが作成されます：
 
 ### Step 1: Noctisに接続
 
-`shutsujin_departure.sh` 実行後、全エージェントが自動的に指示書を読み込み、作業準備完了となります。
+`standby.sh` 実行後、全エージェントが自動的に指示書を読み込み、作業準備完了となります。
 
 新しいターミナルを開いてNoctisに接続：
 
@@ -319,7 +319,7 @@ Noctisは：
 2. Ignis（管理者）に通知
 3. 即座にあなたに制御を返す（待つ必要なし！）
 
-その間、IgnisはタスクをKingsglaiveワーカーに分配し、並列実行します。
+その間、IgnisはタスクをComradesに分配し、並列実行します。
 
 ### Step 3: 進捗を確認
 
@@ -329,9 +329,9 @@ Noctisは：
 ## 進行中
 | ワーカー | タスク | 状態 |
 |----------|--------|------|
-| Kingsglaive 1 | React調査 | 実行中 |
-| Kingsglaive 2 | Vue調査 | 実行中 |
-| Kingsglaive 3 | Angular調査 | 完了 |
+| Gladiolus | React調査 | 実行中 |
+| Prompto | Vue調査 | 実行中 |
+| Lunafreya | Angular調査 | 完了 |
 ```
 
 ---
@@ -340,11 +340,11 @@ Noctisは：
 
 ### ⚡ 1. 並列実行
 
-1つの命令で最大8つの並列タスクを生成：
+1つの命令で最大4つの並列タスクを生成：
 
 ```
-あなた: 「5つのMCPサーバを調査せよ」
-→ 5体のKingsglaiveが同時に調査開始
+あなた: 「4つのMCPサーバを調査せよ」
+→ 4名のComradesが同時に調査開始
 → 数時間ではなく数分で結果が出る
 ```
 
@@ -413,7 +413,7 @@ screenshot:
 | Layer 4: Session | AGENTS.md, instructions/*.md | 作業中コンテキスト（/clearで破棄） |
 
 この設計により：
-- どのKingsglaiveでも任意のプロジェクトを担当可能
+- どのComradeでも任意のプロジェクトを担当可能
 - エージェント切り替え時もコンテキスト継続
 - 関心の分離が明確
 - セッション間の知識永続化
@@ -422,10 +422,10 @@ screenshot:
 
 長時間作業するとコンテキスト（Layer 4）が膨れ、APIコストが増大する。`/clear` でセッション記憶を消去すれば、コストがリセットされる。Layer 1〜3はファイルとして残るので失われない。
 
-`/clear` 後のKingsglaiveの復帰コスト: **約1,950トークン**（目標5,000の39%）
+`/clear` 後のComradesの復帰コスト: **約1,950トークン**（目栙5,000の39%）
 
 1. AGENTS.md（自動読み込み）→ noctisシステムの一員と認識
-2. `tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'` → 自分の番号を確認
+2. `tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'` → 自分のIDを確認
 3. Memory MCP 読み込み → Kingの好みを復元（~700トークン）
 4. タスクYAML 読み込み → 次の仕事を確認（~800トークン）
 
@@ -448,7 +448,7 @@ screenshot:
 この統一フォーマットにより：
 - どのエージェントでも素早くオンボーディング可能
 - すべてのプロジェクトで一貫した情報管理
-- Kingsglaive間の作業引き継ぎが容易
+- Comrades間の作業引き継ぎが容易
 
 ---
 
@@ -458,19 +458,19 @@ screenshot:
 |-------------|--------|----------|------|
 | Noctis | Opus | 無効 | 委譲とダッシュボード更新に深い推論は不要 |
 | Ignis | Opus | 有効 | タスク分配には慎重な判断が必要 |
-| Kingsglaive1-4 | Sonnet | 有効 | コスト効率重視の標準タスク向け |
-| Kingsglaive5-8 | Opus | 有効 | 複雑なタスク向けのフル機能 |
+| Gladiolus / Prompto | Sonnet | 有効 | コスト効率重視の標準タスク向け |
+| Lunafreya / Iris | Opus | 有効 | 複雑なタスク向けのフル機能 |
 
 Noctisは `MAX_THINKING_TOKENS=0` で拡張思考を無効化し、高レベルな判断にはOpusの能力を維持しつつ、レイテンシとコストを削減。
 
-#### 陣形モード
+#### モード構成
 
-| 陣形 | Kingsglaive1-4 | Kingsglaive5-8 | コマンド |
+| モード | Gladiolus / Prompto | Lunafreya / Iris | コマンド |
 |------|---------|---------|---------|
-| **平時の陣**（デフォルト） | Sonnet Thinking | Opus Thinking | `./shutsujin_departure.sh` |
-| **決戦の陣**（全力） | Opus Thinking | Opus Thinking | `./shutsujin_departure.sh -k` |
+| **Normal**（デフォルト） | Sonnet Thinking | Opus Thinking | `./standby.sh` |
+| **Full Power**（全力） | Opus Thinking | Opus Thinking | `./standby.sh -k` |
 
-平時は半数を安いSonnetモデルで運用。ここぞという時に `-k`（`--kessen`）で全軍Opusの「決戦の陣」に切り替え。Ignisの判断で `/model opus` を送れば、個別のKingsglaiveを一時昇格させることも可能。
+普段はGladiolus/PromptoをSonnetモデルで運用。ここぞという時に `-k`（`--fullpower`）で全員 Opusの「Full Power」モードに切り替え。Ignisの判断で `/model opus` を送れば、個別のComradeを一時昇格させることも可能。
 
 ---
 
@@ -482,7 +482,7 @@ Noctisシステムは5つの核心原則に基づいて設計されている：
 
 | 原則 | 説明 |
 |------|------|
-| **自律陣形設計** | テンプレートではなく、タスクの複雑さに応じて陣形を設計 |
+| **自律フォーメーション設計** | テンプレートではなく、タスクの複雑さに応じてフォーメーションを設計 |
 | **並列化** | サブエージェントを活用し、単一障害点を作らない |
 | **リサーチファースト** | 判断の前にエビデンスを探す |
 | **継続的学習** | モデルの知識カットオフだけに頼らない |
@@ -494,13 +494,13 @@ Noctisシステムは5つの核心原則に基づいて設計されている：
 
 ## 🎯 設計思想
 
-### なぜ階層構造（Noctis→Ignis→Kingsglaive）なのか
+### なぜ階層構造（Noctis→Ignis→Comrades）なのか
 
 1. **即座の応答**: Noctisは即座に委譲し、あなたに制御を返す
-2. **並列実行**: Ignisが複数のKingsglaiveに同時分配
+2. **並列実行**: Ignisが複数のComradesに同時分配
 3. **単一責任**: 各役割が明確に分離され、混乱しない
-4. **スケーラビリティ**: Kingsglaiveを増やしても構造が崩れない
-5. **障害分離**: 1体のKingsglaiveが失敗しても他に影響しない
+4. **スケーラビリティ**: Comradesを増やしても構造が崩れない
+5. **障害分離**: 1名のComradeが失敗しても他に影響しない
 6. **人間への報告一元化**: Noctisだけが人間とやり取りするため、情報が整理される
 
 ### なぜ YAML + send-keys なのか
@@ -509,12 +509,12 @@ Noctisシステムは5つの核心原則に基づいて設計されている：
 2. **ポーリング不要**: イベント駆動でAPIコストを削減
 3. **割り込み防止**: エージェント同士やあなたの入力への割り込みを防止
 4. **デバッグ容易**: 人間がYAMLを直接読んで状況把握できる
-5. **競合回避**: 各Kingsglaiveに専用ファイルを割り当て
-6. **2秒間隔送信**: 複数Kingsglaiveへの連続送信時に `sleep 2` を挟むことで、入力バッファ溢れを防止（到達率14%→87.5%に改善）
+5. **競合回避**: 各Comradeに専用ファイルを割り当て
+6. **2秒間隔送信**: 複数Comradesへの連続送信時に `sleep 2` を挟むことで、入力バッファ溢れを防止（到達率14%→87.5%に改善）
 
 ### エージェント識別（@agent_id）
 
-各ペインに `@agent_id` というtmuxユーザーオプションを設定（例: `ignis`, `kingsglaive1`）。`pane_index` はペイン再配置でズレるが、`@agent_id` は `shutsujin_departure.sh` が起動時に固定設定するため変わらない。
+各ペインに `@agent_id` というtmuxユーザーオプションを設定（例: `ignis`, `gladiolus`）。`pane_index` はペイン再配置でズレるが、`@agent_id` は `standby.sh` が起動時に固定設定するため変わらない。
 
 エージェントの自己識別:
 ```bash
@@ -527,7 +527,7 @@ tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
 ### なぜ dashboard.md はIgnisのみが更新するのか
 
 1. **単一更新者**: 競合を防ぐため、更新責任者を1人に限定
-2. **情報集約**: Ignisは全Kingsglaiveの報告を受ける立場なので全体像を把握
+2. **情報集約**: Ignisは全Comradesの報告を受ける立場なので全体像を把握
 3. **一貫性**: すべての更新が1つの品質ゲートを通過
 4. **割り込み防止**: Noctisが更新すると、Kingの入力中に割り込む恐れあり
 
@@ -551,7 +551,7 @@ tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
 **2. スキル取得の手順**
 
 ```
-Kingsglaiveが作業中にパターンを発見
+Comradeが作業中にパターンを発見
     ↓
 dashboard.md の「スキル化候補」に上がる
     ↓
@@ -628,17 +628,16 @@ opencode mcp list
 ### 例1: 調査タスク
 
 ```
-あなた: 「AIコーディングアシスタント上位5つを調査して比較せよ」
+あなた: 「AIコーディングアシスタント上位4つを調査して比較せよ」
 
 実行される処理:
 1. NoctisがIgnisに委譲
 2. Ignisが割り当て:
-   - Kingsglaive1: GitHub Copilotを調査
-   - Kingsglaive2: Cursorを調査
-   - Kingsglaive3: OpenCodeを調査
-   - Kingsglaive4: Codeiumを調査
-   - Kingsglaive5: Amazon CodeWhispererを調査
-3. 5体が同時に調査
+   - Gladiolus: GitHub Copilotを調査
+   - Prompto: Cursorを調査
+   - Lunafreya: OpenCodeを調査
+   - Iris: Codeiumを調査
+3. 4名が同時に調査
 4. 結果がdashboard.mdに集約
 ```
 
@@ -649,9 +648,9 @@ opencode mcp list
 
 実行される処理:
 1. IgnisがMCP経由でNotionコンテンツを取得
-2. Kingsglaive2: 確認すべき項目をリスト化
-3. Kingsglaive3: 技術的な実現可能性を調査
-4. Kingsglaive4: PoC計画書を作成
+2. Prompto: 確認すべき項目をリスト化
+3. Lunafreya: 技術的な実現可能性を調査
+4. Iris: PoC計画書を作成
 5. 全結果がdashboard.mdに集約、会議の準備完了
 ```
 
@@ -697,11 +696,11 @@ language: en   # 日本語 + 英訳併記
 │                      毎日の起動（毎日実行）                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  shutsujin_departure.sh                                             │
+│  standby.sh                                                          │
 │      │                                                              │
 │      ├──▶ tmuxセッションを作成                                       │
 │      │         • "noctis"セッション（1ペイン）                        │
-│      │         • "kingsglaive"セッション（9ペイン、3x3グリッド）        │
+│      │         • "kingsglaive"セッション（5ペイン、Ignis上段+Comrades 2x2）│
 │      │                                                              │
 │      ├──▶ キューファイルとダッシュボードをリセット                     │
 │      │                                                              │
@@ -713,31 +712,31 @@ language: en   # 日本語 + 英訳併記
 </details>
 
 <details>
-<summary><b>shutsujin_departure.sh オプション</b>（クリックで展開）</summary>
+<summary><b>standby.sh オプション</b>（クリックで展開）</summary>
 
 ```bash
 # デフォルト: フル起動（tmuxセッション + OpenCode起動）
-./shutsujin_departure.sh
+./standby.sh
 
 # セッションセットアップのみ（OpenCode起動なし）
-./shutsujin_departure.sh -s
-./shutsujin_departure.sh --setup-only
+./standby.sh -s
+./standby.sh --setup-only
 
 # タスクキューをクリア（指令履歴は保持）
-./shutsujin_departure.sh -c
-./shutsujin_departure.sh --clean
+./standby.sh -c
+./standby.sh --clean
 
-# 決戦の陣: 全KingsglaiveをOpusで起動（最大能力・高コスト）
-./shutsujin_departure.sh -k
-./shutsujin_departure.sh --kessen
+# Full Power: 全ComradesをOpusで起動（最大能力・高コスト）
+./standby.sh -k
+./standby.sh --fullpower
 
 # フル起動 + Windows Terminalタブを開く
-./shutsujin_departure.sh -t
-./shutsujin_departure.sh --terminal
+./standby.sh -t
+./standby.sh --terminal
 
 # ヘルプを表示
-./shutsujin_departure.sh -h
-./shutsujin_departure.sh --help
+./standby.sh -h
+./standby.sh --help
 ```
 
 </details>
@@ -747,13 +746,13 @@ language: en   # 日本語 + 英訳併記
 
 **通常の毎日の使用：**
 ```bash
-./shutsujin_departure.sh          # 全て起動
+./standby.sh          # 全て起動
 tmux attach-session -t noctis     # 接続してコマンドを出す
 ```
 
 **デバッグモード（手動制御）：**
 ```bash
-./shutsujin_departure.sh -s       # セッションのみ作成
+./standby.sh -s       # セッションのみ作成
 
 # 特定のエージェントでOpenCodeを手動起動
 tmux send-keys -t noctis:0 'opencode' Enter
@@ -767,7 +766,7 @@ tmux kill-session -t noctis
 tmux kill-session -t kingsglaive
 
 # 新しく起動
-./shutsujin_departure.sh
+./standby.sh
 ```
 
 </details>
@@ -779,7 +778,7 @@ tmux kill-session -t kingsglaive
 
 ```bash
 alias css='tmux attach-session -t noctis'      # Noctisウィンドウの起動
-alias csm='tmux attach-session -t kingsglaive'  # Ignis・Kingsglaiveウィンドウの起動
+alias csm='tmux attach-session -t kingsglaive'  # Ignis・Comradesウィンドウの起動
 ```
 
 ※ エイリアスを反映するには `source ~/.bashrc` を実行するか、PowerShellで `wsl --shutdown` してからターミナルを開き直してください。
@@ -799,13 +798,13 @@ multi-agent-ff15/
 │  ┌─────────────────── セットアップスクリプト ───────────────────┐
 ├── install.bat               # Windows: 初回セットアップ
 ├── first_setup.sh            # Ubuntu/Mac: 初回セットアップ
-├── shutsujin_departure.sh    # 毎日の起動（指示書自動読み込み）
+├── standby.sh    # 毎日の起動（指示書自動読み込み）
 │  └────────────────────────────────────────────────────────────┘
 │
 ├── instructions/             # エージェント指示書
 │   ├── noctis.md             # Noctisの指示書
 │   ├── ignis.md               # Ignisの指示書
-│   └── kingsglaive.md           # Kingsglaiveの指示書
+│   └── comrades.md               # Comradesの指示書
 │
 ├── config/
 │   └── settings.yaml         # 言語その他の設定

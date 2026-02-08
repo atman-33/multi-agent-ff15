@@ -131,7 +131,7 @@ echo   ^|    3. ./first_setup.sh                                    ^|
 echo   ^|                                                            ^|
 echo   ^|  Every time you use / 使うたびに:                          ^|
 echo   ^|    cd /mnt/c/tools/multi-agent-ff15                          ^|
-echo   ^|    ./shutsujin_departure.sh                                ^|
+echo   ^|    ./standby.sh                                             ^|
 echo   ^|                                                            ^|
 echo   +------------------------------------------------------------+
 echo.

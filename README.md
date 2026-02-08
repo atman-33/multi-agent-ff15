@@ -4,7 +4,7 @@
 
 **Command your AI army like a feudal warlord.**
 
-Run 8 OpenCode agents in parallel — orchestrated through a samurai-inspired hierarchy with zero coordination overhead.
+Run 6 OpenCode agents in parallel — orchestrated through a FF15-inspired hierarchy with zero coordination overhead.
 
 [![GitHub Stars](https://img.shields.io/github/stars/yohey-w/multi-agent-ff15?style=social)](https://github.com/yohey-w/multi-agent-ff15)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -17,14 +17,14 @@ Run 8 OpenCode agents in parallel — orchestrated through a samurai-inspired hi
 </div>
 
 <p align="center">
-  <img src="assets/screenshots/tmux_kingsglaive_9panes.png" alt="multi-agent-ff15: 9 panes running in parallel" width="800">
+  <img src="assets/screenshots/tmux_kingsglaive_5panes.png" alt="multi-agent-ff15: 5 panes running in parallel" width="800">
 </p>
 
-<p align="center"><i>One Ignis (manager) coordinating 8 Kingsglaive (workers) — real session, no mock data.</i></p>
+<p align="center"><i>One Ignis (strategist) coordinating 4 Comrades (Gladiolus, Prompto, Lunafreya, Iris) — real session, no mock data.</i></p>
 
 ---
 
-Give a single command. The **Noctis** (general) delegates to the **Ignis** (steward), who distributes work across up to **8 Kingsglaive** (foot soldiers) — all running as independent OpenCode processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
+Give a single command. The **Noctis** (prince) delegates to the **Ignis** (strategist), who distributes work across **4 Comrades** — Gladiolus, Prompto, Lunafreya, and Iris — all running as independent OpenCode processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
 
 
 
@@ -55,7 +55,7 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 | | OpenCode | LangGraph | CrewAI | **multi-agent-ff15** |
 |---|---|---|---|---|
 | **Architecture** | Agents with tools | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
-| **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **8 independent agents** |
+| **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **6 independent agents** |
 | **Coordination cost** | API calls | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
 | **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + dashboard |
 | **Skill discovery** | None | None | None | **Bottom-up auto-proposal** |
@@ -63,11 +63,11 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 
 ### What makes this different
 
-**Zero coordination overhead** — Agents talk through YAML files on disk. The only API calls are for actual work, not orchestration. Run 8 agents and pay only for 8 agents' work.
+**Zero coordination overhead** — Agents talk through YAML files on disk. The only API calls are for actual work, not orchestration. Run 6 agents and pay only for 6 agents' work.
 
 **Full transparency** — Every agent runs in a visible tmux pane. Every instruction, report, and decision is a plain YAML file you can read, diff, and version-control. No black boxes.
 
-**Battle-tested hierarchy** — The Noctis → Ignis → Kingsglaive chain of command prevents conflicts by design: clear ownership, dedicated files per agent, event-driven communication, no polling.
+**Battle-tested hierarchy** — The Noctis → Ignis → Comrades chain of command prevents conflicts by design: clear ownership, dedicated files per agent, event-driven communication, no polling.
 
 ---
 
@@ -75,10 +75,10 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 
 This is the feature no other framework has.
 
-As Kingsglaive execute tasks, they **automatically identify reusable patterns** and propose them as skill candidates. The Ignis aggregates these proposals in `dashboard.md`, and you — the Lord — decide what gets promoted to a permanent skill.
+As Comrades execute tasks, they **automatically identify reusable patterns** and propose them as skill candidates. The Ignis aggregates these proposals in `dashboard.md`, and you — the Lord — decide what gets promoted to a permanent skill.
 
 ```
-Kingsglaive finishes a task
+Comrade finishes a task
     ↓
 Notices: "I've done this pattern 3 times across different projects"
     ↓
@@ -87,7 +87,7 @@ Reports in YAML:  skill_candidate:
                      name: "api-endpoint-scaffold"
                      reason: "Same REST scaffold pattern used in 3 projects"
     ↓
-Appears in dashboard.md → You approve → Skill created in .opencode/skills/
+Appears in dashboard.md → You approve → Skill created in skills/
     ↓
 Any agent can now invoke /api-endpoint-scaffold
 ```
@@ -106,19 +106,19 @@ Skills grow organically from real work — not from a predefined template librar
              ▼  Give orders
       ┌─────────────┐
       │   NOCTIS    │  Receives your command, plans strategy
-      │    (Noctis)    │  Session: noctis
+      │   (王子)     │  Session: noctis
       └──────┬──────┘
              │  YAML + send-keys
       ┌──────▼──────┐
-      │    IGNIS     │  Breaks tasks down, assigns to workers
-      │    (Ignis)    │  Session: kingsglaive, pane 0
+      │    IGNIS     │  Breaks tasks down, assigns to comrades
+      │   (軍師)     │  Session: kingsglaive, pane 0
       └──────┬──────┘
              │  YAML + send-keys
-    ┌─┬─┬─┬─┴─┬─┬─┬─┐
-    │1│2│3│4│5│6│7│8│  Execute in parallel
-    └─┴─┴─┴─┴─┴─┴─┴─┘
-         KINGSGLAIVE (Kingsglaive)
-         Panes 1-8
+  ┌──────────┬──────────┬──────────┐
+  │          │          │          │
+GLADIOLUS  PROMPTO  LUNAFREYA    IRIS    Execute in parallel
+  (盾)      (銃)     (神凪)      (花)    Session: kingsglaive
+ pane 1    pane 2    pane 3     pane 4
 ```
 
 **Communication protocol:**
@@ -139,21 +139,21 @@ After `/clear`, an agent recovers in **~2,000 tokens** by reading Memory MCP + i
 
 ---
 
-## Battle Formations
+## Party Formations
 
-Agents can be deployed in different **formations** (陣形 / *jindate*) depending on the task:
+Agents can be deployed in different **formations** depending on the task:
 
-| Formation | Kingsglaive 1–4 | Kingsglaive 5–8 | Best for |
-|-----------|-------------|-------------|----------|
-| **Normal** (default) | Sonnet | Opus | Everyday tasks — cost-efficient |
-| **Battle** (`-k` flag) | Opus | Opus | Critical tasks — maximum capability |
+| Formation | Gladiolus / Prompto | Lunafreya / Iris | Best for |
+|-----------|---------------------|------------------|----------|
+| **Normal** (default) | Sonnet (thinking) | Opus (thinking) | Everyday tasks — cost-efficient |
+| **Battle** (`-k` flag) | Opus (thinking) | Opus (thinking) | Critical tasks — maximum capability |
 
 ```bash
-./shutsujin_departure.sh          # Normal formation
-./shutsujin_departure.sh -k       # Battle formation (all Opus)
+./standby.sh          # Normal formation
+./standby.sh -k       # Battle formation (all Opus)
 ```
 
-The Ignis can also promote individual Kingsglaive mid-session with `/model opus` when a specific task demands it.
+The Ignis can also promote individual Comrades mid-session with `/model opus` when a specific task demands it.
 
 ---
 
@@ -171,7 +171,7 @@ git clone https://github.com/yohey-w/multi-agent-ff15.git C:\tools\multi-agent-f
 # 3. In Ubuntu terminal:
 cd /mnt/c/tools/multi-agent-ff15
 ./first_setup.sh          # One-time: installs tmux, dependencies, OpenCode CLI
-./shutsujin_departure.sh  # Deploy your army
+./standby.sh  # Deploy your army
 ```
 
 ### Linux / macOS
@@ -183,7 +183,7 @@ cd ~/multi-agent-ff15 && chmod +x *.sh
 
 # 2. Setup + Deploy
 ./first_setup.sh          # One-time: installs dependencies
-./shutsujin_departure.sh  # Deploy your army
+./standby.sh  # Deploy your army
 ```
 
 ### First-time only: Authentication
@@ -207,8 +207,8 @@ This saves credentials to `~/.opencode/` — you won't need to do it again.
 
 ```bash
 cd /path/to/multi-agent-ff15
-./shutsujin_departure.sh           # Normal startup (resumes existing tasks)
-./shutsujin_departure.sh -c        # Clean startup (resets task queues, preserves command history)
+./standby.sh           # Normal startup (resumes existing tasks)
+./standby.sh -c        # Clean startup (resets task queues, preserves command history)
 tmux attach-session -t noctis      # Connect and give orders
 ```
 
@@ -220,7 +220,7 @@ tmux attach-session -t noctis      # Connect and give orders
 <summary><b>Convenient aliases</b> (added by first_setup.sh)</summary>
 
 ```bash
-alias csst='cd /mnt/c/tools/multi-agent-ff15 && ./shutsujin_departure.sh'
+alias csst='cd /mnt/c/tools/multi-agent-ff15 && ./standby.sh'
 alias css='tmux attach-session -t noctis'
 alias csm='tmux attach-session -t kingsglaive'
 ```
@@ -252,10 +252,10 @@ Control your AI army from your phone — bed, café, or bathroom.
    ssh youruser@your-tailscale-ip
    css    # Connect to Noctis
    ```
-4. Open a new Termux window (+ button) for workers:
+4. Open a new Termux window (+ button) for comrades:
    ```sh
    ssh youruser@your-tailscale-ip
-   csm    # See all 9 panes
+   csm    # See all 5 panes
    ```
 
 **Disconnect:** Just swipe the Termux window closed. tmux sessions survive — agents keep working.
@@ -278,22 +278,21 @@ The Noctis writes the task to `queue/noctis_to_ignis.yaml` and wakes the Ignis. 
 
 ### 3. Ignis distributes
 
-The Ignis breaks the task into subtasks and assigns each to an Kingsglaive:
+The Ignis breaks the task into subtasks and assigns each to a Comrade:
 
-| Worker | Assignment |
-|--------|-----------|
-| Kingsglaive 1 | Research Notion MCP |
-| Kingsglaive 2 | Research GitHub MCP |
-| Kingsglaive 3 | Research Playwright MCP |
-| Kingsglaive 4 | Research Memory MCP |
-| Kingsglaive 5 | Research Sequential Thinking MCP |
+| Comrade | Assignment |
+|--------|------------|
+| Gladiolus | Research Notion MCP |
+| Prompto | Research GitHub MCP |
+| Lunafreya | Research Playwright MCP |
+| Iris | Research Memory MCP |
 
 ### 4. Parallel execution
 
-All 5 Kingsglaive research simultaneously. You can watch them work in real time:
+All 4 Comrades research simultaneously. You can watch them work in real time:
 
 <p align="center">
-  <img src="assets/screenshots/tmux_kingsglaive_working.png" alt="Kingsglaive agents working in parallel" width="700">
+  <img src="assets/screenshots/tmux_kingsglaive_working.png" alt="Comrades executing tasks in parallel" width="700">
 </p>
 
 ### 5. Results in dashboard
@@ -315,7 +314,7 @@ projects:
     status: active
 ```
 
-**Research sprints** — 8 agents research different topics in parallel, results compiled in minutes.
+**Research sprints** — 4 Comrades research different topics in parallel, results compiled in minutes.
 
 **Multi-project management** — Switch between client projects without losing context. Memory MCP preserves preferences across sessions.
 
@@ -329,8 +328,8 @@ projects:
 
 ```yaml
 # config/settings.yaml
-language: ja   # Samurai Japanese only
-language: en   # Samurai Japanese + English translation
+language: ja   # FF15-style Japanese only
+language: en   # FF15-style Japanese + English translation
 ```
 
 ### Model assignment
@@ -339,8 +338,10 @@ language: en   # Samurai Japanese + English translation
 |-------|--------------|----------|
 | Noctis | Opus | Disabled (delegation doesn't need deep reasoning) |
 | Ignis | Opus | Enabled |
-| Kingsglaive 1–4 | Sonnet | Enabled |
-| Kingsglaive 5–8 | Opus | Enabled |
+| Gladiolus | Sonnet | Enabled |
+| Prompto | Sonnet | Enabled |
+| Lunafreya | Opus | Enabled |
+| Iris | Opus | Enabled |
 
 ### MCP servers
 
@@ -398,12 +399,12 @@ Tell the Noctis "check the latest screenshot" and it reads your screen captures 
 multi-agent-ff15/
 ├── install.bat                # Windows first-time setup
 ├── first_setup.sh             # Linux/Mac first-time setup
-├── shutsujin_departure.sh     # Daily deployment script
+├── standby.sh             # Daily deployment script
 │
 ├── instructions/              # Agent behavior definitions
 │   ├── noctis.md
 │   ├── ignis.md
-│   └── kingsglaive.md
+│   └── comrades.md
 │
 ├── config/
 │   ├── settings.yaml          # Language, model, screenshot settings
@@ -411,8 +412,8 @@ multi-agent-ff15/
 │
 ├── queue/                     # Communication (source of truth)
 │   ├── noctis_to_ignis.yaml
-│   ├── tasks/kingsglaive{1-8}.yaml
-│   └── reports/kingsglaive{1-8}_report.yaml
+│   ├── tasks/{worker_name}.yaml
+│   └── reports/{worker_name}_report.yaml
 │
 ├── memory/                    # Memory MCP persistent storage
 ├── dashboard.md               # Human-readable status board
@@ -454,11 +455,11 @@ tmux respawn-pane -t noctis:0.0 -k 'opencode'
 </details>
 
 <details>
-<summary><b>Workers stuck?</b></summary>
+<summary><b>Comrades stuck?</b></summary>
 
 ```bash
 tmux attach-session -t kingsglaive
-# Ctrl+B then 0-8 to switch panes
+# Ctrl+B then 0-4 to switch panes
 ```
 
 </details>
@@ -470,8 +471,8 @@ tmux attach-session -t kingsglaive
 | Command | Description |
 |---------|-------------|
 | `tmux attach -t noctis` | Connect to the Noctis |
-| `tmux attach -t kingsglaive` | Connect to workers |
-| `Ctrl+B` then `0`–`8` | Switch panes |
+| `tmux attach -t kingsglaive` | Connect to comrades |
+| `Ctrl+B` then `0`–`4` | Switch panes |
 | `Ctrl+B` then `d` | Detach (agents keep running) |
 
 Mouse support is enabled by default (`set -g mouse on` in `~/.tmux.conf`, configured by `first_setup.sh`). Scroll, click to focus, drag to resize.
@@ -498,7 +499,7 @@ Inspired by multi-agent AI development patterns and the OpenCode ecosystem.
 
 <div align="center">
 
-**One command. Eight agents. Zero coordination cost.**
+**One command. Six agents. Zero coordination cost.**
 
 ⭐ Star this repo if you find it useful — it helps others discover it.
 

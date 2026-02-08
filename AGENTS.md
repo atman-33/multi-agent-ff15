@@ -1,6 +1,6 @@
 # multi-agent-ff15
 
-> **Version**: 3.0  
+> **Version**: 4.0  
 > **Last Updated**: 2026-02-08  
 > **Framework**: OpenCode
 
@@ -29,9 +29,10 @@ King (User)
 └────┬─────┘
      │ YAML + send-keys
      ▼
-┌──┬──┬──┬──┬──┬──┬──┬──┐
-│K1│K2│K3│K4│K5│K6│K7│K8│ ← Kingsglaive 1-8 (Workers)
-└──┴──┴──┴──┴──┴──┴──┴──┘
+┌────────────┬──────────┬────────────┬────────┐
+│ GLADIOLUS  │ PROMPTO  │ LUNAFREYA  │  IRIS  │ ← Comrades (4)
+│  (盾)      │  (銃)    │  (神凪)     │ (花)   │
+└────────────┴──────────┴────────────┴────────┘
 ```
 
 ## Architecture
@@ -63,8 +64,8 @@ Layer 2: Project (Persistent, project-specific)
 
 Layer 3: YAML Queue (Persistent, filesystem)
   └─ queue/noctis_to_ignis.yaml
-  └─ queue/tasks/kingsglaive{N}.yaml
-  └─ queue/reports/kingsglaive{N}_report.yaml
+  └─ queue/tasks/{worker_name}.yaml
+  └─ queue/reports/{worker_name}_report.yaml
 
 Layer 4: Session (Volatile, context)
   └─ AGENTS.md (auto-loaded), instructions/*.md
@@ -79,17 +80,26 @@ multi-agent-ff15/
 ├── instructions/
 │   ├── noctis.md              # Noctis agent instructions
 │   ├── ignis.md               # Ignis agent instructions
-│   └── kingsglaive.md         # Kingsglaive agent instructions
+│   └── comrades.md            # Comrade agent instructions
 ├── config/
 │   ├── settings.yaml          # Language, model, screenshot settings
+│   ├── models.yaml            # Model configuration per mode
 │   └── projects.yaml          # Project registry
 ├── queue/                     # Communication (source of truth)
 │   ├── noctis_to_ignis.yaml
-│   ├── tasks/kingsglaive{1-8}.yaml
-│   └── reports/kingsglaive{1-8}_report.yaml
+│   ├── tasks/
+│   │   ├── gladiolus.yaml     # Gladiolus task file
+│   │   ├── prompto.yaml       # Prompto task file
+│   │   ├── lunafreya.yaml     # Lunafreya task file
+│   │   └── iris.yaml          # Iris task file
+│   └── reports/
+│       ├── gladiolus_report.yaml
+│       ├── prompto_report.yaml
+│       ├── lunafreya_report.yaml
+│       └── iris_report.yaml
 ├── memory/                    # Memory MCP storage
 ├── dashboard.md               # Human-readable status board
-├── shutsujin_departure.sh     # Deployment script
+├── standby.sh                  # Deployment script
 └── setup.sh                   # First-time setup
 ```
 
@@ -99,7 +109,7 @@ multi-agent-ff15/
 |-----------|---------|
 | `config/` | Configuration files (settings, projects) |
 | `context/` | Project-specific context files |
-| `instructions/` | Agent role definitions (noctis, ignis, kingsglaive) |
+| `instructions/` | Agent role definitions (noctis, ignis, comrades) |
 | `memory/` | Memory MCP persistent storage |
 | `queue/` | Task queues and reports (YAML) |
 | `skills/` | Skill definitions |
@@ -111,18 +121,18 @@ multi-agent-ff15/
 ### Setup
 ```bash
 ./setup.sh                    # First-time setup (installs tmux, dependencies)
-./shutsujin_departure.sh      # Deploy the agent army
+./standby.sh                  # Deploy the agent army
 ```
 
 ### tmux Sessions
 ```bash
 tmux attach-session -t noctis        # Connect to Noctis
-tmux attach-session -t kingsglaive   # Connect to workers (Ignis + Kingsglaive)
+tmux attach-session -t kingsglaive   # Connect to Ignis + Comrades
 ```
 
 ### Within tmux
 ```bash
-Ctrl+B then 0-8    # Switch panes
+Ctrl+B then 0-4    # Switch panes
 d                  # Detach (agents keep running)
 ```
 
@@ -134,8 +144,8 @@ d                  # Detach (agents keep running)
 
 ### YAML Status Transitions
 - `idle` → `assigned` (Ignis assigns task)
-- `assigned` → `done` (Kingsglaive completes task)
-- `assigned` → `failed` (Kingsglaive fails task)
+- `assigned` → `done` (Comrade completes task)
+- `assigned` → `failed` (Comrade fails task)
 
 ### Timestamp Format
 ```bash
@@ -155,7 +165,7 @@ date "+%Y-%m-%dT%H:%M:%S"
 - **Responsibilities**:
   - Delegates to Ignis via YAML
   - Never executes tasks directly
-  - Never contacts Kingsglaive directly
+  - Never contacts Comrades directly
 
 ### Ignis (軍師)
 - **Role**: Task manager, distributes work
@@ -163,14 +173,20 @@ date "+%Y-%m-%dT%H:%M:%S"
 - **Model**: Opus (thinking enabled)
 - **Responsibilities**:
   - Breaks down tasks from Noctis
-  - Assigns to Kingsglaive via YAML
+  - Assigns to Comrades via YAML
   - Updates dashboard.md
   - Never executes tasks directly
 
-### Kingsglaive 1-8 (王の剣)
-- **Role**: Workers, execute actual tasks
-- **Location**: tmux session `kingsglaive`, panes 1-8
-- **Model**: Sonnet Thinking (1-4), Opus Thinking (5-8)
+### Comrades (4 members)
+
+| Name | Character | Location | Model |
+|------|-----------|----------|-------|
+| **Gladiolus** (グラディオラス) | 王の盾 | `kingsglaive` pane 1 | Sonnet Thinking |
+| **Prompto** (プロンプト) | 銃使い | `kingsglaive` pane 2 | Sonnet Thinking |
+| **Lunafreya** (ルナフレーナ) | 神凪 | `kingsglaive` pane 3 | Opus Thinking |
+| **Iris** (イリス) | 花 | `kingsglaive` pane 4 | Opus Thinking |
+
+- **Role**: Execute actual tasks assigned by Ignis
 - **Responsibilities**:
   - Execute assigned tasks
   - Write reports to YAML
@@ -179,11 +195,11 @@ date "+%Y-%m-%dT%H:%M:%S"
 
 ## Communication Rules
 
-### Upward Reports (Kingsglaive → Ignis)
+### Upward Reports (Comrade → Ignis)
 - Write report YAML
 - Send send-keys to wake Ignis (mandatory)
 
-### Downstream Commands (Noctis → Ignis → Kingsglaive)
+### Downstream Commands (Noctis → Ignis → Comrades)
 - Write YAML
 - Send send-keys to wake target
 
@@ -203,7 +219,7 @@ date "+%Y-%m-%dT%H:%M:%S"
 | F005 | Skip context reading | Causes errors |
 
 ### Model Override Protocol
-Kingsglaive models can be dynamically switched:
+Comrade models can be dynamically switched:
 - **Promote**: Sonnet → Opus for complex tasks
 - **Demote**: Opus → Sonnet for simple tasks
 
@@ -227,7 +243,7 @@ language: ja  # ja, en, es, zh, ko, fr, de, etc.
 ## Skill Discovery
 
 Bottom-up skill discovery system:
-1. Kingsglaive identifies reusable patterns during task execution
+1. Comrades identify reusable patterns during task execution
 2. Reports `skill_candidate` in YAML
 3. Ignis aggregates in dashboard.md
 4. User approves and promotes to skill
@@ -242,12 +258,12 @@ When starting a new session (first launch):
 2. **Read your role's instructions**:
    - Noctis → instructions/noctis.md
    - Ignis → instructions/ignis.md
-   - Kingsglaive → instructions/kingsglaive.md
+   - Comrades → instructions/comrades.md
 3. **Start working** after loading required context files
 
-### After /clear (Kingsglaive only)
+### After /clear (Comrades only)
 
-After receiving /clear, Kingsglaive recover with minimal cost:
+After receiving /clear, Comrades recover with minimal cost:
 
 **Recovery Flow (~5,000 tokens)**:
 ```
@@ -257,14 +273,14 @@ After receiving /clear, Kingsglaive recover with minimal cost:
   │
   ▼ Step 1: Check your ID
   │   tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
-  │   → Example: kingsglaive3 → You are Kingsglaive 3
+  │   → Example: gladiolus → You are Gladiolus
   │
   ▼ Step 2: Read Memory MCP (~700 tokens)
   │   ToolSearch("select:mcp__memory__read_graph")
   │   mcp__memory__read_graph()
   │
   ▼ Step 3: Read your task YAML (~800 tokens)
-  │   queue/tasks/kingsglaive{N}.yaml
+  │   queue/tasks/{your_name}.yaml
   │   → status: assigned = resume work
   │   → status: idle = wait for next instruction
   │
@@ -286,13 +302,13 @@ After compaction, reconstruct context from source of truth:
 
 **Ignis**:
 1. queue/noctis_to_ignis.yaml — Command queue
-2. queue/tasks/kingsglaive{N}.yaml — Assignment status
-3. queue/reports/kingsglaive{N}_report.yaml — Pending reports
+2. queue/tasks/{worker_name}.yaml — Assignment status (gladiolus, prompto, lunafreya, iris)
+3. queue/reports/{worker_name}_report.yaml — Pending reports
 4. Memory MCP (read_graph) — System settings
 
-**Kingsglaive**:
+**Comrades** (Gladiolus, Prompto, Lunafreya, Iris):
 1. Check your ID: `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
-2. Read queue/tasks/kingsglaive{N}.yaml — Your task
+2. Read queue/tasks/{your_name}.yaml — Your task
 3. Memory MCP (read_graph) — System settings
 
 > **Important**: dashboard.md is secondary info (Ignis's summary). Source of truth is YAML files.
@@ -313,10 +329,10 @@ mcp__memory__read_graph()
 Use `{@agent_id}` for reliable identification:
 ```bash
 tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
-# Returns: noctis | ignis | kingsglaive1-8
+# Returns: noctis | ignis | gladiolus | prompto | lunafreya | iris
 ```
 
 For lookup by agent_id:
 ```bash
-tmux list-panes -t kingsglaive:agents -F '#{pane_index}' -f '#{==:{@agent_id},kingsglaive3}'
+tmux list-panes -t kingsglaive:agents -F '#{pane_index}' -f '#{==:{@agent_id},gladiolus}'
 ```

@@ -1,31 +1,103 @@
 # Model configuration by mode
+# Each agent has: model (OpenCode model ID), label (display name), agent (optional, for future use)
+# Comrades: gladiolus, prompto / lunafreya, iris
 modes:
   normal:
-    noctis_model: github-copilot/claude-sonnet-4.5
-    noctis_label: Sonnet 4.5
-    ignis_model: github-copilot/claude-sonnet-4.5
-    ignis_label: Sonnet 4.5
-    kingsglaive_1_4_model: github-copilot/grok-code-fast-1
-    kingsglaive_1_4_label: Grok Fast
-    kingsglaive_5_8_model: github-copilot/gpt-5-mini
-    kingsglaive_5_8_label: GPT-5 Mini
+    noctis:
+      model: github-copilot/claude-sonnet-4.5
+      label: Sonnet 4.5
+    ignis:
+      model: github-copilot/claude-sonnet-4.5
+      label: Sonnet 4.5
+    gladiolus:
+      model: github-copilot/claude-sonnet-4.5
+      label: Sonnet 4.5
+    prompto:
+      model: github-copilot/claude-sonnet-4.5
+      label: Sonnet 4.5
+    lunafreya:
+      model: github-copilot/claude-sonnet-4.5
+      label: Sonnet 4.5
+    iris:
+      model: github-copilot/claude-sonnet-4.5
+      label: Sonnet 4.5
 
-  kessen:
-    noctis_model: github-copilot/claude-opus-4.6
-    noctis_label: Opus 4.6
-    ignis_model: github-copilot/claude-opus-4.6
-    ignis_label: Opus 4.6
-    kingsglaive_1_4_model: github-copilot/claude-sonnet-4.5
-    kingsglaive_1_4_label: Sonnet 4.5
-    kingsglaive_5_8_model: github-copilot/gpt-5.2-codex
-    kingsglaive_5_8_label: GPT-5.2 Codex
+  fullpower:
+    noctis:
+      model: github-copilot/claude-opus-4.6
+      label: Opus 4.6
+    ignis:
+      model: github-copilot/claude-opus-4.6
+      label: Opus 4.6
+    gladiolus:
+      model: github-copilot/claude-opus-4.6
+      label: Opus 4.6
+    prompto:
+      model: github-copilot/claude-opus-4.6
+      label: Opus 4.6
+    lunafreya:
+      model: github-copilot/gpt-5.2-codex
+      label: GPT-5.2 Codex
+    iris:
+      model: github-copilot/gemini-3-pro-preview
+      label: Gemini 3 Pro
 
-  setsuyaku:
-    noctis_model: github-copilot/gemini-3-flash-preview
-    noctis_label: Gemini 3 Flash
-    ignis_model: github-copilot/claude-haiku-4.5
-    ignis_label: Haiku 4.5
-    kingsglaive_1_4_model: github-copilot/grok-code-fast-1
-    kingsglaive_1_4_label: Grok Fast
-    kingsglaive_5_8_model: github-copilot/gpt-5-mini
-    kingsglaive_5_8_label: GPT-5 Mini
+  lite:
+    noctis:
+      model: github-copilot/gemini-3-flash-preview
+      label: Gemini 3 Flash
+    ignis:
+      model: github-copilot/claude-haiku-4.5
+      label: Haiku 4.5
+    gladiolus:
+      model: github-copilot/grok-code-fast-1
+      label: Grok Fast
+    prompto:
+      model: github-copilot/grok-code-fast-1
+      label: Grok Fast
+    lunafreya:
+      model: github-copilot/gpt-5-mini
+      label: GPT-5 Mini
+    iris:
+      model: github-copilot/gpt-5-mini
+      label: GPT-5 Mini
+
+  free-glm:
+    noctis:
+      model: opencode/glm-4.7-free
+      label: GLM 4.7
+    ignis:
+      model: opencode/glm-4.7-free
+      label: GLM 4.7
+    gladiolus:
+      model: opencode/glm-4.7-free
+      label: GLM 4.7
+    prompto:
+      model: opencode/glm-4.7-free
+      label: GLM 4.7
+    lunafreya:
+      model: opencode/glm-4.7-free
+      label: GLM 4.7
+    iris:
+      model: opencode/glm-4.7-free
+      label: GLM 4.7
+
+  free-kimi:
+    noctis:
+      model: opencode/kimi-k2.5-free
+      label: Kimi K2.5
+    ignis:
+      model: opencode/kimi-k2.5-free
+      label: Kimi K2.5
+    gladiolus:
+      model: opencode/kimi-k2.5-free
+      label: Kimi K2.5
+    prompto:
+      model: opencode/kimi-k2.5-free
+      label: Kimi K2.5
+    lunafreya:
+      model: opencode/kimi-k2.5-free
+      label: Kimi K2.5
+    iris:
+      model: opencode/kimi-k2.5-free
+      label: Kimi K2.5
