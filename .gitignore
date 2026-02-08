@@ -42,7 +42,7 @@ logs/
 projects/
 
 # Internal docs (operation logs, test plans, article drafts)
-archive/
+./archive/
 
 # Serena MCP
 .serena/

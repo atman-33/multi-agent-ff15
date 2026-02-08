@@ -1,5 +1,5 @@
 #!/bin/bash
-# 🏯 multi-agent-shogun 出陣スクリプト（毎日の起動用）
+# 🏯 multi-agent-ff15 出撃スクリプト（毎日の起動用）
 # Daily Deployment Script for Multi-Agent Orchestration System
 #
 # 使用方法:
@@ -26,7 +26,7 @@ if [ -f "./config/settings.yaml" ]; then
     SHELL_SETTING=$(grep "^shell:" ./config/settings.yaml 2>/dev/null | awk '{print $2}' || echo "bash")
 fi
 
-# 色付きログ関数（戦国風）
+# 色付きログ関数（FF15風）
 log_info() {
     echo -e "\033[1;33m【報】\033[0m $1"
 }
@@ -120,7 +120,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             echo ""
-            echo "🏯 multi-agent-shogun 出陣スクリプト"
+            echo "🏯 multi-agent-ff15 出撃スクリプト"
             echo ""
             echo "使用方法: ./shutsujin_departure.sh [オプション]"
             echo ""
@@ -155,9 +155,9 @@ while [[ $# -gt 0 ]]; do
             echo "  節約の陣（--economy）:  低コスト構成"
             echo ""
             echo "エイリアス:"
-            echo "  csst  → cd /mnt/c/tools/multi-agent-shogun && ./shutsujin_departure.sh"
-            echo "  css   → tmux attach-session -t shogun"
-            echo "  csm   → tmux attach-session -t multiagent"
+            echo "  csnt  → cd /mnt/c/tools/multi-agent-ff15 && ./shutsujin_departure.sh"
+            echo "  csn   → tmux attach-session -t noctis"
+            echo "  csk   → tmux attach-session -t kingsglaive"
             echo ""
             exit 0
             ;;
@@ -230,14 +230,14 @@ case "$MODE" in
         ;;
 esac
 
-SHOGUN_MODEL=$(require_mode_value "$MODE" "shogun_model")
-SHOGUN_LABEL=$(require_mode_value "$MODE" "shogun_label")
-KARO_MODEL=$(require_mode_value "$MODE" "karo_model")
-KARO_LABEL=$(require_mode_value "$MODE" "karo_label")
-ASHIGARU_1_4_MODEL=$(require_mode_value "$MODE" "ashigaru_1_4_model")
-ASHIGARU_1_4_LABEL=$(require_mode_value "$MODE" "ashigaru_1_4_label")
-ASHIGARU_5_8_MODEL=$(require_mode_value "$MODE" "ashigaru_5_8_model")
-ASHIGARU_5_8_LABEL=$(require_mode_value "$MODE" "ashigaru_5_8_label")
+NOCTIS_MODEL=$(require_mode_value "$MODE" "noctis_model")
+NOCTIS_LABEL=$(require_mode_value "$MODE" "noctis_label")
+IGNIS_MODEL=$(require_mode_value "$MODE" "ignis_model")
+IGNIS_LABEL=$(require_mode_value "$MODE" "ignis_label")
+KINGSGLAIVE_1_4_MODEL=$(require_mode_value "$MODE" "kingsglaive_1_4_model")
+KINGSGLAIVE_1_4_LABEL=$(require_mode_value "$MODE" "kingsglaive_1_4_label")
+KINGSGLAIVE_5_8_MODEL=$(require_mode_value "$MODE" "kingsglaive_5_8_model")
+KINGSGLAIVE_5_8_LABEL=$(require_mode_value "$MODE" "kingsglaive_5_8_label")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 出陣バナー表示（CC0ライセンスASCIIアート使用）
@@ -260,18 +260,18 @@ show_battle_cry() {
     echo -e "\033[1;31m║\033[0m \033[1;33m███████║██║  ██║╚██████╔╝   ██║   ███████║╚██████╔╝╚█████╔╝██║██║ ╚████║\033[0m \033[1;31m║\033[0m"
     echo -e "\033[1;31m║\033[0m \033[1;33m╚══════╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚══════╝ ╚═════╝  ╚════╝ ╚═╝╚═╝  ╚═══╝\033[0m \033[1;31m║\033[0m"
     echo -e "\033[1;31m╠══════════════════════════════════════════════════════════════════════════════════╣\033[0m"
-    echo -e "\033[1;31m║\033[0m       \033[1;37m出陣じゃーーー！！！\033[0m    \033[1;36m⚔\033[0m    \033[1;35m天下布武！\033[0m                          \033[1;31m║\033[0m"
+    echo -e "\033[1;31m║\033[0m       \033[1;37mいくぞ、野郎ども！！！\033[0m    \033[1;36m⚔\033[0m    \033[1;35mStand by Me！\033[0m                          \033[1;31m║\033[0m"
     echo -e "\033[1;31m╚══════════════════════════════════════════════════════════════════════════════════╝\033[0m"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # 足軽隊列（オリジナル）
+    # Kingsglaive Formation（オリジナル）
     # ═══════════════════════════════════════════════════════════════════════════
     echo -e "\033[1;34m  ╔═════════════════════════════════════════════════════════════════════════════╗\033[0m"
-    echo -e "\033[1;34m  ║\033[0m                    \033[1;37m【 足 軽 隊 列 ・ 八 名 配 備 】\033[0m                      \033[1;34m║\033[0m"
+    echo -e "\033[1;34m  ║\033[0m                    \033[1;37m【 K i n g s g l a i v e ・ 8 U n i t s 】\033[0m                      \033[1;34m║\033[0m"
     echo -e "\033[1;34m  ╚═════════════════════════════════════════════════════════════════════════════╝\033[0m"
 
-    cat << 'ASHIGARU_EOF'
+    cat << 'KINGSGLAIVE_EOF'
 
        /\      /\      /\      /\      /\      /\      /\      /\
       /||\    /||\    /||\    /||\    /||\    /||\    /||\    /||\
@@ -279,20 +279,20 @@ show_battle_cry() {
        ||      ||      ||      ||      ||      ||      ||      ||
       /||\    /||\    /||\    /||\    /||\    /||\    /||\    /||\
       /  \    /  \    /  \    /  \    /  \    /  \    /  \    /  \
-     [足1]   [足2]   [足3]   [足4]   [足5]   [足6]   [足7]   [足8]
+     [KG1]   [KG2]   [KG3]   [KG4]   [KG5]   [KG6]   [KG7]   [KG8]
 
-ASHIGARU_EOF
+KINGSGLAIVE_EOF
 
-    echo -e "                    \033[1;36m「「「 はっ！！ 出陣いたす！！ 」」」\033[0m"
+    echo -e "                    \033[1;36m「「「 はっ！！ 了解！出撃します！！ 」」」\033[0m"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
     # システム情報
     # ═══════════════════════════════════════════════════════════════════════════
     echo -e "\033[1;33m  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\033[0m"
-    echo -e "\033[1;33m  ┃\033[0m  \033[1;37m🏯 multi-agent-shogun\033[0m  〜 \033[1;36m戦国マルチエージェント統率システム\033[0m 〜           \033[1;33m┃\033[0m"
+    echo -e "\033[1;33m  ┃\033[0m  \033[1;37m🏯 multi-agent-ff15\033[0m  〜 \033[1;36mFF15マルチエージェント統率システム\033[0m 〜           \033[1;33m┃\033[0m"
     echo -e "\033[1;33m  ┃\033[0m                                                                           \033[1;33m┃\033[0m"
-    echo -e "\033[1;33m  ┃\033[0m    \033[1;35m将軍\033[0m: プロジェクト統括    \033[1;31m家老\033[0m: タスク管理    \033[1;34m足軽\033[0m: 実働部隊×8      \033[1;33m┃\033[0m"
+    echo -e "\033[1;33m  ┃\033[0m    \033[1;35mNoctis\033[0m: プロジェクト統括    \033[1;31mIgnis\033[0m: タスク管理    \033[1;34mKingsglaive\033[0m: 実働部隊×8      \033[1;33m┃\033[0m"
     echo -e "\033[1;33m  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\033[0m"
     echo ""
 }
@@ -300,15 +300,15 @@ ASHIGARU_EOF
 # バナー表示実行
 show_battle_cry
 
-echo -e "  \033[1;33m天下布武！陣立てを開始いたす\033[0m (Setting up the battlefield)"
+echo -e "  \033[1;33mStand by Me！布陣を開始いたす\033[0m (Setting up the battlefield)"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1: 既存セッションクリーンアップ
 # ═══════════════════════════════════════════════════════════════════════════════
 log_info "🧹 既存の陣を撤収中..."
-tmux kill-session -t multiagent 2>/dev/null && log_info "  └─ multiagent陣、撤収完了" || log_info "  └─ multiagent陣は存在せず"
-tmux kill-session -t shogun 2>/dev/null && log_info "  └─ shogun本陣、撤収完了" || log_info "  └─ shogun本陣は存在せず"
+tmux kill-session -t kingsglaive 2>/dev/null && log_info "  └─ kingsglaive陣、撤収完了" || log_info "  └─ kingsglaive陣は存在せず"
+tmux kill-session -t noctis 2>/dev/null && log_info "  └─ noctis本陣、撤収完了" || log_info "  └─ noctis本陣は存在せず"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1.5: 前回記録のバックアップ（--clean時のみ、内容がある場合）
@@ -324,8 +324,8 @@ if [ "$CLEAN_MODE" = true ]; then
     fi
 
     # 既存の dashboard.md 判定の後に追加
-    if [ -f "./queue/shogun_to_karo.yaml" ]; then
-        if grep -q "id: cmd_" "./queue/shogun_to_karo.yaml" 2>/dev/null; then
+    if [ -f "./queue/noctis_to_ignis.yaml" ]; then
+        if grep -q "id: cmd_" "./queue/noctis_to_ignis.yaml" 2>/dev/null; then
             NEED_BACKUP=true
         fi
     fi
@@ -335,7 +335,7 @@ if [ "$CLEAN_MODE" = true ]; then
         cp "./dashboard.md" "$BACKUP_DIR/" 2>/dev/null || true
         cp -r "./queue/reports" "$BACKUP_DIR/" 2>/dev/null || true
         cp -r "./queue/tasks" "$BACKUP_DIR/" 2>/dev/null || true
-        cp "./queue/shogun_to_karo.yaml" "$BACKUP_DIR/" 2>/dev/null || true
+        cp "./queue/noctis_to_ignis.yaml" "$BACKUP_DIR/" 2>/dev/null || true
         log_info "📦 前回の記録をバックアップ: $BACKUP_DIR"
     fi
 fi
@@ -349,12 +349,12 @@ fi
 [ -d ./queue/tasks ] || mkdir -p ./queue/tasks
 
 if [ "$CLEAN_MODE" = true ]; then
-    log_info "📜 前回の軍議記録を破棄中..."
+    log_info "📜 前回の作戦記録を破棄中..."
 
-    # 足軽タスクファイルリセット
+    # Kingsglaiveタスクファイルリセット
     for i in {1..8}; do
-        cat > ./queue/tasks/ashigaru${i}.yaml << EOF
-# 足軽${i}専用タスクファイル
+        cat > ./queue/tasks/kingsglaive${i}.yaml << EOF
+# Kingsglaive${i}専用タスクファイル
 task:
   task_id: null
   parent_cmd: null
@@ -365,10 +365,10 @@ task:
 EOF
     done
 
-    # 足軽レポートファイルリセット
+    # Kingsglaiveレポートファイルリセット
     for i in {1..8}; do
-        cat > ./queue/reports/ashigaru${i}_report.yaml << EOF
-worker_id: ashigaru${i}
+        cat > ./queue/reports/kingsglaive${i}_report.yaml << EOF
+worker_id: kingsglaive${i}
 task_id: null
 timestamp: ""
 status: idle
@@ -376,9 +376,9 @@ result: null
 EOF
     done
 
-    log_success "✅ 陣払い完了"
+    log_success "✅ クリーンアップ完了"
 else
-    log_info "📜 前回の陣容を維持して出陣..."
+    log_info "📜 前回の戦力を維持して出陣..."
     log_success "✅ キュー・報告ファイルはそのまま継続"
 fi
 
@@ -386,23 +386,23 @@ fi
 # STEP 3: ダッシュボード初期化（--clean時のみ）
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$CLEAN_MODE" = true ]; then
-    log_info "📊 戦況報告板を初期化中..."
+    log_info "📊 作戦状況板を初期化中..."
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
 
     if [ "$LANG_SETTING" = "ja" ]; then
         # 日本語のみ
         cat > ./dashboard.md << EOF
-# 📊 戦況報告
+# 📊 作戦状況
 最終更新: ${TIMESTAMP}
 
-## 🚨 要対応 - 殿のご判断をお待ちしております
+## 🚨 要対応 - King の判断をお待ちしております
 なし
 
-## 🔄 進行中 - 只今、戦闘中でござる
+## 🔄 進行中 - 只今、作戦遂行中です
 なし
 
-## ✅ 本日の戦果
-| 時刻 | 戦場 | 任務 | 結果 |
+## ✅ 本日の達成結果
+| 時刻 | フィールド | 任務 | 結果 |
 |------|------|------|------|
 
 ## 🎯 スキル化候補 - 承認待ち
@@ -414,23 +414,23 @@ if [ "$CLEAN_MODE" = true ]; then
 ## ⏸️ 待機中
 なし
 
-## ❓ 伺い事項
+## ❓ 確認事項
 なし
 EOF
     else
         # 日本語 + 翻訳併記
         cat > ./dashboard.md << EOF
-# 📊 戦況報告 (Battle Status Report)
+# 📊 作戦状況 (Battle Status Report)
 最終更新 (Last Updated): ${TIMESTAMP}
 
-## 🚨 要対応 - 殿のご判断をお待ちしております (Action Required - Awaiting Lord's Decision)
+## 🚨 要対応 - King の判断をお待ちしております (Action Required - Awaiting Lord's Decision)
 なし (None)
 
-## 🔄 進行中 - 只今、戦闘中でござる (In Progress - Currently in Battle)
+## 🔄 進行中 - 只今、作戦遂行中です (In Progress - Currently in Battle)
 なし (None)
 
-## ✅ 本日の戦果 (Today's Achievements)
-| 時刻 (Time) | 戦場 (Battlefield) | 任務 (Mission) | 結果 (Result) |
+## ✅ 本日の達成結果 (Today's Achievements)
+| 時刻 (Time) | フィールド (Battlefield) | 任務 (Mission) | 結果 (Result) |
 |------|------|------|------|
 
 ## 🎯 スキル化候補 - 承認待ち (Skill Candidates - Pending Approval)
@@ -442,7 +442,7 @@ EOF
 ## ⏸️ 待機中 (On Standby)
 なし (None)
 
-## ❓ 伺い事項 (Questions for Lord)
+## ❓ 確認事項 (Questions for Lord)
 なし (None)
 EOF
     fi
@@ -471,45 +471,45 @@ if ! command -v tmux &> /dev/null; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 5: shogun セッション作成（1ペイン・window 0 を必ず確保）
+# STEP 5: noctis セッション作成（1ペイン・window 0 を必ず確保）
 # ═══════════════════════════════════════════════════════════════════════════════
-log_war "👑 将軍の本陣を構築中..."
+log_war "👑 Noctisの本陣を構築中..."
 
-# shogun セッションがなければ作る（-s 時もここで必ず shogun が存在するようにする）
+# noctis セッションがなければ作る（-s 時もここで必ず noctis が存在するようにする）
 # window 0 のみ作成し -n main で名前付け（第二 window にするとアタッチ時に空ペインが開くため 1 window に限定）
-if ! tmux has-session -t shogun 2>/dev/null; then
-    tmux new-session -d -s shogun -n main
+if ! tmux has-session -t noctis 2>/dev/null; then
+    tmux new-session -d -s noctis -n main
 fi
 
-# 将軍ペインはウィンドウ名 "main" で指定（base-index 1 環境でも動く）
-SHOGUN_PROMPT=$(generate_prompt "将軍" "magenta" "$SHELL_SETTING")
-tmux send-keys -t shogun:main "cd \"$(pwd)\" && export PS1='${SHOGUN_PROMPT}' && clear" Enter
-tmux select-pane -t shogun:main -P 'bg=#002b36'  # 将軍の Solarized Dark
-tmux set-option -p -t shogun:main @agent_id "shogun"
+# Noctisペインはウィンドウ名 "main" で指定（base-index 1 環境でも動く）
+NOCTIS_PROMPT=$(generate_prompt "Noctis" "magenta" "$SHELL_SETTING")
+tmux send-keys -t noctis:main "cd \"$(pwd)\" && export PS1='${NOCTIS_PROMPT}' && clear" Enter
+tmux select-pane -t noctis:main -P 'bg=#002b36'  # Noctisの Solarized Dark
+tmux set-option -p -t noctis:main @agent_id "noctis"
 
-log_success "  └─ 将軍の本陣、構築完了"
+log_success "  └─ Noctisの本陣、構築完了"
 echo ""
 
 # pane-base-index を取得（1 の環境ではペインは 1,2,... になる）
 PANE_BASE=$(tmux show-options -gv pane-base-index 2>/dev/null || echo 0)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 5.1: multiagent セッション作成（9ペイン：karo + ashigaru1-8）
+# STEP 5.1: kingsglaive セッション作成（9ペイン：ignis + kingsglaive1-8）
 # ═══════════════════════════════════════════════════════════════════════════════
-log_war "⚔️ 家老・足軽の陣を構築中（9名配備）..."
+log_war "⚔️ Ignis・Kingsglaiveの陣を構築中（9名配備）..."
 
 # 最初のペイン作成
-if ! tmux new-session -d -s multiagent -n "agents" 2>/dev/null; then
+if ! tmux new-session -d -s kingsglaive -n "agents" 2>/dev/null; then
     echo ""
     echo "  ╔════════════════════════════════════════════════════════════╗"
-    echo "  ║  [ERROR] Failed to create tmux session 'multiagent'      ║"
-    echo "  ║  tmux セッション 'multiagent' の作成に失敗しました       ║"
+    echo "  ║  [ERROR] Failed to create tmux session 'kingsglaive'      ║"
+    echo "  ║  tmux セッション 'kingsglaive' の作成に失敗しました       ║"
     echo "  ╠════════════════════════════════════════════════════════════╣"
     echo "  ║  An existing session may be running.                     ║"
     echo "  ║  既存セッションが残っている可能性があります              ║"
     echo "  ║                                                          ║"
     echo "  ║  Check: tmux ls                                          ║"
-    echo "  ║  Kill:  tmux kill-session -t multiagent                  ║"
+    echo "  ║  Kill:  tmux kill-session -t kingsglaive                  ║"
     echo "  ╚════════════════════════════════════════════════════════════╝"
     echo ""
     exit 1
@@ -518,48 +518,48 @@ fi
 # 3x3グリッド作成（合計9ペイン）
 # ペイン番号は pane-base-index に依存（0 または 1）
 # 最初に3列に分割
-tmux split-window -h -t "multiagent:agents"
-tmux split-window -h -t "multiagent:agents"
+tmux split-window -h -t "kingsglaive:agents"
+tmux split-window -h -t "kingsglaive:agents"
 
 # 各列を3行に分割
-tmux select-pane -t "multiagent:agents.${PANE_BASE}"
+tmux select-pane -t "kingsglaive:agents.${PANE_BASE}"
 tmux split-window -v
 tmux split-window -v
 
-tmux select-pane -t "multiagent:agents.$((PANE_BASE+3))"
+tmux select-pane -t "kingsglaive:agents.$((PANE_BASE+3))"
 tmux split-window -v
 tmux split-window -v
 
-tmux select-pane -t "multiagent:agents.$((PANE_BASE+6))"
+tmux select-pane -t "kingsglaive:agents.$((PANE_BASE+6))"
 tmux split-window -v
 tmux split-window -v
 
 # ペインラベル設定（プロンプト用: モデル名なし）
-PANE_LABELS=("karo" "ashigaru1" "ashigaru2" "ashigaru3" "ashigaru4" "ashigaru5" "ashigaru6" "ashigaru7" "ashigaru8")
+PANE_LABELS=("ignis" "kingsglaive1" "kingsglaive2" "kingsglaive3" "kingsglaive4" "kingsglaive5" "kingsglaive6" "kingsglaive7" "kingsglaive8")
 # ペインタイトル設定（tmuxタイトル用: モデル名付き）
-PANE_TITLES=("karo(${KARO_LABEL})" "ashigaru1(${ASHIGARU_1_4_LABEL})" "ashigaru2(${ASHIGARU_1_4_LABEL})" "ashigaru3(${ASHIGARU_1_4_LABEL})" "ashigaru4(${ASHIGARU_1_4_LABEL})" "ashigaru5(${ASHIGARU_5_8_LABEL})" "ashigaru6(${ASHIGARU_5_8_LABEL})" "ashigaru7(${ASHIGARU_5_8_LABEL})" "ashigaru8(${ASHIGARU_5_8_LABEL})")
-# 色設定（karo: 赤, ashigaru: 青）
+PANE_TITLES=("ignis(${IGNIS_LABEL})" "kingsglaive1(${KINGSGLAIVE_1_4_LABEL})" "kingsglaive2(${KINGSGLAIVE_1_4_LABEL})" "kingsglaive3(${KINGSGLAIVE_1_4_LABEL})" "kingsglaive4(${KINGSGLAIVE_1_4_LABEL})" "kingsglaive5(${KINGSGLAIVE_5_8_LABEL})" "kingsglaive6(${KINGSGLAIVE_5_8_LABEL})" "kingsglaive7(${KINGSGLAIVE_5_8_LABEL})" "kingsglaive8(${KINGSGLAIVE_5_8_LABEL})")
+# 色設定（ignis: 赤, kingsglaive: 青）
 PANE_COLORS=("red" "blue" "blue" "blue" "blue" "blue" "blue" "blue" "blue")
 
-AGENT_IDS=("karo" "ashigaru1" "ashigaru2" "ashigaru3" "ashigaru4" "ashigaru5" "ashigaru6" "ashigaru7" "ashigaru8")
+AGENT_IDS=("ignis" "kingsglaive1" "kingsglaive2" "kingsglaive3" "kingsglaive4" "kingsglaive5" "kingsglaive6" "kingsglaive7" "kingsglaive8")
 
 # モデル名設定（pane-border-format で常時表示するため）
-MODEL_NAMES=("${KARO_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_1_4_LABEL}" "${ASHIGARU_5_8_LABEL}" "${ASHIGARU_5_8_LABEL}" "${ASHIGARU_5_8_LABEL}" "${ASHIGARU_5_8_LABEL}")
+MODEL_NAMES=("${IGNIS_LABEL}" "${KINGSGLAIVE_1_4_LABEL}" "${KINGSGLAIVE_1_4_LABEL}" "${KINGSGLAIVE_1_4_LABEL}" "${KINGSGLAIVE_1_4_LABEL}" "${KINGSGLAIVE_5_8_LABEL}" "${KINGSGLAIVE_5_8_LABEL}" "${KINGSGLAIVE_5_8_LABEL}" "${KINGSGLAIVE_5_8_LABEL}")
 
 for i in {0..8}; do
     p=$((PANE_BASE + i))
-    tmux select-pane -t "multiagent:agents.${p}" -T "${PANE_TITLES[$i]}"
-    tmux set-option -p -t "multiagent:agents.${p}" @agent_id "${AGENT_IDS[$i]}"
-    tmux set-option -p -t "multiagent:agents.${p}" @model_name "${MODEL_NAMES[$i]}"
+    tmux select-pane -t "kingsglaive:agents.${p}" -T "${PANE_TITLES[$i]}"
+    tmux set-option -p -t "kingsglaive:agents.${p}" @agent_id "${AGENT_IDS[$i]}"
+    tmux set-option -p -t "kingsglaive:agents.${p}" @model_name "${MODEL_NAMES[$i]}"
     PROMPT_STR=$(generate_prompt "${PANE_LABELS[$i]}" "${PANE_COLORS[$i]}" "$SHELL_SETTING")
-    tmux send-keys -t "multiagent:agents.${p}" "cd \"$(pwd)\" && export PS1='${PROMPT_STR}' && clear" Enter
+    tmux send-keys -t "kingsglaive:agents.${p}" "cd \"$(pwd)\" && export PS1='${PROMPT_STR}' && clear" Enter
 done
 
 # pane-border-format でモデル名を常時表示（OpenCode Codeがペインタイトルを上書きしても消えない）
-tmux set-option -t multiagent -w pane-border-status top
-tmux set-option -t multiagent -w pane-border-format '#{pane_index} #{@agent_id} (#{?#{==:#{@model_name},},unknown,#{@model_name}})'
+tmux set-option -t kingsglaive -w pane-border-status top
+tmux set-option -t kingsglaive -w pane-border-format '#{pane_index} #{@agent_id} (#{?#{==:#{@model_name},},unknown,#{@model_name}})'
 
-log_success "  └─ 家老・足軽の陣、構築完了"
+log_success "  └─ Ignis・Kingsglaiveの陣、構築完了"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -576,37 +576,37 @@ if [ "$SETUP_ONLY" = false ]; then
 
     log_war "👑 全軍に OpenCode Code を召喚中..."
 
-    # 将軍
-    tmux send-keys -t shogun:main "opencode --model ${SHOGUN_MODEL}"
-    tmux send-keys -t shogun:main Enter
-    log_info "  └─ 将軍（${SHOGUN_LABEL}）、召喚完了"
+    # Noctis
+    tmux send-keys -t noctis:main "opencode --model ${NOCTIS_MODEL}"
+    tmux send-keys -t noctis:main Enter
+    log_info "  └─ Noctis（${NOCTIS_LABEL}）、召喚完了"
 
     # 少し待機（安定のため）
     sleep 1
 
-    # 家老（pane 0）
+    # Ignis（pane 0）
     p=$((PANE_BASE + 0))
-    tmux send-keys -t "multiagent:agents.${p}" "opencode --model ${KARO_MODEL}"
-    tmux send-keys -t "multiagent:agents.${p}" Enter
-    log_info "  └─ 家老（${KARO_LABEL}）、召喚完了"
+    tmux send-keys -t "kingsglaive:agents.${p}" "opencode --model ${IGNIS_MODEL}"
+    tmux send-keys -t "kingsglaive:agents.${p}" Enter
+    log_info "  └─ Ignis（${IGNIS_LABEL}）、召喚完了"
 
-    # 足軽1-4
+    # Kingsglaive1-4
     for i in {1..4}; do
         p=$((PANE_BASE + i))
-        tmux send-keys -t "multiagent:agents.${p}" "opencode --model ${ASHIGARU_1_4_MODEL}"
-        tmux send-keys -t "multiagent:agents.${p}" Enter
+        tmux send-keys -t "kingsglaive:agents.${p}" "opencode --model ${KINGSGLAIVE_1_4_MODEL}"
+        tmux send-keys -t "kingsglaive:agents.${p}" Enter
     done
-    log_info "  └─ 足軽1-4（${ASHIGARU_1_4_LABEL}）、召喚完了"
+    log_info "  └─ Kingsglaive1-4（${KINGSGLAIVE_1_4_LABEL}）、召喚完了"
 
-    # 足軽5-8
+    # Kingsglaive5-8
     for i in {5..8}; do
         p=$((PANE_BASE + i))
-        tmux send-keys -t "multiagent:agents.${p}" "opencode --model ${ASHIGARU_5_8_MODEL}"
-        tmux send-keys -t "multiagent:agents.${p}" Enter
+        tmux send-keys -t "kingsglaive:agents.${p}" "opencode --model ${KINGSGLAIVE_5_8_MODEL}"
+        tmux send-keys -t "kingsglaive:agents.${p}" Enter
     done
-    log_info "  └─ 足軽5-8（${ASHIGARU_5_8_LABEL}）、召喚完了"
+    log_info "  └─ Kingsglaive5-8（${KINGSGLAIVE_5_8_LABEL}）、召喚完了"
 
-    log_success "✅ ${MODE_NAME}で出陣（将軍: ${SHOGUN_LABEL}, 家老: ${KARO_LABEL}, 足軽1-4: ${ASHIGARU_1_4_LABEL}, 足軽5-8: ${ASHIGARU_5_8_LABEL}）"
+    log_success "✅ ${MODE_NAME}で出陣（Noctis: ${NOCTIS_LABEL}, Ignis: ${IGNIS_LABEL}, Kingsglaive1-4: ${KINGSGLAIVE_1_4_LABEL}, Kingsglaive5-8: ${KINGSGLAIVE_5_8_LABEL}）"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -616,10 +616,10 @@ if [ "$SETUP_ONLY" = false ]; then
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # 忍者戦士（syntax-samurai/ryu - CC0 1.0 Public Domain）
+    # Kingsglaive Warriors（syntax-samurai/ryu - CC0 1.0 Public Domain）
     # ═══════════════════════════════════════════════════════════════════════════
     echo -e "\033[1;35m  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────┐\033[0m"
-    echo -e "\033[1;35m  │\033[0m                              \033[1;37m【 忍 者 戦 士 】\033[0m  Ryu Hayabusa (CC0 Public Domain)                        \033[1;35m│\033[0m"
+    echo -e "\033[1;35m  │\033[0m                              \033[1;37m【 K i n g s g l a i v e 】\033[0m  Ryu Hayabusa (CC0 Public Domain)                        \033[1;35m│\033[0m"
     echo -e "\033[1;35m  └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘\033[0m"
 
     cat << 'NINJA_EOF'
@@ -675,43 +675,43 @@ if [ "$SETUP_ONLY" = false ]; then
 NINJA_EOF
 
     echo ""
-    echo -e "                                    \033[1;35m「 天下布武！勝利を掴め！ 」\033[0m"
+    echo -e "                                    \033[1;35m「 Stand by Me！仲間とともに！ 」\033[0m"
     echo ""
     echo -e "                               \033[0;36m[ASCII Art: syntax-samurai/ryu - CC0 1.0 Public Domain]\033[0m"
     echo ""
 
     echo "  OpenCode Code の起動を待機中（最大30秒）..."
 
-    # 将軍の起動を確認（最大30秒待機）
+    # Noctisの起動を確認（最大30秒待機）
     for i in {1..30}; do
-        if tmux capture-pane -t shogun:main -p | grep -q "bypass permissions"; then
-            echo "  └─ 将軍の OpenCode Code 起動確認完了（${i}秒）"
+        if tmux capture-pane -t noctis:main -p | grep -q "bypass permissions"; then
+            echo "  └─ Noctisの OpenCode Code 起動確認完了（${i}秒）"
             break
         fi
         sleep 1
     done
 
-    # 将軍に指示書を読み込ませる
-    log_info "  └─ 将軍に指示書を伝達中..."
-    tmux send-keys -t shogun:main "instructions/shogun.md を読んで役割を理解せよ。"
+    # Noctisに指示書を読み込ませる
+    log_info "  └─ Noctisに指示書を伝達中..."
+    tmux send-keys -t noctis:main "instructions/noctis.md を読んで役割を理解してくれ。"
     sleep 0.5
-    tmux send-keys -t shogun:main Enter
+    tmux send-keys -t noctis:main Enter
 
-    # 家老に指示書を読み込ませる
+    # Ignisに指示書を読み込ませる
     sleep 2
-    log_info "  └─ 家老に指示書を伝達中..."
-    tmux send-keys -t "multiagent:agents.${PANE_BASE}" "instructions/karo.md を読んで役割を理解せよ。"
+    log_info "  └─ Ignisに指示書を伝達中..."
+    tmux send-keys -t "kingsglaive:agents.${PANE_BASE}" "instructions/ignis.md を読んで役割を理解してくれ。"
     sleep 0.5
-    tmux send-keys -t "multiagent:agents.${PANE_BASE}" Enter
+    tmux send-keys -t "kingsglaive:agents.${PANE_BASE}" Enter
 
-    # 足軽に指示書を読み込ませる（1-8）
+    # Kingsglaiveに指示書を読み込ませる（1-8）
     sleep 2
-    log_info "  └─ 足軽に指示書を伝達中..."
+    log_info "  └─ Kingsglaiveに指示書を伝達中..."
     for i in {1..8}; do
         p=$((PANE_BASE + i))
-        tmux send-keys -t "multiagent:agents.${p}" "instructions/ashigaru.md を読んで役割を理解せよ。汝は足軽${i}号である。"
+        tmux send-keys -t "kingsglaive:agents.${p}" "instructions/kingsglaive.md を読んで役割を理解せよ。汝はKingsglaive${i}号である。"
         sleep 0.3
-        tmux send-keys -t "multiagent:agents.${p}" Enter
+        tmux send-keys -t "kingsglaive:agents.${p}" Enter
         sleep 0.5
     done
 
@@ -722,10 +722,10 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 7: 環境確認・完了メッセージ
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "🔍 陣容を確認中..."
+log_info "🔍 戦力を確認中..."
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  📺 Tmux陣容 (Sessions)                                  │"
+echo "  │  📺 Tmux戦力 (Sessions)                                  │"
 echo "  └──────────────────────────────────────────────────────────┘"
 tmux list-sessions | sed 's/^/     /'
 echo ""
@@ -733,27 +733,27 @@ echo "  ┌───────────────────────
 echo "  │  📋 布陣図 (Formation)                                   │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
-echo "     【shogunセッション】将軍の本陣"
+echo "     【noctisセッション】Noctisの本陣"
 echo "     ┌─────────────────────────────┐"
-echo "     │  Pane 0: 将軍 (SHOGUN)      │  ← 総大将・プロジェクト統括"
+echo "     │  Pane 0: Noctis (NOCTIS)      │  ← Prince・プロジェクト統括"
 echo "     └─────────────────────────────┘"
 echo ""
-echo "     【multiagentセッション】家老・足軽の陣（3x3 = 9ペイン）"
+echo "     【kingsglaiveセッション】Ignis・Kingsglaiveの陣（3x3 = 9ペイン）"
 echo "     ┌─────────┬─────────┬─────────┐"
-echo "     │  karo   │ashigaru3│ashigaru6│"
-echo "     │  (家老) │ (足軽3) │ (足軽6) │"
+echo "     │  ignis   │kingsglaive3│kingsglaive6│"
+echo "     │  (Ignis) │ (Kingsglaive3) │ (Kingsglaive6) │"
 echo "     ├─────────┼─────────┼─────────┤"
-echo "     │ashigaru1│ashigaru4│ashigaru7│"
-echo "     │ (足軽1) │ (足軽4) │ (足軽7) │"
+echo "     │kingsglaive1│kingsglaive4│kingsglaive7│"
+echo "     │ (Kingsglaive1) │ (Kingsglaive4) │ (Kingsglaive7) │"
 echo "     ├─────────┼─────────┼─────────┤"
-echo "     │ashigaru2│ashigaru5│ashigaru8│"
-echo "     │ (足軽2) │ (足軽5) │ (足軽8) │"
+echo "     │kingsglaive2│kingsglaive5│kingsglaive8│"
+echo "     │ (Kingsglaive2) │ (Kingsglaive5) │ (Kingsglaive8) │"
 echo "     └─────────┴─────────┴─────────┘"
 echo ""
 
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║  🏯 出陣準備完了！天下布武！                              ║"
+echo "  ║  🏯 出撃準備完了！Stand by Me！                              ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -762,13 +762,13 @@ if [ "$SETUP_ONLY" = true ]; then
     echo ""
     echo "  手動でOpenCodeを起動するには:"
     echo "  ┌──────────────────────────────────────────────────────────┐"
-    echo "  │  # 将軍を召喚                                            │"
-    echo "  │  tmux send-keys -t shogun:main \                         │"
+    echo "  │  # Noctisを召喚                                            │"
+    echo "  │  tmux send-keys -t noctis:main \                         │"
     echo "  │    'opencode' Enter                                      │"
     echo "  │                                                          │"
-    echo "  │  # 家老・足軽を一斉召喚                                  │"
+    echo "  │  # Ignis・Kingsglaiveを一斉召喚                                  │"
     echo "  │  for p in \$(seq $PANE_BASE $((PANE_BASE+8))); do         │"
-    echo "  │      tmux send-keys -t multiagent:agents.\$p \           │"
+    echo "  │      tmux send-keys -t kingsglaive:agents.\$p \           │"
     echo "  │      'opencode' Enter                                    │"
     echo "  │  done                                                    │"
     echo "  └──────────────────────────────────────────────────────────┘"
@@ -777,18 +777,18 @@ fi
 
 echo "  次のステップ:"
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  将軍の本陣にアタッチして命令を開始:                      │"
-echo "  │     tmux attach-session -t shogun   (または: css)        │"
+echo "  │  Noctisの本陣にアタッチして命令を開始:                      │"
+echo "  │     tmux attach-session -t noctis   (または: css)        │"
 echo "  │                                                          │"
-echo "  │  家老・足軽の陣を確認する:                                │"
-echo "  │     tmux attach-session -t multiagent   (または: csm)    │"
+echo "  │  Ignis・Kingsglaiveの陣を確認する:                                │"
+echo "  │     tmux attach-session -t kingsglaive   (または: csm)    │"
 echo "  │                                                          │"
 echo "  │  ※ 各エージェントは指示書を読み込み済み。                 │"
 echo "  │    すぐに命令を開始できます。                             │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
 echo "  ════════════════════════════════════════════════════════════"
-echo "   天下布武！勝利を掴め！ (Tenka Fubu! Seize victory!)"
+echo "   Stand by Me！仲間とともに！ (Stand by Me! Seize victory!)"
 echo "  ════════════════════════════════════════════════════════════"
 echo ""
 
@@ -800,7 +800,7 @@ if [ "$OPEN_TERMINAL" = true ]; then
 
     # Windows Terminal が利用可能か確認
     if command -v wt.exe &> /dev/null; then
-        wt.exe -w 0 new-tab wsl.exe -e bash -c "tmux attach-session -t shogun" \; new-tab wsl.exe -e bash -c "tmux attach-session -t multiagent"
+        wt.exe -w 0 new-tab wsl.exe -e bash -c "tmux attach-session -t noctis" \; new-tab wsl.exe -e bash -c "tmux attach-session -t kingsglaive"
         log_success "  └─ ターミナルタブ展開完了"
     else
         log_info "  └─ wt.exe が見つかりません。手動でアタッチしてください。"
