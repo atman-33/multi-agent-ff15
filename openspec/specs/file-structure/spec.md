@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Defines the file/directory/session renaming scheme, script naming, variable naming, and alias conventions.
+
+## Requirements
 
 ### Requirement: Instruction file renaming
 

@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Defines the FF15 role hierarchy, naming conventions, character assignments, tmux session naming, queue file naming, and config structure for all agents.
+
+## Requirements
 
 ### Requirement: Role naming convention
 

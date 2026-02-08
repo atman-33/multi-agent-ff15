@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Defines the FF15 speech style system, log message theming, dashboard headers, and settings file conventions.
+
+## Requirements
 
 ### Requirement: FF15 speech style for Japanese mode
 
