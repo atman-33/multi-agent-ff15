@@ -10,17 +10,17 @@ modes:
       model: github-copilot/claude-sonnet-4.5
       label: Sonnet 4.5
     gladiolus:
-      model: github-copilot/claude-sonnet-4.5
-      label: Sonnet 4.5
+      model: github-copilot/claude-haiku-4.5
+      label: Haiku 4.5
     prompto:
-      model: github-copilot/claude-sonnet-4.5
-      label: Sonnet 4.5
+      model: github-copilot/claude-haiku-4.5
+      label: Haiku 4.5
     lunafreya:
-      model: github-copilot/claude-sonnet-4.5
-      label: Sonnet 4.5
+      model: github-copilot/gemini-3-flash-preview
+      label: Gemini 3 Flash
     iris:
-      model: github-copilot/claude-sonnet-4.5
-      label: Sonnet 4.5
+      model: github-copilot/gemini-3-flash-preview
+      label: Gemini 3 Flash
 
   fullpower:
     noctis:
