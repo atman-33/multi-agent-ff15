@@ -489,8 +489,8 @@ RESULTS+=("設定ファイル: OK")
 # ============================================================
 log_step "STEP 8: キューファイル初期化"
 
-# Worker用タスクファイル作成
-for WORKER_NAME in gladiolus prompto lunafreya iris; do
+# Worker用タスクファイル作成 (Comrades: ignis, gladiolus, prompto)
+for WORKER_NAME in ignis gladiolus prompto; do
     TASK_FILE="$SCRIPT_DIR/queue/tasks/${WORKER_NAME}.yaml"
     if [ ! -f "$TASK_FILE" ]; then
         cat > "$TASK_FILE" << EOF
@@ -505,10 +505,10 @@ task:
 EOF
     fi
 done
-log_info "Workerタスクファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
+log_info "Comradeタスクファイル (ignis/gladiolus/prompto) を確認/作成しました"
 
-# Worker用レポートファイル作成
-for WORKER_NAME in gladiolus prompto lunafreya iris; do
+# Comrade用レポートファイル作成
+for WORKER_NAME in ignis gladiolus prompto; do
     REPORT_FILE="$SCRIPT_DIR/queue/reports/${WORKER_NAME}_report.yaml"
     if [ ! -f "$REPORT_FILE" ]; then
         cat > "$REPORT_FILE" << EOF
@@ -520,7 +520,22 @@ result: null
 EOF
     fi
 done
-log_info "Workerレポートファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
+log_info "Comradeレポートファイル (ignis/gladiolus/prompto) を確認/作成しました"
+
+# Lunafreya → Noctis coordination channel
+LUNA_CHANNEL="$SCRIPT_DIR/queue/lunafreya_to_noctis.yaml"
+if [ ! -f "$LUNA_CHANNEL" ]; then
+    cat > "$LUNA_CHANNEL" << EOF
+# Lunafreya → Noctis coordination channel
+command:
+  command_id: null
+  description: null
+  priority: null
+  status: idle
+  timestamp: ""
+EOF
+    log_info "Lunafreya→Noctis連携チャンネルを作成しました"
+fi
 
 RESULTS+=("キューファイル: OK")
 
@@ -555,47 +570,36 @@ BASHRC_FILE="$HOME/.bashrc"
 # aliasが既に存在するかチェックし、なければ追加
 ALIAS_ADDED=false
 
-# csn alias (Noctisウィンドウの起動)
+# csf alias (ff15統一セッションの起動)
 if [ -f "$BASHRC_FILE" ]; then
-    EXPECTED_CSS="alias csn='tmux attach-session -t noctis'"
-    if ! grep -q "alias csn=" "$BASHRC_FILE" 2>/dev/null; then
+    EXPECTED_CSF="alias csf='tmux attach-session -t ff15'"
+    if ! grep -q "alias csf=" "$BASHRC_FILE" 2>/dev/null; then
         # alias が存在しない → 新規追加
         echo "" >> "$BASHRC_FILE"
         echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        echo "$EXPECTED_CSS" >> "$BASHRC_FILE"
-        log_info "alias csn を追加しました（Noctisウィンドウの起動）"
+        echo "$EXPECTED_CSF" >> "$BASHRC_FILE"
+        log_info "alias csf を追加しました（ff15セッションの起動）"
         ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_CSS" "$BASHRC_FILE" 2>/dev/null; then
+    elif ! grep -qF "$EXPECTED_CSF" "$BASHRC_FILE" 2>/dev/null; then
         # alias は存在するがパスが異なる → 更新
-        if sed -i "s|alias csn=.*|$EXPECTED_CSS|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias csn を更新しました（パス変更検出）"
+        if sed -i "s|alias csf=.*|$EXPECTED_CSF|" "$BASHRC_FILE" 2>/dev/null; then
+            log_info "alias csf を更新しました（パス変更検出）"
         else
-            log_warn "alias csn の更新に失敗しました"
+            log_warn "alias csf の更新に失敗しました"
         fi
         ALIAS_ADDED=true
     else
-        log_info "alias csn は既に正しく設定されています"
+        log_info "alias csf は既に正しく設定されています"
     fi
 
-    # csk alias (Ignis・Workersウィンドウの起動)
-    EXPECTED_CSM="alias csk='tmux attach-session -t kingsglaive'"
-    if ! grep -q "alias csk=" "$BASHRC_FILE" 2>/dev/null; then
-        if [ "$ALIAS_ADDED" = false ]; then
-            echo "" >> "$BASHRC_FILE"
-            echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        fi
-        echo "$EXPECTED_CSM" >> "$BASHRC_FILE"
-        log_info "alias csk を追加しました（Ignis・Workersウィンドウの起動）"
-        ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_CSM" "$BASHRC_FILE" 2>/dev/null; then
-        if sed -i "s|alias csk=.*|$EXPECTED_CSM|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias csk を更新しました（パス変更検出）"
-        else
-            log_warn "alias csk の更新に失敗しました"
-        fi
-        ALIAS_ADDED=true
-    else
-        log_info "alias csk は既に正しく設定されています"
+    # Remove legacy aliases (csn, csk) if they exist
+    if grep -q "alias csn=" "$BASHRC_FILE" 2>/dev/null; then
+        sed -i "/alias csn=/d" "$BASHRC_FILE" 2>/dev/null
+        log_info "レガシー alias csn を削除しました"
+    fi
+    if grep -q "alias csk=" "$BASHRC_FILE" 2>/dev/null; then
+        sed -i "/alias csk=/d" "$BASHRC_FILE" 2>/dev/null
+        log_info "レガシー alias csk を削除しました"
     fi
 else
     log_warn "$BASHRC_FILE が見つかりません"
