@@ -108,7 +108,7 @@ multi-agent-ff15/
 | `instructions/` | Agent role definitions (noctis, comrades, lunafreya) |
 | `memory/` | Memory MCP persistent storage |
 | `queue/` | Task queues and reports (YAML) |
-| `skills/` | Skill definitions |
+| `.opencode/skills/` | Skill definitions |
 | `status/` | Status tracking |
 | `templates/` | Template files |
 
@@ -122,7 +122,7 @@ multi-agent-ff15/
 
 ### tmux Session
 ```bash
-tmux attach-session -t ff15   # Connect to all agents (or: csf)
+tmux attach-session -t ff15   # Connect to all agents (or: ffa)
 ```
 
 ### Within tmux

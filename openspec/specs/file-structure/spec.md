@@ -87,13 +87,13 @@ The `IRIS_MODEL` / `IRIS_LABEL` variables are REMOVED.
 ### Requirement: Shell alias updates
 
 Shell aliases created by `first_setup.sh` SHALL use unified session:
-- `csf` → `tmux attach-session -t ff15` (replaces `csn` for noctis and `csk` for kingsglaive)
+- `ffa` → `tmux attach -t ff15` (Final Fantasy Attach - unified session access)
 
 #### Scenario: Alias targets unified session
 
 - **WHEN** `first_setup.sh` or `standby.sh` creates shell aliases
-- **THEN** the `csf` alias MUST point to the `ff15` session
-- **AND** aliases `csn` and `csk` MAY be removed or updated to point to `ff15`
+- **THEN** the `ffa` alias MUST point to the `ff15` session
+- **AND** legacy aliases (`csf`, `csn`, `csk`, `css`, `csm`) SHALL be automatically removed
 
 ### Requirement: Deployment script naming
 

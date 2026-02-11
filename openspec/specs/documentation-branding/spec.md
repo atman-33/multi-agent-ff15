@@ -101,7 +101,7 @@ All ASCII art and diagrams in scripts and documentation SHALL use FF15 theme:
 - Header banner: `multi-agent-ff15` themed
 - Settings file generation: Comments reference FF15 theme
 - Queue file generation: Create character-named files (gladiolus, prompto, lunafreya, iris)
-- Alias creation: Use new session names (`csn` for noctis, `csk` for kingsglaive)
+- Alias creation: `ffa` → `tmux attach -t ff15` (unified session access)
 
 #### Scenario: first_setup.sh creates correct file names
 

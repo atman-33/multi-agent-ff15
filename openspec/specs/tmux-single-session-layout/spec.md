@@ -87,11 +87,11 @@ The session name prefix changes from `noctis:` or `kingsglaive:` to `ff15:`.
 The session attachment command SHALL be `tmux attach-session -t ff15`.
 
 Shell aliases SHALL be updated:
-- `csf` → `tmux attach-session -t ff15` (replaces `csn` and `csk`)
+- `ffa` → `tmux attach -t ff15` (Final Fantasy Attach - unified session access)
 
 #### Scenario: User attaches to unified session
 
-- **WHEN** the user runs `tmux attach-session -t ff15` or `csf` alias
+- **WHEN** the user runs `tmux attach-session -t ff15` or `ffa` alias
 - **THEN** all 5 agent panes SHALL be visible in the 2-row layout
 - **AND** the user SHALL be able to see Noctis, Lunafreya, and all Comrades simultaneously
 

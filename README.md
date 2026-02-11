@@ -209,7 +209,7 @@ This saves credentials to `~/.opencode/` — you won't need to do it again.
 cd /path/to/multi-agent-ff15
 ./standby.sh           # Normal startup (resumes existing tasks)
 ./standby.sh -c        # Clean startup (resets task queues, preserves command history)
-tmux attach-session -t noctis      # Connect and give orders
+ffa                    # Connect to ff15 session (alias for: tmux attach -t ff15)
 ```
 
 **Startup options:**
@@ -220,9 +220,7 @@ tmux attach-session -t noctis      # Connect and give orders
 <summary><b>Convenient aliases</b> (added by first_setup.sh)</summary>
 
 ```bash
-alias csst='cd /mnt/c/tools/multi-agent-ff15 && ./standby.sh'
-alias css='tmux attach-session -t noctis'
-alias csm='tmux attach-session -t kingsglaive'
+alias ffa='tmux attach -t ff15'
 ```
 
 </details>
@@ -250,12 +248,7 @@ Control your AI army from your phone — bed, café, or bathroom.
    ```sh
    pkg update && pkg install openssh
    ssh youruser@your-tailscale-ip
-   css    # Connect to Noctis
-   ```
-4. Open a new Termux window (+ button) for comrades:
-   ```sh
-   ssh youruser@your-tailscale-ip
-   csm    # See all 5 panes
+   ffa    # Connect to ff15 session
    ```
 
 **Disconnect:** Just swipe the Termux window closed. tmux sessions survive — agents keep working.
@@ -449,7 +442,7 @@ Don't use `css`/`csm` aliases inside an existing tmux session (causes nesting). 
 opencode
 
 # Or from another pane:
-tmux respawn-pane -t noctis:0.0 -k 'opencode'
+tmux respawn-pane -t ff15:0.0 -k 'opencode'
 ```
 
 </details>
@@ -458,7 +451,7 @@ tmux respawn-pane -t noctis:0.0 -k 'opencode'
 <summary><b>Comrades stuck?</b></summary>
 
 ```bash
-tmux attach-session -t kingsglaive
+ffa    # Connect to ff15 session
 # Ctrl+B then 0-4 to switch panes
 ```
 
@@ -470,8 +463,8 @@ tmux attach-session -t kingsglaive
 
 | Command | Description |
 |---------|-------------|
-| `tmux attach -t noctis` | Connect to the Noctis |
-| `tmux attach -t kingsglaive` | Connect to comrades |
+| `ffa` (alias) | Connect to ff15 session |
+| `tmux attach -t ff15` | Connect to ff15 session (full command) |
 | `Ctrl+B` then `0`–`4` | Switch panes |
 | `Ctrl+B` then `d` | Detach (agents keep running) |
 

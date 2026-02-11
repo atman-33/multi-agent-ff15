@@ -431,7 +431,7 @@ skill:
   save_path: "~/.opencode/skills/"
 
   # ローカルスキル保存先（このプロジェクト専用）
-  local_path: "$SCRIPT_DIR/skills/"
+  local_path: "$SCRIPT_DIR/.opencode/skills/"
 
 # ログ設定
 logging:
@@ -569,36 +569,26 @@ BASHRC_FILE="$HOME/.bashrc"
 # aliasが既に存在するかチェックし、なければ追加
 ALIAS_ADDED=false
 
-# csf alias (ff15統一セッションの起動)
+# ffa alias (ff15統一セッションの起動)
 if [ -f "$BASHRC_FILE" ]; then
-    EXPECTED_CSF="alias csf='tmux attach-session -t ff15'"
-    if ! grep -q "alias csf=" "$BASHRC_FILE" 2>/dev/null; then
+    EXPECTED_FFA="alias ffa='tmux attach -t ff15'"
+    if ! grep -q "alias ffa=" "$BASHRC_FILE" 2>/dev/null; then
         # alias が存在しない → 新規追加
         echo "" >> "$BASHRC_FILE"
         echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        echo "$EXPECTED_CSF" >> "$BASHRC_FILE"
-        log_info "alias csf を追加しました（ff15セッションの起動）"
+        echo "$EXPECTED_FFA" >> "$BASHRC_FILE"
+        log_info "alias ffa を追加しました（ff15セッションの起動）"
         ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_CSF" "$BASHRC_FILE" 2>/dev/null; then
+    elif ! grep -qF "$EXPECTED_FFA" "$BASHRC_FILE" 2>/dev/null; then
         # alias は存在するがパスが異なる → 更新
-        if sed -i "s|alias csf=.*|$EXPECTED_CSF|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias csf を更新しました（パス変更検出）"
+        if sed -i "s|alias ffa=.*|$EXPECTED_FFA|" "$BASHRC_FILE" 2>/dev/null; then
+            log_info "alias ffa を更新しました（パス変更検出）"
         else
-            log_warn "alias csf の更新に失敗しました"
+            log_warn "alias ffa の更新に失敗しました"
         fi
         ALIAS_ADDED=true
     else
-        log_info "alias csf は既に正しく設定されています"
-    fi
-
-    # Remove legacy aliases (csn, csk) if they exist
-    if grep -q "alias csn=" "$BASHRC_FILE" 2>/dev/null; then
-        sed -i "/alias csn=/d" "$BASHRC_FILE" 2>/dev/null
-        log_info "レガシー alias csn を削除しました"
-    fi
-    if grep -q "alias csk=" "$BASHRC_FILE" 2>/dev/null; then
-        sed -i "/alias csk=/d" "$BASHRC_FILE" 2>/dev/null
-        log_info "レガシー alias csk を削除しました"
+        log_info "alias ffa は既に正しく設定されています"
     fi
 else
     log_warn "$BASHRC_FILE が見つかりません"
