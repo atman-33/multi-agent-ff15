@@ -566,9 +566,8 @@ MCP（Model Context Protocol）サーバはOpenCodeの機能を拡張します�
 ### MCPとは？
 
 MCPサーバはOpenCodeに外部ツールへのアクセスを提供します：
-- **Notion MCP** → Notionページの読み書き
-- **GitHub MCP** → PR作成、Issue管理
 - **Memory MCP** → セッション間で記憶を保持
+- **Playwright MCP** → ブラウザ自動化、スクリーンショット、ウェブスクレイピング
 
 ### MCPサーバのインストール
 
@@ -586,22 +585,9 @@ OpenCodeは設定ファイルでMCPサーバを管理します。`~/.config/open
       },
       "enabled": true
     },
-    "github": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
-      "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_pat_here"
-      },
-      "enabled": true
-    },
     "playwright": {
       "type": "local",
       "command": ["npx", "@playwright/mcp@latest"],
-      "enabled": true
-    },
-    "sequential-thinking": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
       "enabled": true
     }
   }
@@ -614,7 +600,7 @@ OpenCodeは設定ファイルでMCPサーバを管理します。`~/.config/open
 opencode mcp list
 ```
 
-全サーバが「Connected」ステータスで表示されるはずです。
+MCPサーバのステータスを確認できます。
 
 ---
 

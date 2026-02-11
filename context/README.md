@@ -41,7 +41,7 @@ projects:
 ### When Starting Work (Comrades' Procedure)
 
 **Context Loading Order**:
-1. Read `memory/global_context.md` (system-wide settings)
+1. Read Memory MCP via `memory_read_graph()` (system-wide settings)
 2. Read `context/{project_id}.md` (project-specific information)
 3. Read `queue/tasks/{worker_name}.yaml` (your task)
 

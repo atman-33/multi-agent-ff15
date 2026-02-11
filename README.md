@@ -353,14 +353,6 @@ OpenCode uses a config file to manage MCP servers. Add servers to your `~/.confi
       },
       "enabled": true
     },
-    "github": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
-      "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_pat_here"
-      },
-      "enabled": true
-    },
     "playwright": {
       "type": "local",
       "command": ["npx", "@playwright/mcp@latest"],

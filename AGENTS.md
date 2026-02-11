@@ -109,7 +109,6 @@ multi-agent-ff15/
 | `memory/` | Memory MCP persistent storage |
 | `queue/` | Task queues and reports (YAML) |
 | `.opencode/skills/` | Skill definitions |
-| `status/` | Status tracking |
 | `templates/` | Template files |
 
 ## Development Commands
