@@ -424,7 +424,7 @@ if [ "$CLEAN_MODE" = true ]; then
 # 📊 ミッション状況
 最終更新: ${TIMESTAMP}
 
-## 🚨 要対応 - King の判断をお待ちしております
+## 🚨 要対応 - Crystal、ご判断をお願いいたします
 なし
 
 ## 🔄 進行中 - 只今、ミッション遂行中です
@@ -452,7 +452,7 @@ EOF
 # 📊 ミッション状況 (Battle Status Report)
 最終更新 (Last Updated): ${TIMESTAMP}
 
-## 🚨 要対応 - King の判断をお待ちしております (Action Required - Awaiting Lord's Decision)
+## 🚨 要対応 - Crystal、ご判断をお願いいたします (Action Required - Awaiting Crystal's Decision)
 なし (None)
 
 ## 🔄 進行中 - 只今、ミッション遂行中です (In Progress - Currently in Battle)
@@ -623,10 +623,9 @@ for i in {0..4}; do
     model="${PANE_MODELS[$i]}"
     color="${PANE_COLORS[$i]}"
 
-    # Set agent identity
-    tmux set-option -p -t "ff15:main.${p}" @agent_id "${label}"
-    tmux set-option -p -t "ff15:main.${p}" @model_name "${model}"
-    tmux select-pane -t "ff15:main.${p}" -T "${label}(${model})"
+     # Set agent identity
+     tmux set-option -p -t "ff15:main.${p}" @agent_id "${label}"
+     tmux select-pane -t "ff15:main.${p}" -T "${label}"
 
     # Set prompt and working directory
     PROMPT_STR=$(generate_prompt "${label}" "${color}" "$SHELL_SETTING")
@@ -636,9 +635,9 @@ done
 # Noctis pane gets special background
 tmux select-pane -t "ff15:main.${PANE_BASE}" -P 'bg=#002b36'
 
-# pane-border-format でモデル名を常時表示
+# pane-border-format でエージェント名を表示
 tmux set-option -t ff15 -w pane-border-status top
-tmux set-option -t ff15 -w pane-border-format '#{pane_index} #{@agent_id} (#{?#{==:#{@model_name},},unknown,#{@model_name}})'
+tmux set-option -t ff15 -w pane-border-format '#{pane_index} #{@agent_id}'
 
 log_success "  └─ ff15セッション（5ペイン）、構築完了"
 echo ""
@@ -709,14 +708,15 @@ if [ "$SETUP_ONLY" = false ]; then
     sleep 0.5
     tmux send-keys -t "ff15:main.$((PANE_BASE+1))" Enter
 
-    # Comradesに指示書を読み込ませる
+    # Comradesに指示書を読み込ませる（各自専用ファイル）
     sleep 2
     log_info "  └─ Comradesに指示書を伝達中..."
     COMRADE_NAMES=("ignis" "gladiolus" "prompto")
     COMRADE_LABELS=("Ignis（イグニス/軍師）" "Gladiolus（グラディオラス/盾）" "Prompto（プロンプト/銃）")
+    COMRADE_INSTRUCTION_FILES=("instructions/ignis.md" "instructions/gladiolus.md" "instructions/prompto.md")
     for i in {0..2}; do
         p=$((PANE_BASE + 2 + i))
-        tmux send-keys -t "ff15:main.${p}" "instructions/comrades.md を読んで役割を理解してください。あなたは${COMRADE_LABELS[$i]}です。"
+        tmux send-keys -t "ff15:main.${p}" "${COMRADE_INSTRUCTION_FILES[$i]} を読んで役割を理解してください。あなたは${COMRADE_LABELS[$i]}です。"
         sleep 0.3
         tmux send-keys -t "ff15:main.${p}" Enter
         sleep 0.5

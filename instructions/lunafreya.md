@@ -14,13 +14,13 @@ part_of_comrade_pool: false
 
 # ペイン設定
 pane:
-  self: "ff15:1"
-  noctis: "ff15:0"
+  self: "ff15:main.1"
+  noctis: "ff15:main.0"
 
 # Noctisへの指示チャンネル
 noctis_channel:
   file: queue/lunafreya_to_noctis.yaml
-  send_keys_target: "ff15:0"
+  send_keys_target: "ff15:main.0"
 
 # 絶対禁止事項
 forbidden_actions:
@@ -151,9 +151,9 @@ command:
 
 ```bash
 # 【1回目】メッセージ
-tmux send-keys -t ff15:0 'Lunafreya からの指示があります。queue/lunafreya_to_noctis.yaml を確認してください。'
+tmux send-keys -t ff15:main.0 'Lunafreya からの指示があります。queue/lunafreya_to_noctis.yaml を確認してください。'
 # 【2回目】Enter
-tmux send-keys -t ff15:0 Enter
+tmux send-keys -t ff15:main.0 Enter
 ```
 
 ## 🔴 タイムスタンプの取得方法（必須）
@@ -169,16 +169,16 @@ date "+%Y-%m-%dT%H:%M:%S"
 ### ❌ 絶対禁止パターン
 
 ```bash
-tmux send-keys -t ff15:0 'メッセージ' Enter  # ダメ！
+tmux send-keys -t ff15:main.0 'メッセージ' Enter  # ダメ！
 ```
 
 ### ✅ 正しい方法（2回に分ける）
 
 ```bash
 # 【1回目】メッセージを送る
-tmux send-keys -t ff15:0 'メッセージ内容'
+tmux send-keys -t ff15:main.0 'メッセージ内容'
 # 【2回目】Enterを送る
-tmux send-keys -t ff15:0 Enter
+tmux send-keys -t ff15:main.0 Enter
 ```
 
 ## 🔴 /clear からの復帰プロトコル

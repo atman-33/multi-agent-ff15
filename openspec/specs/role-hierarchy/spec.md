@@ -7,23 +7,32 @@ Defines the FF15 role hierarchy, naming conventions, character assignments, tmux
 ### Requirement: Role naming convention
 
 The system SHALL use the following role names consistently across all files:
-- Commander agent: **Noctis** (replacing Shogun/将軍)
-- Task manager agent: **Ignis** (replacing Karo/家老)
-- Worker agents: **Comrades** (replacing Ashigaru/足軽)
+- **King agent: Noctis** (task manager, delegation, dashboard updates)
+- **Worker agents: Comrades** (task execution)
 
-The tmux session hosting Ignis and all Comrades is named **kingsglaive**.
+The tmux session hosting all agents is named **ff15** (single unified session).
 
-All references to `shogun`, `karo`, `ashigaru`, `将軍`, `家老`, `足軽` in code, configuration, instructions, and documentation MUST be replaced with the corresponding FF15 names.
+Agent roles:
+- **Noctis**: King/Leader - receives user commands, decomposes tasks, assigns to Comrades, updates dashboard
+- **Ignis**: Comrade (Worker) - executes assigned tasks from Noctis
+- **Gladiolus**: Comrade (Worker) - executes assigned tasks from Noctis
+- **Prompto**: Comrade (Worker) - executes assigned tasks from Noctis
+- **Lunafreya**: Independent Oracle - direct user interaction, optional coordination with Noctis
 
-#### Scenario: Instruction files use FF15 role names
+All references in code, configuration, instructions, and documentation MUST reflect these roles.
+
+#### Scenario: Instruction files use updated role structure
 
 - **WHEN** an agent reads its instruction file
-- **THEN** the file MUST use only FF15 role names (Noctis, Ignis, Comrades) and MUST NOT contain any Sengoku role names (Shogun, Karo, Ashigaru, 将軍, 家老, 足軽)
+- **THEN** Noctis's file MUST describe task manager responsibilities (decomposition, delegation, dashboard)
+- **AND** Ignis's file MUST describe worker responsibilities (task execution, reporting)
+- **AND** Lunafreya's file MUST describe independent operation with optional Noctis coordination
 
-#### Scenario: AGENTS.md uses FF15 role names
+#### Scenario: AGENTS.md reflects 2-layer hierarchy
 
 - **WHEN** any agent reads AGENTS.md
-- **THEN** all role references, hierarchy diagrams, and communication rules MUST use FF15 naming (Noctis, Ignis, Comrades with character names)
+- **THEN** hierarchy diagrams MUST show User → Noctis → Comrades (2 layers)
+- **AND** MUST show Lunafreya as independent with optional link to Noctis
 
 ### Requirement: Instruction file naming
 
@@ -51,64 +60,74 @@ Each instruction file's YAML front matter MUST set the `role` field to the FF15 
 
 ### Requirement: Comrade character assignments
 
-The system SHALL have 4 Comrade agents, each associated with an FF15 character for thematic identity:
+The system SHALL have 3 Comrade agents (formerly 4):
 
-| Agent ID | Character | Identity |
-|----------|-----------|----------|
-| gladiolus | Gladiolus (グラディオラス) | 王の盾 (Shield) |
-| prompto | Prompto (プロンプト) | 銃使い (Recon) |
-| lunafreya | Lunafreya (ルナフレーナ) | 神凪 (Oracle) |
-| iris | Iris (イリス) | 花 (Support) |
+| Agent ID | Character | Identity | Role |
+|----------|-----------|----------|------|
+| ignis | Ignis (イグニス) | 軍師 (Strategist) | Worker |
+| gladiolus | Gladiolus (グラディオラス) | 王の盾 (Shield) | Worker |
+| prompto | Prompto (プロンプト) | 銃使い (Recon) | Worker |
+
+Lunafreya maintains her character identity but operates independently.
+
+| Agent ID | Character | Identity | Role |
+|----------|-----------|----------|------|
+| lunafreya | Lunafreya (ルナフレーナ) | 神凪 (Oracle) | Independent |
 
 Character assignments are cosmetic and MUST NOT restrict which tasks an agent can receive.
-Agent IDs use character names directly (not numbered `kingsglaive{N}` format).
 
-#### Scenario: Character identity in instructions
+#### Scenario: Character identity shows new structure
 
 - **WHEN** the Comrade instruction file lists agent character assignments
-- **THEN** all 4 agents MUST have their FF15 character listed with a brief identity description
+- **THEN** exactly 3 agents (Ignis, Gladiolus, Prompto) MUST be listed as Comrades
+- **AND** Lunafreya MUST be documented separately as independent
 
 ### Requirement: tmux session naming
 
-tmux sessions SHALL use FF15-themed names:
-- Commander session: `noctis` (replacing `shogun`)
-- Worker session: `kingsglaive` (replacing `multiagent`)
+tmux sessions SHALL use a unified FF15-themed session:
+- Unified session: `ff15` (replaces `noctis` and `kingsglaive` separate sessions)
 
-The `kingsglaive` session contains 5 panes: Ignis (pane 0) + 4 Comrades (panes 1-4).
+The `ff15` session contains 5 panes:
+- Pane 0: Noctis
+- Pane 1: Lunafreya
+- Pane 2: Ignis
+- Pane 3: Gladiolus
+- Pane 4: Prompto
 
-All send-keys targets, capture-pane commands, and pane references MUST use the new session names.
+All send-keys targets, capture-pane commands, and pane references MUST use the `ff15:` session name.
 
-#### Scenario: send-keys targets use new session names
+#### Scenario: send-keys targets use unified session name
 
 - **WHEN** an agent sends a tmux send-keys command to another agent
-- **THEN** the target MUST use `kingsglaive:` prefix (replacing `multiagent:`) or `noctis` session name (replacing `shogun`)
+- **THEN** the target MUST use `ff15:{pane_index}` format
+- **AND** session names `noctis:` or `kingsglaive:` MUST NOT be used
 
-#### Scenario: Pane identification uses character names
+#### Scenario: Pane identification uses unified session
 
 - **WHEN** checking agent identity via `@agent_id`
-- **THEN** worker agents MUST have `@agent_id` set to their character name (gladiolus, prompto, lunafreya, iris)
-- **AND** the task manager MUST have `@agent_id` set to `ignis`
+- **THEN** all agents MUST be in the `ff15` session
+- **AND** `@agent_id` values MUST be: noctis, lunafreya, ignis, gladiolus, prompto
 
 ### Requirement: Queue file naming
 
-Queue files SHALL use character names directly:
-- `queue/noctis_to_ignis.yaml` (replacing `queue/shogun_to_karo.yaml`)
-- `queue/tasks/{character_name}.yaml` (e.g., `gladiolus.yaml`, `prompto.yaml`, `lunafreya.yaml`, `iris.yaml`)
-- `queue/reports/{character_name}_report.yaml` (e.g., `gladiolus_report.yaml`, `prompto_report.yaml`, etc.)
-
-#### Scenario: Agents read and write to correctly named queue files
-
-- **WHEN** Noctis writes a command to the instruction queue
-- **THEN** the file path MUST be `queue/noctis_to_ignis.yaml`
+Queue files SHALL use simplified structure:
+- ~~`queue/noctis_to_ignis.yaml`~~ (REMOVED - direct task assignment)
+- `queue/tasks/{character_name}.yaml` for workers: ignis.yaml, gladiolus.yaml, prompto.yaml
+- `queue/reports/{character_name}_report.yaml`: ignis_report.yaml, gladiolus_report.yaml, prompto_report.yaml
+- `queue/lunafreya_to_noctis.yaml` (NEW - Lunafreya→Noctis command channel)
 
 #### Scenario: Workers use character-named task files
 
-- **WHEN** a Comrade agent reads its task file
-- **THEN** the path MUST be `queue/tasks/{character_name}.yaml` where character_name is the agent's FF15 character name
+- **WHEN** a Comrade agent (Ignis, Gladiolus, Prompto) reads its task file
+- **THEN** the path MUST be `queue/tasks/{character_name}.yaml`
+- **AND** the task SHALL be written directly by Noctis (not via intermediate queue)
 
-### Requirement: Config model structure
+#### Scenario: Lunafreya has command channel to Noctis
 
-`config/models.yaml` SHALL use a nested structure organized by modes and character names:
+- **WHEN** Lunafreya needs to coordinate with Noctis
+- **THEN** Lunafreya SHALL write to `queue/lunafreya_to_noctis.yaml`
+- **AND** Noctis SHALL read this file when notified
+with 5 agents (not 6):
 
 ```yaml
 modes:
@@ -128,23 +147,23 @@ modes:
     lunafreya:
       model: <model_id>
       label: <display_name>
-    iris:
-      model: <model_id>
-      label: <display_name>
 ```
 
-Available modes: `normal`, `fullpower`, `lite`, `free-glm`, `free-kimi`.
+The `iris` agent configuration is REMOVED.
 
-#### Scenario: Deployment script reads model config by character name
+#### Scenario: Deployment script reads 5 agent configs
 
 - **WHEN** `standby.sh` reads model configuration
-- **THEN** it MUST reference agent names directly (e.g., `GLADIOLUS_MODEL`, `PROMPTO_MODEL`)
+- **THEN** it MUST reference exactly 5 agents: noctis, ignis, gladiolus, prompto, lunafreya
+- **AND** MUST NOT reference `iris`
 
-### Requirement: Forbidden action penalty phrasing
+## REMOVED Requirements
 
-The penalty phrase for forbidden actions MUST change from 「違反は切腹」(violation is seppuku) to 「違反は追放」(violation is exile).
+### Requirement: Iris character assignment
 
-#### Scenario: Instruction files use exile phrasing
+**Reason**: Agent count reduced from 4 to 3 Comrades (Ignis, Gladiolus, Prompto)
+
+**Migration**: Remove all Iris references from configs, queue files, and instructions
 
 - **WHEN** instruction YAML front matter lists forbidden actions
 - **THEN** the comment MUST say 「違反は追放」 not 「違反は切腹」

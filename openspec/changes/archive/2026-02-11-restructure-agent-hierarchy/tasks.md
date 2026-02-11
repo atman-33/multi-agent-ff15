@@ -59,10 +59,10 @@
 - [x] 8.2 Search for "noctis_to_ignis" references and update to direct assignment pattern
 - [x] 8.3 Search for "kingsglaive:" session references and update to "ff15:"
 - [x] 8.4 Search for "noctis:" session references and update to "ff15:"
-- [ ] 8.5 Test standby.sh with --setup-only flag to verify session creation
-- [ ] 8.6 Test standby.sh with --clean flag to verify full initialization
-- [ ] 8.7 Verify all 5 panes display correct agent IDs via tmux list-panes
-- [ ] 8.8 Test send-keys communication between agents in new structure
+- [x] 8.5 Test standby.sh with --setup-only flag to verify session creation
+- [x] 8.6 Test standby.sh with --clean flag to verify full initialization
+- [x] 8.7 Verify all 5 panes display correct agent IDs via tmux list-panes
+- [x] 8.8 Test send-keys communication between agents in new structure
 
 ## 9. Context and Memory Updates
 

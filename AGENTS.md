@@ -74,8 +74,11 @@ multi-agent-ff15/
 ├── AGENTS.md                   # System instructions (auto-loaded)
 ├── instructions/
 │   ├── noctis.md              # Noctis (King) instructions
-│   ├── comrades.md            # Comrade (Ignis, Gladiolus, Prompto) instructions
-│   └── lunafreya.md           # Lunafreya (Independent) instructions
+│   ├── ignis.md               # Ignis (Tactician) instructions
+│   ├── gladiolus.md           # Gladiolus (Shield) instructions
+│   ├── prompto.md             # Prompto (Gun) instructions
+│   ├── comrades.md            # [DEPRECATED] Legacy shared instructions
+│   └── lunafreya.md           # Lunafreya (Oracle) instructions
 ├── config/
 │   ├── settings.yaml          # Language, model, screenshot settings
 │   ├── models.yaml            # Model configuration per mode
@@ -247,7 +250,9 @@ When starting a new session (first launch):
 1. **Read Memory MCP**: Run `mcp__memory__read_graph` to check stored rules, context, and prohibitions
 2. **Read your role's instructions**:
    - Noctis → instructions/noctis.md
-   - Comrades (Ignis, Gladiolus, Prompto) → instructions/comrades.md
+   - Ignis → instructions/ignis.md
+   - Gladiolus → instructions/gladiolus.md
+   - Prompto → instructions/prompto.md
    - Lunafreya → instructions/lunafreya.md
 3. **Start working** after loading required context files
 

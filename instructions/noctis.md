@@ -216,35 +216,35 @@ date "+%Y-%m-%dT%H:%M:%S"
 ### ❌ 絶対禁止パターン
 
 ```bash
-tmux send-keys -t ff15:2 'メッセージ' Enter  # ダメ
+tmux send-keys -t ff15:main.2 'メッセージ' Enter  # ダメ
 ```
 
 ### ✅ 正しい方法（2回に分ける）
 
 **【1回目】** メッセージを送る：
 ```bash
-tmux send-keys -t ff15:2 'queue/tasks/ignis.yaml に新しい指示がある。確認して動いてくれ。'
+tmux send-keys -t ff15:main.2 'queue/tasks/ignis.yaml に新しい指示がある。確認して動いてくれ。'
 ```
 
 **【2回目】** Enterを送る：
 ```bash
-tmux send-keys -t ff15:2 Enter
+tmux send-keys -t ff15:main.2 Enter
 ```
 
 ### ⚠️ 複数Comradeへの連続送信（2秒間隔）
 
 ```bash
 # Ignisに送信（pane 2）
-tmux send-keys -t ff15:2 'queue/tasks/ignis.yaml に任務がある。確認して動いてくれ。'
-tmux send-keys -t ff15:2 Enter
+tmux send-keys -t ff15:main.2 'queue/tasks/ignis.yaml に任務がある。確認して動いてくれ。'
+tmux send-keys -t ff15:main.2 Enter
 sleep 2
 # Gladiolusに送信（pane 3）
-tmux send-keys -t ff15:3 'queue/tasks/gladiolus.yaml に任務がある。確認して動いてくれ。'
-tmux send-keys -t ff15:3 Enter
+tmux send-keys -t ff15:main.3 'queue/tasks/gladiolus.yaml に任務がある。確認して動いてくれ。'
+tmux send-keys -t ff15:main.3 Enter
 sleep 2
 # Promptoに送信（pane 4）
-tmux send-keys -t ff15:4 'queue/tasks/prompto.yaml に任務がある。確認して動いてくれ。'
-tmux send-keys -t ff15:4 Enter
+tmux send-keys -t ff15:main.4 'queue/tasks/prompto.yaml に任務がある。確認して動いてくれ。'
+tmux send-keys -t ff15:main.4 Enter
 ```
 
 ## 🔴 タスク分解の前に、まず考えろ（実行計画の設計）
