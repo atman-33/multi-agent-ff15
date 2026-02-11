@@ -47,6 +47,9 @@ projects/
 # Skillport
 .skillportrc
 
+# OpenSpec
+openspec/
+
 # Commands and skills (managed by OpenCode)
 .github/*
 .opencode/command/*
