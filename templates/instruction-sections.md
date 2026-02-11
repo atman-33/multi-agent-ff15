@@ -30,28 +30,28 @@ Sections marked 🔴 are REQUIRED. Sections marked ⚪ are OPTIONAL (role-specif
 │   workflow, send_keys, files)               │
 └─────────────────────────────────────────────┘
 
-# {Name}（{kanji}）専用指示書
+# {Name}（{kanji}）Instruction Manual
 
-## 概要                              🔴 REQUIRED
+## Overview                              🔴 REQUIRED
    - Role description, attributes table
    - Character personality summary
 
-## 🔴 自己識別（最重要）               🔴 REQUIRED
+## 🔴 Self-Identification (Critical)      🔴 REQUIRED
    - tmux display-message command
    - Identity verification
 
-## 🔴 絶対禁止事項                    🔴 REQUIRED
+## 🔴 Forbidden Actions                   🔴 REQUIRED
    - F001-F006 table (IDENTICAL across all Comrades)
    - Hierarchy diagram (IDENTICAL across all Comrades)
    - Report destination note
 
-## 🔴 言葉遣い（重要）                🔴 REQUIRED
+## 🔴 Speech Patterns (Important)         🔴 REQUIRED
    - language: ja rules
    - language: non-ja rules
    - Character-specific speech examples
    - 決めゼリフ examples
 
-## 🔴 タスク実行フロー                 🔴 REQUIRED
+## 🔴 Task Execution Flow                 🔴 REQUIRED
    - STEP 1: Read task YAML
    - STEP 2: Check status (idle/assigned)
    - STEP 3: Execute task
@@ -59,47 +59,47 @@ Sections marked 🔴 are REQUIRED. Sections marked ⚪ are OPTIONAL (role-specif
    - STEP 5: send-keys to Noctis
    - STEP 6: Wait
 
-## 🔴 send-keys の使用方法（超重要）    🔴 REQUIRED
+## 🔴 send-keys Usage (Critical)          🔴 REQUIRED
    - ❌ Forbidden pattern (single line)
    - ✅ Correct pattern (two bash calls)
 
-## 🔴 タイムスタンプの取得（必須）       🔴 REQUIRED
+## 🔴 Timestamp Retrieval (Required)      🔴 REQUIRED
    - date command for ISO 8601
 
-## 🔴 /new からの復帰プロトコル         🔴 REQUIRED
+## 🔴 /new Recovery Protocol              🔴 REQUIRED
    - ASCII flow diagram
    - Steps: identify → memory → task YAML → context → resume
 
-## 🔴 コンパクション復帰手順            🔴 REQUIRED
+## 🔴 Compaction Recovery                  🔴 REQUIRED
    - 4-step numbered list
 
-## 🧠 Memory MCP（知識グラフ記憶）      🔴 REQUIRED
+## 🧠 Memory MCP (Knowledge Graph)        🔴 REQUIRED
    - ToolSearch + read_graph code block
 
-## 🔴 skill_candidate（スキル化候補）   🔴 REQUIRED
+## 🔴 skill_candidate (Skill Proposals)   🔴 REQUIRED
    - YAML example with name/description/applicable_to
 
-## ペルソナ設定（深掘り）               ⚪ OPTIONAL
+## Persona (Deep Dive)                    ⚪ OPTIONAL
    - Thinking process, communication style, etc.
    - Character-specific depth
 
-## 専門領域                            ⚪ OPTIONAL
+## Expertise                              ⚪ OPTIONAL
    - Expertise table
    - Suitable / unsuitable tasks
 
-## 品質基準                            ⚪ OPTIONAL
+## Quality Standards                      ⚪ OPTIONAL
    - Quality criteria table
 
-## 問題解決手順                         ⚪ OPTIONAL
+## Problem-Solving Process                ⚪ OPTIONAL
    - Phase-based methodology (role-specific)
 
-## コンテキスト読み込み手順             ⚪ OPTIONAL
+## Context Loading Procedure              ⚪ OPTIONAL
    - Startup context loading steps
 
-## 次のステップ                        ⚪ OPTIONAL
+## Next Steps                             ⚪ OPTIONAL
    - Summary of key actions
 
-## フッター                            ⚪ OPTIONAL
+## Footer                                 ⚪ OPTIONAL
    - Creation date, version, role
 ```
 
@@ -118,62 +118,62 @@ Sections marked 🔴 are REQUIRED. Sections marked ⚪ are OPTIONAL (role-specif
 │   memory, persona)                          │
 └─────────────────────────────────────────────┘
 
-# Noctis（王）指示書
+# Noctis（王）Instruction Manual
 
-## 役割                              🔴 REQUIRED
+## Role                              🔴 REQUIRED
    - Role description, Comrade list
 
-## 🚨 絶対禁止事項の詳細              🔴 REQUIRED
+## 🚨 Forbidden Actions (Details)    🔴 REQUIRED
    - F001-F004 table (Noctis-specific)
 
-## 言葉遣い                           🔴 REQUIRED
+## Speech Patterns                   🔴 REQUIRED
    - language switching rules
    - Noctis speech patterns
 
-## 🔴 タイムスタンプの取得方法（必須）   🔴 REQUIRED
+## 🔴 Timestamp Retrieval (Required) 🔴 REQUIRED
 
-## 🔴 tmux send-keys の使用方法        🔴 REQUIRED
+## 🔴 tmux send-keys Usage           🔴 REQUIRED
    - Forbidden / correct patterns
    - Multi-Comrade sequential send (with sleep 2)
 
-## 🔴 タスク分解の前に、まず考えろ      🔴 REQUIRED
+## 🔴 Think Before Task Decomposition 🔴 REQUIRED
    - 5 questions table
 
-## 🔴 各Comradeに専用ファイルで指示     🔴 REQUIRED
+## 🔴 Dedicated Task Files per Comrade 🔴 REQUIRED
    - File paths, YAML format
 
-## 🔴 dashboard.md 更新               🔴 REQUIRED
+## 🔴 dashboard.md Updates            🔴 REQUIRED
    - Update timing table
 
-## 🔴 「起こされたら全確認」方式        🔴 REQUIRED
+## 🔴 "Check Everything When Woken" Protocol 🔴 REQUIRED
 
-## 🔴 未処理報告スキャン               🔴 REQUIRED
+## 🔴 Unprocessed Report Scan         🔴 REQUIRED
 
-## 🔴 同一ファイル書き込み禁止          🔴 REQUIRED
+## 🔴 No Concurrent File Writes (RACE-001) 🔴 REQUIRED
 
-## 🔴 並列化ルール                    🔴 REQUIRED
+## 🔴 Parallelization Rules           🔴 REQUIRED
 
-## 🔴 send-keys送信後の到達確認        🔴 REQUIRED
+## 🔴 Delivery Confirmation After send-keys 🔴 REQUIRED
 
-## 🔴 Lunafreyaからの指示受信          🔴 REQUIRED
+## 🔴 Receiving Instructions from Lunafreya 🔴 REQUIRED
 
-## ペルソナ設定                       🔴 REQUIRED
+## Persona                            🔴 REQUIRED
 
-## 🔴 コンパクション復帰手順           🔴 REQUIRED
+## 🔴 Compaction Recovery              🔴 REQUIRED
 
-## コンテキスト読み込み手順            🔴 REQUIRED
+## Context Loading Procedure           🔴 REQUIRED
 
-## 🔴 /newプロトコル                  🔴 REQUIRED
+## 🔴 /new Protocol (Comrade Task Switching) 🔴 REQUIRED
 
-## 🚨 Crystalへの確認ルール           🔴 REQUIRED
+## 🚨 Crystal Confirmation Rule        🔴 REQUIRED
 
-## 🧠 Memory MCP                     🔴 REQUIRED
+## 🧠 Memory MCP                       🔴 REQUIRED
 
-## 🔴 ペイン番号ズレ対策              🔴 REQUIRED
+## 🔴 Pane Index Drift Prevention      🔴 REQUIRED
 
-## 🔴 Comradeモデル動的切替           🔴 REQUIRED
+## 🔴 Dynamic Comrade Model Switching  🔴 REQUIRED
 
-## 🔴 自律判断ルール                  🔴 REQUIRED
+## 🔴 Autonomous Judgment Rules        🔴 REQUIRED
 ```
 
 ---
@@ -189,34 +189,37 @@ Sections marked 🔴 are REQUIRED. Sections marked ⚪ are OPTIONAL (role-specif
 │   send_keys, memory, persona)               │
 └─────────────────────────────────────────────┘
 
-# Lunafreya（神凪）指示書
+# Lunafreya（神凪）Instruction Manual
 
-## 役割                              🔴 REQUIRED
+## Role                              🔴 REQUIRED
    - Role description, position diagram
 
-## 🚨 やること・やらないこと            🔴 REQUIRED
+## 🔴 Self-Identification (Critical)  🔴 REQUIRED
+   - tmux display-message command
+
+## 🔴 Do's and Don'ts                 🔴 REQUIRED
    - ✅ / ❌ tables
 
-## 言葉遣い                           🔴 REQUIRED
+## Speech Patterns                    🔴 REQUIRED
    - language switching rules
    - Speech pattern characteristics
 
-## 🔴 Noctisへの指示方法              🔴 REQUIRED
+## 🔴 How to Instruct Noctis          🔴 REQUIRED
    - YAML write + send-keys
 
-## 🔴 タイムスタンプの取得方法          🔴 REQUIRED
+## 🔴 Timestamp Retrieval (Required)  🔴 REQUIRED
 
-## 🔴 tmux send-keys の使用方法        🔴 REQUIRED
+## 🔴 tmux send-keys Usage            🔴 REQUIRED
 
-## 🔴 /new からの復帰プロトコル         🔴 REQUIRED
+## 🔴 /new Recovery Protocol          🔴 REQUIRED
 
-## 🔴 コンパクション復帰手順            🔴 REQUIRED
+## 🔴 Compaction Recovery              🔴 REQUIRED
 
-## コンテキスト読み込み手順             🔴 REQUIRED
+## Context Loading Procedure           🔴 REQUIRED
 
-## ペルソナ設定                        🔴 REQUIRED
+## Persona                             🔴 REQUIRED
 
-## 🧠 Memory MCP                      🔴 REQUIRED
+## 🧠 Memory MCP                       🔴 REQUIRED
 ```
 
 ---
@@ -237,7 +240,7 @@ Sections marked 🔴 are REQUIRED. Sections marked ⚪ are OPTIONAL (role-specif
 - Use `##` (H2) for all top-level sections
 - Use `###` (H3) for sub-sections within
 - Include emoji prefix for priority sections
-- Keep heading text in Japanese (consistent with agent language)
+- Keep heading text in English (consistent with context-saving policy)
 
 ---
 

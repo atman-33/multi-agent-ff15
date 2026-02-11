@@ -1,34 +1,34 @@
-# context ディレクトリ
+# context Directory
 
-プロジェクト固有のコンテキストを管理するディレクトリ。
+Directory for managing project-specific context.
 
-## 目的
-- プロジェクトごとの知識・決定事項を保存
-- セッション間での情報共有
-- 新規参加者（Comrades）への引継ぎ
+## Purpose
+- Save knowledge and decisions for each project
+- Share information between sessions
+- Handover to new participants (Comrades)
 
-## ファイル構成
+## File Structure
 ```
 context/
-  README.md           ← このファイル
-  {project_id}.md     ← プロジェクト固有のコンテキスト
+  README.md           ← This file
+  {project_id}.md     ← Project-specific context
 ```
 
-## 使い方
+## Usage
 
-### 新規プロジェクト追加時
+### When Adding a New Project
 
-**STEP 1: テンプレートをコピー**
+**STEP 1: Copy the template**
 ```bash
 cp templates/context_template.md context/{project_id}.md
 ```
 
-**STEP 2: 内容を編集**
-- `{project_id}`, `{name}`, `{path}` 等のプレースホルダーを実際の値に置換
-- 各セクションに必要な情報を記入
-- 不要なセクションは削除可（柔軟に運用）
+**STEP 2: Edit the content**
+- Replace placeholders like `{project_id}`, `{name}`, `{path}` with actual values
+- Fill in required information for each section
+- Unnecessary sections can be removed (flexible operation)
 
-**STEP 3: config/projects.yaml に登録**
+**STEP 3: Register in config/projects.yaml**
 ```yaml
 projects:
   - id: {project_id}
@@ -38,28 +38,28 @@ projects:
     status: active
 ```
 
-### 作業開始時（Comradesの手順）
+### When Starting Work (Comrades' Procedure)
 
-**コンテキスト読み込み順序**:
-1. `memory/global_context.md` を読む（システム全体の設定）
-2. `context/{project_id}.md` を読む（プロジェクト固有情報）
-3. `queue/tasks/{worker_name}.yaml` を読む（自分のタスク）
+**Context Loading Order**:
+1. Read `memory/global_context.md` (system-wide settings)
+2. Read `context/{project_id}.md` (project-specific information)
+3. Read `queue/tasks/{worker_name}.yaml` (your task)
 
-### テンプレート構造
+### Template Structure
 
-テンプレートは `templates/context_template.md` を参照してください。
+Refer to `templates/context_template.md` for the template.
 
-主要セクション:
-- **基本情報**: project_id, 正式名称, パス, Notion URL
-- **What/Why/Who**: プロジェクトの概要・目的・体制
-- **技術スタック**: 言語, フレームワーク, データベース
-- **Constraints**: 制約（期限, 予算等）
-- **Current State**: 進捗状況, 次のアクション, ブロッカー
-- **Decisions**: 重要な決定事項（テーブル形式）
-- **Notes**: 注意事項やメモ
+Main sections:
+- **Basic Information**: project_id, official name, path, Notion URL
+- **What/Why/Who**: Project overview, purpose, organization
+- **Tech Stack**: Language, framework, database
+- **Constraints**: Limitations (deadline, budget, etc.)
+- **Current State**: Progress status, next actions, blockers
+- **Decisions**: Important decisions (table format)
+- **Notes**: Notes and memos
 
-## 更新ルール
-- 重要な決定があったら即座に更新
-- 最終更新日を必ず更新
-- 不要になった情報は削除（シンプルに保つ）
-- Decisionsテーブルには日付・理由を必ず記載
+## Update Rules
+- Update immediately when important decisions are made
+- Always update the last updated date
+- Delete information that is no longer needed (keep it simple)
+- Always include date and reason in the Decisions table

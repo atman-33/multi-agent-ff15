@@ -1,44 +1,44 @@
 # {project_id}
-最終更新: YYYY-MM-DD
+Last Updated: YYYY-MM-DD
 
-## 基本情報
-- **プロジェクトID**: {project_id}
-- **正式名称**: {name}
-- **パス**: {path}
-- **Notion URL**: {url}（あれば）
+## Basic Information
+- **Project ID**: {project_id}
+- **Official Name**: {name}
+- **Path**: {path}
+- **Notion URL**: {url} (if any)
 
-## What（これは何か）
-{プロジェクトの概要を1-2文で}
+## What
+{Project overview in 1-2 sentences}
 
-## Why（なぜやるのか）
-- 目的:
-- 成功の定義:
+## Why
+- Purpose:
+- Definition of Success:
 
-## Who（誰が関係するか）
-- 責任者:
-- 関係者:
+## Who
+- Responsible Person:
+- Stakeholders:
 
-## 技術スタック
-- 言語:
-- フレームワーク:
-- データベース:
+## Tech Stack
+- Language:
+- Framework:
+- Database:
 
-## Constraints（制約は何か）
-- 期限:
-- 予算:
-- その他:
+## Constraints
+- Deadline:
+- Budget:
+- Others:
 
-## Current State（今どこにいるか）
-- ステータス: {未着手/進行中/レビュー中/完了}
-- 進捗:
-  - [x] 完了タスク
-  - [ ] 未完了タスク
-- 次のアクション:
-- ブロッカー:
+## Current State
+- Status: {not started/in progress/under review/completed}
+- Progress:
+  - [x] Completed tasks
+  - [ ] Incomplete tasks
+- Next Actions:
+- Blockers:
 
-## Decisions（決まったこと）
-| 日付 | 決定事項 | 理由 |
-|------|----------|------|
+## Decisions
+| Date | Decision | Reason |
+|------|----------|--------|
 
-## Notes（注意事項・メモ）
-{プロジェクト固有の注意点や気づき}
+## Notes
+{Project-specific notes and observations}

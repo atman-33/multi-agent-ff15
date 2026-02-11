@@ -1,33 +1,33 @@
 ---
 name: skill-creator
-description: 汎用的な作業パターンを発見した際に、再利用可能なOpenCodeスキルを自動生成する。繰り返し使えるワークフロー、ベストプラクティス、ドメイン知識をスキル化する時に使用。
+description: Automatically generates reusable OpenCode skills when universal work patterns are discovered. Used for creating skills from repeatable workflows, best practices, and domain knowledge.
 ---
 
-# Skill Creator - スキル自動生成
+# Skill Creator - Auto Skill Generation
 
 ## Overview
 
-作業中に発見した汎用的なパターンを、再利用可能なOpenCodeスキルとして保存する。
-これにより、同じ作業を繰り返す際の品質と効率が向上する。
+Save universal patterns discovered during work as reusable OpenCode skills.
+This improves quality and efficiency when repeating the same tasks.
 
 ## When to Create a Skill
 
-以下の条件を満たす場合、スキル化を検討せよ：
+Consider skill creation when the following conditions are met:
 
-1. **再利用性**: 他のプロジェクトでも使えるパターン
-2. **複雑性**: 単純すぎず、手順や知識が必要なもの
-3. **安定性**: 頻繁に変わらない手順やルール
-4. **価値**: スキル化することで明確なメリットがある
+1. **Reusability**: Patterns usable in other projects
+2. **Complexity**: Not too simple, requiring procedures or knowledge
+3. **Stability**: Procedures or rules that don't change frequently
+4. **Value**: Clear benefit to creating a skill
 
 ## Skill Structure
 
-生成するスキルは以下の構造に従う：
+Generated skills must follow this structure:
 
 ```
 skill-name/
-├── SKILL.md          # 必須
-├── scripts/          # オプション（実行スクリプト）
-└── resources/        # オプション（参照ファイル）
+├── SKILL.md          # Required
+├── scripts/          # Optional (executable scripts)
+└── resources/        # Optional (reference files)
 ```
 
 ## SKILL.md Template
@@ -35,67 +35,67 @@ skill-name/
 ```markdown
 ---
 name: {skill-name}
-description: {いつこのスキルを使うか、具体的なユースケースを明記}
+description: {Specify when to use this skill, with concrete use cases}
 ---
 
 # {Skill Name}
 
 ## Overview
-{このスキルが何をするか}
+{What this skill does}
 
 ## When to Use
-{どういう状況で使うか、トリガーとなるキーワードや状況}
+{Situations to use it, trigger keywords or conditions}
 
 ## Instructions
-{具体的な手順}
+{Specific procedures}
 
 ## Examples
-{入力と出力の例}
+{Input and output examples}
 
 ## Guidelines
-{守るべきルール、注意点}
+{Rules to follow, caution points}
 ```
 
 ## Creation Process
 
-1. パターンの特定
-   - 何が汎用的か
-   - どこで再利用できるか
+1. Identify Pattern
+   - What is universal about it
+   - Where it can be reused
 
-2. スキル名の決定
-   - kebab-case を使用（例: api-error-handler）
-   - 動詞+名詞 or 名詞+名詞
+2. Decide Skill Name
+   - Use kebab-case (example: api-error-handler)
+   - Verb+noun or noun+noun
 
-3. description の記述（最重要）
-   - OpenCode がいつこのスキルを使うか判断する材料
-   - 具体的なユースケース、ファイルタイプ、アクション動詞を含める
-   - 悪い例: "ドキュメント処理スキル"
-   - 良い例: "PDFからテーブルを抽出しCSVに変換する。データ分析ワークフローで使用。"
+3. Write Description (Most Important)
+   - Material for OpenCode to decide when to use this skill
+   - Include concrete use cases, file types, action verbs
+   - Bad example: "Document processing skill"
+   - Good example: "Extracts tables from PDF and converts to CSV. Used in data analysis workflows."
 
-4. Instructions の記述
-   - 明確な手順
-   - 判断基準
-   - エッジケースの対処
+4. Write Instructions
+   - Clear procedures
+   - Decision criteria
+   - Edge case handling
 
-5. 保存
-   - **必須**: `config/settings.yaml` の `skill.path` で指定されたパスに保存すること
-   - **他のプロジェクトのフォルダには絶対に保存しないこと**
-   - 既存スキルと名前が被らないか確認
+5. Save
+   - **Required**: Save to path specified in `config/settings.yaml`'s `skill.path`
+   - **Never save to other project folders**
+   - Check that name doesn't conflict with existing skills
 
-## 使用フロー
+## Usage Flow
 
-このスキルはNoctis配下のComradesが使用する。
+This skill is used by Comrades under Noctis.
 
-1. Comrade（Ignis/Gladiolus/Prompto）がスキル化候補を発見
-2. Comrade → Noctisに報告（`queue/reports/{comrade}_report.yaml`）
-3. Noctis → ユーザー（Crystal）に承認依頼（`dashboard.md`経由）
-4. ユーザーが承認
-5. Noctis → Comradeにスキル作成を指示（`queue/tasks/{comrade}.yaml`）
-6. **Comradeがこのskill-creatorを使用してスキルを作成**
-7. 完了報告（各Comradeは自分のペルソナで報告）
+1. Comrade (Ignis/Gladiolus/Prompto) discovers skill candidate
+2. Comrade → Reports to Noctis (`queue/reports/{comrade}_report.yaml`)
+3. Noctis → Requests approval from user (Crystal) via `dashboard.md`
+4. User approves
+5. Noctis → Instructs Comrade to create skill (`queue/tasks/{comrade}.yaml`)
+6. **Comrade uses this skill-creator to create the skill**
+7. Completion report (each Comrade reports in their persona)
 
-※ 最新のベストプラクティスに基づいて作成すること。
-※ Noctisからの指示がある場合は、その設計に従うこと。
+* Create based on latest best practices.
+* If Noctis provides instructions, follow that design.
 
 ## Examples of Good Skills
 
@@ -103,7 +103,7 @@ description: {いつこのスキルを使うか、具体的なユースケース
 ```markdown
 ---
 name: api-response-handler
-description: REST APIのレスポンス処理パターン。エラーハンドリング、リトライロジック、レスポンス正規化を含む。API統合作業時に使用。
+description: REST API response processing patterns. Includes error handling, retry logic, and response normalization. Used during API integration work.
 ---
 ```
 
@@ -111,7 +111,7 @@ description: REST APIのレスポンス処理パターン。エラーハンド�
 ```markdown
 ---
 name: meeting-notes-formatter
-description: 議事録を標準フォーマットに変換する。参加者、決定事項、アクションアイテムを抽出・整理。会議後のドキュメント作成時に使用。
+description: Converts meeting notes to a standard format. Extracts and organizes attendees, decisions, and action items. Used for post-meeting documentation.
 ---
 ```
 
@@ -119,35 +119,35 @@ description: 議事録を標準フォーマットに変換する。参加者、�
 ```markdown
 ---
 name: data-validation-rules
-description: 入力データのバリデーションパターン集。メール、電話番号、日付、金額などの検証ルール。フォーム処理やデータインポート時に使用。
+description: Collection of input data validation patterns. Validation rules for email, phone numbers, dates, amounts, etc. Used in form processing and data import.
 ---
 ```
 
 ## Reporting Format
 
-スキル生成時は**各Comradeのペルソナで報告**すること：
+When generating skills, report in **each Comrade's persona**:
 
-### Ignis（軍師）の報告例
+### Ignis (Tactician) Report Example
 「新たなスキルを作成した。
 - スキル名: {name}
 - 用途: {description}
 - 保存先: {config/settings.yamlのskill.path}/{name}/」
 
-### Gladiolus（盾）の報告例
+### Gladiolus (Shield) Report Example
 「スキルを作ったぜ。
 - 名前: {name}
 - 使い道: {description}
 - 場所: {config/settings.yamlのskill.path}/{name}/」
 
-### Prompto（銃）の報告例
+### Prompto (Gunner) Report Example
 「Woohoo! 新しいスキル作っといたよ！
 - 名前: {name}
 - 何するやつ: {description}
 - 保存場所: {config/settings.yamlのskill.path}/{name}/」
 
-## 重要な注意事項
+## Important Notes
 
-**スキル保存場所の厳守:**
-1. 必ず `config/settings.yaml` を読んで `skill.path` を確認すること
-2. そのパスに保存すること（他のプロジェクトフォルダには保存しない）
-3. 別プロジェクトで作業中でも、FF15エージェント用のスキルはFF15プロジェクトの `.opencode/skills/` に保存する
+**Strict adherence to skill save location:**
+1. Always read `config/settings.yaml` and check `skill.path`
+2. Save to that path (do not save to other project folders)
+3. Even when working on other projects, save FF15 agent skills to FF15 project's `.opencode/skills/`

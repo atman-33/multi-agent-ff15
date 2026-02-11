@@ -1,32 +1,32 @@
 #!/bin/bash
-# ⚔️ multi-agent-ff15 起動スクリプト（毎日の起動用）
+# ⚔️ multi-agent-ff15 Deployment Script (Daily Startup)
 # Daily Deployment Script for Multi-Agent Orchestration System
 #
-# 使用方法:
-#   ./standby.sh           # 全エージェント起動（前回の状態を維持）
-#   ./standby.sh -c        # キューをリセットして起動（クリーンスタート）
-#   ./standby.sh -s        # セットアップのみ（OpenCode起動なし）
-#   ./standby.sh -h        # ヘルプ表示
+# Usage:
+#   ./standby.sh           # Start all agents (preserve previous state)
+#   ./standby.sh -c        # Clean start (reset queues)
+#   ./standby.sh -s        # Setup only (no OpenCode launch)
+#   ./standby.sh -h        # Show help
 
 set -e
 
-# スクリプトのディレクトリを取得
+# Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 言語設定を読み取り（デフォルト: ja）
+# Read language setting (default: ja)
 LANG_SETTING="ja"
 if [ -f "./config/settings.yaml" ]; then
     LANG_SETTING=$(grep "^language:" ./config/settings.yaml 2>/dev/null | awk '{print $2}' || echo "ja")
 fi
 
-# シェル設定を読み取り（デフォルト: bash）
+# Read shell setting (default: bash)
 SHELL_SETTING="bash"
 if [ -f "./config/settings.yaml" ]; then
     SHELL_SETTING=$(grep "^shell:" ./config/settings.yaml 2>/dev/null | awk '{print $2}' || echo "bash")
 fi
 
-# 色付きログ関数（FF15風）
+# Colored log functions (FF15 style)
 log_info() {
     echo -e "\033[1;33m[INFO]\033[0m $1"
 }
@@ -40,10 +40,10 @@ log_war() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# プロンプト生成関数（bash/zsh対応）
+# Prompt generation function (bash/zsh support)
 # ───────────────────────────────────────────────────────────────────────────────
-# 使用法: generate_prompt "ラベル" "色" "シェル"
-# 色: red, green, blue, magenta, cyan, yellow
+# Usage: generate_prompt "label" "color" "shell"
+# Colors: red, green, blue, magenta, cyan, yellow
 # ═══════════════════════════════════════════════════════════════════════════════
 generate_prompt() {
     local label="$1"
@@ -70,7 +70,7 @@ generate_prompt() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# オプション解析
+# Option parsing
 # ═══════════════════════════════════════════════════════════════════════════════
 SETUP_ONLY=false
 OPEN_TERMINAL=false
@@ -91,7 +91,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --fullpower)
             if [ "$MODE" != "normal" ]; then
-                echo "エラー: モードは1つのみ指定できます"
+                echo "Error: Only one mode can be specified"
                 exit 1
             fi
             MODE="fullpower"
@@ -99,7 +99,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --lite)
             if [ "$MODE" != "normal" ]; then
-                echo "エラー: モードは1つのみ指定できます"
+                echo "Error: Only one mode can be specified"
                 exit 1
             fi
             MODE="lite"
@@ -107,7 +107,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --free-kimi)
             if [ "$MODE" != "normal" ]; then
-                echo "エラー: モードは1つのみ指定できます"
+                echo "Error: Only one mode can be specified"
                 exit 1
             fi
             MODE="free-kimi"
@@ -115,7 +115,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --free-glm)
             if [ "$MODE" != "normal" ]; then
-                echo "エラー: モードは1つのみ指定できます"
+                echo "Error: Only one mode can be specified"
                 exit 1
             fi
             MODE="free-glm"
@@ -130,80 +130,80 @@ while [[ $# -gt 0 ]]; do
                 SHELL_OVERRIDE="$2"
                 shift 2
             else
-                echo "エラー: -shell オプションには bash または zsh を指定してください"
+                echo "Error: -shell option requires bash or zsh"
                 exit 1
             fi
             ;;
         -h|--help)
             echo ""
-            echo "⚔️ multi-agent-ff15 起動スクリプト"
+            echo "⚔️ multi-agent-ff15 Deployment Script"
             echo ""
-            echo "使用方法: ./standby.sh [オプション]"
+            echo "Usage: ./standby.sh [options]"
             echo ""
-            echo "オプション:"
-            echo "  -c, --clean         キューとダッシュボードをリセットして起動（クリーンスタート）"
-            echo "                      未指定時は前回の状態を維持して起動"
-            echo "  --fullpower         Full Powerモードで起動"
-            echo "  --lite              Liteモードで起動"
-            echo "  --free-kimi         無料モード（Kimi K2.5）で起動"
-            echo "  --free-glm          無料モード（GLM 4.7）で起動"
-            echo "  -s, --setup-only    tmuxセッションのセットアップのみ（OpenCode起動なし）"
-            echo "  -t, --terminal      Windows Terminal で新しいタブを開く"
-            echo "  -shell, --shell SH  シェルを指定（bash または zsh）"
-            echo "                      未指定時は config/settings.yaml の設定を使用"
-            echo "  -h, --help          このヘルプを表示"
+            echo "Options:"
+            echo "  -c, --clean         Clean start (reset queues and dashboard)"
+            echo "                      If omitted, resume from previous state"
+            echo "  --fullpower         Start in Full Power mode"
+            echo "  --lite              Start in Lite mode"
+            echo "  --free-kimi         Start in Free mode (Kimi K2.5)"
+            echo "  --free-glm          Start in Free mode (GLM 4.7)"
+            echo "  -s, --setup-only    Setup tmux session only (no OpenCode launch)"
+            echo "  -t, --terminal      Open new tab in Windows Terminal"
+            echo "  -shell, --shell SH  Specify shell (bash or zsh)"
+            echo "                      If omitted, use config/settings.yaml setting"
+            echo "  -h, --help          Show this help"
             echo ""
-            echo "例:"
-            echo "  ./standby.sh              # 前回の状態を維持してスタート"
-            echo "  ./standby.sh -c           # クリーンスタート（キューリセット）"
-            echo "  ./standby.sh -s           # セットアップのみ（手動でOpenCode起動）"
-            echo "  ./standby.sh -t           # 全エージェント起動 + ターミナルタブ展開"
-            echo "  ./standby.sh -shell bash  # bash用プロンプトで起動"
-            echo "  ./standby.sh --fullpower  # Full Powerモードでスタート"
-            echo "  ./standby.sh --lite       # Liteモードでスタート"
-            echo "  ./standby.sh --free-kimi  # 無料モード（Kimi K2.5）でスタート"
-            echo "  ./standby.sh --free-glm   # 無料モード（GLM 4.7）でスタート"
-            echo "  ./standby.sh -c --fullpower  # クリーンスタート＋Full Powerモード"
-            echo "  ./standby.sh -shell zsh   # zsh用プロンプトで起動"
+            echo "Examples:"
+            echo "  ./standby.sh              # Resume from previous state"
+            echo "  ./standby.sh -c           # Clean start (reset queues)"
+            echo "  ./standby.sh -s           # Setup only (manual OpenCode launch)"
+            echo "  ./standby.sh -t           # Start all agents + open terminal tab"
+            echo "  ./standby.sh -shell bash  # Start with bash prompt"
+            echo "  ./standby.sh --fullpower  # Start in Full Power mode"
+            echo "  ./standby.sh --lite       # Start in Lite mode"
+            echo "  ./standby.sh --free-kimi  # Start in Free mode (Kimi K2.5)"
+            echo "  ./standby.sh --free-glm   # Start in Free mode (GLM 4.7)"
+            echo "  ./standby.sh -c --fullpower  # Clean start + Full Power mode"
+            echo "  ./standby.sh -shell zsh   # Start with zsh prompt"
             echo ""
-            echo "モデル構成:"
-            echo "  config/models.yaml を参照"
+            echo "Model configuration:"
+            echo "  See config/models.yaml"
             echo ""
-            echo "モード構成:"
-            echo "  Normal（デフォルト）:    標準構成"
-            echo "  Full Power（--fullpower）: 高性能構成"
-            echo "  Lite（--lite）:           低コスト構成"
-            echo "  Free Kimi（--free-kimi）: 無料（Kimi K2.5）"
-            echo "  Free GLM（--free-glm）:   無料（GLM 4.7）"
+            echo "Mode configuration:"
+            echo "  Normal (default):         Standard configuration"
+            echo "  Full Power (--fullpower): High-performance configuration"
+            echo "  Lite (--lite):            Low-cost configuration"
+            echo "  Free Kimi (--free-kimi):  Free (Kimi K2.5)"
+            echo "  Free GLM (--free-glm):    Free (GLM 4.7)"
             echo ""
-            echo "エイリアス:"
+            echo "Aliases:"
             echo "  csnt  → cd /mnt/c/tools/multi-agent-ff15 && ./standby.sh"
             echo "  csf   → tmux attach-session -t ff15"
             echo ""
             exit 0
             ;;
         *)
-            echo "不明なオプション: $1"
-            echo "./standby.sh -h でヘルプを表示"
+            echo "Unknown option: $1"
+            echo "Run ./standby.sh -h for help"
             exit 1
             ;;
     esac
 done
 
-# シェル設定のオーバーライド（コマンドラインオプション優先）
+# Shell setting override (command-line option takes priority)
 if [ -n "$SHELL_OVERRIDE" ]; then
     if [[ "$SHELL_OVERRIDE" == "bash" || "$SHELL_OVERRIDE" == "zsh" ]]; then
         SHELL_SETTING="$SHELL_OVERRIDE"
     else
-        echo "エラー: -shell オプションには bash または zsh を指定してください（指定値: $SHELL_OVERRIDE）"
+        echo "Error: -shell option requires bash or zsh (provided: $SHELL_OVERRIDE)"
         exit 1
     fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# モデル設定の読み込み
+# Load model configuration
 # ═══════════════════════════════════════════════════════════════════════════════
-# 新構造: modes.<mode>.<agent>.<key> (e.g. modes.normal.noctis.model)
+# New structure: modes.<mode>.<agent>.<key> (e.g. modes.normal.noctis.model)
 get_mode_value() {
     local mode="$1"
     local agent="$2"
@@ -237,7 +237,7 @@ require_mode_value() {
 
     value=$(get_mode_value "$mode" "$agent" "$key")
     if [ -z "$value" ]; then
-        echo "エラー: ${MODE_CONFIG_FILE} の modes.${mode}.${agent}.${key} が見つかりません"
+        echo "Error: modes.${mode}.${agent}.${key} not found in ${MODE_CONFIG_FILE}"
         exit 1
     fi
     echo "$value"
@@ -250,7 +250,7 @@ case "$MODE" in
     free-kimi) MODE_NAME="Free (Kimi K2.5)" ;;
     free-glm) MODE_NAME="Free (GLM 4.7)" ;;
     *)
-        echo "エラー: 未対応のモード: $MODE"
+        echo "Error: Unsupported mode: $MODE"
         exit 1
         ;;
 esac
@@ -262,12 +262,12 @@ PROMPTO_MODEL=$(require_mode_value "$MODE" "prompto" "model")
 LUNAFREYA_MODEL=$(require_mode_value "$MODE" "lunafreya" "model")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 起動バナー表示
+# Startup banner
 # ═══════════════════════════════════════════════════════════════════════════════
 show_battle_cry() {
     clear
 
-    # FF15 タイトルスクリーン
+    # FF15 title screen
     echo ""
     echo -e "\033[0;90m    ═══════════════════════════════════════════════════════════════════════\033[0m"
     echo ""
@@ -299,32 +299,32 @@ show_battle_cry() {
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # システム情報
+    # System information
     # ═══════════════════════════════════════════════════════════════════════════
     echo -e "\033[0;90m    ─────────────────────────────────────────────────────────────────────────\033[0m"
-    echo -e "    \033[1;33m⚔\033[0m \033[1;37mmulti-agent-ff15\033[0m  〜 \033[0;37mFF15マルチエージェント並列開発システム\033[0m 〜"
-    echo -e "    \033[0;37m  Noctis: 統括+タスク管理 │ Lunafreya: 独立 │ Comrades: 実働×3\033[0m"
+    echo -e "    \033[1;33m⚔\033[0m \033[1;37mmulti-agent-ff15\033[0m  〜 \033[0;37mFF15 Multi-Agent Parallel Development System\033[0m 〜"
+    echo -e "    \033[0;37m  Noctis: Oversight+Task Mgmt │ Lunafreya: Independent │ Comrades: Workers×3\033[0m"
     echo -e "\033[0;90m    ─────────────────────────────────────────────────────────────────────────\033[0m"
     echo ""
 }
 
-# バナー表示実行
+# Execute banner display
 show_battle_cry
 
 echo -e "  \033[1;33m行くぞ、パーティ編成開始だ\033[0m (Setting up the battlefield)"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 1: 既存セッションクリーンアップ
+# STEP 1: Clean up existing sessions
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "🧹 既存セッションをクリア中..."
-tmux kill-session -t ff15 2>/dev/null && log_info "  └─ ff15セッション、クリア完了" || log_info "  └─ ff15セッションは存在せず"
+log_info "🧹 Cleaning up existing sessions..."
+tmux kill-session -t ff15 2>/dev/null && log_info "  └─ ff15 session cleaned" || log_info "  └─ ff15 session not found"
 # Legacy session cleanup
-tmux kill-session -t kingsglaive 2>/dev/null && log_info "  └─ kingsglaiveセッション（レガシー）、クリア完了" || true
-tmux kill-session -t noctis 2>/dev/null && log_info "  └─ noctisセッション（レガシー）、クリア完了" || true
+tmux kill-session -t kingsglaive 2>/dev/null && log_info "  └─ kingsglaive session (legacy) cleaned" || true
+tmux kill-session -t noctis 2>/dev/null && log_info "  └─ noctis session (legacy) cleaned" || true
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 1.5: 前回記録のバックアップ（--clean時のみ、内容がある場合）
+# STEP 1.5: Backup previous records (--clean mode only, if content exists)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$CLEAN_MODE" = true ]; then
     BACKUP_DIR="./logs/backup_$(date '+%Y%m%d_%H%M%S')"
@@ -342,20 +342,20 @@ if [ "$CLEAN_MODE" = true ]; then
         cp -r "./queue/reports" "$BACKUP_DIR/" 2>/dev/null || true
         cp -r "./queue/tasks" "$BACKUP_DIR/" 2>/dev/null || true
         cp "./queue/lunafreya_to_noctis.yaml" "$BACKUP_DIR/" 2>/dev/null || true
-        log_info "📦 前回の記録をバックアップ: $BACKUP_DIR"
+        log_info "📦 Previous records backed up: $BACKUP_DIR"
     fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 2: キューディレクトリ確保 + リセット（--clean時のみリセット）
+# STEP 2: Ensure queue directory + reset (--clean mode only)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# queue ディレクトリが存在しない場合は作成（初回起動時に必要）
+# Create queue directories if they don't exist (needed for first launch)
 [ -d ./queue/reports ] || mkdir -p ./queue/reports
 [ -d ./queue/tasks ] || mkdir -p ./queue/tasks
 
 if [ "$CLEAN_MODE" = true ]; then
-    log_info "📜 前回のミッション記録を破棄中..."
+    log_info "📜 Discarding previous mission records..."
 
     # Comrade task file reset (ignis, gladiolus, prompto)
     for WORKER_NAME in ignis gladiolus prompto; do
@@ -400,94 +400,64 @@ EOF
     rm -f ./queue/tasks/lunafreya.yaml 2>/dev/null || true
     rm -f ./queue/reports/lunafreya_report.yaml 2>/dev/null || true
 
-    log_success "✅ クリーンアップ完了"
+    log_success "✅ Cleanup complete"
 else
-    log_info "📜 前回の状態を維持してスタート..."
-    log_success "✅ キュー・報告ファイルはそのまま継続"
+    log_info "📜 Resuming from previous state..."
+    log_success "✅ Queues and reports preserved"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 3: ダッシュボード初期化（--clean時のみ）
+# STEP 3: Dashboard initialization (--clean mode only)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$CLEAN_MODE" = true ]; then
-    log_info "📊 ダッシュボードを初期化中..."
+    log_info "📊 Initializing dashboard..."
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
 
-    if [ "$LANG_SETTING" = "ja" ]; then
-        # 日本語のみ
-        cat > ./dashboard.md << EOF
-# 📊 ミッション状況
-最終更新: ${TIMESTAMP}
+    # English version (unified for all language settings)
+    cat > ./dashboard.md << EOF
+# 📊 Mission Status
+Last Updated: ${TIMESTAMP}
 
-## 🚨 要対応 - Crystal、ご判断をお願いいたします
-なし
+## 🚨 Requires Action
+None
 
-## 🔄 進行中 - 只今、ミッション遂行中です
-なし
+## 🔄 In Progress
+None
 
-## ✅ 本日の達成結果
-| 時刻 | フィールド | 任務 | 結果 |
-|------|------|------|------|
+## ✅ Today's Results
+| Time | Field | Mission | Result |
+|------|-------|---------|--------|
 
-## 🎯 スキル化候補 - 承認待ち
-なし
+## 🎯 Skill Candidates - Awaiting Approval
+None
 
-## 🛠️ 生成されたスキル
-なし
+## 🛠️ Generated Skills
+None
 
-## ⏸️ 待機中
-なし
+## ⏸️ On Standby
+None
 
-## ❓ 確認事項
-なし
+## ❓ Confirmation Items
+None
 EOF
-    else
-        # 日本語 + 翻訳併記
-        cat > ./dashboard.md << EOF
-# 📊 ミッション状況 (Battle Status Report)
-最終更新 (Last Updated): ${TIMESTAMP}
 
-## 🚨 要対応 - Crystal、ご判断をお願いいたします (Action Required - Awaiting Crystal's Decision)
-なし (None)
-
-## 🔄 進行中 - 只今、ミッション遂行中です (In Progress - Currently in Battle)
-なし (None)
-
-## ✅ 本日の達成結果 (Today's Achievements)
-| 時刻 (Time) | フィールド (Battlefield) | 任務 (Mission) | 結果 (Result) |
-|------|------|------|------|
-
-## 🎯 スキル化候補 - 承認待ち (Skill Candidates - Pending Approval)
-なし (None)
-
-## 🛠️ 生成されたスキル (Generated Skills)
-なし (None)
-
-## ⏸️ 待機中 (On Standby)
-なし (None)
-
-## ❓ 確認事項 (Questions for Lord)
-なし (None)
-EOF
-    fi
-
-    log_success "  └─ ダッシュボード初期化完了 (言語: $LANG_SETTING, シェル: $SHELL_SETTING)"
+    log_success "  └─ Dashboard initialized (language: $LANG_SETTING, shell: $SHELL_SETTING)"
 else
-    log_info "📊 前回のダッシュボードを維持"
+    log_info "📊 Preserving previous dashboard"
 fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 4: tmux の存在確認
+# STEP 4: Check tmux existence
 # ═══════════════════════════════════════════════════════════════════════════════
 if ! command -v tmux &> /dev/null; then
     echo ""
     echo "  ╔════════════════════════════════════════════════════════╗"
     echo "  ║  [ERROR] tmux not found!                              ║"
-    echo "  ║  tmux が見つかりません                                 ║"
+    echo "  ║  tmux not found                                        ║"
     echo "  ╠════════════════════════════════════════════════════════╣"
     echo "  ║  Run first_setup.sh first:                            ║"
-    echo "  ║  まず first_setup.sh を実行してください:               ║"
+    echo "  ║  Please run first_setup.sh first:                     ║"
     echo "  ║     ./first_setup.sh                                  ║"
     echo "  ╚════════════════════════════════════════════════════════╝"
     echo ""
@@ -495,7 +465,7 @@ if ! command -v tmux &> /dev/null; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 5: ff15 セッション作成（統一セッション・5ペイン）
+# STEP 5: Create ff15 session (unified session, 5 panes)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Layout:
 # ┌──────────────┬──────────────┐
@@ -506,17 +476,17 @@ fi
 # │(pane 2)│ (pane 3)  │(pane 4)│
 # └────────┴───────────┴────────┘
 #
-log_war "⚔️ ff15セッションを構築中（5名配備）..."
+log_war "⚔️ Building ff15 session (deploying 5 agents)..."
 
-# セッション作成（最初のペインが Noctis になる）
+# Create session (first pane becomes Noctis)
 if ! tmux new-session -d -s ff15 -n "main" -x 200 -y 50 2>/dev/null; then
     echo ""
     echo "  ╔════════════════════════════════════════════════════════════╗"
     echo "  ║  [ERROR] Failed to create tmux session 'ff15'             ║"
-    echo "  ║  tmux セッション 'ff15' の作成に失敗しました              ║"
+    echo "  ║  Failed to create tmux session 'ff15'                     ║"
     echo "  ╠════════════════════════════════════════════════════════════╣"
     echo "  ║  An existing session may be running.                     ║"
-    echo "  ║  既存セッションが残っている可能性があります              ║"
+    echo "  ║  An existing session may remain.                         ║"
     echo "  ║                                                          ║"
     echo "  ║  Check: tmux ls                                          ║"
     echo "  ║  Kill:  tmux kill-session -t ff15                         ║"
@@ -525,7 +495,7 @@ if ! tmux new-session -d -s ff15 -n "main" -x 200 -y 50 2>/dev/null; then
     exit 1
 fi
 
-# pane-base-index を取得
+# Get pane-base-index
 PANE_BASE=$(tmux show-options -gv pane-base-index 2>/dev/null || echo 0)
 PANE_BASE=${PANE_BASE:-0}
 
@@ -628,26 +598,26 @@ done
 # Noctis pane gets special background
 tmux select-pane -t "ff15:main.${PANE_BASE}" -P 'bg=#002b36'
 
-# pane-border-format でエージェント名を表示
+# Display agent names with pane-border-format
 tmux set-option -t ff15 -w pane-border-status top
 tmux set-option -t ff15 -w pane-border-format '#{pane_index} #{@agent_id}'
 
-log_success "  └─ ff15セッション（5ペイン）、構築完了"
+log_success "  └─ ff15 session (5 panes) built"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 6: OpenCode Code 起動（-s / --setup-only のときはスキップ）
+# STEP 6: Launch OpenCode (skip if -s / --setup-only)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$SETUP_ONLY" = false ]; then
-    # OpenCode Code CLI の存在チェック
+    # Check OpenCode CLI existence
     if ! command -v opencode &> /dev/null; then
-        log_info "⚠️  opencode コマンドが見つかりません"
-        echo "  first_setup.sh を再実行してください:"
+        log_info "⚠️  opencode command not found"
+        echo "  Please re-run first_setup.sh:"
         echo "    ./first_setup.sh"
         exit 1
     fi
 
-    log_war "👑 全員に OpenCode Code を起動中..."
+    log_war "👑 Launching OpenCode for all agents..."
 
     # Agent models and pane indices
     AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto")
@@ -660,48 +630,48 @@ if [ "$SETUP_ONLY" = false ]; then
 
         tmux send-keys -t "ff15:main.${p}" "opencode --model ${model}"
         tmux send-keys -t "ff15:main.${p}" Enter
-        log_info "  └─ ${name}、起動完了"
+        log_info "  └─ ${name} launched"
 
-        # 少し待機（安定のため）
+        # Wait for stability
         sleep 1
     done
 
-    log_success "✅ ${MODE_NAME}でスタート（5名配備完了）"
+    log_success "✅ Started in ${MODE_NAME} mode (5 agents deployed)"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 6.5: 各エージェントに指示書を読み込ませる
+    # STEP 6.5: Load instruction files for each agent
     # ═══════════════════════════════════════════════════════════════════════════
-    log_war "📜 各エージェントに指示書を読み込ませ中..."
+    log_war "📜 Loading instruction files for each agent..."
     echo ""
 
-    echo "  OpenCode Code の起動を待機中（最大30秒）..."
+    echo "  Waiting for OpenCode launch (max 30 seconds)..."
 
-    # Noctisの起動を確認（最大30秒待機）
+    # Wait for Noctis launch (max 30 seconds)
     for i in {1..30}; do
         if tmux capture-pane -t "ff15:main.${PANE_BASE}" -p | grep -q "bypass permissions"; then
-            echo "  └─ Noctisの OpenCode Code 起動確認完了（${i}秒）"
+            echo "  └─ Noctis OpenCode launch confirmed (${i} seconds)"
             break
         fi
         sleep 1
     done
 
-    # Noctisに指示書を読み込ませる
-    log_info "  └─ Noctisに指示書を伝達中..."
+    # Send instruction file to Noctis
+    log_info "  └─ Delivering instructions to Noctis..."
     tmux send-keys -t "ff15:main.${PANE_BASE}" "instructions/noctis.md を読んで役割を理解してくれ。"
     sleep 0.5
     tmux send-keys -t "ff15:main.${PANE_BASE}" Enter
 
-    # Lunafreyaに指示書を読み込ませる
+    # Send instruction file to Lunafreya
     sleep 2
-    log_info "  └─ Lunafreyaに指示書を伝達中..."
+    log_info "  └─ Delivering instructions to Lunafreya..."
     tmux send-keys -t "ff15:main.$((PANE_BASE+1))" "instructions/lunafreya.md を読んで役割を理解してください。あなたはLunafreya（ルナフレーナ/神凪）です。"
     sleep 0.5
     tmux send-keys -t "ff15:main.$((PANE_BASE+1))" Enter
 
-    # Comradesに指示書を読み込ませる（各自専用ファイル）
+    # Send instruction files to Comrades (individual files)
     sleep 2
-    log_info "  └─ Comradesに指示書を伝達中..."
+    log_info "  └─ Delivering instructions to Comrades..."
     COMRADE_NAMES=("ignis" "gladiolus" "prompto")
     COMRADE_LABELS=("Ignis（イグニス/軍師）" "Gladiolus（グラディオラス/盾）" "Prompto（プロンプト/銃）")
     COMRADE_INSTRUCTION_FILES=("instructions/ignis.md" "instructions/gladiolus.md" "instructions/prompto.md")
@@ -713,25 +683,25 @@ if [ "$SETUP_ONLY" = false ]; then
         sleep 0.5
     done
 
-    log_success "✅ 全員に指示書伝達完了"
+    log_success "✅ Instruction delivery complete"
     echo ""
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 7: 環境確認・完了メッセージ
+# STEP 7: Environment check and completion message
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "🔍 パーティを確認中..."
+log_info "🔍 Checking party status..."
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  📺 Tmuxセッション (Sessions)                                  │"
+echo "  │  📺 Tmux Sessions                                         │"
 echo "  └──────────────────────────────────────────────────────────┘"
 tmux list-sessions | sed 's/^/     /'
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  📋 パーティ編成 (Formation)                                   │"
+echo "  │  📋 Party Formation                                       │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
-echo "     【ff15セッション】統一セッション（全5エージェント）"
+echo "     【ff15 session】Unified session (all 5 agents)"
 echo "     ┌──────────────┬──────────────┐"
 echo "     │    Noctis    │  Lunafreya   │  ← Command layer"
 echo "     │   (pane 0)  │   (pane 1)   │"
@@ -748,11 +718,11 @@ echo "  ╚═══════════════════════
 echo ""
 
 if [ "$SETUP_ONLY" = true ]; then
-    echo "  ⚠️  セットアップのみモード: OpenCode Codeは未起動です"
+    echo "  ⚠️  Setup-only mode: OpenCode not launched"
     echo ""
-    echo "  手動でOpenCodeを起動するには:"
+    echo "  To manually launch OpenCode:"
     echo "  ┌──────────────────────────────────────────────────────────┐"
-    echo "  │  # 全エージェントを一斉起動                                │"
+    echo "  │  # Launch all agents at once                             │"
     echo "  │  for p in \$(seq $PANE_BASE $((PANE_BASE+4))); do         │"
     echo "  │      tmux send-keys -t ff15:main.\$p \                    │"
     echo "  │      'opencode' Enter                                    │"
@@ -761,13 +731,13 @@ if [ "$SETUP_ONLY" = true ]; then
     echo ""
 fi
 
-echo "  次のステップ:"
+echo "  Next steps:"
 echo "  ┌──────────────────────────────────────────────────────────┐"
-echo "  │  ff15セッションにアタッチして命令を開始:                      │"
-echo "  │     tmux attach-session -t ff15   (または: csf)          │"
+echo "  │  Attach to ff15 session and start commanding:            │"
+echo "  │     tmux attach-session -t ff15   (or: csf)              │"
 echo "  │                                                          │"
-echo "  │  ※ 各エージェントは指示書を読み込み済み。                 │"
-echo "  │    すぐに命令を開始できます。                             │"
+echo "  │  ※ Each agent has loaded their instructions.            │"
+echo "  │    You can start commanding immediately.                 │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
 echo "  ════════════════════════════════════════════════════════════"
@@ -776,17 +746,17 @@ echo "  ════════════════════════
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 8: Windows Terminal でタブを開く（-t オプション時のみ）
+# STEP 8: Open tab in Windows Terminal (-t option only)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$OPEN_TERMINAL" = true ]; then
-    log_info "📺 Windows Terminal でタブを展開中..."
+    log_info "📺 Opening tabs in Windows Terminal..."
 
-    # Windows Terminal が利用可能か確認
+    # Check if Windows Terminal is available
     if command -v wt.exe &> /dev/null; then
         wt.exe -w 0 new-tab wsl.exe -e bash -c "tmux attach-session -t ff15"
-        log_success "  └─ ターミナルタブ展開完了"
+        log_success "  └─ Terminal tab opened"
     else
-        log_info "  └─ wt.exe が見つかりません。手動でアタッチしてください。"
+        log_info "  └─ wt.exe not found. Please attach manually."
     fi
     echo ""
 fi
