@@ -256,15 +256,10 @@ case "$MODE" in
 esac
 
 NOCTIS_MODEL=$(require_mode_value "$MODE" "noctis" "model")
-NOCTIS_LABEL=$(require_mode_value "$MODE" "noctis" "label")
 IGNIS_MODEL=$(require_mode_value "$MODE" "ignis" "model")
-IGNIS_LABEL=$(require_mode_value "$MODE" "ignis" "label")
 GLADIOLUS_MODEL=$(require_mode_value "$MODE" "gladiolus" "model")
-GLADIOLUS_LABEL=$(require_mode_value "$MODE" "gladiolus" "label")
 PROMPTO_MODEL=$(require_mode_value "$MODE" "prompto" "model")
-PROMPTO_LABEL=$(require_mode_value "$MODE" "prompto" "label")
 LUNAFREYA_MODEL=$(require_mode_value "$MODE" "lunafreya" "model")
-LUNAFREYA_LABEL=$(require_mode_value "$MODE" "lunafreya" "label")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 起動バナー表示
@@ -614,13 +609,11 @@ tmux split-window -h -t "ff15:main.$((PANE_BASE+3))"
 
 # ─── Configure all 5 panes ───
 PANE_LABELS=("noctis" "lunafreya" "ignis" "gladiolus" "prompto")
-PANE_MODELS=("${NOCTIS_LABEL}" "${LUNAFREYA_LABEL}" "${IGNIS_LABEL}" "${GLADIOLUS_LABEL}" "${PROMPTO_LABEL}")
 PANE_COLORS=("magenta" "cyan" "red" "blue" "blue")
 
 for i in {0..4}; do
     p=$((PANE_BASE + i))
     label="${PANE_LABELS[$i]}"
-    model="${PANE_MODELS[$i]}"
     color="${PANE_COLORS[$i]}"
 
      # Set agent identity
@@ -659,23 +652,21 @@ if [ "$SETUP_ONLY" = false ]; then
     # Agent models and pane indices
     AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto")
     AGENT_MODELS=("${NOCTIS_MODEL}" "${LUNAFREYA_MODEL}" "${IGNIS_MODEL}" "${GLADIOLUS_MODEL}" "${PROMPTO_MODEL}")
-    AGENT_LABELS=("${NOCTIS_LABEL}" "${LUNAFREYA_LABEL}" "${IGNIS_LABEL}" "${GLADIOLUS_LABEL}" "${PROMPTO_LABEL}")
 
     for i in {0..4}; do
         p=$((PANE_BASE + i))
         name="${AGENT_NAMES[$i]}"
         model="${AGENT_MODELS[$i]}"
-        label="${AGENT_LABELS[$i]}"
 
         tmux send-keys -t "ff15:main.${p}" "opencode --model ${model}"
         tmux send-keys -t "ff15:main.${p}" Enter
-        log_info "  └─ ${name}（${label}）、起動完了"
+        log_info "  └─ ${name}、起動完了"
 
         # 少し待機（安定のため）
         sleep 1
     done
 
-    log_success "✅ ${MODE_NAME}でスタート（Noctis: ${NOCTIS_LABEL}, Lunafreya: ${LUNAFREYA_LABEL}, Ignis: ${IGNIS_LABEL}, Gladiolus: ${GLADIOLUS_LABEL}, Prompto: ${PROMPTO_LABEL}）"
+    log_success "✅ ${MODE_NAME}でスタート（5名配備完了）"
     echo ""
 
     # ═══════════════════════════════════════════════════════════════════════════
