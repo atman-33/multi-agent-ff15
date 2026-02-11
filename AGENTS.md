@@ -64,7 +64,7 @@ Layer 3: YAML Queue (Persistent, filesystem)
 
 Layer 4: Session (Volatile, context)
   └─ AGENTS.md (auto-loaded), instructions/*.md
-  └─ Cleared by /clear, summarized on compaction
+  └─ Reset by /new, summarized on compaction
 ```
 
 ### File Structure
@@ -256,13 +256,13 @@ When starting a new session (first launch):
    - Lunafreya → instructions/lunafreya.md
 3. **Start working** after loading required context files
 
-### After /clear (Comrades only)
+### After /new (Comrades only)
 
-After receiving /clear, Comrades recover with minimal cost:
+After receiving `/new`, Comrades recover with minimal cost:
 
 **Recovery Flow (~5,000 tokens)**:
 ```
-/clear executed
+/new executed
   │
   ▼ AGENTS.md auto-loaded
   │

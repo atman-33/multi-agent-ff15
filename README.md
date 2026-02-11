@@ -4,7 +4,7 @@
 
 **Command your AI army like a feudal warlord.**
 
-Run 6 OpenCode agents in parallel — orchestrated through a FF15-inspired hierarchy with zero coordination overhead.
+Run 5 OpenCode agents in parallel — orchestrated through a FF15-inspired hierarchy with zero coordination overhead.
 
 [![GitHub Stars](https://img.shields.io/github/stars/yohey-w/multi-agent-ff15?style=social)](https://github.com/yohey-w/multi-agent-ff15)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -20,11 +20,12 @@ Run 6 OpenCode agents in parallel — orchestrated through a FF15-inspired hiera
   <img src="assets/screenshots/tmux_kingsglaive_5panes.png" alt="multi-agent-ff15: 5 panes running in parallel" width="800">
 </p>
 
-<p align="center"><i>One Ignis (strategist) coordinating 4 Comrades (Gladiolus, Prompto, Lunafreya, Iris) — real session, no mock data.</i></p>
+<p align="center"><i>Noctis (King) commanding 3 Comrades (Ignis, Gladiolus, Prompto) with Lunafreya (Oracle) as independent advisor — real session, no mock data.</i></p>
+
 
 ---
 
-Give a single command. The **Noctis** (prince) delegates to the **Ignis** (strategist), who distributes work across **4 Comrades** — Gladiolus, Prompto, Lunafreya, and Iris — all running as independent OpenCode processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
+Give a single command. The **Noctis** (King) directly assigns tasks to **3 Comrades** (Ignis, Gladiolus, Prompto) who execute in parallel. Meanwhile, **Lunafreya** (Oracle) operates independently, consulting directly with you and commanding Noctis when needed. All agents run as independent OpenCode processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
 
 
 
@@ -55,7 +56,7 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 | | OpenCode | LangGraph | CrewAI | **multi-agent-ff15** |
 |---|---|---|---|---|
 | **Architecture** | Agents with tools | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
-| **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **6 independent agents** |
+| **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **5 independent agents** |
 | **Coordination cost** | API calls | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
 | **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + dashboard |
 | **Skill discovery** | None | None | None | **Bottom-up auto-proposal** |
@@ -63,11 +64,11 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 
 ### What makes this different
 
-**Zero coordination overhead** — Agents talk through YAML files on disk. The only API calls are for actual work, not orchestration. Run 6 agents and pay only for 6 agents' work.
+**Zero coordination overhead** — Agents talk through YAML files on disk. The only API calls are for actual work, not orchestration. Run 5 agents and pay only for 5 agents' work.
 
 **Full transparency** — Every agent runs in a visible tmux pane. Every instruction, report, and decision is a plain YAML file you can read, diff, and version-control. No black boxes.
 
-**Battle-tested hierarchy** — The Noctis → Ignis → Comrades chain of command prevents conflicts by design: clear ownership, dedicated files per agent, event-driven communication, no polling.
+**Battle-tested hierarchy** — The Noctis → Comrades chain of command prevents conflicts by design: clear ownership, dedicated files per agent, event-driven communication, no polling. Lunafreya operates as an independent Oracle outside this hierarchy.
 
 ---
 
@@ -101,24 +102,24 @@ Skills grow organically from real work — not from a predefined template librar
 ## Architecture
 
 ```
-        You (上様 / The Lord)
+        Crystal (User)
              │
-             ▼  Give orders
-      ┌─────────────┐
-      │   NOCTIS    │  Receives your command, plans strategy
-      │   (王子)     │  Session: noctis
-      └──────┬──────┘
-             │  YAML + send-keys
-      ┌──────▼──────┐
-      │    IGNIS     │  Breaks tasks down, assigns to comrades
-      │   (軍師)     │  Session: kingsglaive, pane 0
-      └──────┬──────┘
-             │  YAML + send-keys
-  ┌──────────┬──────────┬──────────┐
-  │          │          │          │
-GLADIOLUS  PROMPTO  LUNAFREYA    IRIS    Execute in parallel
-  (盾)      (銃)     (神凪)      (花)    Session: kingsglaive
- pane 1    pane 2    pane 3     pane 4
+             ├──────────────────────────┐
+             ▼                          ▼
+      ┌──────────┐            ┌────────────┐
+      │ NOCTIS   │ ← King     │ LUNAFREYA  │ ← Oracle (Independent)
+      │  (王)    │ (Leader +   │  (神凪)     │   Direct user interaction
+      │          │  Task Mgr)  │            │   Can command Noctis
+      └────┬─────┘            └────────────┘
+           │ YAML + send-keys
+           ▼
+      ┌────────────┬──────────┬────────────┐
+      │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
+      │  (軍師)    │  (盾)    │   (銃)     │
+      └────────────┴──────────┴────────────┘
+             
+      Session: ff15 (unified - 5 panes)
+      Panes: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto
 ```
 
 **Communication protocol:**
@@ -133,9 +134,9 @@ GLADIOLUS  PROMPTO  LUNAFREYA    IRIS    Execute in parallel
 | Memory MCP | Preferences, rules, cross-project knowledge | Everything |
 | Project files | `config/projects.yaml`, `context/*.md` | Everything |
 | YAML Queue | Tasks, reports (source of truth) | Everything |
-| Session | `AGENTS.md`, instructions | `/clear` wipes it |
+| Session | `AGENTS.md`, instructions | `/new` resets it |
 
-After `/clear`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its task YAML. No expensive re-prompting.
+After `/new`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its task YAML. No expensive re-prompting.
 
 ---
 
@@ -143,17 +144,19 @@ After `/clear`, an agent recovers in **~2,000 tokens** by reading Memory MCP + i
 
 Agents can be deployed in different **formations** depending on the task:
 
-| Formation | Gladiolus / Prompto | Lunafreya / Iris | Best for |
-|-----------|---------------------|------------------|----------|
-| **Normal** (default) | Sonnet (thinking) | Opus (thinking) | Everyday tasks — cost-efficient |
-| **Battle** (`-k` flag) | Opus (thinking) | Opus (thinking) | Critical tasks — maximum capability |
+| Formation | Comrades (Ignis/Gladiolus/Prompto) | Leaders (Noctis/Lunafreya) | Best for |
+|-----------|-------------------------------------|----------------------------|----------|
+| **Normal** (default) | Haiku 4.5 / Gemini 3 Flash | Sonnet 4.5 / Grok Fast | Everyday tasks — cost-efficient |
+| **Full Power** (`--fullpower`) | GPT-5.2 / Sonnet 4.5 / Gemini 3 Pro | Opus 4.6 / Grok Fast | Critical tasks — maximum capability |
+| **Lite** (`--lite`) | Haiku / Grok Fast | Haiku 4.5 | Budget-conscious development |
 
 ```bash
-./standby.sh          # Normal formation
-./standby.sh -k       # Battle formation (all Opus)
+./standby.sh                # Normal formation (default)
+./standby.sh --fullpower    # Full Power formation (premium models)
+./standby.sh --lite         # Lite formation (budget mode)
 ```
 
-The Ignis can also promote individual Comrades mid-session with `/model opus` when a specific task demands it.
+Noctis can also switch individual Comrades mid-session to different models when needed.
 
 ---
 
@@ -267,22 +270,21 @@ You: "Research the top 5 MCP servers and create a comparison table"
 
 ### 2. Noctis delegates instantly
 
-The Noctis writes the task to `queue/noctis_to_ignis.yaml` and wakes the Ignis. Control returns to you immediately — no waiting.
+The Noctis writes tasks to `queue/tasks/{worker_name}.yaml` and wakes each Comrade. Control returns to you immediately — no waiting.
 
-### 3. Ignis distributes
+### 3. Comrades execute
 
-The Ignis breaks the task into subtasks and assigns each to a Comrade:
+Noctis directly assigns tasks to each Comrade:
 
 | Comrade | Assignment |
 |--------|------------|
-| Gladiolus | Research Notion MCP |
-| Prompto | Research GitHub MCP |
-| Lunafreya | Research Playwright MCP |
-| Iris | Research Memory MCP |
+| Ignis | Research Notion MCP + coordinate findings |
+| Gladiolus | Research GitHub MCP |
+| Prompto | Research Playwright MCP |
 
 ### 4. Parallel execution
 
-All 4 Comrades research simultaneously. You can watch them work in real time:
+All 3 Comrades research simultaneously. You can watch them work in real time:
 
 <p align="center">
   <img src="assets/screenshots/tmux_kingsglaive_working.png" alt="Comrades executing tasks in parallel" width="700">
@@ -290,7 +292,7 @@ All 4 Comrades research simultaneously. You can watch them work in real time:
 
 ### 5. Results in dashboard
 
-Open `dashboard.md` to see aggregated results, skill candidates, and blockers — all maintained by the Ignis.
+Open `dashboard.md` to see aggregated results, skill candidates, and blockers — all maintained by Noctis.
 
 ---
 
@@ -307,7 +309,7 @@ projects:
     status: active
 ```
 
-**Research sprints** — 4 Comrades research different topics in parallel, results compiled in minutes.
+**Research sprints** — 3 Comrades research different topics in parallel, results compiled in minutes.
 
 **Multi-project management** — Switch between client projects without losing context. Memory MCP preserves preferences across sessions.
 
@@ -327,14 +329,13 @@ language: en   # FF15-style Japanese + English translation
 
 ### Model assignment
 
-| Agent | Default Model | Thinking |
-|-------|--------------|----------|
-| Noctis | Opus | Disabled (delegation doesn't need deep reasoning) |
-| Ignis | Opus | Enabled |
-| Gladiolus | Sonnet | Enabled |
-| Prompto | Sonnet | Enabled |
-| Lunafreya | Opus | Enabled |
-| Iris | Opus | Enabled |
+| Agent | Normal Mode | Full Power Mode |
+|-------|-------------|-----------------|
+| Noctis | Sonnet 4.5 | Opus 4.6 |
+| Lunafreya | Grok Code Fast | Grok Code Fast |
+| Ignis | Haiku 4.5 | GPT-5.2 Codex |
+| Gladiolus | Haiku 4.5 | Sonnet 4.5 |
+| Prompto | Gemini 3 Flash | Gemini 3 Pro |
 
 ### MCP servers
 
@@ -395,18 +396,26 @@ multi-agent-ff15/
 ├── standby.sh             # Daily deployment script
 │
 ├── instructions/              # Agent behavior definitions
-│   ├── noctis.md
-│   ├── ignis.md
-│   └── comrades.md
+│   ├── noctis.md             # Noctis (King) instructions
+│   ├── lunafreya.md          # Lunafreya (Oracle) instructions
+│   ├── ignis.md              # Ignis (Tactician) instructions
+│   ├── gladiolus.md          # Gladiolus (Shield) instructions
+│   └── prompto.md            # Prompto (Gun) instructions
 │
 ├── config/
 │   ├── settings.yaml          # Language, model, screenshot settings
 │   └── projects.yaml          # Project registry
 │
 ├── queue/                     # Communication (source of truth)
-│   ├── noctis_to_ignis.yaml
-│   ├── tasks/{worker_name}.yaml
-│   └── reports/{worker_name}_report.yaml
+│   ├── lunafreya_to_noctis.yaml  # Lunafreya → Noctis coordination
+│   ├── tasks/
+│   │   ├── ignis.yaml
+│   │   ├── gladiolus.yaml
+│   │   └── prompto.yaml
+│   └── reports/
+│       ├── ignis_report.yaml
+│       ├── gladiolus_report.yaml
+│       └── prompto_report.yaml
 │
 ├── memory/                    # Memory MCP persistent storage
 ├── dashboard.md               # Human-readable status board
@@ -435,7 +444,7 @@ mcp__memory__read_graph()
 <details>
 <summary><b>Agent crashed?</b></summary>
 
-Don't use `css`/`csm` aliases inside an existing tmux session (causes nesting). Instead:
+Don't use `ffa` alias inside an existing tmux session (causes nesting). Instead:
 
 ```bash
 # From the crashed pane:
@@ -492,7 +501,7 @@ Inspired by multi-agent AI development patterns and the OpenCode ecosystem.
 
 <div align="center">
 
-**One command. Six agents. Zero coordination cost.**
+**One command. Five agents. Zero coordination cost.**
 
 ⭐ Star this repo if you find it useful — it helps others discover it.
 
