@@ -665,10 +665,15 @@ if [ ${#DETECTED_SHELLS[@]} -eq 0 ]; then
 else
     log_success "Detected shells: ${DETECTED_SHELLS[*]}"
     RESULTS+=("alias setup: OK (${DETECTED_SHELLS[*]})")
+    
+    # Display per-shell status explicitly
+    for shell in "${DETECTED_SHELLS[@]}"; do
+        log_info "  - $shell: ffa alias configured ✓"
+    done
 fi
 
 if [ "$ALIAS_ADDED" = true ] && [ ${#SOURCE_COMMANDS[@]} -gt 0 ]; then
-    log_success "Added alias configuration"
+    log_success "Added/updated alias configuration"
     log_warn "To apply aliases, run one of the following:"
     
     # Display source commands for each shell
@@ -680,6 +685,9 @@ if [ "$ALIAS_ADDED" = true ] && [ ${#SOURCE_COMMANDS[@]} -gt 0 ]; then
         log_info "  Or: Run 'wsl --shutdown' in PowerShell then reopen terminal"
         log_info "  Note: Simply closing the window will not terminate WSL"
     fi
+elif [ ${#DETECTED_SHELLS[@]} -gt 0 ]; then
+    # Even when no changes were made, confirm everything is ready
+    log_success "All shell aliases are already configured correctly"
 fi
 
 # ============================================================

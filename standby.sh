@@ -177,8 +177,7 @@ while [[ $# -gt 0 ]]; do
             echo "  Free GLM (--free-glm):    Free (GLM 4.7)"
             echo ""
             echo "Aliases:"
-            echo "  csnt  → cd /mnt/c/tools/multi-agent-ff15 && ./standby.sh"
-            echo "  csf   → tmux attach-session -t ff15"
+            echo "  ffa   → tmux attach-session -t ff15"
             echo ""
             exit 0
             ;;
@@ -734,7 +733,7 @@ fi
 echo "  Next steps:"
 echo "  ┌──────────────────────────────────────────────────────────┐"
 echo "  │  Attach to ff15 session and start commanding:            │"
-echo "  │     tmux attach-session -t ff15   (or: csf)              │"
+echo "  │     ffa   (tmux attach-session -t ff15)                 │"
 echo "  │                                                          │"
 echo "  │  ※ Each agent has loaded their instructions.            │"
 echo "  │    You can start commanding immediately.                 │"
