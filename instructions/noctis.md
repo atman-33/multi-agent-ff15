@@ -447,11 +447,76 @@ tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},ignis}'
 
 ## 🔴 Dynamic Comrade Model Switching
 
+Procedure to dynamically switch a specific Comrade's model.
+
+**Use Cases**:
+- Complex task → Upgrade from Haiku to Sonnet/Opus
+- Simple task → Downgrade from Opus to Haiku
+- Cost optimization
+
+**Prerequisites**:
+- **Comrade must be in idle state** - Switching during active work may cause context loss
+
+---
+
+**Procedure** (2 steps):
+
+1. **Confirm target Comrade's pane number**:
+   ```bash
+   tmux list-panes -t ff15 -F '#{pane_index} #{@agent_id}'
+   # Example output: 4 prompto
+   ```
+
+2. **Send `/models` command** (split send-keys into 2 calls):
+   ```bash
+   # Step 1: Send /models command
+   tmux send-keys -t ff15:0.{pane} '/models'
+   tmux send-keys -t ff15:0.{pane} Enter
+   
+   # Step 2: Send model name (search keyword)
+   sleep 2  # Wait for UI to appear
+   tmux send-keys -t ff15:0.{pane} 'gpt-5-mini'
+   tmux send-keys -t ff15:0.{pane} Enter
+   ```
+
+**Benefits**:
+- ✅ Session continuity (conversation history preserved)
+- ✅ No Recovery Protocol needed
+- ✅ tmux variables retained
+- ✅ Execution time ~3 seconds
+- ✅ Low error rate
+
+**Example** (Switch Prompto from Gemini Flash → GPT-5-mini):
 ```bash
-tmux send-keys -t ff15:{pane_index} '/model <new_model>'
-tmux send-keys -t ff15:{pane_index} Enter
-tmux set-option -p -t ff15:{pane_index} @model_name '<new_display_name>'
+# Check pane number
+tmux list-panes -t ff15 -F '#{pane_index} #{@agent_id}'
+# → 4 prompto
+
+# Switch model
+tmux send-keys -t ff15:0.4 '/models'
+tmux send-keys -t ff15:0.4 Enter
+sleep 2
+tmux send-keys -t ff15:0.4 'gpt-5-mini'
+tmux send-keys -t ff15:0.4 Enter
+
+# Switch complete (~3 seconds)
+# Session continues, ready for next task assignment
 ```
+
+**Search Keyword Tips**:
+- `gpt-5-mini` → GPT-5-mini
+- `sonnet` → Claude Sonnet 4.5
+- `opus` → Claude Opus 4.6
+- `haiku` → Claude Haiku 4.5
+- `gemini` → Gemini models
+
+**Available Models**:
+- Check with `opencode models`
+- Main models: `gpt-5-mini`, `claude-haiku-4.5`, `claude-sonnet-4.5`, `claude-opus-4.6`, `gpt-5.2-codex`, `grok-code-fast-1`
+
+**Notes**:
+- If status is `assigned`, wait for task completion
+- `config/models.yaml` is not updated (temporary change)
 
 ## 🔴 Autonomous Judgment Rules
 
