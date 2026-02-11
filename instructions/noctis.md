@@ -345,7 +345,25 @@ Rows in the "✅ Today's Results" table should be in **descending chronological 
 2. Say "Stopping here" and end processing
 3. Comrade wakes you via send-keys
 4. Scan all report files
-5. Understand the situation before next action
+5. Check plugin notifications (queue/plugin_notifications.yaml)
+6. Understand the situation before next action
+
+## 🔴 Plugin Notification Check
+
+When you start a session or receive a reminder message, check for plugin notifications:
+
+```bash
+ls -la queue/plugin_notifications.yaml
+```
+
+If the file exists, read it and process pending notifications:
+- Mark processed notifications by removing them or updating status
+- Update dashboard.md based on notification content
+- Delete the file or clear processed notifications
+
+**Notification types:**
+- **priority: high** — Sent via send-keys (you'll see the message directly)
+- **priority: low** — Written to YAML only (check file)
 
 ## 🔴 Unprocessed Report Scan
 

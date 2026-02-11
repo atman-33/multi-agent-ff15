@@ -1,31 +1,101 @@
-# multi-agent-ff15
-
 <div align="center">
+
+# multi-agent-ff15
 
 **OpenCode マルチエージェント統率システム**
 
 *コマンド1つで、5体のAIエージェントが並列稼働*
 
+[![GitHub Stars](https://img.shields.io/github/stars/atman-33/multi-agent-ff15?style=social)](https://github.com/atman-33/multi-agent-ff15)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenCode](https://img.shields.io/badge/OpenCode-blue)](https://opencode.ai)
-[![tmux](https://img.shields.io/badge/tmux-required-green)](https://github.com/tmux/tmux)
+[![OpenCode](https://img.shields.io/badge/Built_for-OpenCode-blue)](https://opencode.ai)
+[![Shell](https://img.shields.io/badge/Shell%2FBash-100%25-green)]()
 
 [English](README.md) | [日本語](README_ja.md)
 
 </div>
 
+<p align="center">
+  <img src="assets/tmux_ff15_live_session.png" alt="multi-agent-ff15: 5エージェント並列実行 - 実際のセッション" width="800">
+</p>
+
+<p align="center"><i>Noctis（王）が3名のComrades（Ignis、Gladiolus、Prompto）に指示を出し、Lunafreya（神凪）が独立して稼働している実際のセッション画面</i></p>
+
 ---
 
-## これは何？
+コマンド1つで、**Noctis**（王）が**3名のComrades**（Ignis、Gladiolus、Prompto）に直接タスクを割り当て、並列で実行させます。一方、**Lunafreya**（神凪）は独立して稼働し、あなたと直接相談しながらNoctisに指示を出すこともできます。全エージェントはtmux内の独立したOpenCodeプロセスとして動作します。通信はYAMLファイルとtmux `send-keys`で行われるため、**エージェント間の調整にAPI呼び出しは不要**です。
 
-**multi-agent-ff15** は、複数の OpenCode インスタンスを同時に実行し、FF15時代の軍制のように統率するシステムです。
+---
 
-**なぜ使うのか？**
-- 1つの命令で、3名のAIワーカー（Comrades）が並列で実行
-- Lunafreya（神凪）が独立して稼働し、直接相談＆Noctisへの指示が可能
-- 待ち時間なし - タスクがバックグラウンドで実行中も次の命令を出せる
-- AIがセッションを跨いであなたの好みを記憶（Memory MCP）
-- ダッシュボードでリアルタイム進捗確認
+## 哲学
+
+> 「タスクを無思考で実行するな。常に『最速 × 最高の成果』を念頭に置け。」
+
+Noctisシステムは5つの核心原則の上に構築されています:
+
+| 原則 | 説明 |
+|------|------|
+| **自律的フォーメーション** | テンプレートではなく、複雑さに応じてタスク編成を設計 |
+| **並列化** | サブエージェントを活用して単一障害点を防ぐ |
+| **リサーチファースト** | 決定前にエビデンスを探す |
+| **継続的学習** | モデルの知識カットオフのみに依存しない |
+| **三角測量** | 統合された承認を伴う多角的リサーチ |
+
+これらの原則は詳細に文書化されています: **[docs/philosophy.md](docs/philosophy.md)**
+
+---
+
+## なぜNoctis？
+
+ほとんどのマルチエージェントフレームワークは、調整にAPIトークンを消費します。Noctisは違います。
+
+| | OpenCode | LangGraph | CrewAI | **multi-agent-ff15** |
+|---|---|---|---|---|
+| **アーキテクチャ** | ツール付きエージェント | グラフベース状態マシン | ロールベースエージェント | tmux経由の封建的階層 |
+| **並列性** | 限定的 | 並列ノード (v0.2+) | 限定的 | **5つの独立エージェント** |
+| **調整コスト** | API呼び出し | API + インフラ (Postgres/Redis) | API + CrewAIプラットフォーム | **ゼロ** (YAML + tmux) |
+| **可観測性** | ログのみ | LangSmith統合 | OpenTelemetry | **ライブtmuxペイン** + ダッシュボード |
+| **スキル発見** | なし | なし | なし | **ボトムアップ自動提案** |
+| **セットアップ** | CLIインストール | 重い (インフラ必要) | pipインストール | シェルスクリプト |
+
+### 何が違うのか
+
+**ゼロ調整オーバーヘッド** — エージェントはディスク上のYAMLファイルで通信します。API呼び出しは実際の作業のみで、オーケストレーションには使いません。5エージェント実行で、5エージェント分の作業のみ課金されます。
+
+**完全な透明性** — 全エージェントが見えるtmuxペインで動作します。すべての指示、報告、決定はプレーンなYAMLファイルで、読み取り、差分確認、バージョン管理が可能です。ブラックボックスはありません。
+
+**実戦で検証された階層** — Noctis → Comrades の指揮系統は設計段階で競合を防ぎます: 明確な所有権、エージェント専用ファイル、イベント駆動通信、ポーリングなし。Lunafre yaはこの階層外で独立して動作します。
+
+---
+
+## ボトムアップスキル発見
+
+他のフレームワークにはない機能です。
+
+Comradesがタスクを実行すると、**再利用可能なパターンを自動的に識別**し、スキル候補として提案します。Ignisが`dashboard.md`でこれらの提案を集約し、あなた（主君）が恒久的なスキルに昇格させるかを決定します。
+
+```
+Comradeがタスク完了
+    ↓
+気づく: "このパターン、3つのプロジェクトで3回やった"
+    ↓
+YAMLで報告:  skill_candidate:
+                found: true
+                name: "api-endpoint-scaffold"
+                reason: "3つのプロジェクトで同じRESTスキャフォールドパターンを使用"
+    ↓
+dashboard.mdに表示 → あなたが承認 → skills/にスキル作成
+    ↓
+任意のエージェントが /api-endpoint-scaffold を実行可能に
+```
+
+スキルは実際の作業から有機的に成長します — 事前定義されたテンプレートライブラリからではありません。あなたのスキルセットは**あなたの**ワークフローの反映になります。
+
+> **フレームワーク**: [OpenCode](https://opencode.ai)をベースに構築
+
+---
+
+## アーキテクチャ
 
 ```
       あなた（Crystal / 上様）
@@ -48,7 +118,63 @@
      ペイン: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto
 ```
 
+**通信プロトコル:**
+- **下向き**（命令）: YAML書き込み → `tmux send-keys`でターゲット起動
+- **上向き**（報告）: YAMLのみ書き込み（入力を中断しないようsend-keysなし）
+- **ポーリング**: 禁止。イベント駆動のみ。API料金は予測可能なまま。
+
+**コンテキスト永続化（4層）:**
+
+| レイヤー | 内容 | 永続性 |
+|---------|------|--------|
+| Memory MCP | 好み、ルール、プロジェクト横断知識 | すべて |
+| プロジェクトファイル | `config/projects.yaml`, `context/*.md` | すべて |
+| YAMLキュー | タスク、報告（信頼できる情報源） | すべて |
+| セッション | `AGENTS.md`, instructions | `/new`でリセット |
+
+`/new`後、エージェントはMemory MCP + タスクYAMLを読んで**約2,000トークン**で復旧します。高価な再プロンプトなし。
+
 ---
+
+## パーティ編成
+
+タスクに応じて異なる**編成**でエージェントをデプロイできます:
+
+| 編成 | Comrades (Ignis/Gladiolus/Prompto) | リーダー (Noctis/Lunafreya) | 最適用途 |
+|------|-------------------------------------|----------------------------|----------|
+| **通常** (デフォルト) | Haiku 4.5 / Gemini 3 Flash | Sonnet 4.5 / Grok Fast | 日常タスク — コスト効率重視 |
+| **全力** (`--fullpower`) | GPT-5.2 / Sonnet 4.5 / Gemini 3 Pro | Opus 4.6 / Grok Fast | 重要タスク — 最大能力 |
+| **軽量** (`--lite`) | Haiku / Grok Fast | Haiku 4.5 | 予算重視の開発 |
+
+```bash
+./standby.sh                # 通常編成（デフォルト）
+./standby.sh --fullpower    # 全力編成（プレミアムモデル）
+./standby.sh --lite         # 軽量編成（予算モード）
+```
+
+Noctisは必要に応じて個別のComradesのモデルをセッション中に切り替えることもできます。
+
+---
+
+## 🧭 核心思想（Philosophy）
+
+> **「脳死で依頼をこなすな。最速×最高のアウトプットを常に念頭に置け。」**
+
+Noctisシステムは5つの核心原則に基づいて設計されている：
+
+| 原則 | 説明 |
+|------|------|
+| **自律フォーメーション設計** | テンプレートではなく、タスクの複雑さに応じてフォーメーションを設計 |
+| **並列化** | サブエージェントを活用し、単一障害点を作らない |
+| **リサーチファースト** | 判断の前にエビデンスを探す |
+| **継続的学習** | モデルの知識カットオフだけに頼らない |
+| **三角測量** | 複数視点からのリサーチと統合的オーソライズ |
+
+詳細: **[docs/philosophy.md](docs/philosophy.md)**
+
+---
+
+## これは何？
 
 ## 🚀 クイックスタート
 
@@ -336,6 +462,63 @@ Noctisは：
 
 ---
 
+## 動作の流れ
+
+### 1. 命令を出す
+
+```
+あなた: 「上位5つのMCPサーバを調査して比較表を作成して」
+```
+
+### 2. Noctisが即座に委譲
+
+Noctisは`queue/tasks/{worker_name}.yaml`にタスクを書き込み、各Comradeを起動します。制御は即座にあなたに戻ります — 待機なし。
+
+### 3. Comradesが実行
+
+Noctisが各Comradeに直接タスクを割り当て:
+
+| Comrade | 割り当て |
+|--------|----------|
+| Ignis | Notion MCP調査 + 結果の統合 |
+| Gladiolus | GitHub MCP調査 |
+| Prompto | Playwright MCP調査 |
+
+### 4. 並列実行
+
+3名のComradesが同時に調査を実行します。リアルタイムで作業を確認できます:
+
+<p align="center">
+  <img src="assets/tmux_ff15_live_session.png" alt="Comradesが並列でタスク実行中 - ライブビュー" width="800">
+</p>
+
+### 5. ダッシュボードで結果確認
+
+`dashboard.md`を開いて、集約された結果、スキル候補、ブロッカーを確認 — すべてNoctisが管理します。
+
+---
+
+## 実用例
+
+このシステムは**すべてのホワイトカラー業務**を管理します。コードだけではありません。プロジェクトはファイルシステムのどこにでも配置できます。
+
+```yaml
+# config/projects.yaml
+projects:
+  - id: client_x
+    name: "クライアントXコンサルティング"
+    path: "/mnt/c/Consulting/client_x"
+    status: active
+```
+
+**調査スプリント** — 3名のComradesが異なるトピックを並列調査、数分で結果を統合。
+
+**マルチプロジェクト管理** — コンテキストを失わずにクライアントプロジェクト間を切り替え。Memory MCPがセッション横断で好みを保持。
+
+**ドキュメント生成** — 技術文書作成、テストケースレビュー、比較表 — エージェント間で分散して統合。
+
+---
+
 ## ✨ 主な特徴
 
 ### ⚡ 1. 並列実行
@@ -468,24 +651,6 @@ screenshot:
 
 ---
 
-## 🧭 核心思想（Philosophy）
-
-> **「脳死で依頼をこなすな。最速×最高のアウトプットを常に念頭に置け。」**
-
-Noctisシステムは5つの核心原則に基づいて設計されている：
-
-| 原則 | 説明 |
-|------|------|
-| **自律フォーメーション設計** | テンプレートではなく、タスクの複雑さに応じてフォーメーションを設計 |
-| **並列化** | サブエージェントを活用し、単一障害点を作らない |
-| **リサーチファースト** | 判断の前にエビデンスを探す |
-| **継続的学習** | モデルの知識カットオフだけに頼らない |
-| **三角測量** | 複数視点からのリサーチと統合的オーソライズ |
-
-詳細: **[docs/philosophy.md](docs/philosophy.md)**
-
----
-
 ## 🎯 設計思想
 
 ### なぜ階層構造（Noctis→Comrades）なのか
@@ -601,6 +766,49 @@ opencode mcp list
 ```
 
 MCPサーバのステータスを確認できます。
+
+---
+
+## 🔌 プラグインシステム
+
+### ダッシュボード更新リマインダー
+
+Noctisがステータス更新を忘れないよう、自動リマインダープラグインが組み込まれています。
+
+#### 動作の仕組み
+
+プラグインは**ハイブリッド通知システム**を採用:
+
+1. **YAMLキュー** (`queue/plugin_notifications.yaml`)
+   - すべての通知がここに記録される
+   - Noctisは起動時やリマインダー受信時にこのファイルをチェック
+   - 低優先度リマインダー（セッションアイドルなど）
+
+2. **Direct tmux通知** (send-keys経由)
+   - 高優先度アラートはNoctisペインに直接送信
+   - 重要イベントの即座の可視化
+   - 用途: Todo完了、新しいComradeレポート
+
+#### トリガー
+
+| イベント | 優先度 | 通知方法 |
+|---------|-------|---------|
+| セッションアイドル | 低 | YAMLのみ |
+| Todo完了 | 高 | YAML + tmux send-keys |
+| Comradeレポート | 高 | YAML + tmux send-keys |
+
+#### Noctisのワークフロー
+
+Noctisがリマインダーを受け取った時、またはセッション起動時:
+
+1. `queue/plugin_notifications.yaml` をチェック
+2. 未処理の通知を処理
+3. `dashboard.md` を適宜更新
+4. 処理済み通知をクリア
+
+#### カスタムプラグインの作成
+
+プラグインは `.opencode/plugins/` に保存され、OpenCodeが自動的にロードします。カスタムフックの作成方法については `.opencode/plugins/README.md` を参照してください。
 
 ---
 
@@ -943,9 +1151,24 @@ tmux respawn-pane -t ff15:0 -k 'opencode'
 
 ---
 
+## 貢献
+
+IssueとPull Requestを歓迎します。
+
+- **バグ報告**: 再現手順を含めてIssueを作成
+- **機能アイデア**: まずDiscussionで提案
+- **スキル**: スキルは個人的な設計のため、このリポジトリには含まれません
+
+---
+
 ## 🙏 クレジット
 
-OpenCodeエコシステムとマルチエージェントAI開発パターンにインスパイアされて開発。
+このプロジェクトは[@yohey-w](https://github.com/yohey-w)氏の[multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun)をベースにしています。オリジナルの作品と、このFF15をテーマとしたマルチエージェントシステムの基盤を提供していただいたことに深く感謝します。
+
+主なインスピレーション元:
+- マルチエージェントオーケストレーションパターンとOpenCodeエコシステム
+- イベント駆動通信アーキテクチャ
+- ボトムアップスキル発見システム
 
 ---
 
