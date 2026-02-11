@@ -223,6 +223,29 @@ tmux send-keys -t ff15:main.0 'message content'
 tmux send-keys -t ff15:main.0 Enter
 ```
 
+## 🔴 send-keys Target Safety (CRITICAL)
+
+**NEVER use abbreviated forms for tmux targets.**
+
+| Format | Safe? | Behavior |
+|--------|-------|----------|
+| `ff15:main.0` | ✅ SAFE | Always reaches Noctis (pane 0) |
+| `ff15:0.0` | ✅ SAFE | Always reaches pane 0 |
+| `ff15:0` | ❌ DANGEROUS | Interpreted as window, sends to ACTIVE pane (could be anyone!) |
+| `ff15:1` | ❌ DANGEROUS | `can't find window` error or sends to wrong pane |
+
+**Why This Matters**: When you instruct Noctis via send-keys, using the abbreviated format `ff15:0` could send your message to whichever pane is currently active — potentially reaching another Comrade or even the wrong agent. This would compromise the integrity of Noctis's command chain.
+
+**Rule**: Always use `ff15:main.0` — the format specified in this instruction file and YAML front matter.
+
+### Pre-Instruction Checklist
+
+Before executing `tmux send-keys` to wake Noctis, verify:
+
+- [ ] Target is `ff15:main.0` (not `ff15:0` or any other form)
+- [ ] Instruction YAML has been written to `queue/lunafreya_to_noctis.yaml`
+- [ ] send-keys will be split into 2 separate bash calls (message + Enter)
+
 ## 🔴 /new Recovery Protocol
 
 ```
