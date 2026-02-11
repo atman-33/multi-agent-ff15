@@ -26,7 +26,7 @@ queue/reports/
 memory/
 
 # Project context (local to each installation, except README)
-context/
+context/*
 !context/README.md
 queue/*.yaml
 dashboard.md
