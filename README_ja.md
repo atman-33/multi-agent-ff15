@@ -777,34 +777,14 @@ Noctisがステータス更新を忘れないよう、自動リマインダー�
 
 #### 動作の仕組み
 
-プラグインは**ハイブリッド通知システム**を採用:
-
-1. **YAMLキュー** (`queue/plugin_notifications.yaml`)
-   - すべての通知がここに記録される
-   - Noctisは起動時やリマインダー受信時にこのファイルをチェック
-   - 低優先度リマインダー（セッションアイドルなど）
-
-2. **Direct tmux通知** (send-keys経由)
-   - 高優先度アラートはNoctisペインに直接送信
-   - 重要イベントの即座の可視化
-   - 用途: Todo完了、新しいComradeレポート
+プラグインは `tmux send-keys` を使い、短いリマインダーメッセージをNoctisペインに直接送信します。中間ファイルは不要で、Noctisはメッセージを即座に確認できます。
 
 #### トリガー
 
-| イベント | 優先度 | 通知方法 |
-|---------|-------|---------|
-| セッションアイドル | 低 | YAMLのみ |
-| Todo完了 | 高 | YAML + tmux send-keys |
-| Comradeレポート | 高 | YAML + tmux send-keys |
-
-#### Noctisのワークフロー
-
-Noctisがリマインダーを受け取った時、またはセッション起動時:
-
-1. `queue/plugin_notifications.yaml` をチェック
-2. 未処理の通知を処理
-3. `dashboard.md` を適宜更新
-4. 処理済み通知をクリア
+| イベント | 通知内容 |
+|---------|---------|
+| Todo完了 | `⚠️ [Dashboard Reminder] N todo(s) completed: ... — Please update dashboard.md` |
+| Comradeレポート | `⚠️ [Dashboard Reminder] New report(s) from: ... — Please update dashboard.md` |
 
 #### カスタムプラグインの作成
 

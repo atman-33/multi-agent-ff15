@@ -777,34 +777,14 @@ The system includes an automated dashboard update reminder plugin that helps Noc
 
 #### How It Works
 
-The plugin uses a **hybrid notification system**:
-
-1. **YAML Queue** (`queue/plugin_notifications.yaml`)
-   - All notifications are written here
-   - Noctis checks this file when starting or receiving reminders
-   - Low-priority reminders (e.g., session idle)
-
-2. **Direct tmux Notification** (via send-keys)
-   - High-priority alerts sent directly to Noctis pane
-   - Immediate visibility for critical events
-   - Used for: todo completion, new Comrade reports
+The plugin sends short reminder messages directly to the Noctis pane via `tmux send-keys`. No intermediate files are used — Noctis sees the message immediately.
 
 #### Triggers
 
-| Event | Priority | Notification Method |
-|-------|----------|---------------------|
-| Session idle | Low | YAML only |
-| Todo completion | High | YAML + tmux send-keys |
-| Comrade reports | High | YAML + tmux send-keys |
-
-#### Noctis Workflow
-
-When Noctis receives a reminder or starts a session:
-
-1. Check `queue/plugin_notifications.yaml`
-2. Process pending notifications
-3. Update `dashboard.md` accordingly
-4. Clear processed notifications
+| Event | Notification |
+|-------|-------------|
+| Todo completion | `⚠️ [Dashboard Reminder] N todo(s) completed: ... — Please update dashboard.md` |
+| Comrade reports | `⚠️ [Dashboard Reminder] New report(s) from: ... — Please update dashboard.md` |
 
 #### Creating Custom Plugins
 

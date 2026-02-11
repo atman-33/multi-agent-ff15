@@ -1,14 +1,13 @@
 # Dashboard Update Reminder Plugin
 
-Automatically reminds Noctis to update `dashboard.md` after completing tasks.
+Automatically reminds Noctis to update `dashboard.md` via direct tmux send-keys notifications.
 
 ## Features
 
-- **Session Idle Detection**: Reminds when session becomes idle (work finished)
-- **Todo Completion Tracking**: Alerts when todos are marked complete
+- **Todo Completion Tracking**: Alerts when all in-progress todos are completed
 - **Comrade Report Monitoring**: Detects when Comrades submit new reports
 - **Smart Cooldown**: 1-minute cooldown between reminders to avoid spam
-- **Hybrid Notification System**: YAML queue + direct tmux messages for high-priority alerts
+- **Direct Notification**: Messages sent straight to Noctis pane via tmux send-keys — no intermediate files
 
 ## Installation
 
@@ -17,76 +16,23 @@ OpenCode automatically loads it on next startup.
 
 ## How It Works
 
-### Notification System (Hybrid Approach)
+The plugin sends short reminder messages directly to the Noctis pane (ff15:0) via `tmux send-keys`. No YAML files are written — Noctis sees the message immediately in the pane input.
 
-The plugin uses two notification methods:
+### Trigger 1: Todo Completion
 
-1. **YAML Queue** (`queue/plugin_notifications.yaml`)
-   - All notifications are written here
-   - Noctis checks this file periodically
-   - Low-priority reminders (e.g., session idle)
+When all in-progress todos are completed, Noctis receives:
 
-2. **Direct tmux Notification** (via send-keys)
-   - High-priority alerts sent directly to Noctis pane
-   - Immediate visibility for critical events
-   - Used for: todo completion, new Comrade reports
-
-### Trigger 1: Session Idle (Low Priority)
-
-When OpenCode session becomes idle, writes to YAML queue:
-
-```yaml
-notifications:
-  - id: notif_001
-    timestamp: "2026-02-11T23:52:13"
-    service: dashboard-reminder
-    message: |
-      Session is idle. Please update dashboard.md:
-      1. Move completed tasks to '✅ Today's Results'
-      2. Update 'Last Updated' timestamp
-      3. Clear '🚨 Requires Action' if resolved
-      4. Add new achievements in chronological order
-    priority: low
-    status: pending
+```
+⚠️ [Dashboard Reminder] 3 todo(s) completed: Task A, Task B, Task C — Please update dashboard.md
 ```
 
-### Trigger 2: Todo Completion (High Priority)
+### Trigger 2: Comrade Reports
 
-When all in-progress todos are completed, sends direct notification + YAML:
+When Comrades submit new reports (`queue/reports/*_report.yaml`), Noctis receives:
 
-**Direct message to Noctis pane:**
 ```
-⚠️ [Dashboard Update Reminder] 3 todo(s) completed: Task A, Task B, Task C
-Please add to '✅ Today's Results' section in dashboard.md
+⚠️ [Dashboard Reminder] New report(s) from: prompto — Please update dashboard.md
 ```
-
-**YAML notification:**
-```yaml
-notifications:
-  - id: notif_002
-    timestamp: "2026-02-11T23:52:15"
-    service: dashboard-reminder
-    message: |
-      3 todo(s) completed: Task A, Task B, Task C
-      Please add to '✅ Today's Results' section in dashboard.md
-    priority: high
-    status: pending
-    extra:
-      completedCount: 3
-```
-
-### Trigger 3: Comrade Reports (High Priority)
-
-When Comrades submit new reports, sends both direct + YAML notification.
-
-## Noctis Integration
-
-Noctis checks notifications in the "Check Everything When Woken" protocol:
-
-1. Read `queue/plugin_notifications.yaml`
-2. Process pending notifications
-3. Update `dashboard.md` accordingly
-4. Clear processed notifications
 
 ## Configuration
 
@@ -95,13 +41,6 @@ Edit cooldown duration by changing `REMINDER_COOLDOWN` constant:
 ```typescript
 const REMINDER_COOLDOWN = 60000 // milliseconds (default: 1 minute)
 ```
-
-## Priority Levels
-
-| Priority | Delivery Method | Use Case |
-|----------|----------------|----------|
-| `low` | YAML only | Session idle, routine reminders |
-| `high` | YAML + tmux | Todo completion, Comrade reports |
 
 ## Logs
 
@@ -112,7 +51,7 @@ await client.app.log({
   body: {
     service: "dashboard-reminder",
     level: "info",
-    message: "Notification written: ...",
+    message: "Notification sent to Noctis: ...",
   },
 })
 ```
@@ -132,7 +71,5 @@ To re-enable:
 ## Notes
 
 - Plugin uses cooldown to avoid spamming reminders
-- High-priority notifications appear immediately via tmux
-- YAML queue ensures no notifications are lost (consistent with other queue files)
-- Noctis-specific workflow integration
-
+- Notifications appear directly in Noctis pane via tmux send-keys
+- No intermediate files — zero context overhead for Noctis
