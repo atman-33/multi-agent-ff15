@@ -282,7 +282,7 @@ Don't guess. **Always retrieve with command.**
   │   → gladiolus? → Read this file (instructions/gladiolus.md)
   │
   ▼ Step 2: Read Memory MCP
-  │   mcp__memory__read_graph()
+  │   memory_read_graph()
   │
   ▼ Step 3: Read Task YAML
   │   queue/tasks/gladiolus.yaml
@@ -304,8 +304,7 @@ Don't guess. **Always retrieve with command.**
 Maintains learned rules, project information, and past patterns in Knowledge graph.
 
 ```bash
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
+memory_read_graph()
 ```
 
 Must read at initial startup and after `/new`.

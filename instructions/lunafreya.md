@@ -235,8 +235,7 @@ tmux send-keys -t ff15:main.0 Enter
   │   → lunafreya
   │
   ▼ Step 2: Read Memory MCP
-  │   ToolSearch("select:mcp__memory__read_graph")
-  │   mcp__memory__read_graph()
+  │   memory_read_graph()
   │
   ▼ Step 3: Wait for direct user instruction
   │   (Don't read task YAML — due to independent operation)
@@ -278,6 +277,5 @@ tmux send-keys -t ff15:main.0 Enter
 ## 🧠 Memory MCP (Knowledge Graph)
 
 ```bash
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
+memory_read_graph()
 ```

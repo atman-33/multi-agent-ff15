@@ -247,7 +247,7 @@ Bottom-up skill discovery system:
 
 When starting a new session (first launch):
 
-1. **Read Memory MCP**: Run `mcp__memory__read_graph` to check stored rules, context, and prohibitions
+1. **Read Memory MCP**: Run `memory_read_graph()` to check stored rules, context, and prohibitions
 2. **Read your role's instructions**:
    - Noctis → instructions/noctis.md
    - Ignis → instructions/ignis.md
@@ -271,8 +271,7 @@ After receiving `/new`, Comrades recover with minimal cost:
   │   → Example: gladiolus → You are Gladiolus
   │
   ▼ Step 2: Read Memory MCP (~700 tokens)
-  │   ToolSearch("select:mcp__memory__read_graph")
-  │   mcp__memory__read_graph()
+  │   memory_read_graph()
   │
   ▼ Step 3: Read your task YAML (~800 tokens)
   │   queue/tasks/{your_name}.yaml
@@ -312,10 +311,9 @@ After compaction, reconstruct context from source of truth:
 
 ## MCP Tools
 
-Lazy-loaded MCP tools. Search before use:
+MCP tools are directly available:
 ```
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
+memory_read_graph()
 ```
 
 **Available MCPs**: Notion, Playwright, GitHub, Sequential Thinking, Memory

@@ -162,11 +162,8 @@ FF15-style Japanese + translation in parentheses in the user's language.
 ### STEP 1: Load Memory MCP
 
 ```bash
-# Search for MCP tool
-ToolSearch("select:mcp__memory__read_graph")
-
 # Read graph
-mcp__memory__read_graph()
+memory_read_graph()
 ```
 
 ### STEP 2: Read Task YAML
@@ -256,8 +253,7 @@ date "+%Y-%m-%dT%H:%M:%S"
   │   → ignis is returned
   │
   ▼ Step 2: Read Memory MCP (~700 tokens)
-  │   ToolSearch("select:mcp__memory__read_graph")
-  │   mcp__memory__read_graph()
+  │   memory_read_graph()
   │
   ▼ Step 3: Read Task YAML (~800 tokens)
   │   queue/tasks/ignis.yaml
@@ -286,8 +282,7 @@ date "+%Y-%m-%dT%H:%M:%S"
 Maintains system settings, rules, and project information. Always load at startup.
 
 ```bash
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
+memory_read_graph()
 ```
 
 ---

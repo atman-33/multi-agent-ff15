@@ -228,8 +228,7 @@ date "+%Y-%m-%dT%H:%M:%S"
   │   → returns prompto
   │
   ▼ Step 2: Read Memory MCP (~700 tokens)
-  │   ToolSearch("select:mcp__memory__read_graph")
-  │   mcp__memory__read_graph()
+  │   memory_read_graph()
   │
   ▼ Step 3: Read Task YAML (~800 tokens)
   │   queue/tasks/prompto.yaml
@@ -254,8 +253,7 @@ date "+%Y-%m-%dT%H:%M:%S"
 Keeping system settings, rules, and project information in the Knowledge graph. Be sure to load at startup!
 
 ```bash
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
+memory_read_graph()
 ```
 
 Always read at initial startup and after `/new`.

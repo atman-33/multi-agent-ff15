@@ -415,8 +415,7 @@ Consolidate all items requiring Crystal confirmation in the "🚨 Requires Actio
 ## 🧠 Memory MCP (Knowledge Graph)
 
 ```bash
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
+memory_read_graph()
 ```
 
 ## 🔴 Pane Index Drift Prevention
