@@ -427,11 +427,8 @@ shell: bash
 
 # スキル設定
 skill:
-  # スキル保存先（スキル名に ff15- プレフィックスを付けて保存）
-  save_path: "~/.opencode/skills/"
-
-  # ローカルスキル保存先（このプロジェクト専用）
-  local_path: "$SCRIPT_DIR/.opencode/skills/"
+  # スキル保存先（このプロジェクト専用 - 必ずここに保存すること）
+  path: "$SCRIPT_DIR/.opencode/skills/"
 
 # ログ設定
 logging:
@@ -559,50 +556,126 @@ done
 RESULTS+=("実行権限: OK")
 
 # ============================================================
-# STEP 10: bashrc alias設定
+# STEP 10: Shell alias設定（マルチシェル対応）
 # ============================================================
-log_step "STEP 10: alias設定"
+log_step "STEP 10: alias設定（マルチシェル対応）"
 
-# alias追加対象ファイル
-BASHRC_FILE="$HOME/.bashrc"
-
-# aliasが既に存在するかチェックし、なければ追加
+# 検出されたシェル設定ファイル
+DETECTED_SHELLS=()
 ALIAS_ADDED=false
+SOURCE_COMMANDS=()
 
-# ffa alias (ff15統一セッションの起動)
+# ffa alias定義
+EXPECTED_FFA_BASH="alias ffa='tmux attach -t ff15'"
+EXPECTED_FFA_FISH="alias ffa='tmux attach -t ff15'"
+
+# ============================================================
+# bash サポート
+# ============================================================
+BASHRC_FILE="$HOME/.bashrc"
 if [ -f "$BASHRC_FILE" ]; then
-    EXPECTED_FFA="alias ffa='tmux attach -t ff15'"
+    DETECTED_SHELLS+=("bash")
     if ! grep -q "alias ffa=" "$BASHRC_FILE" 2>/dev/null; then
         # alias が存在しない → 新規追加
         echo "" >> "$BASHRC_FILE"
         echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        echo "$EXPECTED_FFA" >> "$BASHRC_FILE"
-        log_info "alias ffa を追加しました（ff15セッションの起動）"
+        echo "$EXPECTED_FFA_BASH" >> "$BASHRC_FILE"
+        log_info "bash: alias ffa を追加しました"
         ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_FFA" "$BASHRC_FILE" 2>/dev/null; then
+    elif ! grep -qF "$EXPECTED_FFA_BASH" "$BASHRC_FILE" 2>/dev/null; then
         # alias は存在するがパスが異なる → 更新
-        if sed -i "s|alias ffa=.*|$EXPECTED_FFA|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias ffa を更新しました（パス変更検出）"
+        if sed -i "s|alias ffa=.*|$EXPECTED_FFA_BASH|" "$BASHRC_FILE" 2>/dev/null; then
+            log_info "bash: alias ffa を更新しました"
         else
-            log_warn "alias ffa の更新に失敗しました"
+            log_warn "bash: alias ffa の更新に失敗しました"
         fi
         ALIAS_ADDED=true
     else
-        log_info "alias ffa は既に正しく設定されています"
+        log_info "bash: alias ffa は既に正しく設定されています"
     fi
-else
-    log_warn "$BASHRC_FILE が見つかりません"
+    SOURCE_COMMANDS+=("source ~/.bashrc")
 fi
 
-if [ "$ALIAS_ADDED" = true ]; then
+# ============================================================
+# zsh サポート
+# ============================================================
+ZSHRC_FILE="$HOME/.zshrc"
+if [ -f "$ZSHRC_FILE" ]; then
+    DETECTED_SHELLS+=("zsh")
+    if ! grep -q "alias ffa=" "$ZSHRC_FILE" 2>/dev/null; then
+        # alias が存在しない → 新規追加
+        echo "" >> "$ZSHRC_FILE"
+        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$ZSHRC_FILE"
+        echo "$EXPECTED_FFA_BASH" >> "$ZSHRC_FILE"
+        log_info "zsh: alias ffa を追加しました"
+        ALIAS_ADDED=true
+    elif ! grep -qF "$EXPECTED_FFA_BASH" "$ZSHRC_FILE" 2>/dev/null; then
+        # alias は存在するがパスが異なる → 更新
+        if sed -i "s|alias ffa=.*|$EXPECTED_FFA_BASH|" "$ZSHRC_FILE" 2>/dev/null; then
+            log_info "zsh: alias ffa を更新しました"
+        else
+            log_warn "zsh: alias ffa の更新に失敗しました"
+        fi
+        ALIAS_ADDED=true
+    else
+        log_info "zsh: alias ffa は既に正しく設定されています"
+    fi
+    SOURCE_COMMANDS+=("source ~/.zshrc")
+fi
+
+# ============================================================
+# fish サポート
+# ============================================================
+FISHCONFIG_FILE="$HOME/.config/fish/config.fish"
+if [ -f "$FISHCONFIG_FILE" ]; then
+    DETECTED_SHELLS+=("fish")
+    if ! grep -q "alias ffa" "$FISHCONFIG_FILE" 2>/dev/null; then
+        # alias が存在しない → 新規追加
+        echo "" >> "$FISHCONFIG_FILE"
+        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$FISHCONFIG_FILE"
+        echo "$EXPECTED_FFA_FISH" >> "$FISHCONFIG_FILE"
+        log_info "fish: alias ffa を追加しました"
+        ALIAS_ADDED=true
+    elif ! grep -qF "$EXPECTED_FFA_FISH" "$FISHCONFIG_FILE" 2>/dev/null; then
+        # alias は存在するがパスが異なる → 更新
+        if sed -i "s|alias ffa.*|$EXPECTED_FFA_FISH|" "$FISHCONFIG_FILE" 2>/dev/null; then
+            log_info "fish: alias ffa を更新しました"
+        else
+            log_warn "fish: alias ffa の更新に失敗しました"
+        fi
+        ALIAS_ADDED=true
+    else
+        log_info "fish: alias ffa は既に正しく設定されています"
+    fi
+    SOURCE_COMMANDS+=("source ~/.config/fish/config.fish")
+fi
+
+# ============================================================
+# 検出結果とサマリー
+# ============================================================
+if [ ${#DETECTED_SHELLS[@]} -eq 0 ]; then
+    log_warn "シェル設定ファイルが見つかりませんでした"
+    log_info "サポート対象: bash (~/.bashrc), zsh (~/.zshrc), fish (~/.config/fish/config.fish)"
+    RESULTS+=("alias設定: シェル設定ファイル未検出")
+else
+    log_success "検出されたシェル: ${DETECTED_SHELLS[*]}"
+    RESULTS+=("alias設定: OK (${DETECTED_SHELLS[*]})")
+fi
+
+if [ "$ALIAS_ADDED" = true ] && [ ${#SOURCE_COMMANDS[@]} -gt 0 ]; then
     log_success "alias設定を追加しました"
     log_warn "alias を反映するには、以下のいずれかを実行してください："
-    log_info "  1. source ~/.bashrc"
-    log_info "  2. PowerShell で 'wsl --shutdown' してからターミナルを開き直す"
-    log_info "  ※ ウィンドウを閉じるだけでは WSL が終了しないため反映されません"
+    
+    # 各シェルのsourceコマンドを表示
+    for i in "${!SOURCE_COMMANDS[@]}"; do
+        log_info "  $((i + 1)). ${SOURCE_COMMANDS[$i]}"
+    done
+    
+    if [ "$IS_WSL" = true ]; then
+        log_info "  または: PowerShell で 'wsl --shutdown' してからターミナルを開き直す"
+        log_info "  ※ ウィンドウを閉じるだけでは WSL が終了しないため反映されません"
+    fi
 fi
-
-RESULTS+=("alias設定: OK")
 
 # ============================================================
 # STEP 10.5: WSL メモリ最適化設定
