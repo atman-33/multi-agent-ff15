@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# first_setup.sh - multi-agent-shogun 初回セットアップスクリプト
+# first_setup.sh - multi-agent-ff15 初回セットアップスクリプト
 # Ubuntu / WSL / Mac 用環境構築ツール
 # ============================================================
 # 実行方法:
@@ -50,7 +50,7 @@ HAS_ERROR=false
 
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════════╗"
-echo "  ║  🏯 multi-agent-shogun インストーラー                         ║"
+echo "  ║  ⚔️ multi-agent-ff15 インストーラー                         ║"
 echo "  ║     Initial Setup Script for Ubuntu / WSL                    ║"
 echo "  ╚══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -247,31 +247,31 @@ else
 fi
 
 # ============================================================
-# STEP 5: Claude Code CLI チェック（ネイティブ版）
+# STEP 5: OpenCode Code CLI チェック（ネイティブ版）
 # ※ npm版は公式非推奨（deprecated）。ネイティブ版を使用する。
 #    Node.jsはMCPサーバー（npx経由）で引き続き必要。
 # ============================================================
-log_step "STEP 5: Claude Code CLI チェック"
+log_step "STEP 5: OpenCode Code CLI チェック"
 
 # ネイティブ版の既存インストールを検出するため、PATHに ~/.local/bin を含める
 export PATH="$HOME/.local/bin:$PATH"
 
-NEED_CLAUDE_INSTALL=false
-HAS_NPM_CLAUDE=false
+NEED_OPENCODE_INSTALL=false
+HAS_NPM_OPENCODE=false
 
-if command -v claude &> /dev/null; then
-    # claude コマンドは存在する → 実際に動くかチェック
-    CLAUDE_VERSION=$(claude --version 2>&1)
-    CLAUDE_PATH=$(which claude 2>/dev/null)
+if command -v opencode &> /dev/null; then
+    # opencode コマンドは存在する → 実際に動くかチェック
+    OPENCODE_VERSION=$(opencode --version 2>&1)
+    OPENCODE_PATH=$(which opencode 2>/dev/null)
 
-    if [ $? -eq 0 ] && [ "$CLAUDE_VERSION" != "unknown" ] && [[ "$CLAUDE_VERSION" != *"not found"* ]]; then
-        # 動作する claude が見つかった → npm版かネイティブ版かを判定
-        if echo "$CLAUDE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
+    if [ $? -eq 0 ] && [ "$OPENCODE_VERSION" != "unknown" ] && [[ "$OPENCODE_VERSION" != *"not found"* ]]; then
+        # 動作する opencode が見つかった → npm版かネイティブ版かを判定
+        if echo "$OPENCODE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
             # npm版が動いている
-            HAS_NPM_CLAUDE=true
-            log_warn "npm版 Claude Code CLI が検出されました（公式非推奨）"
-            log_info "検出パス: $CLAUDE_PATH"
-            log_info "バージョン: $CLAUDE_VERSION"
+            HAS_NPM_OPENCODE=true
+            log_warn "npm版 OpenCode Code CLI が検出されました（公式非推奨）"
+            log_info "検出パス: $OPENCODE_PATH"
+            log_info "バージョン: $OPENCODE_VERSION"
             echo ""
             echo "  npm版は公式で非推奨（deprecated）となっています。"
             echo "  ネイティブ版をインストールし、npm版はアンインストールすることを推奨します。"
@@ -283,48 +283,48 @@ if command -v claude &> /dev/null; then
             fi
             REPLY=${REPLY:-Y}
             if [[ $REPLY =~ ^[Yy]$ ]]; then
-                NEED_CLAUDE_INSTALL=true
+                NEED_OPENCODE_INSTALL=true
                 # npm版のアンインストール案内
                 echo ""
                 log_info "先にnpm版をアンインストールしてください:"
-                if echo "$CLAUDE_PATH" | grep -qi "mnt/c\|AppData"; then
+                if echo "$OPENCODE_PATH" | grep -qi "mnt/c\|AppData"; then
                     echo "  Windows の PowerShell で:"
-                    echo "    npm uninstall -g @anthropic-ai/claude-code"
+                    echo "    npm uninstall -g @anthropic-ai/opencode-code"
                 else
-                    echo "    npm uninstall -g @anthropic-ai/claude-code"
+                    echo "    npm uninstall -g @anthropic-ai/opencode-code"
                 fi
                 echo ""
             else
                 log_warn "ネイティブ版への移行をスキップしました（npm版で続行）"
-                RESULTS+=("Claude Code CLI: OK (npm版・移行推奨)")
+                RESULTS+=("OpenCode Code CLI: OK (npm版・移行推奨)")
             fi
         else
             # ネイティブ版が正常に動作している
-            log_success "Claude Code CLI がインストール済みです（ネイティブ版）"
-            log_info "バージョン: $CLAUDE_VERSION"
-            RESULTS+=("Claude Code CLI: OK")
+            log_success "OpenCode Code CLI がインストール済みです（ネイティブ版）"
+            log_info "バージョン: $OPENCODE_VERSION"
+            RESULTS+=("OpenCode Code CLI: OK")
         fi
     else
         # command -v で見つかるが動かない（npm版でNode.js無し等）
-        log_warn "Claude Code CLI が見つかりましたが正常に動作しません"
-        log_info "検出パス: $CLAUDE_PATH"
-        if echo "$CLAUDE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
-            HAS_NPM_CLAUDE=true
+        log_warn "OpenCode Code CLI が見つかりましたが正常に動作しません"
+        log_info "検出パス: $OPENCODE_PATH"
+        if echo "$OPENCODE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
+            HAS_NPM_OPENCODE=true
             log_info "→ npm版（Node.js依存）が検出されました"
         else
             log_info "→ バージョン取得に失敗しました"
         fi
-        NEED_CLAUDE_INSTALL=true
+        NEED_OPENCODE_INSTALL=true
     fi
 else
-    # claude コマンドが見つからない
-    NEED_CLAUDE_INSTALL=true
+    # opencode コマンドが見つからない
+    NEED_OPENCODE_INSTALL=true
 fi
 
-if [ "$NEED_CLAUDE_INSTALL" = true ]; then
-    log_info "ネイティブ版 Claude Code CLI をインストールします"
-    log_info "Claude Code CLI をインストール中（ネイティブ版）..."
-    curl -fsSL https://claude.ai/install.sh | bash
+if [ "$NEED_OPENCODE_INSTALL" = true ]; then
+    log_info "ネイティブ版 OpenCode Code CLI をインストールします"
+    log_info "OpenCode Code CLI をインストール中（ネイティブ版）..."
+    curl -fsSL https://opencode.ai/install.sh | bash
 
     # PATHを更新（インストール直後は反映されていない可能性）
     export PATH="$HOME/.local/bin:$PATH"
@@ -332,33 +332,33 @@ if [ "$NEED_CLAUDE_INSTALL" = true ]; then
     # .bashrc に永続化（重複追加を防止）
     if ! grep -q 'export PATH="\$HOME/.local/bin:\$PATH"' "$HOME/.bashrc" 2>/dev/null; then
         echo '' >> "$HOME/.bashrc"
-        echo '# Claude Code CLI PATH (added by first_setup.sh)' >> "$HOME/.bashrc"
+        echo '# OpenCode Code CLI PATH (added by first_setup.sh)' >> "$HOME/.bashrc"
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
         log_info "~/.local/bin を ~/.bashrc の PATH に追加しました"
     fi
 
-    if command -v claude &> /dev/null; then
-        CLAUDE_VERSION=$(claude --version 2>/dev/null || echo "unknown")
-        log_success "Claude Code CLI インストール完了（ネイティブ版）"
-        log_info "バージョン: $CLAUDE_VERSION"
-        RESULTS+=("Claude Code CLI: インストール完了")
+    if command -v opencode &> /dev/null; then
+        OPENCODE_VERSION=$(opencode --version 2>/dev/null || echo "unknown")
+        log_success "OpenCode Code CLI インストール完了（ネイティブ版）"
+        log_info "バージョン: $OPENCODE_VERSION"
+        RESULTS+=("OpenCode Code CLI: インストール完了")
 
         # npm版が残っている場合の案内
-        if [ "$HAS_NPM_CLAUDE" = true ]; then
+        if [ "$HAS_NPM_OPENCODE" = true ]; then
             echo ""
             log_info "ネイティブ版がPATHで優先されるため、npm版は無効化されます"
             log_info "npm版を完全に削除するには以下を実行してください:"
-            if echo "$CLAUDE_PATH" | grep -qi "mnt/c\|AppData"; then
+            if echo "$OPENCODE_PATH" | grep -qi "mnt/c\|AppData"; then
                 echo "  Windows の PowerShell で:"
-                echo "    npm uninstall -g @anthropic-ai/claude-code"
+                echo "    npm uninstall -g @anthropic-ai/opencode-code"
             else
-                echo "    npm uninstall -g @anthropic-ai/claude-code"
+                echo "    npm uninstall -g @anthropic-ai/opencode-code"
             fi
         fi
     else
         log_error "インストールに失敗しました。パスを確認してください"
         log_info "~/.local/bin がPATHに含まれているか確認してください"
-        RESULTS+=("Claude Code CLI: インストール失敗")
+        RESULTS+=("OpenCode Code CLI: インストール失敗")
         HAS_ERROR=true
     fi
 fi
@@ -412,11 +412,11 @@ log_step "STEP 7: 設定ファイル確認"
 if [ ! -f "$SCRIPT_DIR/config/settings.yaml" ]; then
     log_info "config/settings.yaml を作成中..."
     cat > "$SCRIPT_DIR/config/settings.yaml" << EOF
-# multi-agent-shogun 設定ファイル
+# multi-agent-ff15 設定ファイル
 
 # 言語設定
-# ja: 日本語（戦国風日本語のみ、併記なし）
-# en: 英語（戦国風日本語 + 英訳併記）
+# ja: 日本語（FF15風日本語のみ、併記なし）
+# en: 英語（FF15風日本語 + 英訳併記）
 # その他の言語コード（es, zh, ko, fr, de 等）も対応
 language: ja
 
@@ -427,8 +427,8 @@ shell: bash
 
 # スキル設定
 skill:
-  # スキル保存先（スキル名に shogun- プレフィックスを付けて保存）
-  save_path: "~/.claude/skills/"
+  # スキル保存先（スキル名に ff15- プレフィックスを付けて保存）
+  save_path: "~/.opencode/skills/"
 
   # ローカルスキル保存先（このプロジェクト専用）
   local_path: "$SCRIPT_DIR/skills/"
@@ -485,16 +485,16 @@ fi
 RESULTS+=("設定ファイル: OK")
 
 # ============================================================
-# STEP 8: 足軽用タスク・レポートファイル初期化
+# STEP 8: Worker用タスク・レポートファイル初期化
 # ============================================================
 log_step "STEP 8: キューファイル初期化"
 
-# 足軽用タスクファイル作成
-for i in {1..8}; do
-    TASK_FILE="$SCRIPT_DIR/queue/tasks/ashigaru${i}.yaml"
+# Worker用タスクファイル作成
+for WORKER_NAME in gladiolus prompto lunafreya iris; do
+    TASK_FILE="$SCRIPT_DIR/queue/tasks/${WORKER_NAME}.yaml"
     if [ ! -f "$TASK_FILE" ]; then
         cat > "$TASK_FILE" << EOF
-# 足軽${i}専用タスクファイル
+# ${WORKER_NAME} task file
 task:
   task_id: null
   parent_cmd: null
@@ -505,14 +505,14 @@ task:
 EOF
     fi
 done
-log_info "足軽タスクファイル (1-8) を確認/作成しました"
+log_info "Workerタスクファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
 
-# 足軽用レポートファイル作成
-for i in {1..8}; do
-    REPORT_FILE="$SCRIPT_DIR/queue/reports/ashigaru${i}_report.yaml"
+# Worker用レポートファイル作成
+for WORKER_NAME in gladiolus prompto lunafreya iris; do
+    REPORT_FILE="$SCRIPT_DIR/queue/reports/${WORKER_NAME}_report.yaml"
     if [ ! -f "$REPORT_FILE" ]; then
         cat > "$REPORT_FILE" << EOF
-worker_id: ashigaru${i}
+worker_id: ${WORKER_NAME}
 task_id: null
 timestamp: ""
 status: idle
@@ -520,7 +520,7 @@ result: null
 EOF
     fi
 done
-log_info "足軽レポートファイル (1-8) を確認/作成しました"
+log_info "Workerレポートファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
 
 RESULTS+=("キューファイル: OK")
 
@@ -531,7 +531,7 @@ log_step "STEP 9: 実行権限設定"
 
 SCRIPTS=(
     "setup.sh"
-    "shutsujin_departure.sh"
+    "standby.sh"
     "first_setup.sh"
 )
 
@@ -555,47 +555,47 @@ BASHRC_FILE="$HOME/.bashrc"
 # aliasが既に存在するかチェックし、なければ追加
 ALIAS_ADDED=false
 
-# css alias (将軍ウィンドウの起動)
+# csn alias (Noctisウィンドウの起動)
 if [ -f "$BASHRC_FILE" ]; then
-    EXPECTED_CSS="alias css='tmux attach-session -t shogun'"
-    if ! grep -q "alias css=" "$BASHRC_FILE" 2>/dev/null; then
+    EXPECTED_CSS="alias csn='tmux attach-session -t noctis'"
+    if ! grep -q "alias csn=" "$BASHRC_FILE" 2>/dev/null; then
         # alias が存在しない → 新規追加
         echo "" >> "$BASHRC_FILE"
-        echo "# multi-agent-shogun aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
+        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
         echo "$EXPECTED_CSS" >> "$BASHRC_FILE"
-        log_info "alias css を追加しました（将軍ウィンドウの起動）"
+        log_info "alias csn を追加しました（Noctisウィンドウの起動）"
         ALIAS_ADDED=true
     elif ! grep -qF "$EXPECTED_CSS" "$BASHRC_FILE" 2>/dev/null; then
         # alias は存在するがパスが異なる → 更新
-        if sed -i "s|alias css=.*|$EXPECTED_CSS|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias css を更新しました（パス変更検出）"
+        if sed -i "s|alias csn=.*|$EXPECTED_CSS|" "$BASHRC_FILE" 2>/dev/null; then
+            log_info "alias csn を更新しました（パス変更検出）"
         else
-            log_warn "alias css の更新に失敗しました"
+            log_warn "alias csn の更新に失敗しました"
         fi
         ALIAS_ADDED=true
     else
-        log_info "alias css は既に正しく設定されています"
+        log_info "alias csn は既に正しく設定されています"
     fi
 
-    # csm alias (家老・足軽ウィンドウの起動)
-    EXPECTED_CSM="alias csm='tmux attach-session -t multiagent'"
-    if ! grep -q "alias csm=" "$BASHRC_FILE" 2>/dev/null; then
+    # csk alias (Ignis・Workersウィンドウの起動)
+    EXPECTED_CSM="alias csk='tmux attach-session -t kingsglaive'"
+    if ! grep -q "alias csk=" "$BASHRC_FILE" 2>/dev/null; then
         if [ "$ALIAS_ADDED" = false ]; then
             echo "" >> "$BASHRC_FILE"
-            echo "# multi-agent-shogun aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
+            echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
         fi
         echo "$EXPECTED_CSM" >> "$BASHRC_FILE"
-        log_info "alias csm を追加しました（家老・足軽ウィンドウの起動）"
+        log_info "alias csk を追加しました（Ignis・Workersウィンドウの起動）"
         ALIAS_ADDED=true
     elif ! grep -qF "$EXPECTED_CSM" "$BASHRC_FILE" 2>/dev/null; then
-        if sed -i "s|alias csm=.*|$EXPECTED_CSM|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias csm を更新しました（パス変更検出）"
+        if sed -i "s|alias csk=.*|$EXPECTED_CSM|" "$BASHRC_FILE" 2>/dev/null; then
+            log_info "alias csk を更新しました（パス変更検出）"
         else
-            log_warn "alias csm の更新に失敗しました"
+            log_warn "alias csk の更新に失敗しました"
         fi
         ALIAS_ADDED=true
     else
-        log_info "alias csm は既に正しく設定されています"
+        log_info "alias csk は既に正しく設定されています"
     fi
 else
     log_warn "$BASHRC_FILE が見つかりません"
@@ -671,26 +671,54 @@ fi
 # ============================================================
 log_step "STEP 11: Memory MCP セットアップ"
 
-if command -v claude &> /dev/null; then
-    # Memory MCP が既に設定済みか確認
-    if claude mcp list 2>/dev/null | grep -q "memory"; then
+if command -v opencode &> /dev/null; then
+    OPENCODE_CONFIG_DIR="$HOME/.config/opencode"
+    OPENCODE_CONFIG_FILE="$OPENCODE_CONFIG_DIR/opencode.json"
+    
+    if [ ! -d "$OPENCODE_CONFIG_DIR" ]; then
+        mkdir -p "$OPENCODE_CONFIG_DIR"
+    fi
+    
+    if [ -f "$OPENCODE_CONFIG_FILE" ] && grep -q "memory" "$OPENCODE_CONFIG_FILE" 2>/dev/null; then
         log_info "Memory MCP は既に設定済みです"
         RESULTS+=("Memory MCP: OK (設定済み)")
     else
         log_info "Memory MCP を設定中..."
-        if claude mcp add memory \
-            -e MEMORY_FILE_PATH="$SCRIPT_DIR/memory/shogun_memory.jsonl" \
-            -- npx -y @modelcontextprotocol/server-memory 2>/dev/null; then
+        if [ ! -f "$OPENCODE_CONFIG_FILE" ]; then
+            cat > "$OPENCODE_CONFIG_FILE" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "environment": {
+        "MEMORY_FILE_PATH": "$SCRIPT_DIR/memory/noctis_memory.jsonl"
+      },
+      "enabled": true
+    }
+  }
+}
+EOF
             log_success "Memory MCP 設定完了"
             RESULTS+=("Memory MCP: 設定完了")
         else
-            log_warn "Memory MCP の設定に失敗しました（手動で設定可能）"
-            RESULTS+=("Memory MCP: 設定失敗 (手動設定可能)")
+            log_warn "既存のopencode.jsonにMemory MCPを手動で追加してください"
+            echo "  追加内容:"
+            echo '  "memory": {'
+            echo '    "type": "local",'
+            echo '    "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],'
+            echo "    \"environment\": {"
+            echo "      \"MEMORY_FILE_PATH\": \"$SCRIPT_DIR/memory/noctis_memory.jsonl\""
+            echo '    },'
+            echo '    "enabled": true'
+            echo '  }'
+            RESULTS+=("Memory MCP: 手動設定が必要")
         fi
     fi
 else
-    log_warn "claude コマンドが見つからないため Memory MCP 設定をスキップ"
-    RESULTS+=("Memory MCP: スキップ (claude未インストール)")
+    log_warn "opencode コマンドが見つからないため Memory MCP 設定をスキップ"
+    RESULTS+=("Memory MCP: スキップ (opencode未インストール)")
 fi
 
 # ============================================================
@@ -723,7 +751,7 @@ if [ "$HAS_ERROR" = true ]; then
     echo "  すべての依存関係が揃ったら、再度このスクリプトを実行して確認できます。"
 else
     echo "  ╔══════════════════════════════════════════════════════════════╗"
-    echo "  ║  ✅ セットアップ完了！準備万端でござる！                      ║"
+    echo "  ║  ✅ セットアップ完了！準備完了です！                      ║"
     echo "  ╚══════════════════════════════════════════════════════════════╝"
 fi
 
@@ -737,35 +765,32 @@ echo ""
 echo "  STEP 0: PATHの反映（このシェルにインストール結果を反映）"
 echo "     source ~/.bashrc"
 echo ""
-echo "  STEP A: OAuth認証 + Bypass Permissions の承認（1コマンドで完了）"
-echo "     claude --dangerously-skip-permissions"
+echo "  STEP A: OpenCodeを起動して認証"
+echo "     opencode"
 echo ""
-echo "     1. ブラウザが開く → Anthropicアカウントでログイン → CLIに戻る"
-echo "        ※ WSLでブラウザが開かない場合は、表示されるURLをWindows側の"
-echo "          ブラウザに手動で貼り付けてください"
-echo "     2. Bypass Permissions の承認画面が表示される"
-echo "        → 「Yes, I accept」を選択（↓キーで2を選んでEnter）"
+echo "     1. 使用するAIモデルプロバイダーを選択"
+echo "     2. 認証プロンプトに従ってログイン"
 echo "     3. /exit で退出"
 echo ""
-echo "     ※ 一度承認すれば ~/.claude/ に保存され、以降は不要です"
+echo "     ※ 一度認証すれば ~/.opencode/ に保存され、以降は不要です"
 echo ""
 echo "  ────────────────────────────────────────────────────────────────"
 echo ""
-echo "  出陣（全エージェント起動）:"
-echo "     ./shutsujin_departure.sh"
+echo "  Stand by Me！（全エージェント起動）:"
+echo "     ./standby.sh"
 echo ""
 echo "  オプション:"
-echo "     ./shutsujin_departure.sh -s            # セットアップのみ（Claude手動起動）"
-echo "     ./shutsujin_departure.sh -t            # Windows Terminalタブ展開"
-echo "     ./shutsujin_departure.sh -shell bash   # bash用プロンプトで起動"
-echo "     ./shutsujin_departure.sh -shell zsh    # zsh用プロンプトで起動"
+echo "     ./standby.sh -s            # セットアップのみ（OpenCode手動起動）"
+echo "     ./standby.sh -t            # Windows Terminalタブ展開"
+echo "     ./standby.sh -shell bash   # bash用プロンプトで起動"
+echo "     ./standby.sh -shell zsh    # zsh用プロンプトで起動"
 echo ""
 echo "  ※ シェル設定は config/settings.yaml の shell: でも変更可能です"
 echo ""
 echo "  詳細は README.md を参照してください。"
 echo ""
 echo "  ════════════════════════════════════════════════════════════════"
-echo "   天下布武！ (Tenka Fubu!)"
+echo "   Stand by Me！ (Stand by Me!)"
 echo "  ════════════════════════════════════════════════════════════════"
 echo ""
 

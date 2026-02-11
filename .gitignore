@@ -42,5 +42,11 @@ logs/
 projects/
 
 # Internal docs (operation logs, test plans, article drafts)
-docs/
-archive/
+./archive/
+
+# Serena MCP
+.serena/
+
+# OpenSpec
+.github/prompts/opsx-*.md
+.opencode/command/opsx-*.md
