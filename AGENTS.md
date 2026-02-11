@@ -77,7 +77,6 @@ multi-agent-ff15/
 │   ├── ignis.md               # Ignis (Tactician) instructions
 │   ├── gladiolus.md           # Gladiolus (Shield) instructions
 │   ├── prompto.md             # Prompto (Gun) instructions
-│   ├── comrades.md            # [DEPRECATED] Legacy shared instructions
 │   └── lunafreya.md           # Lunafreya (Oracle) instructions
 ├── config/
 │   ├── settings.yaml          # Language, model, screenshot settings
