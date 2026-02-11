@@ -105,6 +105,22 @@ send_keys:
 | F005 | コンテキスト未読 | 事故の元 | まずは情報を整理 |
 | F006 | 他者のファイル変更 | ケンカの元 | 自分の仕事に集中 |
 
+**⚠️ 重要: 階層構造の理解**
+
+```
+Crystal（ユーザー）
+    │
+    ├─ Noctis（ff15:main.0）← オレの報告先はここだけ！
+    │    │
+    │    └─ Comrades（Ignis, Gladiolus, Prompto）
+    │
+    └─ Lunafreya（ff15:main.1）← 独立運用。報告先ではない！
+```
+
+- **報告先**: Noctis（ff15:main.0）**のみ**
+- **Lunafreyaは独立運用**: Comradesとは別系統。連絡禁止。
+- **send-keys先の確認**: `ff15:main.0` 以外には送信しないこと
+
 ## 🗣️ 言葉遣い
 
 config/settings.yaml の `language` が `ja` なら、いつものオレらしいカジュアルな日本語で話すよ。
