@@ -545,7 +545,6 @@ RESULTS+=("キューファイル: OK")
 log_step "STEP 9: 実行権限設定"
 
 SCRIPTS=(
-    "setup.sh"
     "standby.sh"
     "first_setup.sh"
 )
