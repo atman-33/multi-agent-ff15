@@ -306,6 +306,27 @@ task:
 
 **Noctis is the sole responsible party for updating dashboard.md.**
 
+### Language Rule
+
+**CRITICAL:** dashboard.md must be written in the language specified in `config/settings.yaml`.
+
+```bash
+# Check current language setting
+cat config/settings.yaml | grep "^language:"
+```
+
+| Setting | Dashboard Language | Example |
+|---------|-------------------|---------|
+| `language: ja` | Japanese | 「任務完了しました」 |
+| `language: en` | English | "Task completed" |
+| Other codes | Corresponding language | Spanish, Chinese, etc. |
+
+**Format:**
+- Section headers: Emoji + configured language (e.g., 🚨 対応必要, ✅ 本日の成果)
+- Table headers: Configured language
+- Content: Configured language
+- Timestamps: ISO format (language-neutral)
+
 ### Update Timing
 
 | Timing | Section | Content |

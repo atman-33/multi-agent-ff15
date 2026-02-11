@@ -93,7 +93,7 @@ multi-agent-ff15/
 │       ├── gladiolus_report.yaml
 │       └── prompto_report.yaml
 ├── memory/                    # Memory MCP storage
-├── dashboard.md               # Human-readable status board
+├── dashboard.md               # Status board (written in language from config/settings.yaml)
 ├── standby.sh                 # Deployment script
 └── first_setup.sh             # First-time setup
 ```
