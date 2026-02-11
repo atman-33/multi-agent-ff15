@@ -93,7 +93,6 @@ Shell aliases created by `first_setup.sh` SHALL use unified session:
 
 - **WHEN** `first_setup.sh` or `standby.sh` creates shell aliases
 - **THEN** the `ffa` alias MUST point to the `ff15` session
-- **AND** legacy aliases (`csf`, `csn`, `csk`, `css`, `csm`) SHALL be automatically removed
 
 ### Requirement: Deployment script naming
 
