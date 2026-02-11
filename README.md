@@ -72,9 +72,9 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 
 This is the feature no other framework has.
 
-As Comrades execute tasks, they **automatically identify reusable patterns** and propose them as skill candidates. Ignis aggregates these proposals in \`dashboard.md\`, and you — the Lord — decide what gets promoted to a permanent skill.
+As Comrades execute tasks, they **automatically identify reusable patterns** and propose them as skill candidates. Ignis aggregates these proposals in `dashboard.md`, and you — the Lord — decide what gets promoted to a permanent skill.
 
-\`\`\`
+```
 Comrade finishes a task
     ↓
 Notices: "I've done this pattern 3 times across different projects"
@@ -87,7 +87,7 @@ Reports in YAML:  skill_candidate:
 Appears in dashboard.md → You approve → Skill created in skills/
     ↓
 Any agent can now invoke /api-endpoint-scaffold
-\`\`\`
+```
 
 Skills grow organically from real work — not from a predefined template library. Your skill set becomes a reflection of **your** workflow.
 
@@ -97,7 +97,7 @@ Skills grow organically from real work — not from a predefined template librar
 
 ## Architecture
 
-\`\`\`
+```
         You (Crystal / Lord)
              │
              ├──────────────────────────┐
@@ -116,7 +116,7 @@ Skills grow organically from real work — not from a predefined template librar
 
       Session: ff15 (unified session - 5 panes)
       Panes: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto
-\`\`\`
+```
 
 **Communication protocol:**
 - **Downward** (orders): Write YAML → wake target with \`tmux send-keys\`
@@ -143,14 +143,14 @@ Agents can be deployed in different **formations** depending on the task:
 | Formation | Comrades (Ignis/Gladiolus/Prompto) | Leaders (Noctis/Lunafreya) | Best for |
 |-----------|-------------------------------------|----------------------------|----------|
 | **Normal** (default) | Haiku 4.5 / Gemini 3 Flash | Sonnet 4.5 / Grok Fast | Everyday tasks — cost-efficient |
-| **Full Power** (\`--fullpower\`) | GPT-5.2 / Sonnet 4.5 / Gemini 3 Pro | Opus 4.6 / Grok Fast | Critical tasks — maximum capability |
-| **Lite** (\`--lite\`) | Haiku / Grok Fast | Haiku 4.5 | Budget-conscious development |
+| **Full Power** (`--fullpower`) | GPT-5.2 / Sonnet 4.5 / Gemini 3 Pro | Opus 4.6 / Grok Fast | Critical tasks — maximum capability |
+| **Lite** (`--lite`) | Haiku / Grok Fast | Haiku 4.5 | Budget-conscious development |
 
-\`\`\`bash
+```bash
 ./standby.sh                # Normal formation (default)
 ./standby.sh --fullpower    # Full Power formation (premium models)
 ./standby.sh --lite         # Lite formation (budget mode)
-\`\`\`
+```
 
 Noctis can also switch individual Comrades to different models mid-session when needed.
 
@@ -221,10 +221,10 @@ Right-click → "Run as administrator" (if WSL2 is not installed). Sets up WSL2 
 
 🐧 **Open Ubuntu and run the following** (first time only)
 
-\`\`\`bash
+```bash
 cd /mnt/c/tools/multi-agent-ff15
 ./first_setup.sh
-\`\`\`
+```
 
 </td>
 </tr>
@@ -238,9 +238,9 @@ cd /mnt/c/tools/multi-agent-ff15
 
 ✅ **Stand by Me!**
 
-\`\`\`bash
+```bash
 ./standby.sh
-\`\`\`
+```
 
 </td>
 </tr>
@@ -248,9 +248,9 @@ cd /mnt/c/tools/multi-agent-ff15
 
 #### 🔑 First time only: Authentication
 
-After \`first_setup.sh\` completes, run the following once to authenticate:
+After `first_setup.sh` completes, run the following once to authenticate:
 
-\`\`\`bash
+```bash
 # 1. Apply PATH changes
 source ~/.bashrc
 
@@ -259,18 +259,18 @@ opencode
 #    → Select your preferred AI model provider
 #    → Follow authentication prompts
 #    → Type /exit to quit
-\`\`\`
+```
 
-Authentication is saved to \`~/.opencode/\` and won't be needed again.
+Authentication is saved to `~/.opencode/` and won't be needed again.
 
 #### 📅 Daily startup (after initial setup)
 
 Open **Ubuntu terminal** (WSL) and run:
 
-\`\`\`bash
+```bash
 cd /mnt/c/tools/multi-agent-ff15
 ./standby.sh
-\`\`\`
+```
 
 ### 📱 Mobile Access (Command from anywhere)
 
@@ -288,18 +288,18 @@ Command your AI army from your phone — bed, café, or bathroom.
 
 1. Install Tailscale on both WSL and your phone
 2. On WSL side (Auth key method — no browser needed):
-   \`\`\`bash
+   ```bash
    curl -fsSL https://tailscale.com/install.sh | sh
    sudo tailscaled &
    sudo tailscale up --authkey tskey-auth-XXXXXXXXXXXX
    sudo service ssh start
-   \`\`\`
+   ```
 3. From Termux on your phone:
-   \`\`\`sh
+   ```sh
    pkg update && pkg install openssh
    ssh youruser@your-tailscale-ip
    ffa    # Connect to ff15 session
-   \`\`\`
+   ```
 
 **Disconnect:** Just swipe the Termux window closed. tmux sessions survive — AI subordinates keep working silently.
 
@@ -314,7 +314,7 @@ Command your AI army from your phone — bed, café, or bathroom.
 
 ### Initial Setup
 
-\`\`\`bash
+```bash
 # 1. Clone the repository
 git clone https://github.com/yohey-w/multi-agent-ff15.git ~/multi-agent-ff15
 cd ~/multi-agent-ff15
@@ -324,14 +324,14 @@ chmod +x *.sh
 
 # 3. Run initial setup
 ./first_setup.sh
-\`\`\`
+```
 
 ### Daily startup
 
-\`\`\`bash
+```bash
 cd ~/multi-agent-ff15
 ./standby.sh
-\`\`\`
+```
 
 </details>
 
@@ -352,11 +352,11 @@ No problem! Running \`install.bat\` will:
 3. Guide you to the next step (how to run \`first_setup.sh\`)
 
 **Quick install command** (run PowerShell as administrator):
-\`\`\`powershell
+```powershell
 wsl --install
-\`\`\`
+```
 
-Then restart your computer and run \`install.bat\` again.
+Then restart your computer and run `install.bat` again.
 
 </details>
 
@@ -428,17 +428,17 @@ After running \`standby.sh\`, all agents automatically load their instructions a
 
 Open a new terminal and connect to the ff15 session:
 
-\`\`\`bash
+```bash
 ffa    # Alias (tmux attach-session -t ff15)
-\`\`\`
+```
 
 ### Step 2: Give your first command
 
 Noctis is already initialized! Just give a command:
 
-\`\`\`
+```
 Research the top 5 JavaScript frameworks and create a comparison table
-\`\`\`
+```
 
 Noctis will:
 1. Write tasks to YAML files
@@ -449,16 +449,16 @@ Meanwhile, Ignis distributes tasks to Comrades and executes in parallel.
 
 ### Step 3: Check progress
 
-Open \`dashboard.md\` in your editor to see real-time status:
+Open `dashboard.md` in your editor to see real-time status:
 
-\`\`\`markdown
+```markdown
 ## In Progress
 | Worker | Task | Status |
 |--------|------|--------|
 | Gladiolus | React research | Running |
 | Prompto | Vue research | Running |
 | Lunafreya | Angular research | Complete |
-\`\`\`
+```
 
 ---
 
@@ -466,9 +466,9 @@ Open \`dashboard.md\` in your editor to see real-time status:
 
 ### 1. Give a command
 
-\`\`\`
+```
 You: "Research the top 5 MCP servers and create a comparison table"
-\`\`\`
+```
 
 ### 2. Noctis delegates instantly
 
@@ -502,14 +502,14 @@ Open \`dashboard.md\` to see aggregated results, skill candidates, and blockers 
 
 This system manages **all white-collar tasks**, not just code. Projects can live anywhere on your filesystem.
 
-\`\`\`yaml
+```yaml
 # config/projects.yaml
 projects:
   - id: client_x
     name: "Client X Consulting"
     path: "/mnt/c/Consulting/client_x"
     status: active
-\`\`\`
+```
 
 **Research sprints** — 3 Comrades research different topics in parallel, results compiled in minutes.
 
@@ -525,23 +525,23 @@ projects:
 
 Generate up to 3 parallel tasks with a single command:
 
-\`\`\`
+```
 You: "Research 3 MCP servers"
 → 3 Comrades start research simultaneously
 → Results in minutes, not hours
-\`\`\`
+```
 
 ### 🔄 2. Non-Blocking Workflow
 
 Noctis delegates instantly and returns control to you:
 
-\`\`\`
+```
 You: Command → Noctis: Delegate → You: Can give next command immediately
                                      ↓
                      Workers: Execute in background
                                      ↓
                      Dashboard: Shows results
-\`\`\`
+```
 
 No need to wait for long tasks to complete.
 
@@ -549,13 +549,13 @@ No need to wait for long tasks to complete.
 
 AI remembers your preferences:
 
-\`\`\`
+```
 Session 1: Tell "I prefer simple approaches"
            → Saved to Memory MCP
 
 Session 2: AI loads memory at startup
            → No longer suggests complex approaches
-\`\`\`
+```
 
 ### 📡 4. Event-Driven (No Polling)
 
@@ -566,7 +566,7 @@ Agents communicate via YAML files and wake each other with tmux send-keys.
 
 VSCode extension AI coding tools can paste screenshots to explain situations. This CLI system achieves the same:
 
-\`\`\`
+```
 # Set screenshot folder in config/settings.yaml
 screenshot:
   path: "/mnt/c/Users/YourName/Pictures/Screenshots"
@@ -575,7 +575,7 @@ screenshot:
 You: "Check the latest screenshot"
 You: "Check 2 screenshots"
 → AI immediately reads and analyzes screenshots
-\`\`\`
+```
 
 **💡 Windows tip:** Press \`Win + Shift + S\` to take screenshots. Match the save location to the path in \`settings.yaml\` for seamless integration.
 
@@ -677,10 +677,10 @@ Normally run Comrades with lightweight models. Switch to premium models with \`-
 Each pane has a \`@agent_id\` tmux user option set (e.g., \`ignis\`, \`gladiolus\`). \`pane_index\` shifts with pane rearrangement, but \`@agent_id\` is fixed by \`standby.sh\` at startup and doesn't change.
 
 Agent self-identification:
-\`\`\`bash
+```bash
 tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
-\`\`\`
-\`-t "$TMUX_PANE"\` is mandatory. Omitting it returns the active pane's value, causing misidentification.
+```
+`-t "$TMUX_PANE"` is mandatory. Omitting it returns the active pane's value, causing misidentification.
 
 Model names are also saved as \`@model_name\` and always displayed via \`pane-border-format\`. Even if OpenCode overwrites the pane title, the model name remains visible.
 
@@ -710,7 +710,7 @@ Skills under \`.opencode/skills/\` are not committed to the repository by design
 
 **2. Skill acquisition process**
 
-\`\`\`
+```
 Comrade discovers pattern during work
     ↓
 Appears in "Skill Candidates" in dashboard.md
@@ -718,7 +718,7 @@ Appears in "Skill Candidates" in dashboard.md
 King (you) reviews content
     ↓
 If approved, command Noctis to create skill
-\`\`\`
+```
 
 Skills are user-driven growth. Automatic growth leads to unmanageable proliferation, so keep only what you judge as "useful".
 
@@ -736,9 +736,9 @@ MCP servers provide OpenCode with access to external tools:
 
 ### Installing MCP Servers
 
-OpenCode manages MCP servers via config file. Add to \`~/.config/opencode/opencode.json\`:
+OpenCode manages MCP servers via config file. Add to `~/.config/opencode/opencode.json`:
 
-\`\`\`json
+```json
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -757,7 +757,7 @@ OpenCode manages MCP servers via config file. Add to \`~/.config/opencode/openco
     }
   }
 }
-\`\`\`
+```
 
 ### Verify Installation
 
@@ -796,7 +796,7 @@ Plugins are stored in `.opencode/plugins/` and automatically loaded by OpenCode.
 
 ### Example 1: Research Task
 
-\`\`\`
+```
 You: "Research the top 3 AI coding assistants and compare"
 
 Executed process:
@@ -806,11 +806,11 @@ Executed process:
    - Prompto: Research OpenCode
 2. All 3 research simultaneously
 3. Results aggregated in dashboard.md
-\`\`\`
+```
 
 ### Example 2: PoC Preparation
 
-\`\`\`
+```
 You: "Prepare PoC for project on this Notion page: [URL]"
 
 Executed process:
@@ -819,7 +819,7 @@ Executed process:
 3. Gladiolus: Research technical feasibility
 4. Prompto: Create PoC plan document
 5. All results aggregated in dashboard.md, ready for meeting
-\`\`\`
+```
 
 ---
 
@@ -827,12 +827,12 @@ Executed process:
 
 ### Language Settings
 
-Edit \`config/settings.yaml\`:
+Edit `config/settings.yaml`:
 
-\`\`\`yaml
+```yaml
 language: ja   # Japanese only
 language: en   # Japanese + English translation
-\`\`\`
+```
 
 ---
 
@@ -841,7 +841,7 @@ language: en   # Japanese + English translation
 <details>
 <summary><b>Script Architecture</b> (click to expand)</summary>
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                   Initial Setup (run once)                          │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -874,14 +874,14 @@ language: en   # Japanese + English translation
 │      └──▶ Start OpenCode on all agents                              │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 </details>
 
 <details>
 <summary><b>standby.sh Options</b> (click to expand)</summary>
 
-\`\`\`bash
+```bash
 # Default: Full startup (tmux session + OpenCode startup)
 ./standby.sh
 
@@ -903,7 +903,7 @@ language: en   # Japanese + English translation
 # Show help
 ./standby.sh -h
 ./standby.sh --help
-\`\`\`
+```
 
 </details>
 
@@ -911,39 +911,39 @@ language: en   # Japanese + English translation
 <summary><b>Common Workflows</b> (click to expand)</summary>
 
 **Normal daily use:**
-\`\`\`bash
+```bash
 ./standby.sh                      # Start everything
 ffa                               # Connect and give commands
-\`\`\`
+```
 
 **Debug mode (manual control):**
-\`\`\`bash
+```bash
 ./standby.sh -s       # Create session only
 
 # Manually start OpenCode on specific agents
 tmux send-keys -t ff15:0 'opencode' Enter
 tmux send-keys -t ff15:2 'opencode' Enter
-\`\`\`
+```
 
 **Restart after crash:**
-\`\`\`bash
+```bash
 # Kill existing session
 tmux kill-session -t ff15
 
 # Start fresh
 ./standby.sh
-\`\`\`
+```
 
 </details>
 
 <details>
 <summary><b>Convenient Aliases</b> (click to expand)</summary>
 
-Running \`first_setup.sh\` automatically adds these aliases to \`~/.bashrc\` (or \`~/.zshrc\`):
+Running `first_setup.sh` automatically adds these aliases to `~/.bashrc` (or `~/.zshrc`):
 
-\`\`\`bash
+```bash
 alias ffa='tmux attach-session -t ff15'  # Connect to ff15 session
-\`\`\`
+```
 
 ※ To apply aliases, run \`source ~/.bashrc\` or run \`wsl --shutdown\` in PowerShell and reopen terminal.
 
@@ -956,7 +956,7 @@ alias ffa='tmux attach-session -t ff15'  # Connect to ff15 session
 <details>
 <summary><b>Click to expand file structure</b></summary>
 
-\`\`\`
+```
 multi-agent-ff15/
 │
 │  ┌─────────────────── Setup Scripts ───────────────────┐
@@ -992,7 +992,7 @@ multi-agent-ff15/
 ├── memory/                   # Memory MCP storage
 ├── dashboard.md              # Real-time status overview
 └── AGENTS.md                 # OpenCode project context
-\`\`\`
+```
 
 </details>
 
@@ -1004,10 +1004,10 @@ This system manages and executes not only its own development but **all white-co
 
 ### Mechanism
 
-\`\`\`
+```
 config/projects.yaml          # Project list (ID, name, path, status only)
 projects/<project_id>.yaml    # Detailed information for each project
-\`\`\`
+```
 
 - **\`config/projects.yaml\`**: List of what projects exist (summary only)
 - **\`projects/<id>.yaml\`**: All details for that project (client info, contracts, tasks, related files, Notion pages, etc.)
@@ -1016,7 +1016,7 @@ projects/<project_id>.yaml    # Detailed information for each project
 
 ### Example
 
-\`\`\`yaml
+```yaml
 # config/projects.yaml
 projects:
   - id: my_client
@@ -1035,7 +1035,7 @@ current_tasks:
   - id: task_001
     name: "System Architecture Review"
     status: in_progress
-\`\`\`
+```
 
 This separation design allows the Noctis system to command multiple external projects while keeping project details outside version control.
 
@@ -1050,25 +1050,25 @@ This separation design allows the Noctis system to command multiple external pro
 
 MCP tools are "lazy-loaded" and must be loaded first:
 
-\`\`\`
+```
 # Wrong - tool not loaded
 mcp__memory__read_graph()  ← Error!
 
 # Correct - load first
 ToolSearch("select:mcp__memory__read_graph")
 mcp__memory__read_graph()  ← Works!
-\`\`\`
+```
 
 </details>
 
 <details>
 <summary><b>Agent requesting permissions?</b></summary>
 
-Confirm you're starting with \`--dangerously-skip-permissions\`:
+Confirm you're starting with `--dangerously-skip-permissions`:
 
-\`\`\`bash
+```bash
 opencode
-\`\`\`
+```
 
 </details>
 
@@ -1076,10 +1076,10 @@ opencode
 <summary><b>Worker stuck?</b></summary>
 
 Check worker pane:
-\`\`\`bash
+```bash
 tmux attach-session -t kingsglaive
 # Ctrl+B then numbers to switch panes
-\`\`\`
+```
 
 </details>
 
@@ -1090,13 +1090,13 @@ tmux attach-session -t kingsglaive
 
 **Correct restart methods:**
 
-\`\`\`bash
+```bash
 # Method 1: Execute opencode directly in pane
 opencode
 
 # Method 2: Force restart with respawn-pane (also resolves nesting)
 tmux respawn-pane -t ff15:0 -k 'opencode'
-\`\`\`
+```
 
 **If you accidentally nested tmux:**
 1. Press \`Ctrl+B\` then \`d\` to detach (exit inner session)
