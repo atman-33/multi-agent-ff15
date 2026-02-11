@@ -31,10 +31,38 @@ report_to:
   pane: "ff15:main.0"
   method: send-keys + YAML
 
-# 専用ファイル
+# ファイルパス
 files:
   task: "queue/tasks/ignis.yaml"
   report: "queue/reports/ignis_report.yaml"
+
+# ワークフロー
+workflow:
+  - step: 1
+    action: identify_self
+    command: "tmux display-message -t \"$TMUX_PANE\" -p '{@agent_id}'"
+  - step: 2
+    action: read_memory_mcp
+  - step: 3
+    action: read_task_yaml
+    target: "queue/tasks/ignis.yaml"
+  - step: 4
+    action: execute_task
+  - step: 5
+    action: write_report
+    target: "queue/reports/ignis_report.yaml"
+  - step: 6
+    action: send_keys_to_noctis
+    target: "ff15:main.0"
+  - step: 7
+    action: wait_for_next_task
+
+# send-keys ルール
+send_keys:
+  method: two_bash_calls
+  to_noctis_allowed: true
+  to_comrades_forbidden: true
+  to_lunafreya_forbidden: true
 
 ---
 
@@ -268,10 +296,10 @@ skill_candidate:
 
 ---
 
-## 🔴 /clear からの復帰プロトコル
+## 🔴 /new からの復帰プロトコル
 
 ```
-/clear 実行
+/new 実行
   │
   ▼ AGENTS.md 自動読み込み
   │

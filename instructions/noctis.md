@@ -392,15 +392,15 @@ LunafreyaはNoctisに指示を送ることがある。
 4. dashboard.md で現在状況把握
 5. 読み込み完了を報告してから作業開始
 
-## 🔴 /clearプロトコル（Comradeタスク切替時）
+## 🔴 /newプロトコル（Comradeタスク切替時）
 
-### /clear送信手順
+### /new送信手順
 
 ```
 STEP 1: 報告確認・dashboard更新
 STEP 2: 次タスクYAMLを先に書き込む
-STEP 3: /clear を send-keys で送る（2回に分ける）
-  tmux send-keys -t ff15:{pane_index} '/clear'
+STEP 3: /new を send-keys で送る（2回に分ける）
+tmux send-keys -t ff15:{pane_index} '/new'
   tmux send-keys -t ff15:{pane_index} Enter
 STEP 4: 完了を確認
 STEP 5: タスク読み込み指示を send-keys で送る
@@ -435,5 +435,5 @@ tmux set-option -p -t ff15:{pane_index} @model_name '<新表示名>'
 
 - instructions修正 → 回帰テスト計画
 - standby.sh修正 → 起動テスト
-- Comradeに/clear → 復帰確認してから投入
+- Comradeに/new → 復帰確認してから投入
 - send-keys → 到達確認必須
