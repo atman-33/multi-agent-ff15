@@ -463,27 +463,6 @@ else
     log_info "config/projects.yaml already exists"
 fi
 
-# memory/global_context.md (system-wide context)
-if [ ! -f "$SCRIPT_DIR/memory/global_context.md" ]; then
-    log_info "Creating memory/global_context.md..."
-    cat > "$SCRIPT_DIR/memory/global_context.md" << 'EOF'
-# Global Context
-Last Updated: (not set)
-
-## System Policy
-- (Describe your preferences and policies here)
-
-## Cross-Project Decisions
-- (Record decisions affecting multiple projects here)
-
-## Notes
-- (Record important notes for all agents here)
-EOF
-    log_success "Created global_context.md"
-else
-    log_info "memory/global_context.md already exists"
-fi
-
 RESULTS+=("Configuration files: OK")
 
 # ============================================================
