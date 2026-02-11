@@ -1,31 +1,44 @@
 # {project_id}
-最終更新: YYYY-MM-DD
+Last Updated: YYYY-MM-DD
 
-## What（これは何か）
-{1-2文で説明}
+## Basic Information
+- **Project ID**: {project_id}
+- **Official Name**: {name}
+- **Path**: {path}
+- **Notion URL**: {url} (if any)
 
-## Why（なぜやるのか）
-- 目的:
-- 成功の定義:
+## What
+{Project overview in 1-2 sentences}
 
-## Who（誰が関係するか）
-- 責任者:
-- 関係者:
+## Why
+- Purpose:
+- Definition of Success:
 
-## Constraints（制約は何か）
-- 期限:
-- 予算:
-- その他:
+## Who
+- Responsible Person:
+- Stakeholders:
 
-## Current State（今どこにいるか）
-- ステータス: {未着手/進行中/レビュー中/完了}
-- 進捗:
-- 次のアクション:
-- ブロッカー:
+## Tech Stack
+- Language:
+- Framework:
+- Database:
 
-## Decisions（決まったこと）
-| 日付 | 決定事項 | 理由 |
-|------|----------|------|
+## Constraints
+- Deadline:
+- Budget:
+- Others:
 
-## Notes（メモ・気づき）
-{自由記述}
+## Current State
+- Status: {not started/in progress/under review/completed}
+- Progress:
+  - [x] Completed tasks
+  - [ ] Incomplete tasks
+- Next Actions:
+- Blockers:
+
+## Decisions
+| Date | Decision | Reason |
+|------|----------|--------|
+
+## Notes
+{Project-specific notes and observations}

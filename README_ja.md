@@ -1,50 +1,180 @@
-# multi-agent-ff15
-
 <div align="center">
+
+# multi-agent-ff15
 
 **OpenCode マルチエージェント統率システム**
 
-*コマンド1つで、6体のAIエージェントが並列稼働*
+*コマンド1つで、5体のAIエージェントが並列稼働*
 
+[![GitHub Stars](https://img.shields.io/github/stars/atman-33/multi-agent-ff15?style=social)](https://github.com/atman-33/multi-agent-ff15)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenCode](https://img.shields.io/badge/OpenCode-blue)](https://opencode.ai)
-[![tmux](https://img.shields.io/badge/tmux-required-green)](https://github.com/tmux/tmux)
+[![OpenCode](https://img.shields.io/badge/Built_for-OpenCode-blue)](https://opencode.ai)
+[![Shell](https://img.shields.io/badge/Shell%2FBash-100%25-green)]()
 
 [English](README.md) | [日本語](README_ja.md)
 
 </div>
 
+<p align="center">
+  <img src="assets/tmux_ff15_live_session.png" alt="multi-agent-ff15: 5エージェント並列実行 - 実際のセッション" width="800">
+</p>
+
+<p align="center"><i>Noctis（王）が3名のComrades（Ignis、Gladiolus、Prompto）に指示を出し、Lunafreya（神凪）が独立して稼働している実際のセッション画面</i></p>
+
+---
+
+コマンド1つで、**Noctis**（王）が**3名のComrades**（Ignis、Gladiolus、Prompto）に直接タスクを割り当て、並列で実行させます。一方、**Lunafreya**（神凪）は独立して稼働し、あなたと直接相談しながらNoctisに指示を出すこともできます。全エージェントはtmux内の独立したOpenCodeプロセスとして動作します。通信はYAMLファイルとtmux `send-keys`で行われるため、**エージェント間の調整にAPI呼び出しは不要**です。
+
+---
+
+## 哲学
+
+> 「タスクを無思考で実行するな。常に『最速 × 最高の成果』を念頭に置け。」
+
+Noctisシステムは5つの核心原則の上に構築されています:
+
+| 原則 | 説明 |
+|------|------|
+| **自律的フォーメーション** | テンプレートではなく、複雑さに応じてタスク編成を設計 |
+| **並列化** | サブエージェントを活用して単一障害点を防ぐ |
+| **リサーチファースト** | 決定前にエビデンスを探す |
+| **継続的学習** | モデルの知識カットオフのみに依存しない |
+| **三角測量** | 統合された承認を伴う多角的リサーチ |
+
+これらの原則は詳細に文書化されています: **[docs/philosophy.md](docs/philosophy.md)**
+
+---
+
+## なぜNoctis？
+
+ほとんどのマルチエージェントフレームワークは、調整にAPIトークンを消費します。Noctisは違います。
+
+| | OpenCode | LangGraph | CrewAI | **multi-agent-ff15** |
+|---|---|---|---|---|
+| **アーキテクチャ** | ツール付きエージェント | グラフベース状態マシン | ロールベースエージェント | tmux経由の封建的階層 |
+| **並列性** | 限定的 | 並列ノード (v0.2+) | 限定的 | **5つの独立エージェント** |
+| **調整コスト** | API呼び出し | API + インフラ (Postgres/Redis) | API + CrewAIプラットフォーム | **ゼロ** (YAML + tmux) |
+| **可観測性** | ログのみ | LangSmith統合 | OpenTelemetry | **ライブtmuxペイン** + ダッシュボード |
+| **スキル発見** | なし | なし | なし | **ボトムアップ自動提案** |
+| **セットアップ** | CLIインストール | 重い (インフラ必要) | pipインストール | シェルスクリプト |
+
+### 何が違うのか
+
+**ゼロ調整オーバーヘッド** — エージェントはディスク上のYAMLファイルで通信します。API呼び出しは実際の作業のみで、オーケストレーションには使いません。5エージェント実行で、5エージェント分の作業のみ課金されます。
+
+**完全な透明性** — 全エージェントが見えるtmuxペインで動作します。すべての指示、報告、決定はプレーンなYAMLファイルで、読み取り、差分確認、バージョン管理が可能です。ブラックボックスはありません。
+
+**実戦で検証された階層** — Noctis → Comrades の指揮系統は設計段階で競合を防ぎます: 明確な所有権、エージェント専用ファイル、イベント駆動通信、ポーリングなし。Lunafre yaはこの階層外で独立して動作します。
+
+---
+
+## ボトムアップスキル発見
+
+他のフレームワークにはない機能です。
+
+Comradesがタスクを実行すると、**再利用可能なパターンを自動的に識別**し、スキル候補として提案します。Ignisが`dashboard.md`でこれらの提案を集約し、あなた（主君）が恒久的なスキルに昇格させるかを決定します。
+
+```
+Comradeがタスク完了
+    ↓
+気づく: "このパターン、3つのプロジェクトで3回やった"
+    ↓
+YAMLで報告:  skill_candidate:
+                found: true
+                name: "api-endpoint-scaffold"
+                reason: "3つのプロジェクトで同じRESTスキャフォールドパターンを使用"
+    ↓
+dashboard.mdに表示 → あなたが承認 → skills/にスキル作成
+    ↓
+任意のエージェントが /api-endpoint-scaffold を実行可能に
+```
+
+スキルは実際の作業から有機的に成長します — 事前定義されたテンプレートライブラリからではありません。あなたのスキルセットは**あなたの**ワークフローの反映になります。
+
+> **フレームワーク**: [OpenCode](https://opencode.ai)をベースに構築
+
+---
+
+## アーキテクチャ
+
+```
+      あなた（Crystal / 上様）
+            │
+            ├──────────────────────────┐
+            ▼                          ▼
+     ┌──────────┐            ┌────────────┐
+     │ NOCTIS   │ ← 王       │ LUNAFREYA  │ ← 神凪（独立稼働）
+     │  (王)    │ (リーダー + │  (神凪)     │   ユーザーと直接対話
+     │          │  タスク管理) │            │   Noctisに指示可能
+     └────┬─────┘            └────────────┘
+          │ YAML + send-keys
+          ▼
+     ┌────────────┬──────────┬────────────┐
+     │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades（3名）
+     │  (軍師)    │  (盾)    │   (銃)     │
+     └────────────┴──────────┴────────────┘
+
+     セッション: ff15（統一セッション - 5ペイン）
+     ペイン: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto
+```
+
+**通信プロトコル:**
+- **下向き**（命令）: YAML書き込み → `tmux send-keys`でターゲット起動
+- **上向き**（報告）: YAMLのみ書き込み（入力を中断しないようsend-keysなし）
+- **ポーリング**: 禁止。イベント駆動のみ。API料金は予測可能なまま。
+
+**コンテキスト永続化（4層）:**
+
+| レイヤー | 内容 | 永続性 |
+|---------|------|--------|
+| Memory MCP | 好み、ルール、プロジェクト横断知識 | すべて |
+| プロジェクトファイル | `config/projects.yaml`, `context/*.md` | すべて |
+| YAMLキュー | タスク、報告（信頼できる情報源） | すべて |
+| セッション | `AGENTS.md`, instructions | `/new`でリセット |
+
+`/new`後、エージェントはMemory MCP + タスクYAMLを読んで**約2,000トークン**で復旧します。高価な再プロンプトなし。
+
+---
+
+## パーティ編成
+
+タスクに応じて異なる**編成**でエージェントをデプロイできます:
+
+| 編成 | Comrades (Ignis/Gladiolus/Prompto) | リーダー (Noctis/Lunafreya) | 最適用途 |
+|------|-------------------------------------|----------------------------|----------|
+| **通常** (デフォルト) | Haiku 4.5 / Gemini 3 Flash | Sonnet 4.5 / Grok Fast | 日常タスク — コスト効率重視 |
+| **全力** (`--fullpower`) | GPT-5.2 / Sonnet 4.5 / Gemini 3 Pro | Opus 4.6 / Grok Fast | 重要タスク — 最大能力 |
+| **軽量** (`--lite`) | Haiku / Grok Fast | Haiku 4.5 | 予算重視の開発 |
+
+```bash
+./standby.sh                # 通常編成（デフォルト）
+./standby.sh --fullpower    # 全力編成（プレミアムモデル）
+./standby.sh --lite         # 軽量編成（予算モード）
+```
+
+Noctisは必要に応じて個別のComradesのモデルをセッション中に切り替えることもできます。
+
+---
+
+## 🧭 核心思想（Philosophy）
+
+> **「脳死で依頼をこなすな。最速×最高のアウトプットを常に念頭に置け。」**
+
+Noctisシステムは5つの核心原則に基づいて設計されている：
+
+| 原則 | 説明 |
+|------|------|
+| **自律フォーメーション設計** | テンプレートではなく、タスクの複雑さに応じてフォーメーションを設計 |
+| **並列化** | サブエージェントを活用し、単一障害点を作らない |
+| **リサーチファースト** | 判断の前にエビデンスを探す |
+| **継続的学習** | モデルの知識カットオフだけに頼らない |
+| **三角測量** | 複数視点からのリサーチと統合的オーソライズ |
+
+詳細: **[docs/philosophy.md](docs/philosophy.md)**
+
 ---
 
 ## これは何？
-
-**multi-agent-ff15** は、複数の OpenCode インスタンスを同時に実行し、FF15時代の軍制のように統率するシステムです。
-
-**なぜ使うのか？**
-- 1つの命令で、4名のAIワーカーが並列で実行
-- 待ち時間なし - タスクがバックグラウンドで実行中も次の命令を出せる
-- AIがセッションを跨いであなたの好みを記憶（Memory MCP）
-- ダッシュボードでリアルタイム進捗確認
-
-```
-      あなた（上様）
-           │
-           ▼ 命令を出す
-    ┌─────────────┐
-    │   NOCTIS    │  ← 命令を受け取り、即座に委譲
-    └──────┬──────┘
-           │ YAMLファイル + tmux
-    ┌──────▼──────┐
-    │    IGNIS     │  ← タスクをワーカーに分配
-    └──────┬──────┘
-           │
-  ┌────┬────┴────┬────┐
-  │GLAD│PROM│LUNA│IRIS│ ← 4名のComradeが並列実行
-  └────┴────┴────┴────┘
-        Comrades
-```
-
----
 
 ## 🚀 クイックスタート
 
@@ -168,17 +298,14 @@ cd /mnt/c/tools/multi-agent-ff15
    ```sh
    pkg update && pkg install openssh
    ssh あなたのユーザー名@あなたのTailscale IP
-   css    # Noctisに繋がる
-   ```
-4. ＋ボタンで新しいウィンドウを開いて、部下の様子も見る：
-   ```sh
-   ssh あなたのユーザー名@あなたのTailscale IP
-   csm    # Ignis+Comradesの5ペインが広がる
+   ffa    # ff15セッションに接続
    ```
 
 **切り方：** Termuxのウィンドウをスワイプで閉じるだけ。tmuxセッションは生き残る。AI部下は黙々と作業を続けている。
 
 **音声入力：** スマホの音声入力で喋れば、Noctisが自然言語を理解して全員に指示を出す。音声認識の誤字も文脈で解釈してくれる。
+
+**tmuxペイン切替：** `Ctrl+B` の後に数字（0-4）でペイン切替。0=Noctis, 1=Lunafreya, 2-4=Comrades。
 
 ---
 
@@ -280,30 +407,29 @@ wsl --install
 
 ### ✅ セットアップ後の状態
 
-どちらのオプションでも、**6体のAIエージェント**が自動起動します：
+どちらのオプションでも、**5体のAIエージェント**が自動起動します：
 
 | エージェント | 役割 | 数 |
 |-------------|------|-----|
-| 👑 Noctis（Noctis） | 王子 - あなたの命令を受ける | 1 |
-| 📋 Ignis（Ignis） | 管理者 - タスクを分配 | 1 |
-| ⚔️ Comrades（Gladiolus, Prompto, Lunafreya, Iris） | ワーカー - 並列でタスク実行 | 4 |
+| 👑 Noctis（ノクティス） | 王 - あなたの命令を受けてタスク管理 | 1 |
+| 🌙 Lunafreya（ルナフレーナ） | 神凪 - 独立稼働＆Noctisへの指示 | 1 |
+| ⚔️ Comrades（イグニス、グラディオラス、プロンプト） | ワーカー - 並列でタスク実行 | 3 |
 
-tmuxセッションが作成されます：
-- `noctis` - ここに接続してコマンドを出す
-- `kingsglaive` - Ignis + Comradesがバックグラウンドで稼働
+tmuxセッション:
+- `ff15` - 統一セッション（5ペイン）
 
 ---
 
 ## 📖 基本的な使い方
 
-### Step 1: Noctisに接続
+### Step 1: ff15セッションに接続
 
 `standby.sh` 実行後、全エージェントが自動的に指示書を読み込み、作業準備完了となります。
 
-新しいターミナルを開いてNoctisに接続：
+新しいターミナルを開いてff15セッションに接続：
 
 ```bash
-tmux attach-session -t noctis
+ffa    # エイリアス（tmux attach-session -t ff15）
 ```
 
 ### Step 2: 最初の命令を出す
@@ -336,15 +462,72 @@ Noctisは：
 
 ---
 
+## 動作の流れ
+
+### 1. 命令を出す
+
+```
+あなた: 「上位5つのMCPサーバを調査して比較表を作成して」
+```
+
+### 2. Noctisが即座に委譲
+
+Noctisは`queue/tasks/{worker_name}.yaml`にタスクを書き込み、各Comradeを起動します。制御は即座にあなたに戻ります — 待機なし。
+
+### 3. Comradesが実行
+
+Noctisが各Comradeに直接タスクを割り当て:
+
+| Comrade | 割り当て |
+|--------|----------|
+| Ignis | Notion MCP調査 + 結果の統合 |
+| Gladiolus | GitHub MCP調査 |
+| Prompto | Playwright MCP調査 |
+
+### 4. 並列実行
+
+3名のComradesが同時に調査を実行します。リアルタイムで作業を確認できます:
+
+<p align="center">
+  <img src="assets/tmux_ff15_live_session.png" alt="Comradesが並列でタスク実行中 - ライブビュー" width="800">
+</p>
+
+### 5. ダッシュボードで結果確認
+
+`dashboard.md`を開いて、集約された結果、スキル候補、ブロッカーを確認 — すべてNoctisが管理します。
+
+---
+
+## 実用例
+
+このシステムは**すべてのホワイトカラー業務**を管理します。コードだけではありません。プロジェクトはファイルシステムのどこにでも配置できます。
+
+```yaml
+# config/projects.yaml
+projects:
+  - id: client_x
+    name: "クライアントXコンサルティング"
+    path: "/mnt/c/Consulting/client_x"
+    status: active
+```
+
+**調査スプリント** — 3名のComradesが異なるトピックを並列調査、数分で結果を統合。
+
+**マルチプロジェクト管理** — コンテキストを失わずにクライアントプロジェクト間を切り替え。Memory MCPがセッション横断で好みを保持。
+
+**ドキュメント生成** — 技術文書作成、テストケースレビュー、比較表 — エージェント間で分散して統合。
+
+---
+
 ## ✨ 主な特徴
 
 ### ⚡ 1. 並列実行
 
-1つの命令で最大4つの並列タスクを生成：
+1つの命令で最大3つの並列タスクを生成：
 
 ```
-あなた: 「4つのMCPサーバを調査せよ」
-→ 4名のComradesが同時に調査開始
+あなた: 「3つのMCPサーバを調査せよ」
+→ 3名のComradesが同時に調査開始
 → 数時間ではなく数分で結果が出る
 ```
 
@@ -410,23 +593,17 @@ screenshot:
 | Layer 1: Memory MCP | `memory/noctis_memory.jsonl` | プロジェクト横断・セッションを跨ぐ長期記憶 |
 | Layer 2: Project | `config/projects.yaml`, `projects/<id>.yaml`, `context/{project}.md` | プロジェクト固有情報・技術知見 |
 | Layer 3: YAML Queue | `queue/noctis_to_ignis.yaml`, `queue/tasks/`, `queue/reports/` | タスク管理・指示と報告の正データ |
-| Layer 4: Session | AGENTS.md, instructions/*.md | 作業中コンテキスト（/clearで破棄） |
+| Layer 4: Session | AGENTS.md, instructions/*.md | 作業中コンテキスト（/newでリセット） |
 
-この設計により：
-- どのComradeでも任意のプロジェクトを担当可能
-- エージェント切り替え時もコンテキスト継続
-- 関心の分離が明確
-- セッション間の知識永続化
+#### /new プロトコル（コスト最適化）
 
-#### /clear プロトコル（コスト最適化）
+長時間作業するとコンテキスト（Layer 4）が膨れ、APIコストが増大する。`/new` でセッション記憶を消去すれば、コストがリセットされる。Layer 1〜3はファイルとして残るので失われない。
 
-長時間作業するとコンテキスト（Layer 4）が膨れ、APIコストが増大する。`/clear` でセッション記憶を消去すれば、コストがリセットされる。Layer 1〜3はファイルとして残るので失われない。
+`/new` 後のComradesの復帰コスト: **約1,950トークン**（目標5,000の39%）
 
-`/clear` 後のComradesの復帰コスト: **約1,950トークン**（目栙5,000の39%）
-
-1. AGENTS.md（自動読み込み）→ noctisシステムの一員と認識
+1. AGENTS.md（自動読み込み）→ ff15システムの一員と認識
 2. `tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'` → 自分のIDを確認
-3. Memory MCP 読み込み → Kingの好みを復元（~700トークン）
+3. Memory MCP 読み込み → Crystalの好みを復元（~700トークン）
 4. タスクYAML 読み込み → 次の仕事を確認（~800トークン）
 
 「何を読ませないか」の設計がコスト削減に効いている。
@@ -454,54 +631,37 @@ screenshot:
 
 ### 🧠 モデル設定
 
-| エージェント | モデル | 思考モード | 理由 |
-|-------------|--------|----------|------|
-| Noctis | Opus | 無効 | 委譲とダッシュボード更新に深い推論は不要 |
-| Ignis | Opus | 有効 | タスク分配には慎重な判断が必要 |
-| Gladiolus / Prompto | Sonnet | 有効 | コスト効率重視の標準タスク向け |
-| Lunafreya / Iris | Opus | 有効 | 複雑なタスク向けのフル機能 |
-
-Noctisは `MAX_THINKING_TOKENS=0` で拡張思考を無効化し、高レベルな判断にはOpusの能力を維持しつつ、レイテンシとコストを削減。
+| エージェント | Normalモード | Full Powerモード | 理由 |
+|-------------|-------------|-----------------|------|
+| Noctis | Sonnet 4.5 | Opus 4.6 | 委譲とタスク管理 |
+| Lunafreya | Grok Code Fast | Grok Code Fast | 独立稼働アドバイザー |
+| Ignis | Haiku 4.5 | GPT-5.2 Codex | コスト効率重視 |
+| Gladiolus | Haiku 4.5 | Sonnet 4.5 | コスト効率重視 |
+| Prompto | Gemini 3 Flash | Gemini 3 Pro | 高速リサーチ |
 
 #### モード構成
 
-| モード | Gladiolus / Prompto | Lunafreya / Iris | コマンド |
+| モード | Comrades | Leaders (Noctis/Lunafreya) | コマンド |
 |------|---------|---------|---------|
-| **Normal**（デフォルト） | Sonnet Thinking | Opus Thinking | `./standby.sh` |
-| **Full Power**（全力） | Opus Thinking | Opus Thinking | `./standby.sh -k` |
+| **Normal**（デフォルト） | Haiku 4.5 / Gemini 3 Flash | Sonnet 4.5 / Grok Fast | `./standby.sh` |
+| **Full Power**（全力） | GPT-5.2 / Sonnet 4.5 / Gemini 3 Pro | Opus 4.6 / Grok Fast | `./standby.sh --fullpower` |
+| **Lite**（節約） | Haiku / Grok Fast | Haiku 4.5 | `./standby.sh --lite` |
 
-普段はGladiolus/PromptoをSonnetモデルで運用。ここぞという時に `-k`（`--fullpower`）で全員 Opusの「Full Power」モードに切り替え。Ignisの判断で `/model opus` を送れば、個別のComradeを一時昇格させることも可能。
-
----
-
-## 🧭 核心思想（Philosophy）
-
-> **「脳死で依頼をこなすな。最速×最高のアウトプットを常に念頭に置け。」**
-
-Noctisシステムは5つの核心原則に基づいて設計されている：
-
-| 原則 | 説明 |
-|------|------|
-| **自律フォーメーション設計** | テンプレートではなく、タスクの複雑さに応じてフォーメーションを設計 |
-| **並列化** | サブエージェントを活用し、単一障害点を作らない |
-| **リサーチファースト** | 判断の前にエビデンスを探す |
-| **継続的学習** | モデルの知識カットオフだけに頼らない |
-| **三角測量** | 複数視点からのリサーチと統合的オーソライズ |
-
-詳細: **[docs/philosophy.md](docs/philosophy.md)**
+普段はComradesを軽量モデルで運用。ここぞという時に `--fullpower` でプレミアムモデルに切り替え。Noctisの判断で個別のComradeを別モデルに一時切り替えることも可能。
 
 ---
 
 ## 🎯 設計思想
 
-### なぜ階層構造（Noctis→Ignis→Comrades）なのか
+### なぜ階層構造（Noctis→Comrades）なのか
 
 1. **即座の応答**: Noctisは即座に委譲し、あなたに制御を返す
-2. **並列実行**: Ignisが複数のComradesに同時分配
+2. **並列実行**: 複数のComradesに同時分配
 3. **単一責任**: 各役割が明確に分離され、混乱しない
 4. **スケーラビリティ**: Comradesを増やしても構造が崩れない
 5. **障害分離**: 1名のComradeが失敗しても他に影響しない
 6. **人間への報告一元化**: Noctisだけが人間とやり取りするため、情報が整理される
+7. **独立アドバイザー**: Lunafreyaが独立稼働し、Noctisへの指示も可能
 
 ### なぜ YAML + send-keys なのか
 
@@ -524,12 +684,12 @@ tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'
 
 モデル名も `@model_name` として保存され、`pane-border-format` で常時表示。OpenCodeがペインタイトルを上書きしてもモデル名は消えない。
 
-### なぜ dashboard.md はIgnisのみが更新するのか
+### なぜ dashboard.md はNoctisのみが更新するのか
 
 1. **単一更新者**: 競合を防ぐため、更新責任者を1人に限定
-2. **情報集約**: Ignisは全Comradesの報告を受ける立場なので全体像を把握
+2. **情報集約**: Noctisは全Comradesの報告を受ける立場なので全体像を把握
 3. **一貫性**: すべての更新が1つの品質ゲートを通過
-4. **割り込み防止**: Noctisが更新すると、Kingの入力中に割り込む恐れあり
+4. **割り込み防止**: Comradesが更新すると、Kingの入力中に割り込む恐れあり
 
 ---
 
@@ -557,7 +717,7 @@ dashboard.md の「スキル化候補」に上がる
     ↓
 King（あなた）が内容を確認
     ↓
-承認すればIgnisに指示してスキルを作成
+承認すればNoctisに指示してスキルを作成
 ```
 
 スキルはユーザ主導で増やすもの。自動で増えると管理不能になるため、「これは便利」と判断したものだけを残す。
@@ -571,9 +731,8 @@ MCP（Model Context Protocol）サーバはOpenCodeの機能を拡張します�
 ### MCPとは？
 
 MCPサーバはOpenCodeに外部ツールへのアクセスを提供します：
-- **Notion MCP** → Notionページの読み書き
-- **GitHub MCP** → PR作成、Issue管理
 - **Memory MCP** → セッション間で記憶を保持
+- **Playwright MCP** → ブラウザ自動化、スクリーンショット、ウェブスクレイピング
 
 ### MCPサーバのインストール
 
@@ -591,22 +750,9 @@ OpenCodeは設定ファイルでMCPサーバを管理します。`~/.config/open
       },
       "enabled": true
     },
-    "github": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
-      "environment": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_pat_here"
-      },
-      "enabled": true
-    },
     "playwright": {
       "type": "local",
       "command": ["npx", "@playwright/mcp@latest"],
-      "enabled": true
-    },
-    "sequential-thinking": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
       "enabled": true
     }
   }
@@ -619,7 +765,30 @@ OpenCodeは設定ファイルでMCPサーバを管理します。`~/.config/open
 opencode mcp list
 ```
 
-全サーバが「Connected」ステータスで表示されるはずです。
+MCPサーバのステータスを確認できます。
+
+---
+
+## 🔌 プラグインシステム
+
+### ダッシュボード更新リマインダー
+
+Noctisがステータス更新を忘れないよう、自動リマインダープラグインが組み込まれています。
+
+#### 動作の仕組み
+
+プラグインは `tmux send-keys` を使い、短いリマインダーメッセージをNoctisペインに直接送信します。中間ファイルは不要で、Noctisはメッセージを即座に確認できます。
+
+#### トリガー
+
+| イベント | 通知内容 |
+|---------|---------|
+| Todo完了 | `⚠️ [Dashboard Reminder] N todo(s) completed: ... — Please update dashboard.md` |
+| Comradeレポート | `⚠️ [Dashboard Reminder] New report(s) from: ... — Please update dashboard.md` |
+
+#### カスタムプラグインの作成
+
+プラグインは `.opencode/plugins/` に保存され、OpenCodeが自動的にロードします。カスタムフックの作成方法については `.opencode/plugins/README.md` を参照してください。
 
 ---
 
@@ -628,17 +797,15 @@ opencode mcp list
 ### 例1: 調査タスク
 
 ```
-あなた: 「AIコーディングアシスタント上位4つを調査して比較せよ」
+あなた: 「AIコーディングアシスタント上位3つを調査して比較せよ」
 
 実行される処理:
-1. NoctisがIgnisに委譲
-2. Ignisが割り当て:
-   - Gladiolus: GitHub Copilotを調査
-   - Prompto: Cursorを調査
-   - Lunafreya: OpenCodeを調査
-   - Iris: Codeiumを調査
-3. 4名が同時に調査
-4. 結果がdashboard.mdに集約
+1. Noctisが各Comradeに割り当て:
+   - Ignis: GitHub Copilotを調査
+   - Gladiolus: Cursorを調査
+   - Prompto: OpenCodeを調査
+2. 3名が同時に調査
+3. 結果がdashboard.mdに集約
 ```
 
 ### 例2: PoC準備
@@ -647,10 +814,10 @@ opencode mcp list
 あなた: 「このNotionページのプロジェクトでPoC準備: [URL]」
 
 実行される処理:
-1. IgnisがMCP経由でNotionコンテンツを取得
-2. Prompto: 確認すべき項目をリスト化
-3. Lunafreya: 技術的な実現可能性を調査
-4. Iris: PoC計画書を作成
+1. NoctisがMCP経由でNotionコンテンツを取得し各Comradeに割り当て:
+2. Ignis: 確認すべき項目をリスト化
+3. Gladiolus: 技術的な実現可能性を調査
+4. Prompto: PoC計画書を作成
 5. 全結果がdashboard.mdに集約、会議の準備完了
 ```
 
@@ -727,7 +894,6 @@ language: en   # 日本語 + 英訳併記
 ./standby.sh --clean
 
 # Full Power: 全ComradesをOpusで起動（最大能力・高コスト）
-./standby.sh -k
 ./standby.sh --fullpower
 
 # フル起動 + Windows Terminalタブを開く
@@ -746,8 +912,8 @@ language: en   # 日本語 + 英訳併記
 
 **通常の毎日の使用：**
 ```bash
-./standby.sh          # 全て起動
-tmux attach-session -t noctis     # 接続してコマンドを出す
+./standby.sh                      # 全て起動
+ffa                               # 接続してコマンドを出す
 ```
 
 **デバッグモード（手動制御）：**
@@ -755,15 +921,14 @@ tmux attach-session -t noctis     # 接続してコマンドを出す
 ./standby.sh -s       # セッションのみ作成
 
 # 特定のエージェントでOpenCodeを手動起動
-tmux send-keys -t noctis:0 'opencode' Enter
-tmux send-keys -t kingsglaive:0.0 'opencode' Enter
+tmux send-keys -t ff15:0 'opencode' Enter
+tmux send-keys -t ff15:2 'opencode' Enter
 ```
 
 **クラッシュ後の再起動：**
 ```bash
 # 既存セッションを終了
-tmux kill-session -t noctis
-tmux kill-session -t kingsglaive
+tmux kill-session -t ff15
 
 # 新しく起動
 ./standby.sh
@@ -774,11 +939,10 @@ tmux kill-session -t kingsglaive
 <details>
 <summary><b>便利なエイリアス</b>（クリックで展開）</summary>
 
-`first_setup.sh` を実行すると、以下のエイリアスが `~/.bashrc` に自動追加されます：
+`first_setup.sh` を実行すると、以下のエイリアスが `~/.bashrc` (または `~/.zshrc`) に自動追加されます：
 
 ```bash
-alias css='tmux attach-session -t noctis'      # Noctisウィンドウの起動
-alias csm='tmux attach-session -t kingsglaive'  # Ignis・Comradesウィンドウの起動
+alias ffa='tmux attach-session -t ff15'  # ff15セッションに接続
 ```
 
 ※ エイリアスを反映するには `source ~/.bashrc` を実行するか、PowerShellで `wsl --shutdown` してからターミナルを開き直してください。
@@ -803,8 +967,10 @@ multi-agent-ff15/
 │
 ├── instructions/             # エージェント指示書
 │   ├── noctis.md             # Noctisの指示書
-│   ├── ignis.md               # Ignisの指示書
-│   └── comrades.md               # Comradesの指示書
+│   ├── lunafreya.md          # Lunafreyaの指示書
+│   ├── ignis.md              # Ignisの指示書
+│   ├── gladiolus.md          # Gladiolusの指示書
+│   └── prompto.md            # Promptoの指示書
 │
 ├── config/
 │   └── settings.yaml         # 言語その他の設定
@@ -813,9 +979,15 @@ multi-agent-ff15/
 │   └── <project_id>.yaml   # 各プロジェクトの全情報（クライアント、タスク、Notion連携等）
 │
 ├── queue/                    # 通信ファイル
-│   ├── noctis_to_ignis.yaml   # NoctisからIgnisへのコマンド
+│   ├── lunafreya_to_noctis.yaml  # Lunafreya → Noctis 連携
 │   ├── tasks/                # 各ワーカーのタスクファイル
+│   │   ├── ignis.yaml
+│   │   ├── gladiolus.yaml
+│   │   └── prompto.yaml
 │   └── reports/              # ワーカーレポート
+│       ├── ignis_report.yaml
+│       ├── gladiolus_report.yaml
+│       └── prompto_report.yaml
 │
 ├── memory/                   # Memory MCP保存場所
 ├── dashboard.md              # リアルタイム状況一覧
@@ -914,7 +1086,7 @@ tmux attach-session -t kingsglaive
 <details>
 <summary><b>Noctisやエージェントが落ちた？（OpenCodeプロセスがkillされた）</b></summary>
 
-**`css` 等のtmuxセッション起動エイリアスを使って再起動してはいけません。** これらのエイリアスはtmuxセッションを作成するため、既存のtmuxペイン内で実行するとセッションがネスト（入れ子）になり、入力が壊れてペインが使用不能になります。
+**`ffa` エイリアスを使って再起動してはいけません。** このエイリアスはtmuxセッションにアタッチするためのもので、既存のtmuxペイン内で実行するとセッションがネスト（入れ子）になり、入力が壊れてペインが使用不能になります。
 
 **正しい再起動方法：**
 
@@ -922,13 +1094,13 @@ tmux attach-session -t kingsglaive
 # 方法1: ペイン内でopencodeを直接実行
 opencode
 
-# 方法2: Ignisがrespawn-paneで強制再起動（ネストも解消される）
-tmux respawn-pane -t noctis:0.0 -k 'opencode'
+# 方法2: Noctisがrespawn-paneで強制再起動（ネストも解消される）
+tmux respawn-pane -t ff15:0 -k 'opencode'
 ```
 
 **誤ってtmuxをネストしてしまった場合：**
 1. `Ctrl+B` の後 `d` でデタッチ（内側のセッションから離脱）
-2. その後 `opencode` を直接実行（`css` は使わない）
+2. その後 `opencode` を直接実行（`ffa` は使わない）
 3. デタッチが効かない場合は、別のペインから `tmux respawn-pane -k` で強制リセット
 
 </details>
@@ -939,12 +1111,11 @@ tmux respawn-pane -t noctis:0.0 -k 'opencode'
 
 | コマンド | 説明 |
 |----------|------|
-| `tmux attach -t noctis` | Noctisに接続 |
-| `tmux attach -t kingsglaive` | ワーカーに接続 |
-| `Ctrl+B` の後 `0-8` | ペイン間を切り替え |
+| `ffa` (エイリアス) | ff15セッションに接続 |
+| `tmux attach -t ff15` | ff15セッションに接続（フルコマンド） |
+| `Ctrl+B` の後 `0-4` | ペイン間を切り替え |
 | `Ctrl+B` の後 `d` | デタッチ（実行継続） |
-| `tmux kill-session -t noctis` | Noctisセッションを停止 |
-| `tmux kill-session -t kingsglaive` | ワーカーセッションを停止 |
+| `tmux kill-session -t ff15` | ff15セッションを停止 |
 
 ### 🖱️ マウス操作
 
@@ -960,9 +1131,24 @@ tmux respawn-pane -t noctis:0.0 -k 'opencode'
 
 ---
 
+## 貢献
+
+IssueとPull Requestを歓迎します。
+
+- **バグ報告**: 再現手順を含めてIssueを作成
+- **機能アイデア**: まずDiscussionで提案
+- **スキル**: スキルは個人的な設計のため、このリポジトリには含まれません
+
+---
+
 ## 🙏 クレジット
 
-OpenCodeエコシステムとマルチエージェントAI開発パターンにインスパイアされて開発。
+このプロジェクトは[@yohey-w](https://github.com/yohey-w)氏の[multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun)をベースにしています。オリジナルの作品と、このFF15をテーマとしたマルチエージェントシステムの基盤を提供していただいたことに深く感謝します。
+
+主なインスピレーション元:
+- マルチエージェントオーケストレーションパターンとOpenCodeエコシステム
+- イベント駆動通信アーキテクチャ
+- ボトムアップスキル発見システム
 
 ---
 

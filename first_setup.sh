@@ -1,16 +1,16 @@
 #!/bin/bash
 # ============================================================
-# first_setup.sh - multi-agent-ff15 初回セットアップスクリプト
-# Ubuntu / WSL / Mac 用環境構築ツール
+# first_setup.sh - multi-agent-ff15 First-time Setup Script
+# Environment setup tool for Ubuntu / WSL / Mac
 # ============================================================
-# 実行方法:
+# How to run:
 #   chmod +x first_setup.sh
 #   ./first_setup.sh
 # ============================================================
 
 set -e
 
-# 色定義
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -19,7 +19,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-# アイコン付きログ関数
+# Icon-based log functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -40,32 +40,32 @@ log_step() {
     echo -e "\n${CYAN}${BOLD}━━━ $1 ━━━${NC}\n"
 }
 
-# スクリプトのディレクトリを取得
+# Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 結果追跡用変数
+# Result tracking variables
 RESULTS=()
 HAS_ERROR=false
 
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════════╗"
-echo "  ║  ⚔️ multi-agent-ff15 インストーラー                         ║"
+echo "  ║  ⚔️ multi-agent-ff15 Installer                               ║"
 echo "  ║     Initial Setup Script for Ubuntu / WSL                    ║"
 echo "  ╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "  このスクリプトは初回セットアップ用です。"
-echo "  依存関係の確認とディレクトリ構造の作成を行います。"
+echo "  This script is for first-time setup."
+echo "  It checks dependencies and creates directory structure."
 echo ""
-echo "  インストール先: $SCRIPT_DIR"
+echo "  Installation directory: $SCRIPT_DIR"
 echo ""
 
 # ============================================================
-# STEP 1: OS チェック
+# STEP 1: OS check
 # ============================================================
-log_step "STEP 1: システム環境チェック"
+log_step "STEP 1: System environment check"
 
-# OS情報を取得
+# Get OS information
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS_NAME=$NAME
@@ -73,40 +73,40 @@ if [ -f /etc/os-release ]; then
     log_info "OS: $OS_NAME $OS_VERSION"
 else
     OS_NAME="Unknown"
-    log_warn "OS情報を取得できませんでした"
+    log_warn "Could not retrieve OS information"
 fi
 
-# WSL チェック
+# WSL check
 if grep -qi microsoft /proc/version 2>/dev/null; then
-    log_info "環境: WSL (Windows Subsystem for Linux)"
+    log_info "Environment: WSL (Windows Subsystem for Linux)"
     IS_WSL=true
 else
-    log_info "環境: Native Linux"
+    log_info "Environment: Native Linux"
     IS_WSL=false
 fi
 
-RESULTS+=("システム環境: OK")
+RESULTS+=("System environment: OK")
 
 # ============================================================
-# STEP 2: tmux チェック・インストール
+# STEP 2: tmux check / install
 # ============================================================
-log_step "STEP 2: tmux チェック"
+log_step "STEP 2: tmux check"
 
 if command -v tmux &> /dev/null; then
     TMUX_VERSION=$(tmux -V | awk '{print $2}')
-    log_success "tmux がインストール済みです (v$TMUX_VERSION)"
+    log_success "tmux is already installed (v$TMUX_VERSION)"
     RESULTS+=("tmux: OK (v$TMUX_VERSION)")
 else
-    log_warn "tmux がインストールされていません"
+    log_warn "tmux is not installed"
     echo ""
 
-    # Ubuntu/Debian系かチェック
+    # Check if Ubuntu/Debian system
     if command -v apt-get &> /dev/null; then
-        log_info "tmux をインストール中..."
+        log_info "Installing tmux..."
         if ! sudo -n apt-get update -qq 2>/dev/null; then
             if ! sudo apt-get update -qq 2>/dev/null; then
-                log_error "sudo の実行に失敗しました。ターミナルから直接実行してください"
-                RESULTS+=("tmux: インストール失敗 (sudo失敗)")
+                log_error "Failed to run sudo. Please execute directly from terminal"
+                RESULTS+=("tmux: Installation failed (sudo failed)")
                 HAS_ERROR=true
             fi
         fi
@@ -114,8 +114,8 @@ else
         if [ "$HAS_ERROR" != true ]; then
             if ! sudo -n apt-get install -y tmux 2>/dev/null; then
                 if ! sudo apt-get install -y tmux 2>/dev/null; then
-                    log_error "tmux のインストールに失敗しました"
-                    RESULTS+=("tmux: インストール失敗")
+                    log_error "Failed to install tmux"
+                    RESULTS+=("tmux: Installation failed")
                     HAS_ERROR=true
                 fi
             fi
@@ -123,252 +123,252 @@ else
 
         if command -v tmux &> /dev/null; then
             TMUX_VERSION=$(tmux -V | awk '{print $2}')
-            log_success "tmux インストール完了 (v$TMUX_VERSION)"
-            RESULTS+=("tmux: インストール完了 (v$TMUX_VERSION)")
+            log_success "tmux installation complete (v$TMUX_VERSION)"
+            RESULTS+=("tmux: Installation complete (v$TMUX_VERSION)")
         else
-            log_error "tmux のインストールに失敗しました"
-            RESULTS+=("tmux: インストール失敗")
+            log_error "Failed to install tmux"
+            RESULTS+=("tmux: Installation failed")
             HAS_ERROR=true
         fi
     else
-        log_error "apt-get が見つかりません。手動で tmux をインストールしてください"
+        log_error "apt-get not found. Please manually install tmux"
         echo ""
-        echo "  インストール方法:"
+        echo "  Installation methods:"
         echo "    Ubuntu/Debian: sudo apt-get install tmux"
         echo "    Fedora:        sudo dnf install tmux"
         echo "    macOS:         brew install tmux"
-        RESULTS+=("tmux: 未インストール (手動インストール必要)")
+        RESULTS+=("tmux: Not installed (manual installation required)")
         HAS_ERROR=true
     fi
 fi
 
 # ============================================================
-# STEP 3: tmux マウススクロール設定
+# STEP 3: tmux mouse scroll settings
 # ============================================================
-log_step "STEP 3: tmux マウススクロール設定"
+log_step "STEP 3: tmux mouse scroll settings"
 
 TMUX_CONF="$HOME/.tmux.conf"
 TMUX_MOUSE_SETTING="set -g mouse on"
 
 if [ -f "$TMUX_CONF" ] && grep -qF "$TMUX_MOUSE_SETTING" "$TMUX_CONF" 2>/dev/null; then
-    log_info "tmux マウス設定は既に ~/.tmux.conf に存在します"
+    log_info "tmux mouse settings already exist in ~/.tmux.conf"
 else
-    log_info "~/.tmux.conf に '$TMUX_MOUSE_SETTING' を追加中..."
+    log_info "Adding '$TMUX_MOUSE_SETTING' to ~/.tmux.conf..."
     echo "" >> "$TMUX_CONF"
-    echo "# マウススクロール有効化 (added by first_setup.sh)" >> "$TMUX_CONF"
+    echo "# Enable mouse scroll (added by first_setup.sh)" >> "$TMUX_CONF"
     echo "$TMUX_MOUSE_SETTING" >> "$TMUX_CONF"
-    log_success "tmux マウス設定を追加しました"
+    log_success "Added tmux mouse settings"
 fi
 
-# tmux が起動中の場合は即反映
+# Apply settings immediately if tmux is running
 if command -v tmux &> /dev/null && tmux list-sessions &> /dev/null; then
-    log_info "tmux が起動中のため、設定を即反映します..."
+    log_info "tmux is running, applying settings immediately..."
     if tmux source-file "$TMUX_CONF" 2>/dev/null; then
-        log_success "tmux 設定を再読み込みしました"
+        log_success "Reloaded tmux configuration"
     else
-        log_warn "tmux 設定の再読み込みに失敗しました（手動で tmux source-file ~/.tmux.conf を実行してください）"
+        log_warn "Failed to reload tmux configuration (please manually run: tmux source-file ~/.tmux.conf)"
     fi
 else
-    log_info "tmux は起動していないため、次回起動時に反映されます"
+    log_info "tmux is not running, settings will apply on next launch"
 fi
 
-RESULTS+=("tmux マウス設定: OK")
+RESULTS+=("tmux mouse settings: OK")
 
 # ============================================================
-# STEP 4: Node.js チェック
+# STEP 4: Node.js check
 # ============================================================
-log_step "STEP 4: Node.js チェック"
+log_step "STEP 4: Node.js check"
 
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node -v)
-    log_success "Node.js がインストール済みです ($NODE_VERSION)"
+    log_success "Node.js is already installed ($NODE_VERSION)"
 
-    # バージョンチェック（18以上推奨）
+    # Version check (18+ recommended)
     NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | tr -d 'v')
     if [ "$NODE_MAJOR" -lt 18 ]; then
-        log_warn "Node.js 18以上を推奨します（現在: $NODE_VERSION）"
-        RESULTS+=("Node.js: OK (v$NODE_MAJOR - 要アップグレード推奨)")
+        log_warn "Node.js 18+ is recommended (current: $NODE_VERSION)"
+        RESULTS+=("Node.js: OK (v$NODE_MAJOR - upgrade recommended)")
     else
         RESULTS+=("Node.js: OK ($NODE_VERSION)")
     fi
 else
-    log_warn "Node.js がインストールされていません"
+    log_warn "Node.js is not installed"
     echo ""
 
-    # nvm が既にインストール済みか確認
+    # Check if nvm is already installed
     export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     if [ -s "$NVM_DIR/nvm.sh" ]; then
-        log_info "nvm が既にインストール済みです。Node.js をセットアップ中..."
+        log_info "nvm is already installed. Setting up Node.js..."
         \. "$NVM_DIR/nvm.sh"
     else
-        # nvm 自動インストール
-        log_info "nvm をインストール中..."
+        # Auto-install nvm
+        log_info "Installing nvm..."
         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
         export NVM_DIR="$HOME/.nvm"
         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     fi
 
-    # nvm が利用可能なら Node.js をインストール
+    # Install Node.js if nvm is available
     if command -v nvm &> /dev/null; then
-        log_info "Node.js 20 をインストール中..."
+        log_info "Installing Node.js 20..."
         nvm install 20 || true
         nvm use 20 || true
 
         if command -v node &> /dev/null; then
             NODE_VERSION=$(node -v)
-            log_success "Node.js インストール完了 ($NODE_VERSION)"
-            RESULTS+=("Node.js: インストール完了 ($NODE_VERSION)")
+            log_success "Node.js installation complete ($NODE_VERSION)"
+            RESULTS+=("Node.js: Installation complete ($NODE_VERSION)")
         else
-            log_error "Node.js のインストールに失敗しました"
-            RESULTS+=("Node.js: インストール失敗")
+            log_error "Failed to install Node.js"
+            RESULTS+=("Node.js: Installation failed")
             HAS_ERROR=true
         fi
     elif [ "$HAS_ERROR" != true ]; then
-        log_error "nvm のインストールに失敗しました"
+        log_error "Failed to install nvm"
         echo ""
-        echo "  手動でインストールしてください:"
+        echo "  Please install manually:"
         echo "    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash"
         echo "    source ~/.bashrc"
         echo "    nvm install 20"
         echo ""
-        RESULTS+=("Node.js: 未インストール (nvm失敗)")
+        RESULTS+=("Node.js: Not installed (nvm failed)")
         HAS_ERROR=true
     fi
 fi
 
-# npm チェック
+# npm check
 if command -v npm &> /dev/null; then
     NPM_VERSION=$(npm -v)
-    log_success "npm がインストール済みです (v$NPM_VERSION)"
+    log_success "npm is already installed (v$NPM_VERSION)"
 else
     if command -v node &> /dev/null; then
-        log_warn "npm が見つかりません（Node.js と一緒にインストールされるはずです）"
+        log_warn "npm not found (should be installed with Node.js)"
     fi
 fi
 
 # ============================================================
-# STEP 5: OpenCode Code CLI チェック（ネイティブ版）
-# ※ npm版は公式非推奨（deprecated）。ネイティブ版を使用する。
-#    Node.jsはMCPサーバー（npx経由）で引き続き必要。
+# STEP 5: OpenCode CLI check (native version)
+# Note: npm version is officially deprecated. Use native version.
+#       Node.js is still required for MCP servers (via npx).
 # ============================================================
-log_step "STEP 5: OpenCode Code CLI チェック"
+log_step "STEP 5: OpenCode CLI check"
 
-# ネイティブ版の既存インストールを検出するため、PATHに ~/.local/bin を含める
+# Add ~/.local/bin to PATH to detect existing native installation
 export PATH="$HOME/.local/bin:$PATH"
 
 NEED_OPENCODE_INSTALL=false
 HAS_NPM_OPENCODE=false
 
 if command -v opencode &> /dev/null; then
-    # opencode コマンドは存在する → 実際に動くかチェック
+    # opencode command exists → check if it actually works
     OPENCODE_VERSION=$(opencode --version 2>&1)
     OPENCODE_PATH=$(which opencode 2>/dev/null)
 
     if [ $? -eq 0 ] && [ "$OPENCODE_VERSION" != "unknown" ] && [[ "$OPENCODE_VERSION" != *"not found"* ]]; then
-        # 動作する opencode が見つかった → npm版かネイティブ版かを判定
+        # Working opencode found → determine if npm or native version
         if echo "$OPENCODE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
-            # npm版が動いている
+            # npm version is running
             HAS_NPM_OPENCODE=true
-            log_warn "npm版 OpenCode Code CLI が検出されました（公式非推奨）"
-            log_info "検出パス: $OPENCODE_PATH"
-            log_info "バージョン: $OPENCODE_VERSION"
+            log_warn "npm version OpenCode CLI detected (officially deprecated)"
+            log_info "Detected path: $OPENCODE_PATH"
+            log_info "Version: $OPENCODE_VERSION"
             echo ""
-            echo "  npm版は公式で非推奨（deprecated）となっています。"
-            echo "  ネイティブ版をインストールし、npm版はアンインストールすることを推奨します。"
+            echo "  The npm version is officially deprecated."
+            echo "  It is recommended to install the native version and uninstall the npm version."
             echo ""
             if [ ! -t 0 ]; then
                 REPLY="Y"
             else
-                read -p "  ネイティブ版をインストールしますか? [Y/n]: " REPLY
+                read -p "  Install native version? [Y/n]: " REPLY
             fi
             REPLY=${REPLY:-Y}
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 NEED_OPENCODE_INSTALL=true
-                # npm版のアンインストール案内
+                # npm version uninstall guide
                 echo ""
-                log_info "先にnpm版をアンインストールしてください:"
+                log_info "Please uninstall the npm version first:"
                 if echo "$OPENCODE_PATH" | grep -qi "mnt/c\|AppData"; then
-                    echo "  Windows の PowerShell で:"
+                    echo "  In Windows PowerShell:"
                     echo "    npm uninstall -g @anthropic-ai/opencode-code"
                 else
                     echo "    npm uninstall -g @anthropic-ai/opencode-code"
                 fi
                 echo ""
             else
-                log_warn "ネイティブ版への移行をスキップしました（npm版で続行）"
-                RESULTS+=("OpenCode Code CLI: OK (npm版・移行推奨)")
+                log_warn "Skipped migration to native version (continuing with npm version)"
+                RESULTS+=("OpenCode CLI: OK (npm version - migration recommended)")
             fi
         else
-            # ネイティブ版が正常に動作している
-            log_success "OpenCode Code CLI がインストール済みです（ネイティブ版）"
-            log_info "バージョン: $OPENCODE_VERSION"
-            RESULTS+=("OpenCode Code CLI: OK")
+            # Native version is working properly
+            log_success "OpenCode CLI is already installed (native version)"
+            log_info "Version: $OPENCODE_VERSION"
+            RESULTS+=("OpenCode CLI: OK")
         fi
     else
-        # command -v で見つかるが動かない（npm版でNode.js無し等）
-        log_warn "OpenCode Code CLI が見つかりましたが正常に動作しません"
-        log_info "検出パス: $OPENCODE_PATH"
+        # command -v finds it but it doesn't work (e.g., npm version without Node.js)
+        log_warn "OpenCode CLI found but not working properly"
+        log_info "Detected path: $OPENCODE_PATH"
         if echo "$OPENCODE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
             HAS_NPM_OPENCODE=true
-            log_info "→ npm版（Node.js依存）が検出されました"
+            log_info "→ npm version (Node.js-dependent) detected"
         else
-            log_info "→ バージョン取得に失敗しました"
+            log_info "→ Failed to retrieve version"
         fi
         NEED_OPENCODE_INSTALL=true
     fi
 else
-    # opencode コマンドが見つからない
+    # opencode command not found
     NEED_OPENCODE_INSTALL=true
 fi
 
 if [ "$NEED_OPENCODE_INSTALL" = true ]; then
-    log_info "ネイティブ版 OpenCode Code CLI をインストールします"
-    log_info "OpenCode Code CLI をインストール中（ネイティブ版）..."
+    log_info "Installing native version OpenCode CLI"
+    log_info "Installing OpenCode CLI (native version)..."
     curl -fsSL https://opencode.ai/install.sh | bash
 
-    # PATHを更新（インストール直後は反映されていない可能性）
+    # Update PATH (may not be reflected immediately after installation)
     export PATH="$HOME/.local/bin:$PATH"
 
-    # .bashrc に永続化（重複追加を防止）
+    # Persist to .bashrc (prevent duplicate additions)
     if ! grep -q 'export PATH="\$HOME/.local/bin:\$PATH"' "$HOME/.bashrc" 2>/dev/null; then
         echo '' >> "$HOME/.bashrc"
-        echo '# OpenCode Code CLI PATH (added by first_setup.sh)' >> "$HOME/.bashrc"
+        echo '# OpenCode CLI PATH (added by first_setup.sh)' >> "$HOME/.bashrc"
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-        log_info "~/.local/bin を ~/.bashrc の PATH に追加しました"
+        log_info "Added ~/.local/bin to PATH in ~/.bashrc"
     fi
 
     if command -v opencode &> /dev/null; then
         OPENCODE_VERSION=$(opencode --version 2>/dev/null || echo "unknown")
-        log_success "OpenCode Code CLI インストール完了（ネイティブ版）"
-        log_info "バージョン: $OPENCODE_VERSION"
-        RESULTS+=("OpenCode Code CLI: インストール完了")
+        log_success "OpenCode CLI installation complete (native version)"
+        log_info "Version: $OPENCODE_VERSION"
+        RESULTS+=("OpenCode CLI: Installation complete")
 
-        # npm版が残っている場合の案内
+        # Guide if npm version remains
         if [ "$HAS_NPM_OPENCODE" = true ]; then
             echo ""
-            log_info "ネイティブ版がPATHで優先されるため、npm版は無効化されます"
-            log_info "npm版を完全に削除するには以下を実行してください:"
+            log_info "Native version will be prioritized in PATH, npm version will be disabled"
+            log_info "To completely remove the npm version, run:"
             if echo "$OPENCODE_PATH" | grep -qi "mnt/c\|AppData"; then
-                echo "  Windows の PowerShell で:"
+                echo "  In Windows PowerShell:"
                 echo "    npm uninstall -g @anthropic-ai/opencode-code"
             else
                 echo "    npm uninstall -g @anthropic-ai/opencode-code"
             fi
         fi
     else
-        log_error "インストールに失敗しました。パスを確認してください"
-        log_info "~/.local/bin がPATHに含まれているか確認してください"
-        RESULTS+=("OpenCode Code CLI: インストール失敗")
+        log_error "Installation failed. Please check the path"
+        log_info "Please check if ~/.local/bin is included in PATH"
+        RESULTS+=("OpenCode CLI: Installation failed")
         HAS_ERROR=true
     fi
 fi
 
 # ============================================================
-# STEP 6: ディレクトリ構造作成
+# STEP 6: Create directory structure
 # ============================================================
-log_step "STEP 6: ディレクトリ構造作成"
+log_step "STEP 6: Create directory structure"
 
-# 必要なディレクトリ一覧
+# Required directories
 DIRECTORIES=(
     "queue/tasks"
     "queue/reports"
@@ -387,7 +387,7 @@ EXISTED_COUNT=0
 for dir in "${DIRECTORIES[@]}"; do
     if [ ! -d "$SCRIPT_DIR/$dir" ]; then
         mkdir -p "$SCRIPT_DIR/$dir"
-        log_info "作成: $dir/"
+        log_info "Created: $dir/"
         CREATED_COUNT=$((CREATED_COUNT + 1))
     else
         EXISTED_COUNT=$((EXISTED_COUNT + 1))
@@ -395,57 +395,59 @@ for dir in "${DIRECTORIES[@]}"; do
 done
 
 if [ $CREATED_COUNT -gt 0 ]; then
-    log_success "$CREATED_COUNT 個のディレクトリを作成しました"
+    log_success "Created $CREATED_COUNT directories"
 fi
 if [ $EXISTED_COUNT -gt 0 ]; then
-    log_info "$EXISTED_COUNT 個のディレクトリは既に存在します"
+    log_info "$EXISTED_COUNT directories already exist"
 fi
 
-RESULTS+=("ディレクトリ構造: OK (作成:$CREATED_COUNT, 既存:$EXISTED_COUNT)")
+RESULTS+=("Directory structure: OK (created:$CREATED_COUNT, existing:$EXISTED_COUNT)")
+if [ $EXISTED_COUNT -gt 0 ]; then
+    log_info "$EXISTED_COUNT directories already exist"
+fi
+
+RESULTS+=("Directory structure: OK (created:$CREATED_COUNT, existing:$EXISTED_COUNT)")
 
 # ============================================================
-# STEP 7: 設定ファイル初期化
+# STEP 7: Initialize configuration files
 # ============================================================
-log_step "STEP 7: 設定ファイル確認"
+log_step "STEP 7: Check configuration files"
 
 # config/settings.yaml
 if [ ! -f "$SCRIPT_DIR/config/settings.yaml" ]; then
-    log_info "config/settings.yaml を作成中..."
+    log_info "Creating config/settings.yaml..."
     cat > "$SCRIPT_DIR/config/settings.yaml" << EOF
-# multi-agent-ff15 設定ファイル
+# multi-agent-ff15 configuration file
 
-# 言語設定
-# ja: 日本語（FF15風日本語のみ、併記なし）
-# en: 英語（FF15風日本語 + 英訳併記）
-# その他の言語コード（es, zh, ko, fr, de 等）も対応
+# Language settings
+# ja: Japanese (FF15-style Japanese only, no translation)
+# en: English (FF15-style Japanese + English translation)
+# Other language codes (es, zh, ko, fr, de, etc.) are also supported
 language: ja
 
-# シェル設定
-# bash: bash用プロンプト（デフォルト）
-# zsh: zsh用プロンプト
+# Shell settings
+# bash: bash prompts (default)
+# zsh: zsh prompts
 shell: bash
 
-# スキル設定
+# Skill settings
 skill:
-  # スキル保存先（スキル名に ff15- プレフィックスを付けて保存）
-  save_path: "~/.opencode/skills/"
+  # Skill storage location (project-specific - must save here)
+  path: "$SCRIPT_DIR/.opencode/skills/"
 
-  # ローカルスキル保存先（このプロジェクト専用）
-  local_path: "$SCRIPT_DIR/skills/"
-
-# ログ設定
+# Logging settings
 logging:
   level: info  # debug | info | warn | error
   path: "$SCRIPT_DIR/logs/"
 EOF
-    log_success "settings.yaml を作成しました"
+    log_success "Created settings.yaml"
 else
-    log_info "config/settings.yaml は既に存在します"
+    log_info "config/settings.yaml already exists"
 fi
 
 # config/projects.yaml
 if [ ! -f "$SCRIPT_DIR/config/projects.yaml" ]; then
-    log_info "config/projects.yaml を作成中..."
+    log_info "Creating config/projects.yaml..."
     cat > "$SCRIPT_DIR/config/projects.yaml" << 'EOF'
 projects:
   - id: sample_project
@@ -456,41 +458,20 @@ projects:
 
 current_project: sample_project
 EOF
-    log_success "projects.yaml を作成しました"
+    log_success "Created projects.yaml"
 else
-    log_info "config/projects.yaml は既に存在します"
+    log_info "config/projects.yaml already exists"
 fi
 
-# memory/global_context.md（システム全体のコンテキスト）
-if [ ! -f "$SCRIPT_DIR/memory/global_context.md" ]; then
-    log_info "memory/global_context.md を作成中..."
-    cat > "$SCRIPT_DIR/memory/global_context.md" << 'EOF'
-# グローバルコンテキスト
-最終更新: (未設定)
-
-## システム方針
-- (殿の好み・方針をここに記載)
-
-## プロジェクト横断の決定事項
-- (複数プロジェクトに影響する決定をここに記載)
-
-## 注意事項
-- (全エージェントが知るべき注意点をここに記載)
-EOF
-    log_success "global_context.md を作成しました"
-else
-    log_info "memory/global_context.md は既に存在します"
-fi
-
-RESULTS+=("設定ファイル: OK")
+RESULTS+=("Configuration files: OK")
 
 # ============================================================
-# STEP 8: Worker用タスク・レポートファイル初期化
+# STEP 8: Initialize worker task/report files
 # ============================================================
-log_step "STEP 8: キューファイル初期化"
+log_step "STEP 8: Initialize queue files"
 
-# Worker用タスクファイル作成
-for WORKER_NAME in gladiolus prompto lunafreya iris; do
+# Create worker task files (Comrades: ignis, gladiolus, prompto)
+for WORKER_NAME in ignis gladiolus prompto; do
     TASK_FILE="$SCRIPT_DIR/queue/tasks/${WORKER_NAME}.yaml"
     if [ ! -f "$TASK_FILE" ]; then
         cat > "$TASK_FILE" << EOF
@@ -505,10 +486,10 @@ task:
 EOF
     fi
 done
-log_info "Workerタスクファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
+log_info "Verified/created Comrade task files (ignis/gladiolus/prompto)"
 
-# Worker用レポートファイル作成
-for WORKER_NAME in gladiolus prompto lunafreya iris; do
+# Create Comrade report files
+for WORKER_NAME in ignis gladiolus prompto; do
     REPORT_FILE="$SCRIPT_DIR/queue/reports/${WORKER_NAME}_report.yaml"
     if [ ! -f "$REPORT_FILE" ]; then
         cat > "$REPORT_FILE" << EOF
@@ -520,17 +501,31 @@ result: null
 EOF
     fi
 done
-log_info "Workerレポートファイル (gladiolus/prompto/lunafreya/iris) を確認/作成しました"
+log_info "Verified/created Comrade report files (ignis/gladiolus/prompto)"
 
-RESULTS+=("キューファイル: OK")
+# Lunafreya → Noctis coordination channel
+LUNA_CHANNEL="$SCRIPT_DIR/queue/lunafreya_to_noctis.yaml"
+if [ ! -f "$LUNA_CHANNEL" ]; then
+    cat > "$LUNA_CHANNEL" << EOF
+# Lunafreya → Noctis coordination channel
+command:
+  command_id: null
+  description: null
+  priority: null
+  status: idle
+  timestamp: ""
+EOF
+    log_info "Created Lunafreya→Noctis coordination channel"
+fi
+
+RESULTS+=("Queue files: OK")
 
 # ============================================================
-# STEP 9: スクリプト実行権限付与
+# STEP 9: Grant script execution permissions
 # ============================================================
-log_step "STEP 9: 実行権限設定"
+log_step "STEP 9: Set execution permissions"
 
 SCRIPTS=(
-    "setup.sh"
     "standby.sh"
     "first_setup.sh"
 )
@@ -538,138 +533,201 @@ SCRIPTS=(
 for script in "${SCRIPTS[@]}"; do
     if [ -f "$SCRIPT_DIR/$script" ]; then
         chmod +x "$SCRIPT_DIR/$script"
-        log_info "$script に実行権限を付与しました"
+        log_info "Granted execution permission to $script"
     fi
 done
 
-RESULTS+=("実行権限: OK")
+RESULTS+=("Execution permissions: OK")
 
 # ============================================================
-# STEP 10: bashrc alias設定
+# STEP 10: Shell alias setup (multi-shell support)
 # ============================================================
-log_step "STEP 10: alias設定"
+log_step "STEP 10: alias setup (multi-shell support)"
 
-# alias追加対象ファイル
-BASHRC_FILE="$HOME/.bashrc"
-
-# aliasが既に存在するかチェックし、なければ追加
+# Detected shell configuration files
+DETECTED_SHELLS=()
 ALIAS_ADDED=false
+SOURCE_COMMANDS=()
 
-# csn alias (Noctisウィンドウの起動)
+# ffa alias definition
+EXPECTED_FFA_BASH="alias ffa='tmux attach -t ff15'"
+EXPECTED_FFA_FISH="alias ffa='tmux attach -t ff15'"
+
+# ============================================================
+# bash support
+# ============================================================
+BASHRC_FILE="$HOME/.bashrc"
 if [ -f "$BASHRC_FILE" ]; then
-    EXPECTED_CSS="alias csn='tmux attach-session -t noctis'"
-    if ! grep -q "alias csn=" "$BASHRC_FILE" 2>/dev/null; then
-        # alias が存在しない → 新規追加
+    DETECTED_SHELLS+=("bash")
+    if ! grep -q "alias ffa=" "$BASHRC_FILE" 2>/dev/null; then
+        # alias doesn't exist → add new
         echo "" >> "$BASHRC_FILE"
         echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        echo "$EXPECTED_CSS" >> "$BASHRC_FILE"
-        log_info "alias csn を追加しました（Noctisウィンドウの起動）"
+        echo "$EXPECTED_FFA_BASH" >> "$BASHRC_FILE"
+        log_info "bash: Added alias ffa"
         ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_CSS" "$BASHRC_FILE" 2>/dev/null; then
-        # alias は存在するがパスが異なる → 更新
-        if sed -i "s|alias csn=.*|$EXPECTED_CSS|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias csn を更新しました（パス変更検出）"
+    elif ! grep -qF "$EXPECTED_FFA_BASH" "$BASHRC_FILE" 2>/dev/null; then
+        # alias exists but path differs → update
+        if sed -i "s|alias ffa=.*|$EXPECTED_FFA_BASH|" "$BASHRC_FILE" 2>/dev/null; then
+            log_info "bash: Updated alias ffa"
         else
-            log_warn "alias csn の更新に失敗しました"
+            log_warn "bash: Failed to update alias ffa"
         fi
         ALIAS_ADDED=true
     else
-        log_info "alias csn は既に正しく設定されています"
+        log_info "bash: alias ffa is already configured correctly"
     fi
-
-    # csk alias (Ignis・Workersウィンドウの起動)
-    EXPECTED_CSM="alias csk='tmux attach-session -t kingsglaive'"
-    if ! grep -q "alias csk=" "$BASHRC_FILE" 2>/dev/null; then
-        if [ "$ALIAS_ADDED" = false ]; then
-            echo "" >> "$BASHRC_FILE"
-            echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        fi
-        echo "$EXPECTED_CSM" >> "$BASHRC_FILE"
-        log_info "alias csk を追加しました（Ignis・Workersウィンドウの起動）"
-        ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_CSM" "$BASHRC_FILE" 2>/dev/null; then
-        if sed -i "s|alias csk=.*|$EXPECTED_CSM|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "alias csk を更新しました（パス変更検出）"
-        else
-            log_warn "alias csk の更新に失敗しました"
-        fi
-        ALIAS_ADDED=true
-    else
-        log_info "alias csk は既に正しく設定されています"
-    fi
-else
-    log_warn "$BASHRC_FILE が見つかりません"
+    SOURCE_COMMANDS+=("source ~/.bashrc")
 fi
-
-if [ "$ALIAS_ADDED" = true ]; then
-    log_success "alias設定を追加しました"
-    log_warn "alias を反映するには、以下のいずれかを実行してください："
-    log_info "  1. source ~/.bashrc"
-    log_info "  2. PowerShell で 'wsl --shutdown' してからターミナルを開き直す"
-    log_info "  ※ ウィンドウを閉じるだけでは WSL が終了しないため反映されません"
-fi
-
-RESULTS+=("alias設定: OK")
 
 # ============================================================
-# STEP 10.5: WSL メモリ最適化設定
+# zsh support
+# ============================================================
+ZSHRC_FILE="$HOME/.zshrc"
+if [ -f "$ZSHRC_FILE" ]; then
+    DETECTED_SHELLS+=("zsh")
+    if ! grep -q "alias ffa=" "$ZSHRC_FILE" 2>/dev/null; then
+        # alias doesn't exist → add new
+        echo "" >> "$ZSHRC_FILE"
+        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$ZSHRC_FILE"
+        echo "$EXPECTED_FFA_BASH" >> "$ZSHRC_FILE"
+        log_info "zsh: Added alias ffa"
+        ALIAS_ADDED=true
+    elif ! grep -qF "$EXPECTED_FFA_BASH" "$ZSHRC_FILE" 2>/dev/null; then
+        # alias exists but path differs → update
+        if sed -i "s|alias ffa=.*|$EXPECTED_FFA_BASH|" "$ZSHRC_FILE" 2>/dev/null; then
+            log_info "zsh: Updated alias ffa"
+        else
+            log_warn "zsh: Failed to update alias ffa"
+        fi
+        ALIAS_ADDED=true
+    else
+        log_info "zsh: alias ffa is already configured correctly"
+    fi
+    SOURCE_COMMANDS+=("source ~/.zshrc")
+fi
+
+# ============================================================
+# fish support
+# ============================================================
+FISHCONFIG_FILE="$HOME/.config/fish/config.fish"
+if [ -f "$FISHCONFIG_FILE" ]; then
+    DETECTED_SHELLS+=("fish")
+    if ! grep -q "alias ffa" "$FISHCONFIG_FILE" 2>/dev/null; then
+        # alias doesn't exist → add new
+        echo "" >> "$FISHCONFIG_FILE"
+        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$FISHCONFIG_FILE"
+        echo "$EXPECTED_FFA_FISH" >> "$FISHCONFIG_FILE"
+        log_info "fish: Added alias ffa"
+        ALIAS_ADDED=true
+    elif ! grep -qF "$EXPECTED_FFA_FISH" "$FISHCONFIG_FILE" 2>/dev/null; then
+        # alias exists but path differs → update
+        if sed -i "s|alias ffa.*|$EXPECTED_FFA_FISH|" "$FISHCONFIG_FILE" 2>/dev/null; then
+            log_info "fish: Updated alias ffa"
+        else
+            log_warn "fish: Failed to update alias ffa"
+        fi
+        ALIAS_ADDED=true
+    else
+        log_info "fish: alias ffa is already configured correctly"
+    fi
+    SOURCE_COMMANDS+=("source ~/.config/fish/config.fish")
+fi
+
+# ============================================================
+# Detection results and summary
+# ============================================================
+if [ ${#DETECTED_SHELLS[@]} -eq 0 ]; then
+    log_warn "Shell configuration files not found"
+    log_info "Supported: bash (~/.bashrc), zsh (~/.zshrc), fish (~/.config/fish/config.fish)"
+    RESULTS+=("alias setup: Shell configuration files not detected")
+else
+    log_success "Detected shells: ${DETECTED_SHELLS[*]}"
+    RESULTS+=("alias setup: OK (${DETECTED_SHELLS[*]})")
+    
+    # Display per-shell status explicitly
+    for shell in "${DETECTED_SHELLS[@]}"; do
+        log_info "  - $shell: ffa alias configured ✓"
+    done
+fi
+
+if [ "$ALIAS_ADDED" = true ] && [ ${#SOURCE_COMMANDS[@]} -gt 0 ]; then
+    log_success "Added/updated alias configuration"
+    log_warn "To apply aliases, run one of the following:"
+    
+    # Display source commands for each shell
+    for i in "${!SOURCE_COMMANDS[@]}"; do
+        log_info "  $((i + 1)). ${SOURCE_COMMANDS[$i]}"
+    done
+    
+    if [ "$IS_WSL" = true ]; then
+        log_info "  Or: Run 'wsl --shutdown' in PowerShell then reopen terminal"
+        log_info "  Note: Simply closing the window will not terminate WSL"
+    fi
+elif [ ${#DETECTED_SHELLS[@]} -gt 0 ]; then
+    # Even when no changes were made, confirm everything is ready
+    log_success "All shell aliases are already configured correctly"
+fi
+
+# ============================================================
+# STEP 10.5: WSL Memory Optimization Settings
 # ============================================================
 if [ "$IS_WSL" = true ]; then
-    log_step "STEP 10.5: WSL メモリ最適化設定"
+    log_step "STEP 10.5: WSL Memory Optimization Settings"
 
-    # .wslconfig の確認・設定（Windows側のユーザーディレクトリに配置）
+    # Check/configure .wslconfig (placed in Windows user directory)
     WIN_USER_DIR=$(cmd.exe /C "echo %USERPROFILE%" 2>/dev/null | tr -d '\r')
     if [ -n "$WIN_USER_DIR" ]; then
-        # Windows パスを WSL パスに変換
+        # Convert Windows path to WSL path
         WSLCONFIG_PATH=$(wslpath "$WIN_USER_DIR")/.wslconfig
 
         if [ -f "$WSLCONFIG_PATH" ]; then
             if grep -q "autoMemoryReclaim" "$WSLCONFIG_PATH" 2>/dev/null; then
-                log_info ".wslconfig に autoMemoryReclaim は既に設定済みです"
+                log_info "autoMemoryReclaim is already configured in .wslconfig"
             else
-                log_info ".wslconfig に autoMemoryReclaim=gradual を追加中..."
-                # [experimental] セクションがあるか確認
+                log_info "Adding autoMemoryReclaim=gradual to .wslconfig..."
+                # Check if [experimental] section exists
                 if grep -q "\[experimental\]" "$WSLCONFIG_PATH" 2>/dev/null; then
-                    # [experimental] セクションの直後に追加
+                    # Add right after [experimental] section
                     sed -i '/\[experimental\]/a autoMemoryReclaim=gradual' "$WSLCONFIG_PATH"
                 else
                     echo "" >> "$WSLCONFIG_PATH"
                     echo "[experimental]" >> "$WSLCONFIG_PATH"
                     echo "autoMemoryReclaim=gradual" >> "$WSLCONFIG_PATH"
                 fi
-                log_success ".wslconfig に autoMemoryReclaim=gradual を追加しました"
-                log_warn "反映には 'wsl --shutdown' 後の再起動が必要です"
+                log_success "Added autoMemoryReclaim=gradual to .wslconfig"
+                log_warn "Requires 'wsl --shutdown' and restart to take effect"
             fi
         else
-            log_info ".wslconfig を新規作成中..."
+            log_info "Creating new .wslconfig..."
             cat > "$WSLCONFIG_PATH" << 'EOF'
 [experimental]
 autoMemoryReclaim=gradual
 EOF
-            log_success ".wslconfig を作成しました (autoMemoryReclaim=gradual)"
-            log_warn "反映には 'wsl --shutdown' 後の再起動が必要です"
+            log_success "Created .wslconfig (autoMemoryReclaim=gradual)"
+            log_warn "Requires 'wsl --shutdown' and restart to take effect"
         fi
 
-        RESULTS+=("WSL メモリ最適化: OK (.wslconfig設定済み)")
+        RESULTS+=("WSL Memory Optimization: OK (.wslconfig configured)")
     else
-        log_warn "Windowsユーザーディレクトリの取得に失敗しました"
-        log_info "手動で %USERPROFILE%\\.wslconfig に以下を追加してください:"
+        log_warn "Failed to get Windows user directory"
+        log_info "Manually add the following to %USERPROFILE%\\.wslconfig:"
         echo "  [experimental]"
         echo "  autoMemoryReclaim=gradual"
-        RESULTS+=("WSL メモリ最適化: 手動設定必要")
+        RESULTS+=("WSL Memory Optimization: Manual configuration required")
     fi
 
-    # 即時キャッシュクリアの案内
-    log_info "メモリキャッシュを即時クリアするには以下を実行:"
+    # Instructions for immediate cache clearing
+    log_info "To clear memory cache immediately, run:"
     echo "  sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'"
 else
-    log_info "WSL環境ではないため、メモリ最適化設定をスキップ"
+    log_info "Not a WSL environment, skipping memory optimization settings"
 fi
 
 # ============================================================
-# STEP 11: Memory MCP セットアップ
+# STEP 11: Memory MCP Setup
 # ============================================================
-log_step "STEP 11: Memory MCP セットアップ"
+log_step "STEP 11: Memory MCP Setup"
 
 if command -v opencode &> /dev/null; then
     OPENCODE_CONFIG_DIR="$HOME/.config/opencode"
@@ -680,10 +738,10 @@ if command -v opencode &> /dev/null; then
     fi
     
     if [ -f "$OPENCODE_CONFIG_FILE" ] && grep -q "memory" "$OPENCODE_CONFIG_FILE" 2>/dev/null; then
-        log_info "Memory MCP は既に設定済みです"
-        RESULTS+=("Memory MCP: OK (設定済み)")
+        log_info "Memory MCP is already configured"
+        RESULTS+=("Memory MCP: OK (configured)")
     else
-        log_info "Memory MCP を設定中..."
+        log_info "Configuring Memory MCP..."
         if [ ! -f "$OPENCODE_CONFIG_FILE" ]; then
             cat > "$OPENCODE_CONFIG_FILE" << EOF
 {
@@ -700,11 +758,11 @@ if command -v opencode &> /dev/null; then
   }
 }
 EOF
-            log_success "Memory MCP 設定完了"
-            RESULTS+=("Memory MCP: 設定完了")
+            log_success "Memory MCP configuration complete"
+            RESULTS+=("Memory MCP: Configuration complete")
         else
-            log_warn "既存のopencode.jsonにMemory MCPを手動で追加してください"
-            echo "  追加内容:"
+            log_warn "Please manually add Memory MCP to existing opencode.json"
+            echo "  Content to add:"
             echo '  "memory": {'
             echo '    "type": "local",'
             echo '    "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],'
@@ -713,27 +771,27 @@ EOF
             echo '    },'
             echo '    "enabled": true'
             echo '  }'
-            RESULTS+=("Memory MCP: 手動設定が必要")
+            RESULTS+=("Memory MCP: Manual configuration required")
         fi
     fi
 else
-    log_warn "opencode コマンドが見つからないため Memory MCP 設定をスキップ"
-    RESULTS+=("Memory MCP: スキップ (opencode未インストール)")
+    log_warn "opencode command not found, skipping Memory MCP setup"
+    RESULTS+=("Memory MCP: Skipped (opencode not installed)")
 fi
 
 # ============================================================
-# 結果サマリー
+# Results Summary
 # ============================================================
 echo ""
 echo "  ╔══════════════════════════════════════════════════════════════╗"
-echo "  ║  📋 セットアップ結果サマリー                                  ║"
+echo "  ║  📋 Setup Results Summary                                     ║"
 echo "  ╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
 for result in "${RESULTS[@]}"; do
-    if [[ $result == *"未インストール"* ]] || [[ $result == *"失敗"* ]]; then
+    if [[ $result == *"not installed"* ]] || [[ $result == *"failed"* ]]; then
         echo -e "  ${RED}✗${NC} $result"
-    elif [[ $result == *"アップグレード"* ]] || [[ $result == *"スキップ"* ]]; then
+    elif [[ $result == *"upgrade"* ]] || [[ $result == *"Skipped"* ]]; then
         echo -e "  ${YELLOW}!${NC} $result"
     else
         echo -e "  ${GREEN}✓${NC} $result"
@@ -744,57 +802,57 @@ echo ""
 
 if [ "$HAS_ERROR" = true ]; then
     echo "  ╔══════════════════════════════════════════════════════════════╗"
-    echo "  ║  ⚠️  一部の依存関係が不足しています                           ║"
+    echo "  ║  ⚠️  Some dependencies are missing                            ║"
     echo "  ╚══════════════════════════════════════════════════════════════╝"
     echo ""
-    echo "  上記の警告を確認し、不足しているものをインストールしてください。"
-    echo "  すべての依存関係が揃ったら、再度このスクリプトを実行して確認できます。"
+    echo "  Review the warnings above and install missing items."
+    echo "  Once all dependencies are ready, run this script again to verify."
 else
     echo "  ╔══════════════════════════════════════════════════════════════╗"
-    echo "  ║  ✅ セットアップ完了！準備完了です！                      ║"
+    echo "  ║  ✅ Setup complete! Ready to go!                              ║"
     echo "  ╚══════════════════════════════════════════════════════════════╝"
 fi
 
 echo ""
 echo "  ┌──────────────────────────────────────────────────────────────┐"
-echo "  │  📜 次のステップ                                             │"
+echo "  │  📜 Next Steps                                                │"
 echo "  └──────────────────────────────────────────────────────────────┘"
 echo ""
-echo "  ⚠️  初回のみ: 以下を手動で実行してください"
+echo "  ⚠️  First time only: Execute the following manually"
 echo ""
-echo "  STEP 0: PATHの反映（このシェルにインストール結果を反映）"
+echo "  STEP 0: Apply PATH changes (reflect installation results to this shell)"
 echo "     source ~/.bashrc"
 echo ""
-echo "  STEP A: OpenCodeを起動して認証"
+echo "  STEP A: Start OpenCode for authentication"
 echo "     opencode"
 echo ""
-echo "     1. 使用するAIモデルプロバイダーを選択"
-echo "     2. 認証プロンプトに従ってログイン"
-echo "     3. /exit で退出"
+echo "     1. Select your preferred AI model provider"
+echo "     2. Follow authentication prompts to log in"
+echo "     3. Exit with /exit"
 echo ""
-echo "     ※ 一度認証すれば ~/.opencode/ に保存され、以降は不要です"
+echo "     ※ Once authenticated, credentials are saved to ~/.opencode/ and won't be needed again"
 echo ""
 echo "  ────────────────────────────────────────────────────────────────"
 echo ""
-echo "  Stand by Me！（全エージェント起動）:"
+echo "  Stand by Me! (Launch all agents):"
 echo "     ./standby.sh"
 echo ""
-echo "  オプション:"
-echo "     ./standby.sh -s            # セットアップのみ（OpenCode手動起動）"
-echo "     ./standby.sh -t            # Windows Terminalタブ展開"
-echo "     ./standby.sh -shell bash   # bash用プロンプトで起動"
-echo "     ./standby.sh -shell zsh    # zsh用プロンプトで起動"
+echo "  Options:"
+echo "     ./standby.sh -s            # Setup only (manual OpenCode launch)"
+echo "     ./standby.sh -t            # Windows Terminal tab layout"
+echo "     ./standby.sh -shell bash   # Launch with bash prompt"
+echo "     ./standby.sh -shell zsh    # Launch with zsh prompt"
 echo ""
-echo "  ※ シェル設定は config/settings.yaml の shell: でも変更可能です"
+echo "  ※ Shell settings can also be changed in config/settings.yaml with shell: option"
 echo ""
-echo "  詳細は README.md を参照してください。"
+echo "  See README.md for details."
 echo ""
 echo "  ════════════════════════════════════════════════════════════════"
-echo "   Stand by Me！ (Stand by Me!)"
+echo "   Stand by Me!"
 echo "  ════════════════════════════════════════════════════════════════"
 echo ""
 
-# 依存関係不足の場合は exit 1 を返す（install.bat が検知できるように）
+# Return exit 1 if dependencies are missing (so install.bat can detect it)
 if [ "$HAS_ERROR" = true ]; then
     exit 1
 fi

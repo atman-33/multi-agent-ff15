@@ -9,9 +9,6 @@ claude-shogun-orders.md
 # Test outputs (generated during testing)
 test_output/
 
-# Generated skills (local development)
-skills/
-
 # Temporary files
 *.tmp
 *.bak
@@ -29,12 +26,11 @@ queue/reports/
 memory/
 
 # Project context (local to each installation, except README)
-context/
+context/*
 !context/README.md
 queue/*.yaml
 dashboard.md
 config/projects.yaml
-status/
 config/settings.yaml
 logs/
 
@@ -47,6 +43,16 @@ projects/
 # Serena MCP
 .serena/
 
+# Skillport
+.skillportrc
+
 # OpenSpec
-.github/prompts/opsx-*.md
-.opencode/command/opsx-*.md
+openspec/
+
+# Commands and skills (managed by OpenCode)
+.github/*
+.opencode/command/*
+.opencode/skills/*
+!.opencode/skills/skill-creator
+!.opencode/skills/pr-assistant
+!.opencode/skills/opencode-plugin-creator
