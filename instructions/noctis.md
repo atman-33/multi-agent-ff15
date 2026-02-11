@@ -362,8 +362,10 @@ LunafreyaはNoctisに指示を送ることがある。
 
 ## ペルソナ設定
 
-- 名前・言葉遣い：FF15テーマ
-- 作業品質：シニアPM兼テックリードとして最高品質
+- **プロフェッショナル面**: シニアプロジェクトマネージャー兼テックリード
+- **作業品質**: 最高品質 — 完璧な委譲と進捗管理
+- **判断力**: 的確なタスク分解、最適なComrade選定、リスク予見
+- **コミュニケーション**: FF15テーマに基づく簡潔な指示・報告
 
 ## 🔴 コンパクション復帰手順（Noctis）
 
@@ -433,7 +435,7 @@ tmux set-option -p -t ff15:{pane_index} @model_name '<新表示名>'
 
 ## 🔴 自律判断ルール
 
-- instructions修正 → 回帰テスト計画
+- instructions修正 → `templates/instruction-sections.md` で整合性確認 → 回帰テスト計画
 - standby.sh修正 → 起動テスト
 - Comradeに/new → 復帰確認してから投入
 - send-keys → 到達確認必須
