@@ -980,6 +980,7 @@ multi-agent-ff15/
 │
 ├── queue/                    # 通信ファイル
 │   ├── lunafreya_to_noctis.yaml  # Lunafreya → Noctis 連携
+│   ├── noctis_to_lunafreya.yaml  # Noctis → Lunafreya 返信
 │   ├── tasks/                # 各ワーカーのタスクファイル
 │   │   ├── ignis.yaml
 │   │   ├── gladiolus.yaml

@@ -980,6 +980,7 @@ multi-agent-ff15/
 │
 ├── queue/                    # Communication files
 │   ├── lunafreya_to_noctis.yaml  # Lunafreya → Noctis coordination
+│   ├── noctis_to_lunafreya.yaml  # Noctis → Lunafreya response
 │   ├── tasks/                # Task files for each worker
 │   │   ├── ignis.yaml
 │   │   ├── gladiolus.yaml

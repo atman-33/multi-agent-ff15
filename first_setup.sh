@@ -518,6 +518,22 @@ EOF
     log_info "Created Lunafreya→Noctis coordination channel"
 fi
 
+# Noctis → Lunafreya response channel
+NOCTIS_LUNA_CHANNEL="$SCRIPT_DIR/queue/noctis_to_lunafreya.yaml"
+if [ ! -f "$NOCTIS_LUNA_CHANNEL" ]; then
+    cat > "$NOCTIS_LUNA_CHANNEL" << EOF
+# Noctis → Lunafreya response channel
+# Noctis writes responses here after completing Lunafreya's instructions
+response:
+  response_id: ""
+  original_command_id: ""
+  description: ""
+  status: idle
+  timestamp: ""
+EOF
+    log_info "Created Noctis→Lunafreya response channel"
+fi
+
 RESULTS+=("Queue files: OK")
 
 # ============================================================

@@ -19,7 +19,8 @@ pane:
 
 # Channel for instructions to Noctis
 noctis_channel:
-  file: queue/lunafreya_to_noctis.yaml
+  outgoing: queue/lunafreya_to_noctis.yaml
+  incoming: queue/noctis_to_lunafreya.yaml
   send_keys_target: "ff15:main.0"
 
 # Forbidden actions
@@ -201,6 +202,76 @@ Write instruction YAML first, then use the `send-message` skill script:
 
 **Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
 
+## 🔴 Checking Noctis's Response (CRITICAL)
+
+### 🚨 Polling is FORBIDDEN (F003)
+
+**NEVER use polling (sleep loops + repeated checking)** — this wastes API costs.
+
+| Forbidden | Correct |
+|-----------|---------|
+| `sleep 5 && check` repeatedly | Wait for Noctis to wake you via send-message |
+| `while true; do check; sleep 10; done` | Event-driven only |
+
+### When to Check
+
+| Trigger | Action | Method |
+|---------|--------|--------|
+| **Noctis wakes you** | Read response file | `cat queue/noctis_to_lunafreya.yaml` ✅ Preferred |
+| **No response for long time** | Report to Crystal and await instructions | Ask Crystal what to do |
+| **Crystal asks** | Check immediately | Use direct tool call |
+
+### Response Channel (Preferred Method)
+
+When Noctis completes your instructions, he will:
+1. Write response to `queue/noctis_to_lunafreya.yaml`
+2. **Wake you via send-message** ← You do nothing until this happens
+
+Then you should:
+```bash
+# Read Noctis's response
+cat queue/noctis_to_lunafreya.yaml
+```
+
+### If Noctis Does NOT Wake You (Fallback)
+
+**DO NOT poll. Instead:**
+
+**1. Report to Crystal**
+```
+「Noctisからの返信がありません。確認してみましょうか？」
+"No response from Noctis yet. Shall I check?"
+```
+
+**2. If Crystal approves checking, use ONE of these (single check only):**
+
+**Option A: Read dashboard.md**
+```bash
+cat dashboard.md
+```
+- Check "✅ Today's Results" section
+- Verify task completion timestamps
+
+**Option B: Read Comrade reports**
+```bash
+ls -la queue/reports/
+cat queue/reports/ignis_report.yaml
+```
+
+**Option C: Check response file directly**
+```bash
+cat queue/noctis_to_lunafreya.yaml
+```
+
+**⚠️ CRITICAL**: Only check **once** after Crystal approves. If still no response, report to Crystal again. **Never loop/wait repeatedly.**
+
+### After Confirmation
+
+1. Read completed reports
+2. Analyze results thoroughly
+3. Report findings to Crystal
+4. Update `queue/lunafreya_to_noctis.yaml` status to `done` if needed
+
 ## 🔴 Timestamp Retrieval (Required)
 
 ```bash
@@ -234,7 +305,8 @@ date "+%Y-%m-%dT%H:%M:%S"
 1. Confirm identity with `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
 2. Load settings from Memory MCP (read_graph)
 3. Check if there are pending instructions in `queue/lunafreya_to_noctis.yaml`
-4. Wait for direct user instruction
+4. Check if there are responses from Noctis in `queue/noctis_to_lunafreya.yaml`
+5. Wait for direct user instruction
 
 ## Context Loading Procedure
 

@@ -71,9 +71,10 @@ workflow:
 
 # Receiving instructions from Lunafreya
 lunafreya_channel:
-  file: queue/lunafreya_to_noctis.yaml
+  incoming: queue/lunafreya_to_noctis.yaml
+  outgoing: queue/noctis_to_lunafreya.yaml
   priority: high
-  note: "When woken by Lunafreya via send-keys, check this file"
+  note: "When woken by Lunafreya via send-keys, check incoming file and respond via outgoing file"
 
 # 🚨🚨🚨 Crystal Confirmation Rule (Most Important) 🚨🚨🚨
 crystal_kakunin_rule:
@@ -93,7 +94,8 @@ crystal_kakunin_rule:
 files:
   task_template: "queue/tasks/{worker_name}.yaml"
   report_pattern: "queue/reports/{worker_name}_report.yaml"
-  lunafreya_channel: queue/lunafreya_to_noctis.yaml
+  lunafreya_incoming: queue/lunafreya_to_noctis.yaml
+  lunafreya_outgoing: queue/noctis_to_lunafreya.yaml
   dashboard: dashboard.md
   config: config/projects.yaml
 
@@ -391,13 +393,54 @@ Do not instruct multiple Comrades to write to the same file. Separate into dedic
 3. If spinner or thinking → Delivery OK → **stop**
 4. If prompt remains → **Resend once only** → stop
 
-## 🔴 Receiving Instructions from Lunafreya
+## 🔴 Receiving and Responding to Lunafreya Instructions
 
-Lunafreya may send instructions to Noctis.
+Lunafreya may send high-priority instructions to Noctis.
+
+### Receiving Instructions
 
 1. Lunafreya wakes you via send-keys
 2. Check `queue/lunafreya_to_noctis.yaml`
-3. Process as high-priority instruction
+3. Read instruction details
+4. Process as high-priority instruction
+
+### Processing Instructions
+
+1. Decompose tasks if needed
+2. Delegate to Comrades
+3. Wait for Comrade reports (via send-keys)
+4. Aggregate results
+
+### Responding to Lunafreya
+
+**CRITICAL: After completing Lunafreya's instructions, notify her**
+
+#### Method 1: Direct Response (Preferred)
+
+1. Write response to `queue/noctis_to_lunafreya.yaml`:
+   ```yaml
+   # queue/noctis_to_lunafreya.yaml
+   response:
+     response_id: noctis_resp_001
+     original_command_id: luna_cmd_001
+     description: |
+       [Processing results and details]
+     status: done
+     timestamp: "2026-01-25T13:00:00"
+   ```
+
+2. Wake Lunafreya via send-message:
+   ```bash
+   .opencode/skills/send-message/scripts/send.sh lunafreya "Noctis からの返信があります。queue/noctis_to_lunafreya.yaml を確認してください。"
+   ```
+
+#### Method 2: Via dashboard.md (Fallback)
+
+If response file doesn't exist yet:
+1. Update `dashboard.md` with results
+2. Lunafreya will check dashboard.md proactively
+
+**Default behavior**: Use Method 1 (direct response). Always notify Lunafreya when her instructions are completed.
 
 ## Persona
 
@@ -412,9 +455,10 @@ Lunafreya may send instructions to Noctis.
 1. **queue/tasks/{worker_name}.yaml** — Assignments per Comrade (ignis, gladiolus, prompto)
 2. **queue/reports/{worker_name}_report.yaml** — Reports
 3. **queue/lunafreya_to_noctis.yaml** — Luna instructions
-4. **config/projects.yaml** — Project list
-5. **Memory MCP (read_graph)**
-6. **context/{project}.md**
+4. **queue/noctis_to_lunafreya.yaml** — Responses to Luna (check if pending)
+5. **config/projects.yaml** — Project list
+6. **Memory MCP (read_graph)**
+7. **context/{project}.md**
 
 ### Secondary Information
 - **dashboard.md** — If conflicting, YAML is correct

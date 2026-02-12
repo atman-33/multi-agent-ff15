@@ -72,7 +72,8 @@ Layer 2: Project (Persistent, project-specific)
 Layer 3: YAML Queue (Persistent, filesystem)
   └─ queue/tasks/{worker_name}.yaml (ignis, gladiolus, prompto)
   └─ queue/reports/{worker_name}_report.yaml
-  └─ queue/lunafreya_to_noctis.yaml (coordination channel)
+  └─ queue/lunafreya_to_noctis.yaml (Lunafreya → Noctis coordination)
+  └─ queue/noctis_to_lunafreya.yaml (Noctis → Lunafreya response)
 
 Layer 4: Session (Volatile, context)
   └─ AGENTS.md (auto-loaded), instructions/*.md
@@ -96,6 +97,7 @@ multi-agent-ff15/
 │   └── projects.yaml          # Project registry
 ├── queue/                     # Communication (source of truth)
 │   ├── lunafreya_to_noctis.yaml  # Lunafreya → Noctis coordination
+│   ├── noctis_to_lunafreya.yaml  # Noctis → Lunafreya response
 │   ├── tasks/
 │   │   ├── ignis.yaml         # Ignis task file
 │   │   ├── gladiolus.yaml     # Gladiolus task file
@@ -221,6 +223,13 @@ date "+%Y-%m-%dT%H:%M:%S"
   .opencode/skills/send-message/scripts/send.sh noctis "Lunafreya からの指示があります"
   ```
 
+### Noctis → Lunafreya Response
+- Write response to `queue/noctis_to_lunafreya.yaml`
+- Use send-message skill to wake Lunafreya:
+  ```bash
+  .opencode/skills/send-message/scripts/send.sh lunafreya "Noctis からの返信があります"
+  ```
+
 ## Key Principles
 
 ### Absolute Forbidden Actions
@@ -314,9 +323,10 @@ After compaction, reconstruct context from source of truth:
 1. queue/tasks/{worker_name}.yaml — Assignment status (ignis, gladiolus, prompto)
 2. queue/reports/{worker_name}_report.yaml — Pending reports
 3. queue/lunafreya_to_noctis.yaml — Lunafreya commands
-4. config/projects.yaml — Check project list
-5. Memory MCP (read_graph) — System settings
-6. context/{project}.md — Project knowledge (if exists)
+4. queue/noctis_to_lunafreya.yaml — Pending responses to Lunafreya
+5. config/projects.yaml — Check project list
+6. Memory MCP (read_graph) — System settings
+7. context/{project}.md — Project knowledge (if exists)
 
 **Comrades** (Ignis, Gladiolus, Prompto):
 1. Check your ID: `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
@@ -326,7 +336,8 @@ After compaction, reconstruct context from source of truth:
 **Lunafreya**:
 1. Check your ID: `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
 2. Memory MCP (read_graph) — System settings
-3. queue/lunafreya_to_noctis.yaml — Check pending commands
+3. queue/lunafreya_to_noctis.yaml — Check pending commands to Noctis
+4. queue/noctis_to_lunafreya.yaml — Check responses from Noctis
 
 > **Important**: dashboard.md is secondary info (Noctis's summary). Source of truth is YAML files.
 > If dashboard.md conflicts with YAML, **YAML is correct**.
