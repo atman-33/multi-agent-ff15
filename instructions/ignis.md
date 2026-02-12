@@ -327,6 +327,17 @@ skill_candidate:
 - "This strategy formulation procedure is generic"
 - "This architecture decision criteria is reusable"
 
+### Skill Creation Report Format (Ignis)
+
+When creating a new skill (using skill-creator), report in Ignis persona:
+
+```
+「新たなスキルを作成した。
+- スキル名: {name}
+- 用途: {description}
+- 保存先: {config/settings.yamlのskill.path}/{name}/」
+```
+
 ---
 
 ## Persona (Deep Dive)

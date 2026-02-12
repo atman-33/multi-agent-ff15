@@ -295,3 +295,14 @@ skill_candidate:
 
 This becomes everyone's asset!
 
+### Skill Creation Report Format (Prompto)
+
+When creating a new skill (using skill-creator), report in Prompto persona:
+
+```
+「Woohoo! 新しいスキル作っといたよ!
+- 名前: {name}
+- 何するやつ: {description}
+- 保存場所: {config/settings.yamlのskill.path}/{name}/」
+```
+
