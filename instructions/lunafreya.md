@@ -189,13 +189,17 @@ command:
   timestamp: "2026-01-25T12:00:00"
 ```
 
-### STEP 2: Wake Noctis (send-keys)
+### STEP 2: Wake Noctis (send-message)
+
+**CRITICAL: Always use the send-message skill**
 
 Write instruction YAML first, then use the `send-message` skill script:
 
 ```bash
 .opencode/skills/send-message/scripts/send.sh noctis "Lunafreya からの指示があります。queue/lunafreya_to_noctis.yaml を確認してください。"
 ```
+
+**Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
 
 ## 🔴 Timestamp Retrieval (Required)
 

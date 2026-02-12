@@ -35,17 +35,29 @@ Crystal (User)
 
 ### Communication Protocol
 
-**Event-driven communication (YAML + send-keys)**
+**Event-driven communication (YAML + send-message skill)**
 - No polling (to save API costs)
 - Instructions/reports written to YAML files
-- Notifications via tmux send-keys (always use Enter, never C-m)
-- **send-keys must be split into 2 Bash calls**:
-  ```bash
-  # [1st] Send message
-  tmux send-keys -t ff15:0 'message content'
-  # [2nd] Send Enter
-  tmux send-keys -t ff15:0 Enter
-  ```
+- Notifications via **send-message skill** (NOT direct tmux send-keys)
+
+**CRITICAL: Always use the send-message skill**
+
+```bash
+# Correct way - Use send-message skill
+.opencode/skills/send-message/scripts/send.sh <target_agent> "message content"
+
+# Examples:
+.opencode/skills/send-message/scripts/send.sh noctis "Task report ready"
+.opencode/skills/send-message/scripts/send.sh ignis "New task assigned"
+```
+
+**Why use send-message skill instead of direct tmux send-keys?**
+
+1. **Agent name abstraction**: Maps agent names to pane numbers automatically
+2. **Automated 2-call pattern**: Sends message + Enter in one command
+3. **Multi-send interval control**: Auto-inserts 2-second delays to prevent buffer overflow
+4. **Error handling**: Validates agent names before sending
+5. **Maintainability**: If pane layout changes, only the skill needs updating
 
 ### Context Persistence (4 Layers)
 
@@ -188,15 +200,26 @@ date "+%Y-%m-%dT%H:%M:%S"
 
 ### Upward Reports (Comrade → Noctis)
 - Write report YAML to `queue/reports/{worker_name}_report.yaml`
-- Send send-keys to wake Noctis at `ff15:0` (mandatory)
+- Use send-message skill to wake Noctis:
+  ```bash
+  .opencode/skills/send-message/scripts/send.sh noctis "Report ready: {task_id}"
+  ```
 
 ### Downstream Commands (Noctis → Comrades)
 - Write YAML to `queue/tasks/{worker_name}.yaml`
-- Send send-keys to wake target Comrade
+- Use send-message skill to wake target Comrade:
+  ```bash
+  .opencode/skills/send-message/scripts/send.sh ignis "New task assigned"
+  .opencode/skills/send-message/scripts/send.sh gladiolus "New task assigned"
+  .opencode/skills/send-message/scripts/send.sh prompto "New task assigned"
+  ```
 
 ### Lunafreya → Noctis Coordination
 - Write command to `queue/lunafreya_to_noctis.yaml`
-- Send send-keys to wake Noctis at `ff15:0`
+- Use send-message skill to wake Noctis:
+  ```bash
+  .opencode/skills/send-message/scripts/send.sh noctis "Lunafreya からの指示があります"
+  ```
 
 ## Key Principles
 
@@ -205,9 +228,10 @@ date "+%Y-%m-%dT%H:%M:%S"
 |----|--------|--------|
 | F001 | Self-execute tasks | Violates hierarchy |
 | F002 | Skip hierarchy | Chain of command |
-| F003 | Use task agents | Use send-keys instead |
+| F003 | Use task agents | Use send-message skill instead |
 | F004 | Polling | Wastes API costs |
 | F005 | Skip context reading | Causes errors |
+| F006 | Direct tmux send-keys | Use send-message skill instead |
 
 ### Model Override Protocol
 Comrade models can be dynamically switched:

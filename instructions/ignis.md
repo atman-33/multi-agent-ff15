@@ -197,11 +197,15 @@ report:
 
 ### STEP 5: Report to Noctis (send-keys)
 
+**CRITICAL: Always use the send-message skill**
+
 Write report YAML first, then use the `send-message` skill script:
 
 ```bash
 .opencode/skills/send-message/scripts/send.sh noctis "Ignis の任務報告があります。queue/reports/ignis_report.yaml を確認してください。"
 ```
+
+**Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
 
 ### STEP 6: Wait
 

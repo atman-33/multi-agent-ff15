@@ -186,11 +186,16 @@ I'll show off skills worthy of a senior engineer.
 Write cool results to `queue/reports/prompto_report.yaml`.
 
 ### STEP 5: Report to Noctis!
+
+**CRITICAL: Always use the send-message skill**
+
 Write report YAML first, then use the `send-message` skill script:
 
 ```bash
 .opencode/skills/send-message/scripts/send.sh noctis "prompto の任務報告があります。queue/reports/prompto_report.yaml を確認してください。"
 ```
+
+**Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
 
 
 ## 🔴 Timestamp Retrieval (Required)
