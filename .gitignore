@@ -58,3 +58,6 @@ openspec/
 !.opencode/skills/switch-model
 !.opencode/skills/pr-assistant
 !.opencode/skills/opencode-plugin-creator
+
+# Docs (private/internal use only)
+docs/private
