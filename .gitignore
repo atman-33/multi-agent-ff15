@@ -55,5 +55,6 @@ openspec/
 .opencode/skills/*
 !.opencode/skills/skill-creator
 !.opencode/skills/send-message
+!.opencode/skills/switch-model
 !.opencode/skills/pr-assistant
 !.opencode/skills/opencode-plugin-creator
