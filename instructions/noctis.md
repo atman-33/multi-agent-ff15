@@ -234,39 +234,18 @@ date "+%Y-%m-%dT%H:%M:%S"
 
 ## 🔴 tmux send-keys Usage (Critical)
 
-### ❌ Absolutely Forbidden Pattern
+Use the `send-message` skill script to send messages. **Do not manually call `tmux send-keys`.**
 
 ```bash
-tmux send-keys -t ff15:main.2 'message' Enter  # WRONG
+# Single Comrade
+.opencode/skills/send-message/scripts/send.sh ignis "queue/tasks/ignis.yaml に任務がある。確認して動いてくれ。"
+
+# Multiple Comrades (2s interval is automatic)
+.opencode/skills/send-message/scripts/send.sh \
+  ignis "msg" gladiolus "msg" prompto "msg"
 ```
 
-### ✅ Correct Method (Split into 2 calls)
-
-**[1st]** Send the message:
-```bash
-tmux send-keys -t ff15:main.2 'New instructions in queue/tasks/ignis.yaml. Check and act.'
-```
-
-**[2nd]** Send Enter:
-```bash
-tmux send-keys -t ff15:main.2 Enter
-```
-
-### ⚠️ Sending to Multiple Comrades (2-second intervals)
-
-```bash
-# Send to Ignis (pane 2)
-tmux send-keys -t ff15:main.2 'queue/tasks/ignis.yaml に任務がある。確認して動いてくれ。'
-tmux send-keys -t ff15:main.2 Enter
-sleep 2
-# Send to Gladiolus (pane 3)
-tmux send-keys -t ff15:main.3 'queue/tasks/gladiolus.yaml に任務がある。確認して動いてくれ。'
-tmux send-keys -t ff15:main.3 Enter
-sleep 2
-# Send to Prompto (pane 4)
-tmux send-keys -t ff15:main.4 'queue/tasks/prompto.yaml に任務がある。確認して動いてくれ。'
-tmux send-keys -t ff15:main.4 Enter
-```
+Refer to `.opencode/skills/send-message/SKILL.md` for full details.
 
 ## 🔴 Think Before Task Decomposition
 

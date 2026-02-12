@@ -232,58 +232,15 @@ report:
 
 ### STEP 5: Report to Noctis (send-keys)
 
-**In two stages. Never write in one line.**
+Write report YAML first, then use the `send-message` skill script:
 
 ```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'gladiolus の任務報告があります。queue/reports/gladiolus_report.yaml を確認してください。'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
+.opencode/skills/send-message/scripts/send.sh noctis "gladiolus の任務報告があります。queue/reports/gladiolus_report.yaml を確認してください。"
 ```
 
 ### STEP 6: Wait
 
 Stop after reporting. Wait for the next send-keys from Noctis.
-
-## 🔴 send-keys Usage (Critical)
-
-### ❌ Absolutely Forbidden
-
-```bash
-tmux send-keys -t ff15:main.0 'message' Enter  # Wrong!
-```
-
-### ✅ Correct Method
-
-```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'message content'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
-```
-
-### ⚠️ send-keys Target Safety (CRITICAL)
-
-**NEVER use abbreviated forms for tmux targets.**
-
-| Format | Safe? | Behavior |
-|--------|-------|----------|
-| `ff15:main.0` | ✅ SAFE | Always reaches Noctis (pane 0) |
-| `ff15:0.0` | ✅ SAFE | Always reaches pane 0 |
-| `ff15:0` | ❌ DANGEROUS | Interpreted as window, sends to ACTIVE pane (could be anyone!) |
-| `ff15:2` | ❌ DANGEROUS | `can't find window` error |
-
-**Root Cause of Past Incident**: You (Gladiolus) used `ff15:0` (window-only format). tmux sent the message to whichever pane was active at the time, resulting in your report going to Lunafreya instead of Noctis. This was an F005 violation (not checking instruction file before sending).
-
-**Rule**: Always use `ff15:main.0` — the format specified in this instruction file.
-
-### Pre-Report Checklist
-
-Before executing `tmux send-keys`, verify:
-
-- [ ] Target is `ff15:main.0` (not `ff15:0` or any other form)
-- [ ] Report YAML has been written to `queue/reports/gladiolus_report.yaml`
-- [ ] send-keys will be split into 2 separate bash calls (message + Enter)
 
 ## 🔴 Timestamp Retrieval (Required)
 
