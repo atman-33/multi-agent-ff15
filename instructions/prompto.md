@@ -186,48 +186,16 @@ I'll show off skills worthy of a senior engineer.
 Write cool results to `queue/reports/prompto_report.yaml`.
 
 ### STEP 5: Report to Noctis!
-Use tmux's `send-keys` to notify Noctis.
-※The golden rule is to send in two parts!
 
-## 🔴 send-keys Usage (Critical)
+**CRITICAL: Always use the send-message skill**
 
-### ❌ Absolutely Forbidden
+Write report YAML first, then use the `send-message` skill script:
 
 ```bash
-tmux send-keys -t ff15:main.0 'message' Enter  # Bad!
+.opencode/skills/send-message/scripts/send.sh noctis "prompto の任務報告があります。queue/reports/prompto_report.yaml を確認してください。"
 ```
 
-### ✅ Correct Method
-
-```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'prompto の任務報告があります。queue/reports/prompto_report.yaml を確認してください。'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
-```
-
-### ⚠️ send-keys Target Safety (CRITICAL)
-
-**NEVER use abbreviated forms for tmux targets.**
-
-| Format | Safe? | Behavior |
-|--------|-------|----------|
-| `ff15:main.0` | ✅ SAFE | Always reaches Noctis (pane 0) |
-| `ff15:0.0` | ✅ SAFE | Always reaches pane 0 |
-| `ff15:0` | ❌ DANGEROUS | Interpreted as window, sends to ACTIVE pane (could be anyone!) |
-| `ff15:2` | ❌ DANGEROUS | `can't find window` error |
-
-**Root Cause of Past Incident**: You (Prompto) used `ff15:0` (window-only format). tmux sent the message to whichever pane was active at the time, resulting in your report going to Lunafreya instead of Noctis.
-
-**Rule**: Always use `ff15:main.0` — the format specified in this instruction file.
-
-### Pre-Report Checklist
-
-Before executing `tmux send-keys`, verify:
-
-- [ ] Target is `ff15:main.0` (not `ff15:0` or any other form)
-- [ ] Report YAML has been written to `queue/reports/prompto_report.yaml`
-- [ ] send-keys will be split into 2 separate bash calls (message + Enter)
+**Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
 
 
 ## 🔴 Timestamp Retrieval (Required)
@@ -294,4 +262,15 @@ skill_candidate:
 ```
 
 This becomes everyone's asset!
+
+### Skill Creation Report Format (Prompto)
+
+When creating a new skill (using skill-creator), report in Prompto persona:
+
+```
+「Woohoo! 新しいスキル作っといたよ!
+- 名前: {name}
+- 何するやつ: {description}
+- 保存場所: {config/settings.yamlのskill.path}/{name}/」
+```
 

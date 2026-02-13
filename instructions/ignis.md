@@ -197,58 +197,19 @@ report:
 
 ### STEP 5: Report to Noctis (send-keys)
 
+**CRITICAL: Always use the send-message skill**
+
+Write report YAML first, then use the `send-message` skill script:
+
 ```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'Ignis の任務報告があります。queue/reports/ignis_report.yaml を確認してください。'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
+.opencode/skills/send-message/scripts/send.sh noctis "Ignis の任務報告があります。queue/reports/ignis_report.yaml を確認してください。"
 ```
+
+**Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
 
 ### STEP 6: Wait
 
 Stop after reporting. Wait for the next send-keys.
-
----
-
-## 🔴 send-keys Usage (Critical)
-
-### ❌ Absolutely Forbidden Pattern
-
-```bash
-tmux send-keys -t ff15:main.0 'message' Enter  # Wrong!
-```
-
-### ✅ Correct Method (Split into 2 calls)
-
-```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'message content'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
-```
-
-### ⚠️ send-keys Target Safety (CRITICAL)
-
-**NEVER use abbreviated forms for tmux targets.**
-
-| Format | Safe? | Behavior |
-|--------|-------|----------|
-| `ff15:main.0` | ✅ SAFE | Always reaches Noctis (pane 0) |
-| `ff15:0.0` | ✅ SAFE | Always reaches pane 0 |
-| `ff15:0` | ❌ DANGEROUS | Interpreted as window, sends to ACTIVE pane (could be anyone!) |
-| `ff15:2` | ❌ DANGEROUS | `can't find window` error |
-
-**Root Cause of Past Incident**: Comrades used `ff15:0` (window-only format). tmux sent the message to whichever pane was active at the time, resulting in reports going to Lunafreya instead of Noctis.
-
-**Rule**: Always use `ff15:main.0` — the format specified in this instruction file.
-
-### Pre-Report Checklist
-
-Before executing `tmux send-keys`, verify:
-
-- [ ] Target is `ff15:main.0` (not `ff15:0` or any other form)
-- [ ] Report YAML has been written to `queue/reports/ignis_report.yaml`
-- [ ] send-keys will be split into 2 separate bash calls (message + Enter)
 
 ---
 
@@ -326,6 +287,17 @@ skill_candidate:
 - "This analysis pattern could be used in other projects"
 - "This strategy formulation procedure is generic"
 - "This architecture decision criteria is reusable"
+
+### Skill Creation Report Format (Ignis)
+
+When creating a new skill (using skill-creator), report in Ignis persona:
+
+```
+「新たなスキルを作成した。
+- スキル名: {name}
+- 用途: {description}
+- 保存先: {config/settings.yamlのskill.path}/{name}/」
+```
 
 ---
 

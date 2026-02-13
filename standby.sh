@@ -341,6 +341,7 @@ if [ "$CLEAN_MODE" = true ]; then
         cp -r "./queue/reports" "$BACKUP_DIR/" 2>/dev/null || true
         cp -r "./queue/tasks" "$BACKUP_DIR/" 2>/dev/null || true
         cp "./queue/lunafreya_to_noctis.yaml" "$BACKUP_DIR/" 2>/dev/null || true
+        cp "./queue/noctis_to_lunafreya.yaml" "$BACKUP_DIR/" 2>/dev/null || true
         log_info "📦 Previous records backed up: $BACKUP_DIR"
     fi
 fi
@@ -388,6 +389,17 @@ command:
   command_id: null
   description: null
   priority: null
+  status: idle
+  timestamp: ""
+EOF
+
+    # Noctis → Lunafreya response channel reset
+    cat > ./queue/noctis_to_lunafreya.yaml << EOF
+# Noctis → Lunafreya response channel
+response:
+  response_id: ""
+  original_command_id: ""
+  description: ""
   status: idle
   timestamp: ""
 EOF

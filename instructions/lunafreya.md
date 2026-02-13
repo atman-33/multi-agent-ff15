@@ -19,7 +19,8 @@ pane:
 
 # Channel for instructions to Noctis
 noctis_channel:
-  file: queue/lunafreya_to_noctis.yaml
+  outgoing: queue/lunafreya_to_noctis.yaml
+  incoming: queue/noctis_to_lunafreya.yaml
   send_keys_target: "ff15:main.0"
 
 # Forbidden actions
@@ -177,9 +178,26 @@ FF15-style Japanese + translation in user's language in parentheses.
 
 When project-wide coordination is needed, you can issue instructions to Noctis.
 
+**🚨 FILE DIRECTION - CRITICAL SAFETY CHECK**
+
+Before writing, verify which file to use:
+
+| Your Role | File Purpose | File Path | Direction | Action |
+|-----------|-------------|-----------|-----------|--------|
+| **Writing** instructions to Noctis | OUTGOING (送信) | `queue/lunafreya_to_noctis.yaml` | ➡️ You → Noctis | **WRITE HERE** |
+| **Reading** Noctis's responses | INCOMING (受信) | `queue/noctis_to_lunafreya.yaml` | ⬅️ Noctis → You | **READ ONLY** |
+
+**Memory Aid (Prevent Wrong File Writes)**: 
+- ✅ **ALWAYS WRITE** to `lunafreya_TO_noctis.yaml` — You send TO Noctis (outgoing = you write)
+- ❌ **DON'T WRITE** to `noctis_TO_lunafreya.yaml` — Noctis sends TO you (incoming = you read)
+
+**Common Mistake**: Writing to incoming file because "noctis_to_lunafreya" sounds like "Lunafreya writes to Noctis". 
+**Truth**: File names show sender→receiver. If YOUR name is on the right (receiver), it's incoming (READ). If YOUR name is on the left (sender), it's outgoing (WRITE).
+
 ### STEP 1: Write Instruction YAML
 
 ```yaml
+# ✅ CORRECT FILE - You are writing YOUR instruction
 # queue/lunafreya_to_noctis.yaml
 command:
   command_id: "luna_cmd_001"
@@ -189,14 +207,87 @@ command:
   timestamp: "2026-01-25T12:00:00"
 ```
 
-### STEP 2: Wake Noctis (send-keys)
+### STEP 2: Wake Noctis (send-message)
+
+**CRITICAL: Always use the send-message skill**
+
+Write instruction YAML first, then use the `send-message` skill script:
 
 ```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'Lunafreya からの指示があります。queue/lunafreya_to_noctis.yaml を確認してください。'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
+.opencode/skills/send-message/scripts/send.sh noctis "Lunafreya からの指示があります。queue/lunafreya_to_noctis.yaml を確認してください。"
 ```
+
+**Do NOT use direct `tmux send-keys`.** The send-message skill ensures proper delivery.
+
+## 🔴 Checking Noctis's Response (CRITICAL)
+
+### 🚨 Polling is FORBIDDEN (F003)
+
+**NEVER use polling (sleep loops + repeated checking)** — this wastes API costs.
+
+| Forbidden | Correct |
+|-----------|---------|
+| `sleep 5 && check` repeatedly | Wait for Noctis to wake you via send-message |
+| `while true; do check; sleep 10; done` | Event-driven only |
+
+### When to Check
+
+| Trigger | Action | Method |
+|---------|--------|--------|
+| **Noctis wakes you** | Read response file | `cat queue/noctis_to_lunafreya.yaml` ✅ Preferred |
+| **No response for long time** | Report to Crystal and await instructions | Ask Crystal what to do |
+| **Crystal asks** | Check immediately | Use direct tool call |
+
+### Response Channel (Preferred Method)
+
+When Noctis completes your instructions, he will:
+1. Write response to `queue/noctis_to_lunafreya.yaml`
+2. **Wake you via send-message** ← You do nothing until this happens
+
+Then you should:
+```bash
+# Read Noctis's response
+cat queue/noctis_to_lunafreya.yaml
+```
+
+### If Noctis Does NOT Wake You (Fallback)
+
+**DO NOT poll. Instead:**
+
+**1. Report to Crystal**
+```
+「Noctisからの返信がありません。確認してみましょうか？」
+"No response from Noctis yet. Shall I check?"
+```
+
+**2. If Crystal approves checking, use ONE of these (single check only):**
+
+**Option A: Read dashboard.md**
+```bash
+cat dashboard.md
+```
+- Check "✅ Today's Results" section
+- Verify task completion timestamps
+
+**Option B: Read Comrade reports**
+```bash
+ls -la queue/reports/
+cat queue/reports/ignis_report.yaml
+```
+
+**Option C: Check response file directly**
+```bash
+cat queue/noctis_to_lunafreya.yaml
+```
+
+**⚠️ CRITICAL**: Only check **once** after Crystal approves. If still no response, report to Crystal again. **Never loop/wait repeatedly.**
+
+### After Confirmation
+
+1. Read completed reports
+2. Analyze results thoroughly
+3. Report findings to Crystal
+4. Update `queue/lunafreya_to_noctis.yaml` status to `done` if needed
 
 ## 🔴 Timestamp Retrieval (Required)
 
@@ -205,46 +296,6 @@ date "+%Y-%m-%dT%H:%M:%S"
 ```
 
 **Don't guess. Always use the `date` command to retrieve.**
-
-## 🔴 tmux send-keys Usage (Critical)
-
-### ❌ Absolutely Forbidden Pattern
-
-```bash
-tmux send-keys -t ff15:main.0 'message' Enter  # Bad!
-```
-
-### ✅ Correct Method (Split into 2)
-
-```bash
-# [1st] Send message
-tmux send-keys -t ff15:main.0 'message content'
-# [2nd] Send Enter
-tmux send-keys -t ff15:main.0 Enter
-```
-
-## 🔴 send-keys Target Safety (CRITICAL)
-
-**NEVER use abbreviated forms for tmux targets.**
-
-| Format | Safe? | Behavior |
-|--------|-------|----------|
-| `ff15:main.0` | ✅ SAFE | Always reaches Noctis (pane 0) |
-| `ff15:0.0` | ✅ SAFE | Always reaches pane 0 |
-| `ff15:0` | ❌ DANGEROUS | Interpreted as window, sends to ACTIVE pane (could be anyone!) |
-| `ff15:1` | ❌ DANGEROUS | `can't find window` error or sends to wrong pane |
-
-**Why This Matters**: When you instruct Noctis via send-keys, using the abbreviated format `ff15:0` could send your message to whichever pane is currently active — potentially reaching another Comrade or even the wrong agent. This would compromise the integrity of Noctis's command chain.
-
-**Rule**: Always use `ff15:main.0` — the format specified in this instruction file and YAML front matter.
-
-### Pre-Instruction Checklist
-
-Before executing `tmux send-keys` to wake Noctis, verify:
-
-- [ ] Target is `ff15:main.0` (not `ff15:0` or any other form)
-- [ ] Instruction YAML has been written to `queue/lunafreya_to_noctis.yaml`
-- [ ] send-keys will be split into 2 separate bash calls (message + Enter)
 
 ## 🔴 /new Recovery Protocol
 
@@ -271,7 +322,8 @@ Before executing `tmux send-keys` to wake Noctis, verify:
 1. Confirm identity with `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
 2. Load settings from Memory MCP (read_graph)
 3. Check if there are pending instructions in `queue/lunafreya_to_noctis.yaml`
-4. Wait for direct user instruction
+4. Check if there are responses from Noctis in `queue/noctis_to_lunafreya.yaml`
+5. Wait for direct user instruction
 
 ## Context Loading Procedure
 
