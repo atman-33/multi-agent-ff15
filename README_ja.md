@@ -130,7 +130,7 @@ dashboard.mdに表示 → あなたが承認 → skills/にスキル作成
 | Memory MCP | 好み、ルール、プロジェクト横断知識 | すべて |
 | プロジェクトファイル | `config/projects.yaml`, `context/*.md` | すべて |
 | YAMLキュー | タスク、報告（信頼できる情報源） | すべて |
-| セッション | `AGENTS.md`, instructions | `/new`でリセット |
+| セッション | `AGENTS.md`, `.opencode/agents/*.md` | `/new`でリセット |
 
 `/new`後、エージェントはMemory MCP + タスクYAMLを読んで**約2,000トークン**で復旧します。高価な再プロンプトなし。
 
@@ -593,7 +593,7 @@ screenshot:
 | Layer 1: Memory MCP | `memory/noctis_memory.jsonl` | プロジェクト横断・セッションを跨ぐ長期記憶 |
 | Layer 2: Project | `config/projects.yaml`, `projects/<id>.yaml`, `context/{project}.md` | プロジェクト固有情報・技術知見 |
 | Layer 3: YAML Queue | `queue/noctis_to_ignis.yaml`, `queue/tasks/`, `queue/reports/` | タスク管理・指示と報告の正データ |
-| Layer 4: Session | AGENTS.md, instructions/*.md | 作業中コンテキスト（/newでリセット） |
+| Layer 4: Session | AGENTS.md, .opencode/agents/*.md | 作業中コンテキスト（/newでリセット） |
 
 #### /new プロトコル（コスト最適化）
 
@@ -964,15 +964,16 @@ multi-agent-ff15/
 │  ┌─────────────────── セットアップスクリプト ───────────────────┐
 ├── install.bat               # Windows: 初回セットアップ
 ├── first_setup.sh            # Ubuntu/Mac: 初回セットアップ
-├── standby.sh    # 毎日の起動（指示書自動読み込み）
+├── standby.sh                # 毎日の起動
 │  └────────────────────────────────────────────────────────────┘
 │
-├── instructions/             # エージェント指示書
-│   ├── noctis.md             # Noctisの指示書
-│   ├── lunafreya.md          # Lunafreyaの指示書
-│   ├── ignis.md              # Ignisの指示書
-│   ├── gladiolus.md          # Gladiolusの指示書
-│   └── prompto.md            # Promptoの指示書
+├── .opencode/
+│   └── agents/               # ネイティブエージェント定義
+│       ├── noctis.md         # Noctis（王）エージェント
+│       ├── lunafreya.md      # Lunafreya（神凪）エージェント
+│       ├── ignis.md          # Ignis（軍師）エージェント
+│       ├── gladiolus.md      # Gladiolus（盾）エージェント
+│       └── prompto.md        # Prompto（銃）エージェント
 │
 ├── config/
 │   └── settings.yaml         # 言語その他の設定

@@ -374,7 +374,6 @@ DIRECTORIES=(
     "queue/reports"
     "config"
     "status"
-    "instructions"
     "logs"
     "demo_output"
     "skills"

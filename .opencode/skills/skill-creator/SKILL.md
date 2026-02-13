@@ -365,4 +365,4 @@ This skill is used by Comrades under Noctis.
 2. Save to that path (do not save to other project folders)
 3. Even when working on other projects, save FF15 agent skills to FF15 project's `.opencode/skills/`
 
-**Note**: For specific report format when creating skills, refer to your individual instruction file (instructions/{agent_name}.md).
+**Note**: For specific report format when creating skills, refer to your individual agent file (`.opencode/agents/{agent_name}.md`).
