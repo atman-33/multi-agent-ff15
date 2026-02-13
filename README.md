@@ -732,7 +732,7 @@ MCP (Model Context Protocol) servers extend OpenCode functionality. Setup method
 
 MCP servers provide OpenCode with access to external tools:
 - **Memory MCP** → Retain memory across sessions
-- **Playwright MCP** → Browser automation, screenshots, web scraping
+- **Playwright MCP** (Optional) → Browser automation, screenshots, web scraping *(Note: Consumes significant context; install only if needed)*
 
 ### Installing MCP Servers
 
@@ -753,11 +753,13 @@ OpenCode manages MCP servers via config file. Add to `~/.config/opencode/opencod
     "playwright": {
       "type": "local",
       "command": ["npx", "@playwright/mcp@latest"],
-      "enabled": true
+      "enabled": false
     }
   }
 }
 ```
+
+**Note:** Playwright MCP is disabled by default because it consumes significant context tokens. Enable (`"enabled": true`) only if you need browser automation features.
 
 ### Verify Installation
 

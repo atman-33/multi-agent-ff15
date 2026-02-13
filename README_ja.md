@@ -732,7 +732,7 @@ MCP（Model Context Protocol）サーバはOpenCodeの機能を拡張します�
 
 MCPサーバはOpenCodeに外部ツールへのアクセスを提供します：
 - **Memory MCP** → セッション間で記憶を保持
-- **Playwright MCP** → ブラウザ自動化、スクリーンショット、ウェブスクレイピング
+- **Playwright MCP**（オプション） → ブラウザ自動化、スクリーンショット、ウェブスクレイピング *(注：多くのコンテキストを消費するため、必要な場合のみインストールしてください)*
 
 ### MCPサーバのインストール
 
@@ -753,11 +753,13 @@ OpenCodeは設定ファイルでMCPサーバを管理します。`~/.config/open
     "playwright": {
       "type": "local",
       "command": ["npx", "@playwright/mcp@latest"],
-      "enabled": true
+      "enabled": false
     }
   }
 }
 ```
+
+**注:** Playwright MCPはデフォルトで無効化されています。これは多くのコンテキストトークンを消費するためです。ブラウザ自動化機能が必要な場合のみ、`"enabled": true`に変更してください。
 
 ### インストール確認
 

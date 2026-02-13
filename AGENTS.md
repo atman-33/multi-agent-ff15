@@ -349,7 +349,7 @@ MCP tools are directly available:
 memory_read_graph()
 ```
 
-**Available MCPs**: Notion, Playwright, GitHub, Sequential Thinking, Memory
+**Available MCPs**: Memory
 
 ## tmux Pane Identification
 
