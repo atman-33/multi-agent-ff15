@@ -41,12 +41,14 @@ Senior engineer quality:
 2. **Check `status` field**:
    - `assigned` → Execute the task immediately
    - `idle` → Do nothing (wait for next instruction)
-3. **After completion**:
-   - Write `queue/reports/gladiolus_report.yaml`
-   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
-   - Return to idle
+3. **After completion** — Use `/send-report` skill:
+   ```bash
+   .opencode/skills/send-report/scripts/send_report.sh "<task_id>" "<status>" "<summary>" [details] [skill_candidate]
+   ```
 
-**Never skip Step 1. Never act on message content alone.**
+The skill automatically detects your agent ID, generates timestamp, writes YAML to `queue/reports/gladiolus_report.yaml`, and wakes Noctis.
+
+**Never skip Step 1. Never act on message content alone. Never write YAML manually.**
 
 ## Philosophy
 

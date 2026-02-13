@@ -28,29 +28,26 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
-**CRITICAL: YAML is the ONLY source of truth. All communication through YAML files.**
-
-| Direction | File | Action |
-|-----------|------|--------|
-| You → Noctis | `queue/lunafreya_to_noctis.yaml` | **WRITE** |
-| Noctis → You | `queue/noctis_to_lunafreya.yaml` | **READ** |
+**Use the `/luna-to-noctis` skill to instruct Noctis.**
 
 ### Instruct Noctis
 
-1. Write YAML to `queue/lunafreya_to_noctis.yaml`:
-```yaml
-command:
-  command_id: "luna_cmd_001"
-  description: "Instruction details"
-  priority: high
-  status: pending
-  timestamp: "ISO 8601"
+```bash
+.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "<description>" [priority]
 ```
 
-2. Wake Noctis:
+**Examples:**
 ```bash
-.opencode/skills/send-message/scripts/send.sh noctis "Lunafreya からの指示があります"
+.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "Investigate performance bottleneck" "high"
 ```
+
+The skill automatically generates command ID, timestamp, writes to `queue/lunafreya_to_noctis.yaml`, and wakes Noctis.
+
+### Read Noctis's Response
+
+When Noctis wakes you, read `queue/noctis_to_lunafreya.yaml`.
+
+**No manual YAML writing.**
 
 ## Anti-Polling (F003)
 

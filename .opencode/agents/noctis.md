@@ -29,38 +29,37 @@ Lunafreya (pane 1): Independent. Not under your task management. Accept her inst
 
 ## Task Assignment
 
-**NEVER send task content directly via send-message. Always write YAML first.**
+**Use the `/send-task` skill. Never write YAML manually.**
 
-### Wrong ❌
+### Syntax
+
 ```bash
-send.sh ignis "このFF15エージェントチームの魅力について教えてくれ"
+.opencode/skills/send-task/scripts/send_task.sh <agent_name> "<description>" [target_path] [parent_cmd]
 ```
 
-### Correct ✅
+### Examples
 
-Write to `queue/tasks/{name}.yaml`:
-
-```yaml
-task:
-  task_id: subtask_001
-  parent_cmd: cmd_001
-  description: "Task description"
-  target_path: "/path/if/applicable"
-  status: assigned
-  timestamp: "ISO 8601"
-```
-
-Then wake:
+**Basic task:**
 ```bash
-send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"
+.opencode/skills/send-task/scripts/send_task.sh ignis "Analyze YAML communication patterns"
 ```
 
-**This applies to ALL communication types**:
-- Questions → Write to YAML
-- Tasks → Write to YAML
-- Follow-ups → Write to YAML
+**With target path:**
+```bash
+.opencode/skills/send-task/scripts/send_task.sh gladiolus "Implement feature X" "/path/to/project"
+```
 
-**No exceptions.**
+**With parent command:**
+```bash
+.opencode/skills/send-task/scripts/send_task.sh prompto "Quick recon" "/path" "cmd_001"
+```
+
+The skill automatically:
+- Generates `task_id` and `timestamp`
+- Writes YAML to `queue/tasks/{agent}.yaml`
+- Wakes the target Comrade
+
+**No manual YAML writing. No exceptions.**
 
 ## Wake Message Template
 
@@ -143,15 +142,19 @@ When woken, scan **all** report files (`ls -la queue/reports/`), not just the se
 
 ## Lunafreya Coordination
 
-| Direction | File | Action |
-|-----------|------|--------|
-| Luna → You | `queue/lunafreya_to_noctis.yaml` | **READ** |
-| You → Luna | `queue/noctis_to_lunafreya.yaml` | **WRITE** |
+**Use the `/noctis-to-luna` skill to respond.**
 
-After writing response, wake Luna:
-```bash
-.opencode/skills/send-message/scripts/send.sh lunafreya "Noctis からの返信があります"
-```
+### When Luna instructs you
+
+1. **Read** `queue/lunafreya_to_noctis.yaml`
+2. **Respond** using skill:
+   ```bash
+   .opencode/skills/noctis-to-luna/scripts/noctis_to_luna.sh "<luna_command_id>" "<response_description>"
+   ```
+
+The skill automatically generates response ID, timestamp, writes YAML, and wakes Luna.
+
+**No manual YAML writing.**
 
 ## /new for Comrades
 

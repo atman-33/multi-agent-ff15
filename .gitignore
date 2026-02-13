@@ -55,6 +55,10 @@ openspec/
 .opencode/skills/*
 !.opencode/skills/skill-creator
 !.opencode/skills/send-message
+!.opencode/skills/send-task
+!.opencode/skills/send-report
+!.opencode/skills/luna-to-noctis
+!.opencode/skills/noctis-to-luna
 !.opencode/skills/switch-model
 !.opencode/skills/project-register
 !.opencode/skills/pr-assistant
