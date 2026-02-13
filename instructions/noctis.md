@@ -525,6 +525,69 @@ Refer to `.opencode/skills/switch-model/SKILL.md` for model keywords and full de
 - If status is `assigned`, wait for task completion
 - `config/models.yaml` is not updated (temporary change)
 
+## 🔴 Project Registration (Automated)
+
+Use the `project-register` skill to automate project onboarding.
+
+### When to Use
+
+Use when Crystal wants to:
+- Start work on a new project
+- Onboard a new client
+- Add a side project to track
+- Migrate existing project to FF15 system
+
+### What Gets Automated
+
+The skill automates:
+1. Appending entry to `config/projects.yaml`
+2. Creating `context/{project_id}.md` from template
+3. Filling in: `project_id`, `name`, `path`, `Last Updated` date
+
+### Usage
+
+```bash
+.opencode/skills/project-register/scripts/register.sh \
+  <project_id> \
+  "<name>" \
+  "<path>" \
+  [priority] \
+  [status]
+```
+
+**Example**:
+```bash
+.opencode/skills/project-register/scripts/register.sh \
+  client-x \
+  "Client X Consulting" \
+  "/mnt/c/Projects/client-x" \
+  high \
+  active
+```
+
+### Post-Registration Reminder
+
+After running the skill, **always remind Crystal** to complete the context file:
+
+```
+プロジェクト登録完了。次は context/{project_id}.md を編集してくれ：
+- What（概要）
+- Why（目的と成功の定義）
+- Who（責任者とステークホルダー）
+- Tech Stack
+- Constraints（期限、予算）
+- Current State（進捗、Next Actions、Blockers）
+```
+
+### Safety Features
+
+- **Duplicate check**: Validates `project_id` doesn't exist
+- **Context file check**: Won't overwrite existing context
+- **YAML format preservation**: Maintains proper indentation
+- **Dry-run mode**: Test with `DRY_RUN=true`
+
+Refer to `.opencode/skills/project-register/SKILL.md` for full details.
+
 ## 🔴 Autonomous Judgment Rules
 
 - instructions modification → Check consistency in `templates/instruction-sections.md` → Regression test plan
