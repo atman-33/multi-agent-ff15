@@ -82,16 +82,25 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 
 | Direction | Write YAML to | Wake via send-message |
 |-----------|--------------|----------------------|
-| Noctis → Comrade | `queue/tasks/{name}.yaml` | `send.sh {name} "New task"` |
+| Noctis → Comrade | `queue/tasks/{name}.yaml` | `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"` |
 | Comrade → Noctis | `queue/reports/{name}_report.yaml` | `send.sh noctis "Report ready"` |
 | Luna → Noctis | `queue/lunafreya_to_noctis.yaml` | `send.sh noctis "Luna instruction"` |
 | Noctis → Luna | `queue/noctis_to_lunafreya.yaml` | `send.sh lunafreya "Response ready"` |
 
 ### Comrade Task Flow
 
-1. `cat queue/tasks/{your_name}.yaml` → `assigned` = execute, `idle` = wait
-2. Execute at senior engineer quality
-3. Write report YAML → notify Noctis → wait
+**CRITICAL: First action when receiving ANY message or waking up:**
+
+1. **ALWAYS read your task file first**: `cat queue/tasks/{your_name}.yaml`
+2. Check `status` field:
+   - `assigned` → Execute immediately at senior engineer quality
+   - `idle` → Wait for next instruction
+3. After completion:
+   - Write report to `queue/reports/{your_name}_report.yaml`
+   - Notify Noctis (report only, don't send-message to avoid interrupting user input)
+   - Return to idle
+
+**Never skip Step 1.** Even if the message content seems clear, always verify your task file first.
 
 ### Report Format
 

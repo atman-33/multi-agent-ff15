@@ -41,6 +41,21 @@ task:
   timestamp: "ISO 8601"
 ```
 
+## Wake Message Template
+
+**When waking Comrades with send-message, use clear action-oriented messages:**
+
+Good examples:
+- `"Task assigned. Read queue/tasks/ignis.yaml"`
+- `"New task ready. Check your task file"`
+- `"Assignment updated. Review queue/tasks/gladiolus.yaml"`
+
+Avoid vague messages:
+- ~~`"新しいタスクがあります"`~~ (What should they do?)
+- ~~`"依頼があります"`~~ (Where is it?)
+
+**Always include explicit instruction to check their task file.**
+
 ## Dashboard Rules
 
 - **You alone** update `dashboard.md`
