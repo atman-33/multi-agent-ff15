@@ -104,7 +104,7 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
    - `idle` → Wait for next instruction
 3. After completion:
    - Write report to `queue/reports/{your_name}_report.yaml`
-   - Notify Noctis (report only, don't send-message to avoid interrupting user input)
+   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
    - Return to idle
 
 **Never skip Step 1.** Even if the message content seems clear, always verify your task file first.

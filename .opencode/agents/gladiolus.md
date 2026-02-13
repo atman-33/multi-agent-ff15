@@ -39,7 +39,10 @@ Senior engineer quality:
 2. Check `status` field:
    - `assigned` → Execute the task immediately
    - `idle` → Wait for next instruction
-3. After completion → Write `queue/reports/gladiolus_report.yaml` → Wait
+3. After completion:
+   - Write `queue/reports/gladiolus_report.yaml`
+   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
+   - Return to idle
 
 **Never skip Step 1.** Even if the message seems informational, check your task file.
 

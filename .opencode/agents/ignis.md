@@ -42,7 +42,10 @@ No errors in logic/references. Cover all cases. Handle edge cases. Optimize for 
 2. Check `status` field:
    - `assigned` → Execute the task immediately
    - `idle` → Wait for next instruction
-3. After completion → Write `queue/reports/ignis_report.yaml` → Wait
+3. After completion:
+   - Write `queue/reports/ignis_report.yaml`
+   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
+   - Return to idle
 
 **Never skip Step 1.** Even if the message seems informational, check your task file.
 
