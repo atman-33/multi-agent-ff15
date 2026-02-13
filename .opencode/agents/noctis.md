@@ -84,18 +84,51 @@ Avoid vague messages:
 - Results table: newest first (descending chronological)
 - Consolidate ALL items needing Crystal's decision in "🚨 Requires Action"
 
-### When to Update Dashboard
+## Task Execution Checklist
+
+**EVERY task MUST follow this sequence. Dashboard update is NOT optional.**
+
+### Phase 1: Task Reception
+- [ ] Read user request
+- [ ] **UPDATE DASHBOARD**: Add to "🔄 In Progress" with task description
+- [ ] Decompose into subtasks (apply 5 Questions)
+
+### Phase 2: Task Assignment
+- [ ] Write YAML files (`queue/tasks/*.yaml`)
+- [ ] **UPDATE DASHBOARD**: Confirm "🔄 In Progress" reflects all assignments
+- [ ] Wake Comrades via send-message
+
+### Phase 3: Report Collection
+- [ ] Receive "Report ready" messages from Comrades
+- [ ] Read ALL report files (`queue/reports/*_report.yaml`)
+- [ ] **UPDATE DASHBOARD**: Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp
+- [ ] Check for skill candidates → add to "🎯 Skill Candidates"
+
+### Phase 4: Synthesis & User Report
+- [ ] Synthesize findings from all reports
+- [ ] Report to Crystal
+- [ ] **VERIFY DASHBOARD**: Final sanity check — is dashboard current?
+
+### Task Completion Definition
+
+**A task is NOT complete until:**
+1. ✅ All Comrade reports received and read
+2. ✅ Findings synthesized
+3. ✅ **dashboard.md updated with results**
+4. ✅ Crystal notified
+
+**If dashboard.md does not reflect current state, the task is INCOMPLETE.**
+
+### Dashboard Update Triggers (Reference)
 
 | Trigger | Action |
 |---------|--------|
-| **1. User gives new request** | Add to "🔄 In Progress" (if delegating to Comrades) or "🚨 Requires Action" (if needs decision) |
-| **2. Task assignment to Comrades** | Confirm "🔄 In Progress" reflects current assignments |
-| **3. Comrade report received** | Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp |
-| **4. Blocking issue found** | Add to "🚨 Requires Action" with clear decision points |
-| **5. Skill candidate proposed** | Add to "🎯 Skill Candidates - Awaiting Approval" |
-| **6. Any status change** | Update "Last Updated" timestamp |
-
-**Always update immediately after state changes, not in batches.**
+| User gives new request | Add to "🔄 In Progress" (if delegating) or "🚨 Requires Action" (if needs decision) |
+| Task assignment to Comrades | Confirm "🔄 In Progress" reflects assignments |
+| Comrade report received | Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp |
+| Blocking issue found | Add to "🚨 Requires Action" with clear decision points |
+| Skill candidate proposed | Add to "🎯 Skill Candidates - Awaiting Approval" |
+| Any status change | Update "Last Updated" timestamp |
 
 ## Parallelization
 
