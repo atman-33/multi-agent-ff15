@@ -382,26 +382,28 @@ result: null
 EOF
     done
 
-    # Lunafreya → Noctis coordination channel reset
+    # Lunafreya → Noctis communication channel reset
     cat > ./queue/lunafreya_to_noctis.yaml << EOF
-# Lunafreya → Noctis coordination channel
-command:
-  command_id: null
+# Lunafreya → Noctis communication channel
+message:
+  message_id: null
+  type: null
+  in_reply_to: null
   description: null
   priority: null
-  status: idle
-  timestamp: ""
+  timestamp: null
 EOF
 
-    # Noctis → Lunafreya response channel reset
+    # Noctis → Lunafreya communication channel reset
     cat > ./queue/noctis_to_lunafreya.yaml << EOF
-# Noctis → Lunafreya response channel
-response:
-  response_id: ""
-  original_command_id: ""
-  description: ""
-  status: idle
-  timestamp: ""
+# Noctis → Lunafreya communication channel
+message:
+  message_id: null
+  type: null
+  in_reply_to: null
+  description: null
+  priority: null
+  timestamp: null
 EOF
 
     # Remove legacy files if they exist
@@ -628,7 +630,7 @@ if [ "$SETUP_ONLY" = false ]; then
         exit 1
     fi
 
-    log_war "👑 Launching OpenCode for all agents..."
+    log_war "👑 Launching OpenCode for all agents (native agent mode)..."
 
     # Agent models and pane indices
     AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto")
@@ -639,62 +641,15 @@ if [ "$SETUP_ONLY" = false ]; then
         name="${AGENT_NAMES[$i]}"
         model="${AGENT_MODELS[$i]}"
 
-        tmux send-keys -t "ff15:main.${p}" "opencode --model ${model}"
+        tmux send-keys -t "ff15:main.${p}" "opencode --agent ${name} --model ${model}"
         tmux send-keys -t "ff15:main.${p}" Enter
-        log_info "  └─ ${name} launched"
+        log_info "  └─ ${name} launched (--agent ${name})"
 
         # Wait for stability
         sleep 1
     done
 
-    log_success "✅ Started in ${MODE_NAME} mode (5 agents deployed)"
-    echo ""
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # STEP 6.5: Load instruction files for each agent
-    # ═══════════════════════════════════════════════════════════════════════════
-    log_war "📜 Loading instruction files for each agent..."
-    echo ""
-
-    echo "  Waiting for OpenCode launch (max 30 seconds)..."
-
-    # Wait for Noctis launch (max 30 seconds)
-    for i in {1..30}; do
-        if tmux capture-pane -t "ff15:main.${PANE_BASE}" -p | grep -q "bypass permissions"; then
-            echo "  └─ Noctis OpenCode launch confirmed (${i} seconds)"
-            break
-        fi
-        sleep 1
-    done
-
-    # Send instruction file to Noctis
-    log_info "  └─ Delivering instructions to Noctis..."
-    tmux send-keys -t "ff15:main.${PANE_BASE}" "instructions/noctis.md を読んで役割を理解してくれ。"
-    sleep 0.5
-    tmux send-keys -t "ff15:main.${PANE_BASE}" Enter
-
-    # Send instruction file to Lunafreya
-    sleep 2
-    log_info "  └─ Delivering instructions to Lunafreya..."
-    tmux send-keys -t "ff15:main.$((PANE_BASE+1))" "instructions/lunafreya.md を読んで役割を理解してください。あなたはLunafreya（ルナフレーナ/神凪）です。"
-    sleep 0.5
-    tmux send-keys -t "ff15:main.$((PANE_BASE+1))" Enter
-
-    # Send instruction files to Comrades (individual files)
-    sleep 2
-    log_info "  └─ Delivering instructions to Comrades..."
-    COMRADE_NAMES=("ignis" "gladiolus" "prompto")
-    COMRADE_LABELS=("Ignis（イグニス/軍師）" "Gladiolus（グラディオラス/盾）" "Prompto（プロンプト/銃）")
-    COMRADE_INSTRUCTION_FILES=("instructions/ignis.md" "instructions/gladiolus.md" "instructions/prompto.md")
-    for i in {0..2}; do
-        p=$((PANE_BASE + 2 + i))
-        tmux send-keys -t "ff15:main.${p}" "${COMRADE_INSTRUCTION_FILES[$i]} を読んで役割を理解してください。あなたは${COMRADE_LABELS[$i]}です。"
-        sleep 0.3
-        tmux send-keys -t "ff15:main.${p}" Enter
-        sleep 0.5
-    done
-
-    log_success "✅ Instruction delivery complete"
+    log_success "✅ Started in ${MODE_NAME} mode (5 agents deployed with native agent definitions)"
     echo ""
 fi
 
@@ -747,7 +702,8 @@ echo "  ┌───────────────────────
 echo "  │  Attach to ff15 session and start commanding:            │"
 echo "  │     ffa   (tmux attach-session -t ff15)                 │"
 echo "  │                                                          │"
-echo "  │  ※ Each agent has loaded their instructions.            │"
+echo "  │  ※ Each agent has loaded their system prompt via         │"
+echo "  │    native agent definitions (.opencode/agents/*.md).     │"
 echo "  │    You can start commanding immediately.                 │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""

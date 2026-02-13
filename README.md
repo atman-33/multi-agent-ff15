@@ -130,7 +130,7 @@ Skills grow organically from real work — not from a predefined template librar
 | Memory MCP | Preferences, rules, cross-project knowledge | Everything |
 | Project files | \`config/projects.yaml\`, \`context/*.md\` | Everything |
 | YAML Queue | Tasks, reports (source of truth) | Everything |
-| Session | \`AGENTS.md\`, instructions | \`/new\` resets it |
+| Session | \`AGENTS.md\`, \`.opencode/agents/*.md\` | \`/new\` resets it |
 
 After \`/new\`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its task YAML. No expensive re-prompting.
 
@@ -593,7 +593,7 @@ Four-layer context structure for efficient knowledge sharing:
 | Layer 1: Memory MCP | \`memory/noctis_memory.jsonl\` | Cross-project, cross-session long-term memory |
 | Layer 2: Project | \`config/projects.yaml\`, \`projects/<id>.yaml\`, \`context/{project}.md\` | Project-specific information & technical knowledge |
 | Layer 3: YAML Queue | \`queue/noctis_to_ignis.yaml\`, \`queue/tasks/\`, \`queue/reports/\` | Task management - instructions & reports (source of truth) |
-| Layer 4: Session | AGENTS.md, instructions/*.md | Working context (resets with /new) |
+| Layer 4: Session | AGENTS.md, .opencode/agents/*.md | Working context (resets with /new) |
 
 #### /new Protocol (Cost Optimization)
 
@@ -732,7 +732,7 @@ MCP (Model Context Protocol) servers extend OpenCode functionality. Setup method
 
 MCP servers provide OpenCode with access to external tools:
 - **Memory MCP** → Retain memory across sessions
-- **Playwright MCP** → Browser automation, screenshots, web scraping
+- **Playwright MCP** (Optional) → Browser automation, screenshots, web scraping *(Note: Consumes significant context; install only if needed)*
 
 ### Installing MCP Servers
 
@@ -753,11 +753,13 @@ OpenCode manages MCP servers via config file. Add to `~/.config/opencode/opencod
     "playwright": {
       "type": "local",
       "command": ["npx", "@playwright/mcp@latest"],
-      "enabled": true
+      "enabled": false
     }
   }
 }
 ```
+
+**Note:** Playwright MCP is disabled by default because it consumes significant context tokens. Enable (`"enabled": true`) only if you need browser automation features.
 
 ### Verify Installation
 
@@ -962,15 +964,16 @@ multi-agent-ff15/
 │  ┌─────────────────── Setup Scripts ───────────────────┐
 ├── install.bat               # Windows: Initial setup
 ├── first_setup.sh            # Ubuntu/Mac: Initial setup
-├── standby.sh    # Daily startup (auto-load instructions)
+├── standby.sh                # Daily startup
 │  └────────────────────────────────────────────────────────────┘
 │
-├── instructions/             # Agent instructions
-│   ├── noctis.md             # Noctis instructions
-│   ├── lunafreya.md          # Lunafreya instructions
-│   ├── ignis.md              # Ignis instructions
-│   ├── gladiolus.md          # Gladiolus instructions
-│   └── prompto.md            # Prompto instructions
+├── .opencode/
+│   └── agents/               # Native agent definitions
+│       ├── noctis.md         # Noctis (King) agent
+│       ├── lunafreya.md      # Lunafreya (Oracle) agent
+│       ├── ignis.md          # Ignis (Strategist) agent
+│       ├── gladiolus.md      # Gladiolus (Shield) agent
+│       └── prompto.md        # Prompto (Gun) agent
 │
 ├── config/
 │   └── settings.yaml         # Language and other settings

@@ -132,4 +132,4 @@ To re-enable:
 - Plugin only validates `write` and `edit` tools (other tools pass through)
 - Validation is fail-open: if `AGENT_ID` is missing, no validation occurs
 - Error messages are designed to teach correct file usage
-- Complements enhanced instructions in `instructions/noctis.md` and `instructions/lunafreya.md`
+- Complements enhanced instructions in `.opencode/agents/noctis.md` and `.opencode/agents/lunafreya.md`

@@ -6,8 +6,9 @@ Automatically reminds Noctis to update `dashboard.md` via direct tmux send-keys 
 
 - **Todo Completion Tracking**: Alerts when all in-progress todos are completed
 - **Comrade Report Monitoring**: Detects when Comrades submit new reports
-- **Smart Cooldown**: 1-minute cooldown between reminders to avoid spam
+- **Smart Cooldown**: 30-second cooldown between reminders (reduced from 60s for faster response)
 - **Direct Notification**: Messages sent straight to Noctis pane via tmux send-keys — no intermediate files
+- **Enhanced Visibility**: Updated notification format with 🔔 emoji and "NOW" emphasis
 
 ## Installation
 
@@ -23,7 +24,7 @@ The plugin sends short reminder messages directly to the Noctis pane (ff15:0) vi
 When all in-progress todos are completed, Noctis receives:
 
 ```
-⚠️ [Dashboard Reminder] 3 todo(s) completed: Task A, Task B, Task C — Please update dashboard.md
+🔔 [DASHBOARD UPDATE REQUIRED] 3 todo(s) completed: Task A, Task B, Task C — Update dashboard.md NOW
 ```
 
 ### Trigger 2: Comrade Reports
@@ -31,7 +32,7 @@ When all in-progress todos are completed, Noctis receives:
 When Comrades submit new reports (`queue/reports/*_report.yaml`), Noctis receives:
 
 ```
-⚠️ [Dashboard Reminder] New report(s) from: prompto — Please update dashboard.md
+🔔 [DASHBOARD UPDATE REQUIRED] New report(s) from: ignis, gladiolus, prompto — Update dashboard.md NOW (Phase 3 checklist)
 ```
 
 ## Configuration
@@ -39,8 +40,14 @@ When Comrades submit new reports (`queue/reports/*_report.yaml`), Noctis receive
 Edit cooldown duration by changing `REMINDER_COOLDOWN` constant:
 
 ```typescript
-const REMINDER_COOLDOWN = 60000 // milliseconds (default: 1 minute)
+const REMINDER_COOLDOWN = 30000 // milliseconds (default: 30 seconds)
 ```
+
+## Recent Updates (2026-02-14)
+
+- **Cooldown reduced**: 60s → 30s for faster response to Comrade reports
+- **Enhanced notifications**: Changed from `⚠️ [Dashboard Reminder]` to `🔔 [DASHBOARD UPDATE REQUIRED]` with "NOW" emphasis
+- **Phase reference**: Added "(Phase 3 checklist)" to Comrade report notifications to guide Noctis to correct checklist step
 
 ## Logs
 
@@ -73,3 +80,4 @@ To re-enable:
 - Plugin uses cooldown to avoid spamming reminders
 - Notifications appear directly in Noctis pane via tmux send-keys
 - No intermediate files — zero context overhead for Noctis
+- Works in tandem with Task Execution Checklist in `noctis.md`

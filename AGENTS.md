@@ -1,15 +1,16 @@
 # multi-agent-ff15
 
-> **Version**: 5.0  
-> **Last Updated**: 2026-02-09  
-> **Framework**: OpenCode
+> **Version**: 6.0 | **Updated**: 2026-02-14 | **Framework**: OpenCode
+
+⚠️ **CRITICAL: Context File Maintenance Rules**
+- **Shared rules → AGENTS.md only**
+- **Role-specific → `.opencode/agents/{name}.md` only**
+- See end of file for full rules
 
 ## Overview
 
-multi-agent-ff15 is a multi-agent parallel development framework using OpenCode + tmux.
-Inspired by the Kingdom of Lucis from FINAL FANTASY XV, it enables parallel management of multiple projects.
-
-This project uses AGENTS.md for OpenCode configuration.
+Multi-agent parallel development framework using OpenCode + tmux.
+Inspired by FINAL FANTASY XV's Kingdom of Lucis.
 
 ### Agent Hierarchy
 
@@ -23,7 +24,7 @@ Crystal (User)
 │  (王)    │ (Leader +   │  (神凪)     │   Direct user interaction
 │          │  Task Mgr)  │            │   Can command Noctis
 └────┬─────┘            └────────────┘
-     │ YAML + send-keys
+     │ YAML + send-message
      ▼
 ┌────────────┬──────────┬────────────┐
 │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
@@ -31,349 +32,254 @@ Crystal (User)
 └────────────┴──────────┴────────────┘
 ```
 
-## Architecture
-
-### Communication Protocol
-
-**Event-driven communication (YAML + send-message skill)**
-- No polling (to save API costs)
-- Instructions/reports written to YAML files
-- Notifications via **send-message skill** (NOT direct tmux send-keys)
-
-**CRITICAL: Always use the send-message skill**
-
-```bash
-# Correct way - Use send-message skill
-.opencode/skills/send-message/scripts/send.sh <target_agent> "message content"
-
-# Examples:
-.opencode/skills/send-message/scripts/send.sh noctis "Task report ready"
-.opencode/skills/send-message/scripts/send.sh ignis "New task assigned"
-```
-
-**Why use send-message skill instead of direct tmux send-keys?**
-
-1. **Agent name abstraction**: Maps agent names to pane numbers automatically
-2. **Automated 2-call pattern**: Sends message + Enter in one command
-3. **Multi-send interval control**: Auto-inserts 2-second delays to prevent buffer overflow
-4. **Error handling**: Validates agent names before sending
-5. **Maintainability**: If pane layout changes, only the skill needs updating
-
-### Context Persistence (4 Layers)
+## Context Persistence
 
 ```
-Layer 1: Memory MCP (Persistent across sessions)
-  └─ User preferences, rules, cross-project knowledge
-
-Layer 2: Project (Persistent, project-specific)
-  └─ config/projects.yaml: Project list & status
-  └─ context/{project}.md: Project-specific knowledge
-
-Layer 3: YAML Queue (Persistent, filesystem)
-  └─ queue/tasks/{worker_name}.yaml (ignis, gladiolus, prompto)
-  └─ queue/reports/{worker_name}_report.yaml
-  └─ queue/lunafreya_to_noctis.yaml (Lunafreya → Noctis coordination)
-  └─ queue/noctis_to_lunafreya.yaml (Noctis → Lunafreya response)
-
-Layer 4: Session (Volatile, context)
-  └─ AGENTS.md (auto-loaded), instructions/*.md
-  └─ Reset by /new, summarized on compaction
+Layer 1: Memory MCP        — Persistent across sessions (preferences, rules)
+Layer 2: Project            — config/projects.yaml + context/{project}.md
+Layer 3: YAML Queue         — queue/tasks/, queue/reports/, lunafreya↔noctis channels
+Layer 4: Session (Volatile) — AGENTS.md + .opencode/agents/*.md (auto-loaded, reset by /new)
 ```
 
-### File Structure
+## File Structure
 
 ```
 multi-agent-ff15/
-├── AGENTS.md                   # System instructions (auto-loaded)
-├── instructions/
-│   ├── noctis.md              # Noctis (King) instructions
-│   ├── ignis.md               # Ignis (Tactician) instructions
-│   ├── gladiolus.md           # Gladiolus (Shield) instructions
-│   ├── prompto.md             # Prompto (Gun) instructions
-│   └── lunafreya.md           # Lunafreya (Oracle) instructions
-├── config/
-│   ├── settings.yaml          # Language, model, screenshot settings
-│   ├── models.yaml            # Model configuration per mode
-│   └── projects.yaml          # Project registry
-├── queue/                     # Communication (source of truth)
-│   ├── lunafreya_to_noctis.yaml  # Lunafreya → Noctis coordination
-│   ├── noctis_to_lunafreya.yaml  # Noctis → Lunafreya response
-│   ├── tasks/
-│   │   ├── ignis.yaml         # Ignis task file
-│   │   ├── gladiolus.yaml     # Gladiolus task file
-│   │   └── prompto.yaml       # Prompto task file
-│   └── reports/
-│       ├── ignis_report.yaml
-│       ├── gladiolus_report.yaml
-│       └── prompto_report.yaml
-├── memory/                    # Memory MCP storage
-├── dashboard.md               # Status board (written in language from config/settings.yaml)
-├── standby.sh                 # Deployment script
-└── first_setup.sh             # First-time setup
-```
-
-## Directory Structure
-
-| Directory | Purpose |
-|-----------|---------|
-| `config/` | Configuration files (settings, projects) |
-| `context/` | Project-specific context files |
-| `instructions/` | Agent role definitions (noctis, comrades, lunafreya) |
-| `memory/` | Memory MCP persistent storage |
-| `queue/` | Task queues and reports (YAML) |
-| `.opencode/skills/` | Skill definitions |
-| `templates/` | Template files |
-
-## Development Commands
-
-### Setup
-```bash
-./first_setup.sh              # First-time setup (installs tmux, dependencies)
-./standby.sh                  # Deploy the agent army
-```
-
-### tmux Session
-```bash
-tmux attach-session -t ff15   # Connect to all agents (or: ffa)
-```
-
-### Within tmux
-```bash
-Ctrl+B then 0-4    # Switch panes
-d                  # Detach (agents keep running)
-```
-
-## Coding Conventions
-
-### File Operations
-- **Always Read before Write/Edit** - OpenCode refuses to write to unread files
-- Read → Write/Edit as a set
-
-### YAML Status Transitions
-- `idle` → `assigned` (Noctis assigns task)
-- `assigned` → `done` (Comrade completes task)
-- `assigned` → `failed` (Comrade fails task)
-
-### Timestamp Format
-```bash
-# For dashboard (human-readable)
-date "+%Y-%m-%d %H:%M"
-
-# For YAML (ISO 8601)
-date "+%Y-%m-%dT%H:%M:%S"
+├── AGENTS.md                      # Shared rules (auto-loaded)
+├── .opencode/agents/*.md          # Agent-specific system prompts (auto-loaded)
+├── config/                        # settings.yaml, models.yaml, projects.yaml
+├── queue/
+│   ├── tasks/{ignis,gladiolus,prompto}.yaml
+│   ├── reports/{ignis,gladiolus,prompto}_report.yaml
+│   ├── lunafreya_to_noctis.yaml   # Luna → Noctis
+│   └── noctis_to_lunafreya.yaml   # Noctis → Luna
+├── context/                       # Project-specific context
+├── memory/                        # Memory MCP storage
+├── dashboard.md                   # Status board
+└── standby.sh                     # Deployment script
 ```
 
 ## Agent Roles
 
-### Noctis (王)
-- **Role**: King — Project commander AND task manager
-- **Location**: tmux session `ff15`, pane 0
-- **Responsibilities**:
-  - Receives user commands
-  - Decomposes tasks and assigns directly to Comrades via YAML
-  - Updates dashboard.md
-  - Never executes tasks directly
+| Agent | Role | Pane | Key Responsibility |
+|-------|------|------|--------------------|
+| **Noctis** | King | 0 | Decompose tasks, assign to Comrades, update dashboard. Never self-execute. |
+| **Lunafreya** | Oracle | 1 | Independent. Direct user interaction. Can command Noctis. |
+| **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
+| **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
+| **Prompto** | Gun | 4 | Fast recon and investigation |
 
-### Lunafreya (神凪)
-- **Role**: Oracle — Independent agent
-- **Location**: tmux session `ff15`, pane 1
-- **Responsibilities**:
-  - Works independently from Noctis task flow
-  - Interacts directly with user (Crystal)
-  - Can command Noctis via `queue/lunafreya_to_noctis.yaml`
-  - NOT part of the Comrade worker pool
+**Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
 
-### Comrades (3 members)
+## Communication Protocol — Iron Rule
 
-| Name | Character | Pane | Description |
-|------|-----------|------|-------------|
-| **Ignis** (イグニス) | 軍師 | `ff15` pane 2 | Strategy and analysis |
-| **Gladiolus** (グラディオラス) | 盾 | `ff15` pane 3 | Robust implementation |
-| **Prompto** (プロンプト) | 銃 | `ff15` pane 4 | Fast recon and investigation |
+**ALL inter-agent communication MUST go through YAML files.**
 
-- **Role**: Execute tasks assigned by Noctis
-- **Responsibilities**:
-  - Execute assigned tasks
-  - Write reports to YAML
-  - Notify Noctis via send-keys
-  - Never contact user directly
+| Valid ✅ | Invalid ❌ |
+|---------|-----------|
+| Write YAML → send wake message | Send content directly in message |
+| `send.sh ignis "Read queue/tasks/ignis.yaml"` | `send.sh ignis "Research topic X"` |
 
-## Communication Rules
+### Why YAML-only?
 
-### Upward Reports (Comrade → Noctis)
-- Write report YAML to `queue/reports/{worker_name}_report.yaml`
-- Use send-message skill to wake Noctis:
-  ```bash
-  .opencode/skills/send-message/scripts/send.sh noctis "Report ready: {task_id}"
-  ```
+1. **State persistence** — Messages disappear, YAML survives restarts
+2. **Source of truth** — One canonical location for task status
+3. **Recovery** — Agents resume from YAML after crash
+4. **Audit trail** — YAML files are git-trackable
+5. **No confusion** — Agents always know where to look
 
-### Downstream Commands (Noctis → Comrades)
-- Write YAML to `queue/tasks/{worker_name}.yaml`
-- Use send-message skill to wake target Comrade:
-  ```bash
-  .opencode/skills/send-message/scripts/send.sh ignis "New task assigned"
-  .opencode/skills/send-message/scripts/send.sh gladiolus "New task assigned"
-  .opencode/skills/send-message/scripts/send.sh prompto "New task assigned"
-  ```
+### send-message Purpose
 
-### Lunafreya → Noctis Coordination
-- Write command to `queue/lunafreya_to_noctis.yaml`
-- Use send-message skill to wake Noctis:
-  ```bash
-  .opencode/skills/send-message/scripts/send.sh noctis "Lunafreya からの指示があります"
-  ```
+`send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
 
-### Noctis → Lunafreya Response
-- Write response to `queue/noctis_to_lunafreya.yaml`
-- Use send-message skill to wake Lunafreya:
-  ```bash
-  .opencode/skills/send-message/scripts/send.sh lunafreya "Noctis からの返信があります"
-  ```
+**Event-driven only. No polling.**
 
-## Key Principles
+All inter-agent messaging uses the **send-message skill** (never direct `tmux send-keys`):
 
-### Absolute Forbidden Actions
-| ID | Action | Reason |
-|----|--------|--------|
-| F001 | Self-execute tasks | Violates hierarchy |
-| F002 | Skip hierarchy | Chain of command |
-| F003 | Use task agents | Use send-message skill instead |
-| F004 | Polling | Wastes API costs |
-| F005 | Skip context reading | Causes errors |
-| F006 | Direct tmux send-keys | Use send-message skill instead |
+```bash
+# Single
+.opencode/skills/send-message/scripts/send.sh <target> "message"
 
-### Model Override Protocol
-Comrade models can be dynamically switched:
-- **Promote**: Sonnet → Opus for complex tasks
-- **Demote**: Opus → Sonnet for simple tasks
+# Multiple (2s interval auto)
+.opencode/skills/send-message/scripts/send.sh ignis "msg" gladiolus "msg" prompto "msg"
+```
 
-Use `/model <opus|sonnet>` command via send-keys.
+### Message Flow
 
-## Language Settings
+| Direction | Write YAML to | Wake via send-message |
+|-----------|--------------|----------------------|
+| Noctis → Comrade | `queue/tasks/{name}.yaml` | `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"` |
+| Comrade → Noctis | `queue/reports/{name}_report.yaml` | `send.sh noctis "Report ready: {task_id}"` |
+| Luna → Noctis | `queue/lunafreya_to_noctis.yaml` | `send.sh noctis "Luna instruction"` |
+| Noctis → Luna | `queue/noctis_to_lunafreya.yaml` | `send.sh lunafreya "Response ready"` |
 
-Config in `config/settings.yaml`:
+### Comrade Task Flow
+
+**CRITICAL: YAML is the ONLY source of truth. Ignore message content.**
+
+When you receive ANY message or wake up:
+
+1. **Read your task file**: `cat queue/tasks/{your_name}.yaml`
+2. **Check `status` field**:
+   - `assigned` → Execute immediately at senior engineer quality
+   - `idle` → Do nothing (wait for next instruction)
+3. **After completion**:
+   - Write report to `queue/reports/{your_name}_report.yaml`
+   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
+   - Return to idle
+
+**Never skip Step 1. Never act on message content alone.**
+
+### Report Format
+
 ```yaml
-language: ja  # ja, en, es, zh, ko, fr, de, etc.
+report:
+  task_id: "subtask_xxx"
+  status: done  # or failed
+  summary: "1-2 sentence summary"
+  details: |
+    Detailed results
+  skill_candidate: null
+  timestamp: "ISO 8601"
 ```
 
-### When language: ja
-- FF15-style Japanese only
-- Examples: "了解、片付いたぞ", "行くぞ、みんな", "任せろ"
+## Forbidden Actions
 
-### When language: non-ja
-- FF15-style Japanese + translation in parentheses
-- Examples: "了解、片付いたぞ (Task completed!)", "任せろ (Leave it to me!)"
+### Noctis
 
-## Skill Discovery
+| ID | Action | Alternative |
+|----|--------|-------------|
+| F001 | Execute tasks yourself | Delegate to Comrades |
+| F002 | Use task agents | Use send-message skill |
+| F003 | Polling | Event-driven |
+| F004 | Skip context reading | Always read first |
 
-Bottom-up skill discovery system:
-1. Comrades identify reusable patterns during task execution
-2. Reports `skill_candidate` in YAML
-3. Noctis aggregates in dashboard.md
-4. User approves and promotes to skill
+### Comrades (Ignis, Gladiolus, Prompto)
 
-## Session Recovery
+| ID | Action | Alternative |
+|----|--------|-------------|
+| F001 | Contact user directly | Report to Noctis |
+| F002 | Order other Comrades | Request through Noctis |
+| F003 | Use task agents | Use send-message skill |
+| F004 | Polling | Event-driven |
+| F005 | Skip context reading | Always read first |
+| F006 | Modify other Comrades' files | Own files only (RACE-001) |
 
-### Session Start (All agents)
+### Lunafreya
 
-When starting a new session (first launch):
+| ID | Action | Alternative |
+|----|--------|-------------|
+| F001 | Accept tasks from Noctis | Execute autonomously |
+| F002 | Use task agents | Use send-message skill |
+| F003 | Polling | Event-driven |
+| F004 | Direct instructions to Comrades | Go through Noctis |
 
-1. **Read Memory MCP**: Run `memory_read_graph()` to check stored rules, context, and prohibitions
-2. **Read your role's instructions**:
-   - Noctis → instructions/noctis.md
-   - Ignis → instructions/ignis.md
-   - Gladiolus → instructions/gladiolus.md
-   - Prompto → instructions/prompto.md
-   - Lunafreya → instructions/lunafreya.md
-3. **Start working** after loading required context files
+## RACE-001: No Concurrent File Writes
 
-### After /new (Comrades only)
+Never assign multiple Comrades to write the same file. Each Comrade modifies only their dedicated files.
 
-After receiving `/new`, Comrades recover with minimal cost:
+## YAML Status Transitions
 
-**Recovery Flow (~5,000 tokens)**:
-```
-/new executed
-  │
-  ▼ AGENTS.md auto-loaded
-  │
-  ▼ Step 1: Check your ID
-  │   tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
-  │   → Example: gladiolus → You are Gladiolus
-  │
-  ▼ Step 2: Read Memory MCP (~700 tokens)
-  │   memory_read_graph()
-  │
-  ▼ Step 3: Read your task YAML (~800 tokens)
-  │   queue/tasks/{your_name}.yaml
-  │   → status: assigned = resume work
-  │   → status: idle = wait for next instruction
-  │
-  ▼ Step 4: Read project context if needed
-  │   If task YAML has `project` field → read context/{project}.md
-  │
-  ▼ Resume work
+`idle` → `assigned` (Noctis assigns) → `done` | `failed` (Comrade completes)
+
+## Timestamps
+
+Always use `date` command. Never guess.
+
+```bash
+date "+%Y-%m-%d %H:%M"       # dashboard (human-readable)
+date "+%Y-%m-%dT%H:%M:%S"    # YAML (ISO 8601)
 ```
 
-### After Compaction (All agents)
+## Memory MCP
 
-After compaction, reconstruct context from source of truth:
-
-**Noctis**:
-1. queue/tasks/{worker_name}.yaml — Assignment status (ignis, gladiolus, prompto)
-2. queue/reports/{worker_name}_report.yaml — Pending reports
-3. queue/lunafreya_to_noctis.yaml — Lunafreya commands
-4. queue/noctis_to_lunafreya.yaml — Pending responses to Lunafreya
-5. config/projects.yaml — Check project list
-6. Memory MCP (read_graph) — System settings
-7. context/{project}.md — Project knowledge (if exists)
-
-**Comrades** (Ignis, Gladiolus, Prompto):
-1. Check your ID: `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
-2. Read queue/tasks/{your_name}.yaml — Your task
-3. Memory MCP (read_graph) — System settings
-
-**Lunafreya**:
-1. Check your ID: `tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'`
-2. Memory MCP (read_graph) — System settings
-3. queue/lunafreya_to_noctis.yaml — Check pending commands to Noctis
-4. queue/noctis_to_lunafreya.yaml — Check responses from Noctis
-
-> **Important**: dashboard.md is secondary info (Noctis's summary). Source of truth is YAML files.
-> If dashboard.md conflicts with YAML, **YAML is correct**.
-
-## MCP Tools
-
-MCP tools are directly available:
-```
+All agents load at startup and after `/new`:
+```bash
 memory_read_graph()
 ```
 
-**Available MCPs**: Notion, Playwright, GitHub, Sequential Thinking, Memory
+## Language Settings
 
-## tmux Pane Identification
+Config: `config/settings.yaml` → `language: ja|en|...`
 
-Use `{@agent_id}` for reliable identification:
+- **ja**: FF15-style Japanese only
+- **non-ja**: FF15-style Japanese + translation in parentheses
+
+## Model Override
+
+```bash
+.opencode/skills/switch-model/scripts/switch.sh <agent> <model_keyword>
+```
+Agent must be idle. Temporary (does not update config/models.yaml).
+
+## Skill Discovery
+
+1. Comrade discovers reusable pattern → documents `skill_candidate` in report YAML
+2. Noctis aggregates in dashboard.md → User approves → promoted to skill
+
+```yaml
+skill_candidate:
+  name: "Pattern name"
+  description: "What is reusable"
+  applicable_to: "Use cases"
+```
+
+## Session Recovery
+
+### After /new
+
+AGENTS.md + agent system prompt are auto-loaded.
+
+```
+1. Check ID:  tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
+2. Load Memory MCP:  memory_read_graph()
+3. Role-based:
+   - Noctis: Read queue/tasks/*.yaml + queue/reports/*.yaml + dashboard.md
+   - Comrades: Read queue/tasks/{name}.yaml (assigned=resume, idle=wait)
+   - Lunafreya: Check lunafreya_to_noctis.yaml + noctis_to_lunafreya.yaml
+4. Read context/{project}.md if task has project field
+```
+
+### After Compaction
+
+Same as /new recovery. Source of truth = YAML files (dashboard.md is secondary).
+
+## tmux
+
+### Pane Identification
+
 ```bash
 tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
-# Returns: noctis | lunafreya | ignis | gladiolus | prompto
+tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},<name>}'
 ```
 
-For lookup by agent_id:
-```bash
-tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},gladiolus}'
-```
-
-## tmux Session Layout
-
-Single session `ff15` with 5 panes:
+### Layout
 
 ```
 ┌──────────────┬──────────────┐
-│    Noctis    │  Lunafreya   │  ← Command layer
-│   (pane 0)  │   (pane 1)   │
+│  Noctis (0)  │ Lunafreya(1) │
 ├──────────────┴──────────────┤
-│ Ignis  │ Gladiolus │Prompto │  ← Worker layer
-│(pane 2)│ (pane 3)  │(pane 4)│
-└────────┴───────────┴────────┘
+│ Ignis(2) │ Gladio(3) │Prom(4)│
+└──────────┴───────────┴──────┘
 ```
+
+## Context File Maintenance Rules
+
+When editing `AGENTS.md` or `.opencode/agents/*.md`:
+
+- **Be concise**: Every sentence must carry information. Remove filler, redundant explanations, and verbose phrasing.
+- **No duplication**: Shared rules belong in AGENTS.md only. Agent files contain only role-specific content.
+- **AI-optimized**: Write for AI agent comprehension — direct instructions, not prose. Use tables and lists over paragraphs.
+- **Token-conscious**: Minimize token consumption. Fewer tokens = more effective context window for actual work.
+
+### Edit Checklist (Review before saving)
+
+**Before editing AGENTS.md, ask:**
+- [ ] Is this rule shared by ALL agents? → Keep in AGENTS.md
+- [ ] Is this rule specific to ONE agent? → Move to `.opencode/agents/{name}.md`
+- [ ] Can I reference instead of duplicate? → Use "See {file}.md"
+
+**Before editing agent files, ask:**
+- [ ] Is this duplicating AGENTS.md? → Remove and reference instead
+- [ ] Is this truly role-specific? → Keep only if YES
+- [ ] Can I make this more concise? → Cut filler, use tables

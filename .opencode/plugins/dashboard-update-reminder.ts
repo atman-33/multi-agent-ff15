@@ -3,7 +3,7 @@ import type { Event } from "@opencode-ai/sdk"
 
 export const DashboardUpdateReminder: Plugin = async ({ client, $ }) => {
   let lastReminderTime = 0
-  const REMINDER_COOLDOWN = 60000
+  const REMINDER_COOLDOWN = 30000 // Reduced from 60s to 30s for faster response
 
   const shouldRemind = (): boolean => {
     const now = Date.now()
@@ -56,7 +56,7 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $ }) => {
         if (completedTodos.length > 0 && inProgressTodos.length === 0) {
           const items = completedTodos.map((t) => t.content).join(", ")
           await sendDirectNotification(
-            `⚠️ [Dashboard Reminder] ${completedTodos.length} todo(s) completed: ${items} — Please update dashboard.md`
+            `🔔 [DASHBOARD UPDATE REQUIRED] ${completedTodos.length} todo(s) completed: ${items} — Update dashboard.md NOW`
           )
         }
       }
@@ -72,8 +72,9 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $ }) => {
             return match ? match[1] : "unknown"
           })
 
+          // Enhanced notification with more visibility
           await sendDirectNotification(
-            `⚠️ [Dashboard Reminder] New report(s) from: ${reportNames.join(", ")} — Please update dashboard.md`
+            `🔔 [DASHBOARD UPDATE REQUIRED] New report(s) from: ${reportNames.join(", ")} — Update dashboard.md NOW (Phase 3 checklist)`
           )
         }
       }
