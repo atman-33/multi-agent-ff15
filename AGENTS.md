@@ -71,7 +71,26 @@ multi-agent-ff15/
 
 **Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
 
-## Communication Protocol
+## Communication Protocol — Iron Rule
+
+**ALL inter-agent communication MUST go through YAML files.**
+
+| Valid ✅ | Invalid ❌ |
+|---------|-----------|
+| Write YAML → send wake message | Send content directly in message |
+| `send.sh ignis "Read queue/tasks/ignis.yaml"` | `send.sh ignis "Research topic X"` |
+
+### Why YAML-only?
+
+1. **State persistence** — Messages disappear, YAML survives restarts
+2. **Source of truth** — One canonical location for task status
+3. **Recovery** — Agents resume from YAML after crash
+4. **Audit trail** — YAML files are git-trackable
+5. **No confusion** — Agents always know where to look
+
+### send-message Purpose
+
+`send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
 
 **Event-driven only. No polling.**
 
@@ -90,24 +109,26 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 | Direction | Write YAML to | Wake via send-message |
 |-----------|--------------|----------------------|
 | Noctis → Comrade | `queue/tasks/{name}.yaml` | `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"` |
-| Comrade → Noctis | `queue/reports/{name}_report.yaml` | `send.sh noctis "Report ready"` |
+| Comrade → Noctis | `queue/reports/{name}_report.yaml` | `send.sh noctis "Report ready: {task_id}"` |
 | Luna → Noctis | `queue/lunafreya_to_noctis.yaml` | `send.sh noctis "Luna instruction"` |
 | Noctis → Luna | `queue/noctis_to_lunafreya.yaml` | `send.sh lunafreya "Response ready"` |
 
 ### Comrade Task Flow
 
-**CRITICAL: First action when receiving ANY message or waking up:**
+**CRITICAL: YAML is the ONLY source of truth. Ignore message content.**
 
-1. **ALWAYS read your task file first**: `cat queue/tasks/{your_name}.yaml`
-2. Check `status` field:
+When you receive ANY message or wake up:
+
+1. **Read your task file**: `cat queue/tasks/{your_name}.yaml`
+2. **Check `status` field**:
    - `assigned` → Execute immediately at senior engineer quality
-   - `idle` → Wait for next instruction
-3. After completion:
+   - `idle` → Do nothing (wait for next instruction)
+3. **After completion**:
    - Write report to `queue/reports/{your_name}_report.yaml`
    - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
    - Return to idle
 
-**Never skip Step 1.** Even if the message content seems clear, always verify your task file first.
+**Never skip Step 1. Never act on message content alone.**
 
 ### Report Format
 

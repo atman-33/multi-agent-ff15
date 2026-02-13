@@ -29,6 +29,15 @@ Lunafreya (pane 1): Independent. Not under your task management. Accept her inst
 
 ## Task Assignment
 
+**NEVER send task content directly via send-message. Always write YAML first.**
+
+### Wrong ❌
+```bash
+send.sh ignis "このFF15エージェントチームの魅力について教えてくれ"
+```
+
+### Correct ✅
+
 Write to `queue/tasks/{name}.yaml`:
 
 ```yaml
@@ -40,6 +49,18 @@ task:
   status: assigned
   timestamp: "ISO 8601"
 ```
+
+Then wake:
+```bash
+send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"
+```
+
+**This applies to ALL communication types**:
+- Questions → Write to YAML
+- Tasks → Write to YAML
+- Follow-ups → Write to YAML
+
+**No exceptions.**
 
 ## Wake Message Template
 

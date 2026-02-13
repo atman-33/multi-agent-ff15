@@ -28,6 +28,8 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
+**CRITICAL: YAML is the ONLY source of truth. All communication through YAML files.**
+
 | Direction | File | Action |
 |-----------|------|--------|
 | You → Noctis | `queue/lunafreya_to_noctis.yaml` | **WRITE** |
