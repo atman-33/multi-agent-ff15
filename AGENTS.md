@@ -76,7 +76,8 @@ Layer 3: YAML Queue (Persistent, filesystem)
   └─ queue/noctis_to_lunafreya.yaml (Noctis → Lunafreya response)
 
 Layer 4: Session (Volatile, context)
-  └─ AGENTS.md (auto-loaded), instructions/*.md
+  └─ AGENTS.md (auto-loaded, shared rules)
+  └─ .opencode/agents/*.md (auto-loaded, agent-specific system prompt)
   └─ Reset by /new, summarized on compaction
 ```
 
@@ -84,13 +85,19 @@ Layer 4: Session (Volatile, context)
 
 ```
 multi-agent-ff15/
-├── AGENTS.md                   # System instructions (auto-loaded)
-├── instructions/
-│   ├── noctis.md              # Noctis (King) instructions
-│   ├── ignis.md               # Ignis (Tactician) instructions
-│   ├── gladiolus.md           # Gladiolus (Shield) instructions
-│   ├── prompto.md             # Prompto (Gun) instructions
-│   └── lunafreya.md           # Lunafreya (Oracle) instructions
+├── AGENTS.md                   # Shared rules (auto-loaded for all agents)
+├── .opencode/agents/
+│   ├── noctis.md              # Noctis (King) agent definition
+│   ├── ignis.md               # Ignis (Strategist) agent definition
+│   ├── gladiolus.md           # Gladiolus (Shield) agent definition
+│   ├── prompto.md             # Prompto (Gun) agent definition
+│   └── lunafreya.md           # Lunafreya (Oracle) agent definition
+├── instructions/               # Superseded (kept for reference)
+│   ├── noctis.md
+│   ├── ignis.md
+│   ├── gladiolus.md
+│   ├── prompto.md
+│   └── lunafreya.md
 ├── config/
 │   ├── settings.yaml          # Language, model, screenshot settings
 │   ├── models.yaml            # Model configuration per mode
@@ -118,7 +125,8 @@ multi-agent-ff15/
 |-----------|---------|
 | `config/` | Configuration files (settings, projects) |
 | `context/` | Project-specific context files |
-| `instructions/` | Agent role definitions (noctis, comrades, lunafreya) |
+| `.opencode/agents/` | Native agent definitions (system prompts) |
+| `instructions/` | Superseded instruction files (kept for reference) |
 | `memory/` | Memory MCP persistent storage |
 | `queue/` | Task queues and reports (YAML) |
 | `.opencode/skills/` | Skill definitions |
@@ -230,47 +238,177 @@ date "+%Y-%m-%dT%H:%M:%S"
   .opencode/skills/send-message/scripts/send.sh lunafreya "Noctis からの返信があります"
   ```
 
-## Key Principles
+## Forbidden Actions (By Role)
 
-### Absolute Forbidden Actions
-| ID | Action | Reason |
-|----|--------|--------|
-| F001 | Self-execute tasks | Violates hierarchy |
-| F002 | Skip hierarchy | Chain of command |
-| F003 | Use task agents | Use send-message skill instead |
-| F004 | Polling | Wastes API costs |
-| F005 | Skip context reading | Causes errors |
-| F006 | Direct tmux send-keys | Use send-message skill instead |
+### Noctis Forbidden Actions
 
-### Model Override Protocol
-Comrade models can be dynamically switched:
-- **Promote**: Sonnet → Opus for complex tasks
-- **Demote**: Opus → Sonnet for simple tasks
+| ID | Forbidden Action | Reason | Alternative |
+|----|------------------|--------|-------------|
+| F001 | Executing tasks yourself | Noctis's role is oversight | Delegate to Comrades |
+| F002 | Using task agents | Uncontrollable | Use send-message skill |
+| F003 | Polling (wait loops) | Wastes API costs | Event-driven |
+| F004 | Not reading context before acting | Causes misjudgment | Always read first |
 
-Use `/model <opus|sonnet>` command via send-keys.
+### Comrade Forbidden Actions (Ignis, Gladiolus, Prompto)
 
-## Language Settings
+| ID | Forbidden Action | Reason | Alternative |
+|----|------------------|--------|-------------|
+| F001 | Speaking directly to user (Crystal) | Reports go through Noctis | Report to Noctis |
+| F002 | Giving direct orders to other Comrades | Only Noctis has authority | Request through Noctis |
+| F003 | Using task agents | Cannot be controlled | Use send-message skill |
+| F004 | Polling (wait loops) | Wastes API costs | Event-driven |
+| F005 | Skipping context reading | Causes errors | Always read first |
+| F006 | Modifying other Comrades' files | Prevents conflicts (RACE-001) | Only modify your dedicated files |
+
+### Lunafreya Forbidden Actions
+
+| ID | Forbidden Action | Reason | Alternative |
+|----|------------------|--------|-------------|
+| F001 | Receiving task assignments from Noctis | Independent operation | Execute autonomously |
+| F002 | Using task agents | Cannot be controlled | Use send-message skill |
+| F003 | Polling (wait loops) | Wastes API costs | Event-driven |
+| F004 | Giving direct instructions to Comrades | Go through Noctis | Instruct Noctis instead |
+
+## Communication Protocol (Detailed)
+
+### send-message Skill Usage
+
+**CRITICAL: Always use the send-message skill for inter-agent communication. Do NOT use direct `tmux send-keys`.**
+
+```bash
+# Single agent
+.opencode/skills/send-message/scripts/send.sh <target_agent> "message content"
+
+# Multiple agents (2s interval is automatic)
+.opencode/skills/send-message/scripts/send.sh \
+  ignis "msg" gladiolus "msg" prompto "msg"
+```
+
+### Comrade Task Execution Flow
+
+1. Read task YAML: `cat queue/tasks/{your_name}.yaml`
+2. Check status: `assigned` → execute; `idle` → wait
+3. Execute task at senior engineer quality
+4. Write report YAML to `queue/reports/{your_name}_report.yaml`
+5. Notify Noctis via send-message skill
+6. Wait for next instruction
+
+### Report YAML Format
+
+```yaml
+report:
+  task_id: "subtask_xxx"
+  status: done  # or failed
+  summary: "Summary of execution results (1-2 sentences)"
+  details: |
+    Detailed results and deliverables description
+  skill_candidate: null  # Document reusable patterns here if found
+  timestamp: "2026-02-11T16:45:00"
+```
+
+On failure:
+```yaml
+report:
+  task_id: "subtask_xxx"
+  status: failed
+  summary: "Reason for failure"
+  details: |
+    Cause: [Specifically]
+    Countermeasure: [If there's an alternative]
+  timestamp: "ISO 8601"
+```
+
+### Hierarchy Reference
+
+```
+Crystal (User)
+    │
+    ├─ Noctis (ff15:main.0) ← Comrades' only reporting destination
+    │    │
+    │    └─ Comrades (Ignis, Gladiolus, Prompto)
+    │
+    └─ Lunafreya (ff15:main.1) ← Independent. Not a reporting destination for Comrades
+```
+
+## No Concurrent File Writes (RACE-001)
+
+Do not instruct multiple Comrades to write to the same file. Separate into **dedicated files per agent**.
+
+This prevents race conditions and file conflicts. Each Comrade should only modify their own dedicated files (task YAML, report YAML, and files assigned by Noctis in their task description).
+
+## Shared Utility Rules
+
+### Timestamp Retrieval
+
+**Always use the `date` command to get timestamps. Do not guess.**
+
+```bash
+# For dashboard.md (human-readable)
+date "+%Y-%m-%d %H:%M"
+
+# For YAML (ISO 8601 format)
+date "+%Y-%m-%dT%H:%M:%S"
+```
+
+### Memory MCP (Knowledge Graph)
+
+All agents must load Memory MCP at startup and after `/new`:
+
+```bash
+memory_read_graph()
+```
+
+Maintains system settings, rules, project information, and past patterns.
+
+### Language Settings
 
 Config in `config/settings.yaml`:
 ```yaml
 language: ja  # ja, en, es, zh, ko, fr, de, etc.
 ```
 
-### When language: ja
-- FF15-style Japanese only
+**When language: ja** → FF15-style Japanese only
 - Examples: "了解、片付いたぞ", "行くぞ、みんな", "任せろ"
 
-### When language: non-ja
-- FF15-style Japanese + translation in parentheses
+**When language: non-ja** → FF15-style Japanese + translation in parentheses
 - Examples: "了解、片付いたぞ (Task completed!)", "任せろ (Leave it to me!)"
+
+### Model Override Protocol
+
+Comrade models can be dynamically switched:
+- **Promote**: Sonnet → Opus for complex tasks
+- **Demote**: Opus → Sonnet for simple tasks
+
+Use the `switch-model` skill script (agent must be idle):
+```bash
+.opencode/skills/switch-model/scripts/switch.sh <agent_name> <model_keyword>
+```
 
 ## Skill Discovery
 
-Bottom-up skill discovery system:
+### Bottom-up Discovery System
+
 1. Comrades identify reusable patterns during task execution
-2. Reports `skill_candidate` in YAML
+2. Report `skill_candidate` in report YAML
 3. Noctis aggregates in dashboard.md
 4. User approves and promotes to skill
+
+### skill_candidate Format
+
+When a reusable pattern is discovered during task execution, document it in the report YAML:
+
+```yaml
+skill_candidate:
+  name: "Pattern name"
+  description: "What is reusable"
+  applicable_to: "What situations it can be used for"
+  example: "Specific usage example"
+```
+
+**Discovery tips:**
+- "This pattern could be used in other projects"
+- "This procedure is generic and reusable"
+- "This decision criteria applies broadly"
 
 ## Session Recovery
 
@@ -278,24 +416,21 @@ Bottom-up skill discovery system:
 
 When starting a new session (first launch):
 
-1. **Read Memory MCP**: Run `memory_read_graph()` to check stored rules, context, and prohibitions
-2. **Read your role's instructions**:
-   - Noctis → instructions/noctis.md
-   - Ignis → instructions/ignis.md
-   - Gladiolus → instructions/gladiolus.md
-   - Prompto → instructions/prompto.md
-   - Lunafreya → instructions/lunafreya.md
-3. **Start working** after loading required context files
+1. **AGENTS.md is auto-loaded** (shared rules available immediately)
+2. **Agent system prompt is auto-loaded** (from `.opencode/agents/{name}.md`)
+3. **Read Memory MCP**: Run `memory_read_graph()` to check stored rules, context, and prohibitions
+4. **Start working** after loading required context files
 
-### After /new (Comrades only)
+### After /new (All agents)
 
-After receiving `/new`, Comrades recover with minimal cost:
+After `/new`, agents recover with minimal cost. AGENTS.md and agent system prompt are auto-loaded.
 
-**Recovery Flow (~5,000 tokens)**:
+**Recovery Flow:**
 ```
 /new executed
   │
-  ▼ AGENTS.md auto-loaded
+  ▼ AGENTS.md auto-loaded (shared rules)
+  ▼ Agent system prompt auto-loaded (role-specific)
   │
   ▼ Step 1: Check your ID
   │   tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
@@ -304,10 +439,12 @@ After receiving `/new`, Comrades recover with minimal cost:
   ▼ Step 2: Read Memory MCP (~700 tokens)
   │   memory_read_graph()
   │
-  ▼ Step 3: Read your task YAML (~800 tokens)
-  │   queue/tasks/{your_name}.yaml
-  │   → status: assigned = resume work
-  │   → status: idle = wait for next instruction
+  ▼ Step 3: Role-based recovery
+  │   ├─ Noctis: Read queue/tasks/*.yaml + queue/reports/*.yaml + dashboard.md
+  │   ├─ Comrades: Read queue/tasks/{your_name}.yaml
+  │   │   → status: assigned = resume work
+  │   │   → status: idle = wait for next instruction
+  │   └─ Lunafreya: Check queue/lunafreya_to_noctis.yaml + queue/noctis_to_lunafreya.yaml
   │
   ▼ Step 4: Read project context if needed
   │   If task YAML has `project` field → read context/{project}.md
@@ -317,7 +454,8 @@ After receiving `/new`, Comrades recover with minimal cost:
 
 ### After Compaction (All agents)
 
-After compaction, reconstruct context from source of truth:
+After compaction, reconstruct context from source of truth.
+AGENTS.md and agent system prompt are always available (auto-loaded).
 
 **Noctis**:
 1. queue/tasks/{worker_name}.yaml — Assignment status (ignis, gladiolus, prompto)
