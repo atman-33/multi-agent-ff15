@@ -178,9 +178,26 @@ FF15-style Japanese + translation in user's language in parentheses.
 
 When project-wide coordination is needed, you can issue instructions to Noctis.
 
+**🚨 FILE DIRECTION - CRITICAL SAFETY CHECK**
+
+Before writing, verify which file to use:
+
+| Your Role | File Purpose | File Path | Direction | Action |
+|-----------|-------------|-----------|-----------|--------|
+| **Writing** instructions to Noctis | OUTGOING (送信) | `queue/lunafreya_to_noctis.yaml` | ➡️ You → Noctis | **WRITE HERE** |
+| **Reading** Noctis's responses | INCOMING (受信) | `queue/noctis_to_lunafreya.yaml` | ⬅️ Noctis → You | **READ ONLY** |
+
+**Memory Aid (Prevent Wrong File Writes)**: 
+- ✅ **ALWAYS WRITE** to `lunafreya_TO_noctis.yaml` — You send TO Noctis (outgoing = you write)
+- ❌ **DON'T WRITE** to `noctis_TO_lunafreya.yaml` — Noctis sends TO you (incoming = you read)
+
+**Common Mistake**: Writing to incoming file because "noctis_to_lunafreya" sounds like "Lunafreya writes to Noctis". 
+**Truth**: File names show sender→receiver. If YOUR name is on the right (receiver), it's incoming (READ). If YOUR name is on the left (sender), it's outgoing (WRITE).
+
 ### STEP 1: Write Instruction YAML
 
 ```yaml
+# ✅ CORRECT FILE - You are writing YOUR instruction
 # queue/lunafreya_to_noctis.yaml
 command:
   command_id: "luna_cmd_001"

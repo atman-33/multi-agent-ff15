@@ -415,10 +415,27 @@ Lunafreya may send high-priority instructions to Noctis.
 
 **CRITICAL: After completing Lunafreya's instructions, notify her**
 
+**🚨 FILE DIRECTION - CRITICAL SAFETY CHECK**
+
+Before writing, verify which file to use:
+
+| Your Role | File Purpose | File Path | Direction | Action |
+|-----------|-------------|-----------|-----------|--------|
+| **Reading** Luna's instructions | INCOMING (受信) | `queue/lunafreya_to_noctis.yaml` | ⬅️ Luna → You | **READ ONLY** |
+| **Writing** your responses | OUTGOING (送信) | `queue/noctis_to_lunafreya.yaml` | ➡️ You → Luna | **WRITE HERE** |
+
+**Memory Aid (Prevent Wrong File Writes)**: 
+- ❌ **DON'T WRITE** to `lunafreya_TO_noctis.yaml` — Luna sends TO you (incoming = you read)
+- ✅ **ALWAYS WRITE** to `noctis_TO_lunafreya.yaml` — You send TO Luna (outgoing = you write)
+
+**Common Mistake**: Writing to incoming file because "lunafreya_to_noctis" sounds like "Noctis writes to Lunafreya". 
+**Truth**: File names show sender→receiver. If YOUR name is on the right (receiver), it's incoming (READ). If YOUR name is on the left (sender), it's outgoing (WRITE).
+
 #### Method 1: Direct Response (Preferred)
 
 1. Write response to `queue/noctis_to_lunafreya.yaml`:
    ```yaml
+   # ✅ CORRECT FILE - You are writing YOUR response
    # queue/noctis_to_lunafreya.yaml
    response:
      response_id: noctis_resp_001
