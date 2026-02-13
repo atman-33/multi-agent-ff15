@@ -502,35 +502,36 @@ EOF
 done
 log_info "Verified/created Comrade report files (ignis/gladiolus/prompto)"
 
-# Lunafreya → Noctis coordination channel
+# Lunafreya → Noctis communication channel
 LUNA_CHANNEL="$SCRIPT_DIR/queue/lunafreya_to_noctis.yaml"
 if [ ! -f "$LUNA_CHANNEL" ]; then
     cat > "$LUNA_CHANNEL" << EOF
-# Lunafreya → Noctis coordination channel
-command:
-  command_id: null
+# Lunafreya → Noctis communication channel
+message:
+  message_id: null
+  type: null
+  in_reply_to: null
   description: null
   priority: null
-  status: idle
-  timestamp: ""
+  timestamp: null
 EOF
-    log_info "Created Lunafreya→Noctis coordination channel"
+    log_info "Created Lunafreya→Noctis communication channel"
 fi
 
-# Noctis → Lunafreya response channel
+# Noctis → Lunafreya communication channel
 NOCTIS_LUNA_CHANNEL="$SCRIPT_DIR/queue/noctis_to_lunafreya.yaml"
 if [ ! -f "$NOCTIS_LUNA_CHANNEL" ]; then
     cat > "$NOCTIS_LUNA_CHANNEL" << EOF
-# Noctis → Lunafreya response channel
-# Noctis writes responses here after completing Lunafreya's instructions
-response:
-  response_id: ""
-  original_command_id: ""
-  description: ""
-  status: idle
-  timestamp: ""
+# Noctis → Lunafreya communication channel
+message:
+  message_id: null
+  type: null
+  in_reply_to: null
+  description: null
+  priority: null
+  timestamp: null
 EOF
-    log_info "Created Noctis→Lunafreya response channel"
+    log_info "Created Noctis→Lunafreya communication channel"
 fi
 
 RESULTS+=("Queue files: OK")

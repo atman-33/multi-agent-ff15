@@ -28,24 +28,45 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
-**Use the `/luna-to-noctis` skill to instruct Noctis.**
+**Use the `/luna-to-noctis` skill for all communication.**
 
-### Instruct Noctis
+### Message Types
+
+| Type | When to Use | Example |
+|------|-------------|---------|
+| `instruction` | Direct task to Noctis (default) | "Coordinate with Comrades to implement X" |
+| `consultation` | Ask Noctis's opinion | "Should we use approach A or B?" |
+| `response` | Reply to Noctis's message | "Reviewed. Approach looks good." |
+| `info` | Notification | "User request completed" |
+
+### Send Message to Noctis
 
 ```bash
-.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "<description>" [priority]
+.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
 ```
 
 **Examples:**
+
 ```bash
-.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "Investigate performance bottleneck" "high"
+# Instruction (default)
+luna_to_noctis.sh "Investigate performance bottleneck in API"
+
+# Consultation
+luna_to_noctis.sh "What do you think about this approach?" "consultation" "medium"
+
+# Response with threading
+luna_to_noctis.sh "Completed." "response" "medium" "noct_msg_1234567890"
 ```
 
-The skill automatically generates command ID, timestamp, writes to `queue/lunafreya_to_noctis.yaml`, and wakes Noctis.
+### When Noctis Contacts You
 
-### Read Noctis's Response
-
-When Noctis wakes you, read `queue/noctis_to_lunafreya.yaml`.
+1. **Read** `queue/noctis_to_lunafreya.yaml`
+2. **Check** `message.type`:
+   - `instruction` → Execute requested task
+   - `consultation` → Provide opinion/recommendation
+   - `response` → Process his reply (check `in_reply_to`)
+   - `info` → Acknowledge or take note
+3. **Respond** using skill with appropriate type
 
 **No manual YAML writing.**
 

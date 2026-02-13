@@ -382,26 +382,28 @@ result: null
 EOF
     done
 
-    # Lunafreya → Noctis coordination channel reset
+    # Lunafreya → Noctis communication channel reset
     cat > ./queue/lunafreya_to_noctis.yaml << EOF
-# Lunafreya → Noctis coordination channel
-command:
-  command_id: null
+# Lunafreya → Noctis communication channel
+message:
+  message_id: null
+  type: null
+  in_reply_to: null
   description: null
   priority: null
-  status: idle
-  timestamp: ""
+  timestamp: null
 EOF
 
-    # Noctis → Lunafreya response channel reset
+    # Noctis → Lunafreya communication channel reset
     cat > ./queue/noctis_to_lunafreya.yaml << EOF
-# Noctis → Lunafreya response channel
-response:
-  response_id: ""
-  original_command_id: ""
-  description: ""
-  status: idle
-  timestamp: ""
+# Noctis → Lunafreya communication channel
+message:
+  message_id: null
+  type: null
+  in_reply_to: null
+  description: null
+  priority: null
+  timestamp: null
 EOF
 
     # Remove legacy files if they exist

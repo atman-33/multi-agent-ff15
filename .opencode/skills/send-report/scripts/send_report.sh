@@ -52,13 +52,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
 # --- YAML generation ---
+DETAILS_EXPANDED=$(echo -e "$DETAILS")
+
 cat > "${REPO_ROOT}/queue/reports/${AGENT_ID}_report.yaml" << EOF
 report:
   task_id: "${TASK_ID}"
   status: ${STATUS}
   summary: "${SUMMARY}"
   details: |
-$(if [[ -n "$DETAILS" ]]; then echo "$DETAILS" | sed 's/^/    /'; else echo "    (No additional details)"; fi)
+$(if [[ -n "$DETAILS_EXPANDED" ]]; then echo "$DETAILS_EXPANDED" | sed 's/^/    /'; else echo "    (No additional details)"; fi)
   skill_candidate: ${SKILL_CANDIDATE}
   timestamp: "${TIMESTAMP}"
 EOF

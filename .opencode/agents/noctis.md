@@ -142,17 +142,45 @@ When woken, scan **all** report files (`ls -la queue/reports/`), not just the se
 
 ## Lunafreya Coordination
 
-**Use the `/noctis-to-luna` skill to respond.**
+**Use the `/noctis-to-luna` skill for all communication.**
 
-### When Luna instructs you
+### Message Types
+
+| Type | When to Use | Example |
+|------|-------------|---------|
+| `response` | Reply to Luna's message (default) | "Investigation complete. See details." |
+| `consultation` | Ask Luna's opinion | "Which approach do you recommend?" |
+| `instruction` | Request Luna to review/analyze | "Please review this architecture decision" |
+| `info` | Status update | "All Comrades completed their tasks" |
+
+### Send Message to Luna
+
+```bash
+.opencode/skills/noctis-to-luna/scripts/noctis_to_luna.sh "<description>" [type] [priority] [in_reply_to]
+```
+
+**Examples:**
+
+```bash
+# Response (default)
+noctis_to_luna.sh "Task completed as requested"
+
+# Consultation
+noctis_to_luna.sh "What's your take on this technical decision?" "consultation" "high"
+
+# Response with threading
+noctis_to_luna.sh "Completed." "response" "medium" "luna_msg_1234567890"
+```
+
+### When Luna Contacts You
 
 1. **Read** `queue/lunafreya_to_noctis.yaml`
-2. **Respond** using skill:
-   ```bash
-   .opencode/skills/noctis-to-luna/scripts/noctis_to_luna.sh "<luna_command_id>" "<response_description>"
-   ```
-
-The skill automatically generates response ID, timestamp, writes YAML, and wakes Luna.
+2. **Check** `message.type`:
+   - `instruction` → Execute or delegate to Comrades
+   - `consultation` → Analyze and provide recommendation
+   - `response` → Process her reply (check `in_reply_to`)
+   - `info` → Acknowledge or take note
+3. **Respond** using skill with appropriate type
 
 **No manual YAML writing.**
 
