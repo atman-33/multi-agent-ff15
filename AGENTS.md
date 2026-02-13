@@ -2,6 +2,11 @@
 
 > **Version**: 6.0 | **Updated**: 2026-02-14 | **Framework**: OpenCode
 
+⚠️ **CRITICAL: Context File Maintenance Rules**
+- **Shared rules → AGENTS.md only**
+- **Role-specific → `.opencode/agents/{name}.md` only**
+- See end of file for full rules
+
 ## Overview
 
 Multi-agent parallel development framework using OpenCode + tmux.
@@ -63,6 +68,8 @@ multi-agent-ff15/
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
+
+**Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
 
 ## Communication Protocol
 
@@ -243,3 +250,15 @@ When editing `AGENTS.md` or `.opencode/agents/*.md`:
 - **No duplication**: Shared rules belong in AGENTS.md only. Agent files contain only role-specific content.
 - **AI-optimized**: Write for AI agent comprehension — direct instructions, not prose. Use tables and lists over paragraphs.
 - **Token-conscious**: Minimize token consumption. Fewer tokens = more effective context window for actual work.
+
+### Edit Checklist (Review before saving)
+
+**Before editing AGENTS.md, ask:**
+- [ ] Is this rule shared by ALL agents? → Keep in AGENTS.md
+- [ ] Is this rule specific to ONE agent? → Move to `.opencode/agents/{name}.md`
+- [ ] Can I reference instead of duplicate? → Use "See {file}.md"
+
+**Before editing agent files, ask:**
+- [ ] Is this duplicating AGENTS.md? → Remove and reference instead
+- [ ] Is this truly role-specific? → Keep only if YES
+- [ ] Can I make this more concise? → Cut filler, use tables

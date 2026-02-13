@@ -63,6 +63,19 @@ Avoid vague messages:
 - Results table: newest first (descending chronological)
 - Consolidate ALL items needing Crystal's decision in "🚨 Requires Action"
 
+### When to Update Dashboard
+
+| Trigger | Action |
+|---------|--------|
+| **1. User gives new request** | Add to "🔄 In Progress" (if delegating to Comrades) or "🚨 Requires Action" (if needs decision) |
+| **2. Task assignment to Comrades** | Confirm "🔄 In Progress" reflects current assignments |
+| **3. Comrade report received** | Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp |
+| **4. Blocking issue found** | Add to "🚨 Requires Action" with clear decision points |
+| **5. Skill candidate proposed** | Add to "🎯 Skill Candidates - Awaiting Approval" |
+| **6. Any status change** | Update "Last Updated" timestamp |
+
+**Always update immediately after state changes, not in batches.**
+
 ## Parallelization
 
 - Independent tasks → multiple Comrades simultaneously
@@ -107,3 +120,19 @@ tmux capture-pane -t ff15:{pane_index} -p | tail -20
 ```bash
 tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},ignis}'
 ```
+
+## Context File Edit Protocol
+
+**After editing AGENTS.md or .opencode/agents/*.md:**
+
+1. **Self-review against Context File Maintenance Rules**:
+   - Concise? (No filler sentences)
+   - No duplication? (Shared → AGENTS.md, Role-specific → agent file)
+   - AI-optimized? (Tables/lists, not prose)
+   - Token-conscious? (Minimal consumption)
+
+2. **Duplication check**:
+   - Search for similar content in other files
+   - If found → consolidate or reference
+
+3. **Report in dashboard**: Note the rule compliance check
