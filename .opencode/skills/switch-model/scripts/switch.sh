@@ -26,7 +26,11 @@ declare -A PANE_INDEX=(
 if [[ $# -ne 2 ]]; then
   echo "Usage: switch.sh <agent_name> <model_keyword>" >&2
   echo "" >&2
-  echo "Model keywords: gpt-5-mini, sonnet, opus, haiku, gemini, grok-code-fast-1, gpt-5.2-codex" >&2
+  echo "Model keywords (must match OpenCode /models display exactly):" >&2
+  echo "  Claude: opus, sonnet, haiku" >&2
+  echo "  GPT: gpt-5, gpt-5-mini, gpt-5.1, gpt-5.2" >&2
+  echo "  Gemini: gemini (matches Gemini 3 Flash, Gemini 2.5 Pro, etc.)" >&2
+  echo "  Grok: grok (matches Grok Code Fast 1)" >&2
   exit 1
 fi
 
