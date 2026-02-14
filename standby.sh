@@ -672,7 +672,7 @@ if [ "$SETUP_ONLY" = false ]; then
         name="${AGENT_NAMES[$i]}"
         model="${AGENT_MODELS[$i]}"
 
-        tmux send-keys -t "ff15:main.${p}" "opencode --agent ${name} --model ${model}"
+        tmux send-keys -t "ff15:main.${p}" "export AGENT_ID=${name} && opencode --agent ${name} --model ${model}"
         tmux send-keys -t "ff15:main.${p}" Enter
         log_info "  └─ ${name} launched (--agent ${name})"
 
