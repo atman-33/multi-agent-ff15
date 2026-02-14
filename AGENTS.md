@@ -74,11 +74,7 @@ multi-agent-ff15/
 ## Communication Protocol — Iron Rule
 
 **ALL inter-agent communication MUST go through YAML files.**
-
-| Valid ✅ | Invalid ❌ |
-|---------|-----------|
-| Write YAML → send wake message | Send content directly in message |
-| `send.sh ignis "Read queue/tasks/ignis.yaml"` | `send.sh ignis "Research topic X"` |
+Write YAML first, then send a wake message via `send-message` skill to notify the target agent. Sending task content directly in messages is forbidden.
 
 ### Why YAML-only?
 
@@ -106,12 +102,10 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 
 ### Message Flow
 
-| Direction | Write YAML to | Wake via send-message |
-|-----------|--------------|----------------------|
-| Noctis → Comrade | `queue/tasks/{name}.yaml` | `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"` |
-| Comrade → Noctis | `queue/reports/{name}_report.yaml` | `send.sh noctis "Report ready: {task_id}"` |
-| Luna → Noctis | `queue/lunafreya_to_noctis.yaml` | `send.sh noctis "Luna instruction"` |
-| Noctis → Luna | `queue/noctis_to_lunafreya.yaml` | `send.sh lunafreya "Response ready"` |
+- **Noctis → Comrade**: Write to `queue/tasks/{name}.yaml`, wake via `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"`
+- **Comrade → Noctis**: Write to `queue/reports/{name}_report.yaml`, wake via `send.sh noctis "Report ready: {task_id}"`
+- **Luna → Noctis**: Write to `queue/lunafreya_to_noctis.yaml`, wake via `send.sh noctis "Luna instruction"`
+- **Noctis → Luna**: Write to `queue/noctis_to_lunafreya.yaml`, wake via `send.sh lunafreya "Response ready"`
 
 ### Comrade Task Flow
 
