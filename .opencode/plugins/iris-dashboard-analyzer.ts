@@ -15,12 +15,23 @@ import type { Plugin } from "@opencode-ai/plugin"
 //   - file.watcher.updated has singular `file` + `event` properties (SDK type)
 // ---------------------------------------------------------------------------
 
-export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) => {
+const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) => {
   let lastReminderTime = 0
   const REMINDER_COOLDOWN = 5000 // 5 seconds (prevents burst from rapid event firing)
   let languageSetting = "ja"
 
   // --- helpers -------------------------------------------------------------
+
+  /** Log to dedicated file for easy debugging */
+  const log = async (message: string): Promise<void> => {
+    try {
+      const timestamp = new Date().toISOString()
+      const logLine = `[${timestamp}] ${message}\n`
+      await $`echo ${logLine} >> logs/iris-plugin.log`
+    } catch {
+      // Best-effort logging, ignore errors
+    }
+  }
 
   /** Read language setting from config/settings.yaml via shell */
   const loadLanguageSetting = async (): Promise<void> => {
@@ -63,6 +74,8 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) 
     reportName?: string
   ): Promise<void> => {
     try {
+      await log(`Invoking Iris analysis for session ${sessionID}`)
+      
       // Collect context for Iris
       const dashboardContent = await readFileViaShell("dashboard.md")
       const reportContents: string[] = []
@@ -93,6 +106,8 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) 
         ? `上記を分析し、dashboard.md の更新が必要かどうか判断してください。必要であれば、Noctis に具体的な更新内容を 2-3 文で報告してください。不要であれば「更新不要」と報告してください。`
         : `Analyze the above and determine if dashboard.md needs updating. If yes, report specific update recommendations to Noctis in 2-3 sentences. If no updates needed, respond with "No update needed".`
 
+      await log(`Calling client.session.prompt with agent: iris`)
+      
       // Invoke Iris subagent via client.session.prompt()
       await client.session.prompt({
         path: { id: sessionID },
@@ -104,6 +119,8 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) 
         query: { directory },
       })
 
+      await log(`Iris analysis successfully invoked`)
+      
       await client.app.log({
         body: {
           service: "iris-analyzer",
@@ -112,6 +129,8 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) 
         },
       })
     } catch (error) {
+      await log(`Error invoking Iris: ${error}`)
+      
       // Fallback: send a simple tmux notification if Iris invocation fails
       await sendFallbackNotification(completedTodos, reportName)
 
@@ -162,63 +181,135 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) 
 
   // --- initialise (non-blocking, best-effort) ------------------------------
   await loadLanguageSetting()
+  await log(`Plugin initialized, language: ${languageSetting}`)
 
-  // --- event handler -------------------------------------------------------
+  // --- event handlers ------------------------------------------------------
   return {
-    event: async ({ event }: { event: { type: string; properties?: Record<string, unknown> } }) => {
-      if (!shouldRemind()) return
-
-      // --- Todo completion ---------------------------------------------------
-      // SDK type: EventTodoUpdated { sessionID: string; todos: Todo[] }
-      if (event.type === "todo.updated" && event.properties?.todos) {
-        const sessionID = event.properties.sessionID as string | undefined
-        if (!sessionID) return
-
-        const todos = event.properties.todos as Array<{ status: string; content: string }>
-        const completedTodos = todos.filter((t) => t.status === "completed")
-        const inProgressTodos = todos.filter((t) => t.status === "in_progress")
-
-        if (completedTodos.length > 0 && inProgressTodos.length === 0) {
-          const items = completedTodos.map((t) => t.content)
-          await invokeIrisAnalysis(sessionID, items)
-        }
+    "todo.updated": async ({ sessionID, todos }: { sessionID: string; todos: Array<{ status: string; content: string }> }) => {
+      await log(`todo.updated event fired, sessionID: ${sessionID}, todos count: ${todos.length}`)
+      
+      if (!shouldRemind()) {
+        await log("Cooldown active, skipping reminder")
+        return
       }
 
-      // --- Comrade report file change ----------------------------------------
-      // SDK type: EventFileWatcherUpdated { file: string; event: "add"|"change"|"unlink" }
-      if (event.type === "file.watcher.updated" && event.properties?.file) {
-        const filePath = event.properties.file as string
-        const fileEvent = event.properties.event as string
+      const completedTodos = todos.filter((t) => t.status === "completed")
+      await log(`Completed todos count: ${completedTodos.length}`)
 
-        // Only trigger on add/change of report YAML files
-        if (
-          (fileEvent === "add" || fileEvent === "change") &&
-          filePath.includes("queue/reports/") &&
-          filePath.endsWith("_report.yaml")
-        ) {
-          const match = filePath.match(/(\w+)_report\.yaml$/)
-          const reportName = match ? match[1] : "unknown"
+      if (completedTodos.length > 0) {
+        const items = completedTodos.map((t) => t.content)
+        await invokeIrisAnalysis(sessionID, items)
+      }
+    },
 
-          // file.watcher.updated doesn't carry sessionID — use session.list to find active
-          try {
-            const sessions = await client.session.list()
-            const sessionList = (sessions as any)?.data ?? sessions
-            if (Array.isArray(sessionList) && sessionList.length > 0) {
-              // Use the most recently updated session
-              const sorted = [...sessionList].sort(
-                (a: any, b: any) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0)
-              )
-              const activeSessionID = sorted[0]?.id
-              if (activeSessionID) {
-                await invokeIrisAnalysis(activeSessionID, undefined, reportName)
+    // --- tool.execute.after hook for report file writes + todowrite ----------------------
+    "tool.execute.after": async (input, output) => {
+      await log(`tool.execute.after event fired, tool: ${input.tool}`)
+      
+      if (!shouldRemind()) {
+        await log("Cooldown active, skipping tool check")
+        return
+      }
+
+      const { tool, args } = input
+
+      // Handle todowrite tool
+      if (tool === "todowrite") {
+        await log("todowrite detected, analyzing todos")
+        try {
+          const todos = (args as any).todos as Array<{ status: string; content: string }> | undefined
+          if (todos) {
+            const completedTodos = todos.filter((t) => t.status === "completed")
+            await log(`Completed todos count: ${completedTodos.length}`)
+            if (completedTodos.length > 0) {
+              await log("Fetching session list...")
+              const sessions = await client.session.list()
+              const sessionList = (sessions as any)?.data ?? sessions
+              await log(`Session list length: ${Array.isArray(sessionList) ? sessionList.length : 'not array'}`)
+              
+              if (Array.isArray(sessionList) && sessionList.length > 0) {
+                const sorted = [...sessionList].sort(
+                  (a: any, b: any) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0)
+                )
+                const activeSessionID = sorted[0]?.id
+                await log(`Active session ID: ${activeSessionID}`)
+                
+                if (activeSessionID) {
+                  const items = completedTodos.map((t) => t.content)
+                  await invokeIrisAnalysis(activeSessionID, items)
+                } else {
+                  await log("No active session ID found")
+                }
+              } else {
+                await log("No active sessions found")
               }
             }
-          } catch {
-            // Fallback if session.list fails
-            await sendFallbackNotification(undefined, reportName)
           }
+        } catch (error) {
+          await log(`Error handling todowrite: ${error}`)
         }
+        return
+      }
+
+      // Handle report file writes
+      if (tool !== "write" && tool !== "edit") {
+        await log("Tool not write/edit, ignoring")
+        return
+      }
+
+      const filePath = args.filePath as string | undefined
+      await log(`Checking filePath: ${filePath}`)
+      if (!filePath) {
+        await log("No filePath found, returning")
+        return
+      }
+
+      // Normalize path - handle both absolute and relative paths
+      const normalizedPath = filePath.includes("queue/reports/")
+        ? filePath.substring(filePath.indexOf("queue/reports/"))
+        : filePath.replace(/^\.?\//, "")
+      
+      await log(`Normalized path: ${normalizedPath}`)
+      
+      if (
+        normalizedPath.startsWith("queue/reports/") &&
+        normalizedPath.endsWith("_report.yaml")
+      ) {
+        await log("Report file detected, extracting name")
+        const match = normalizedPath.match(/(\w+)_report\.yaml$/)
+        const reportName = match ? match[1] : "unknown"
+        await log(`Report name: ${reportName}`)
+
+        try {
+          await log("Fetching session list for report trigger")
+          const sessions = await client.session.list()
+          const sessionList = (sessions as any)?.data ?? sessions
+          await log(`Session list retrieved: ${Array.isArray(sessionList) ? sessionList.length : 'not array'}`)
+          
+          if (Array.isArray(sessionList) && sessionList.length > 0) {
+            const sorted = [...sessionList].sort(
+              (a: any, b: any) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0)
+            )
+            const activeSessionID = sorted[0]?.id
+            await log(`Active session ID for report: ${activeSessionID}`)
+            
+            if (activeSessionID) {
+              await invokeIrisAnalysis(activeSessionID, undefined, reportName)
+            } else {
+              await log("No active session ID, cannot invoke Iris")
+            }
+          } else {
+            await log("No sessions found, cannot invoke Iris")
+          }
+        } catch (error) {
+          await log(`Error in report trigger: ${error}`)
+          await sendFallbackNotification(undefined, reportName)
+        }
+      } else {
+        await log("File path does not match report pattern, ignoring")
       }
     },
   }
 }
+
+export default DashboardUpdateReminder
