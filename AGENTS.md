@@ -257,6 +257,55 @@ tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},<name>}'
 └──────────┴───────────┴──────┘
 ```
 
+## Code Editing Protocol
+
+**Mandatory for all code file edits.**
+
+### Language-Specific Verification
+
+| Language | Compiler/Linter | Language Server | Skill Reference |
+|----------|----------------|-----------------|-----------------|
+| TypeScript | `tsc --noEmit` | `lsp_diagnostics` | `/skills/typescript-check` |
+| Python | `mypy`, `pylint` | `lsp_diagnostics` | `/skills/python-check` |
+| C# | `dotnet build` | `lsp_diagnostics` | `/skills/dotnet-check` |
+| Rust | `cargo check` | `lsp_diagnostics` | `/skills/rust-check` |
+| Go | `go build` | `lsp_diagnostics` | `/skills/go-check` |
+
+### Universal Workflow
+
+```
+1. Detect language:      Identify file extension
+2. Run verification:     Use language-specific compiler/linter
+3. Fix errors:           Systematically address all issues
+4. Re-verify:            Run compiler again until 0 errors
+5. LSP check:            Use lsp_diagnostics if available
+6. Report:               Include "0 errors" in summary
+```
+
+### Verification Checklist
+
+- [ ] Language-specific compiler/linter returns 0 errors
+- [ ] LSP diagnostics show no errors (if applicable)
+- [ ] All API usages checked against SDK/library types
+- [ ] Response/error handling verified
+- [ ] File operations use correct parameters
+
+### Common Principles (All Languages)
+
+| Principle | Description |
+|-----------|-------------|
+| **Always verify** | Run compiler/linter BEFORE marking task complete |
+| **Check SDK types** | Verify API parameters and return types |
+| **Handle responses** | Properly unwrap/wrap response data |
+| **Never skip** | Re-run verification after each fix batch |
+
+### Language-Specific Details
+
+For detailed language-specific patterns and anti-patterns, see:
+- **TypeScript**: `/skills/typescript-check/SKILL.md`
+- **Python**: `/skills/python-check/SKILL.md`
+- **Other languages**: `/skills/{language}-check/SKILL.md`
+
 ## Context File Maintenance Rules
 
 When editing `AGENTS.md` or `.opencode/agents/*.md`:

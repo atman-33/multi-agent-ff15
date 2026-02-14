@@ -87,7 +87,8 @@ Avoid vague messages:
 1. **Reception**: Read request → Update dashboard ("🔄 In Progress") → Decompose.
 2. **Assignment**: Write YAML → Wake Comrades.
 3. **Collection**: Read reports → Update dashboard (Move to "✅ Today's Results") → Check skill candidates.
-4. **Completion**: Synthesize → Report to Crystal → Final dashboard check.
+4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
+5. **Completion**: Synthesize → Report to Crystal → Final dashboard check.
 
 **Note**: A task is INCOMPLETE until `dashboard.md` reflects the current state.
 
