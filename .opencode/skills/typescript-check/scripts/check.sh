@@ -5,7 +5,7 @@
 #   check.sh <file.ts>
 #
 # Examples:
-#   check.sh .opencode/plugins/iris-dashboard-analyzer.ts
+#   check.sh .opencode/plugins/yaml-write-validator.ts
 #   check.sh .opencode/plugins/my-plugin.ts
 
 set -euo pipefail

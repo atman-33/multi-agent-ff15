@@ -79,7 +79,7 @@ Avoid vague messages:
 ## Dashboard Rules
 
 - **You alone** update `dashboard.md`.
-- Iris handles monitoring and reminders, but you remain responsible for the final state.
+- Iris handles monitoring and reminders (via iris-watcher plugin), but you remain responsible for the final state.
 - Keep "🚨 Requires Action" updated for Crystal's decisions.
 - **Language**: dashboard.md content MUST follow `config/settings.yaml` language setting.
   - `language: ja` → Write in Japanese only

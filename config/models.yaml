@@ -1,6 +1,6 @@
 # Model configuration by mode
 # Each agent has: model (OpenCode model ID), agent (optional, for future use)
-# Comrades: ignis, gladiolus, prompto / Independent: lunafreya
+# Comrades: ignis, gladiolus, prompto / Independent: lunafreya / Guardian: iris
 modes:
   normal:
     noctis:
@@ -13,6 +13,8 @@ modes:
       model: github-copilot/gemini-3-flash-preview
     lunafreya:
       model: github-copilot/grok-code-fast-1
+    iris:
+      model: github-copilot/gpt-5-mini
 
   fullpower:
     noctis:
@@ -25,6 +27,8 @@ modes:
       model: github-copilot/gemini-3-pro-preview
     lunafreya:
       model: github-copilot/grok-code-fast-1
+    iris:
+      model: github-copilot/gpt-5-mini
 
   lite:
     noctis:
@@ -37,6 +41,8 @@ modes:
       model: github-copilot/grok-code-fast-1
     lunafreya:
       model: github-copilot/grok-code-fast-1
+    iris:
+      model: github-copilot/gpt-5-mini
 
   free-glm:
     noctis:
@@ -49,6 +55,8 @@ modes:
       model: opencode/glm-4.7-free
     lunafreya:
       model: github-copilot/grok-code-fast-1
+    iris:
+      model: github-copilot/gpt-5-mini
 
   free-kimi:
     noctis:
@@ -61,3 +69,5 @@ modes:
       model: opencode/kimi-k2.5-free
     lunafreya:
       model: github-copilot/grok-code-fast-1
+    iris:
+      model: github-copilot/gpt-5-mini

@@ -29,7 +29,7 @@ TypeScript validation tool for OpenCode plugins. Ensures type safety before task
 
 **Check single file:**
 ```bash
-.opencode/skills/typescript-check/scripts/check.sh .opencode/plugins/iris-dashboard-analyzer.ts
+.opencode/skills/typescript-check/scripts/check.sh .opencode/plugins/yaml-write-validator.ts
 ```
 
 **Check with LSP:**

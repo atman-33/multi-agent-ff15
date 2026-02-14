@@ -5,7 +5,7 @@
 #   lsp-check.sh <file.ts>
 #
 # Examples:
-#   lsp-check.sh .opencode/plugins/iris-dashboard-analyzer.ts
+#   lsp-check.sh .opencode/plugins/yaml-write-validator.ts
 #   lsp-check.sh .opencode/plugins/my-plugin.ts
 #
 # Note: This script outputs diagnostic information but cannot directly

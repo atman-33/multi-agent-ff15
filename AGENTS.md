@@ -30,6 +30,10 @@ Crystal (User)
 │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
 │  (軍師)    │  (盾)    │   (銃)     │
 └────────────┴──────────┴────────────┘
+
+     IRIS (イリス) ← Dashboard Guardian (background)
+     Polls reports, reminds Noctis to update dashboard.
+     Woken by iris-watcher plugin every 30s when reports change.
 ```
 
 ## Context Persistence
@@ -68,6 +72,7 @@ multi-agent-ff15/
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
+| **Iris** | Guardian | bg/5 | Dashboard monitoring. Woken by plugin when reports update. Notifies Noctis. |
 
 **Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
 
@@ -92,7 +97,7 @@ Write YAML first, then send a wake message via `send-message` skill to notify th
 
 `send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
 
-**Event-driven only. No polling.**
+**Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring.)
 
 All inter-agent messaging uses the **send-message skill** (never direct `tmux send-keys`):
 
@@ -110,6 +115,7 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 - **Comrade → Noctis**: Write to `queue/reports/{name}_report.yaml`, wake via `send.sh noctis "Report ready: {task_id}"`
 - **Luna → Noctis**: Write to `queue/lunafreya_to_noctis.yaml`, wake via `send.sh noctis "Luna instruction"`
 - **Noctis → Luna**: Write to `queue/noctis_to_lunafreya.yaml`, wake via `send.sh lunafreya "Response ready"`
+- **Iris → Noctis**: Woken by iris-watcher plugin on report changes, sends `send.sh noctis "Dashboard update needed: ..."` if dashboard stale
 
 ### Comrade Task Flow
 
@@ -261,6 +267,7 @@ tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},<name>}'
 ├──────────────┴──────────────┤
 │ Ignis(2) │ Gladio(3) │Prom(4)│
 └──────────┴───────────┴──────┘
++ Iris: [iris] window (background) or pane 5 (--debug mode)
 ```
 
 ## Code Editing Protocol
