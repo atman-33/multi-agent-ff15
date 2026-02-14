@@ -426,8 +426,10 @@ if [ "$CLEAN_MODE" = true ]; then
     log_info "📊 Initializing dashboard..."
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
 
-    # English version (unified for all language settings)
-    cat > ./dashboard.md << EOF
+    # Branch by language setting
+    if [ "$LANG_SETTING" = "ja" ]; then
+        # Japanese only
+        cat > ./dashboard.md << EOF
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
 
@@ -438,8 +440,8 @@ None
 None
 
 ## ✅ Today's Results
-| Time | Field | Mission | Result |
-|------|-------|---------|--------|
+| Time | 担当 | ミッション | 結果 |
+|------|------|-----------|------|
 
 ## 🎯 Skill Candidates - Awaiting Approval
 None
@@ -453,6 +455,35 @@ None
 ## ❓ Confirmation Items
 None
 EOF
+    else
+        # Bilingual (Japanese + English)
+        cat > ./dashboard.md << EOF
+# 📊 Mission Status (ミッションステータス)
+Last Updated: ${TIMESTAMP}
+
+## 🚨 Requires Action (要対応)
+None
+
+## 🔄 In Progress (進行中)
+None
+
+## ✅ Today's Results (本日の成果)
+| Time | Field (担当) | Mission (ミッション) | Result (結果) |
+|------|--------------|----------------------|---------------|
+
+## 🎯 Skill Candidates - Awaiting Approval (スキル候補 - 承認待ち)
+None
+
+## 🛠️ Generated Skills (生成済みスキル)
+None
+
+## ⏸️ On Standby (待機中)
+None
+
+## ❓ Confirmation Items (確認事項)
+None
+EOF
+    fi
 
     log_success "  └─ Dashboard initialized (language: $LANG_SETTING, shell: $SHELL_SETTING)"
 else

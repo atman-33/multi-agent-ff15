@@ -71,6 +71,10 @@ multi-agent-ff15/
 
 **Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
 
+**dashboard.md Language Rule**: dashboard.md content MUST follow `config/settings.yaml` language setting:
+- `language: ja` → Japanese only
+- `language: en` or other → Japanese + English translation in parentheses
+
 ## Communication Protocol — Iron Rule
 
 **ALL inter-agent communication MUST go through YAML files.**
@@ -198,6 +202,8 @@ Config: `config/settings.yaml` → `language: ja|en|...`
 
 - **ja**: FF15-style Japanese only
 - **non-ja**: FF15-style Japanese + translation in parentheses
+
+**dashboard.md Language Rule**: dashboard.md must follow language setting in config/settings.yaml. If language=ja, use Japanese only. If language=en, use English only.
 
 ## Model Override
 

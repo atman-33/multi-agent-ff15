@@ -9,6 +9,26 @@ declare const process: {
 export const DashboardUpdateReminder: Plugin = async ({ client, $ }) => {
   let lastReminderTime = 0
   const REMINDER_COOLDOWN = 30000
+  let languageSetting = "ja"
+
+  const loadLanguageSetting = async (): Promise<void> => {
+    try {
+      const response = await client.file.read({
+        query: { path: "config/settings.yaml" }
+      })
+      const fileResponse = (response as any)?.data
+      if (fileResponse && fileResponse.content) {
+        const match = /language:\s*(\w+)/.exec(fileResponse.content)
+        if (match) {
+          languageSetting = match[1]
+        }
+      }
+    } catch (error) {
+      languageSetting = "ja"
+    }
+  }
+
+  await loadLanguageSetting()
 
   const shouldRemind = (): boolean => {
     const now = Date.now()
@@ -124,7 +144,9 @@ Keep the summary to 2-3 sentences maximum. Be direct and specific.`
 
   const sendIrisNotification = async (summary: string) => {
     try {
-      const notification = `🔔 [DASHBOARD UPDATE] Iris Analysis:\n${summary}`
+      const notification = languageSetting === "ja"
+        ? `🔔 [ダッシュボード更新] Iris分析:\n${summary}`
+        : `🔔 [ダッシュボード更新 (DASHBOARD UPDATE)] Iris分析 (Iris Analysis):\n${summary}`
       const escapedMessage = notification.replace(/'/g, "'\\''")
 
       if ($) {

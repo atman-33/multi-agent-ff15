@@ -81,6 +81,10 @@ Avoid vague messages:
 - **You alone** update `dashboard.md`.
 - Iris handles monitoring and reminders, but you remain responsible for the final state.
 - Keep "🚨 Requires Action" updated for Crystal's decisions.
+- **Language**: dashboard.md content MUST follow `config/settings.yaml` language setting.
+  - `language: ja` → Write in Japanese only
+  - `language: en` → Write in Japanese + English translation in parentheses
+  - Always check the setting before updating dashboard
 
 ## Task Execution Checklist
 
@@ -89,8 +93,9 @@ Avoid vague messages:
 3. **Collection**: Read reports → Update dashboard (Move to "✅ Today's Results") → Check skill candidates.
 4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
 5. **Completion**: Synthesize → Report to Crystal → Final dashboard check.
+6. **Language Check**: Verify dashboard.md language matches `config/settings.yaml`.
 
-**Note**: A task is INCOMPLETE until `dashboard.md` reflects the current state.
+**Note**: A task is INCOMPLETE until `dashboard.md` reflects the current state **in the correct language**.
 
 ## Parallelization
 
