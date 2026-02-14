@@ -31,6 +31,9 @@ const IrisWatcher: Plugin = async ({ $ }) => {
   let lastReportMtimes: Record<string, number> = {};
   let lastDashboardMtime = 0;
 
+  /** Track last notified modification times to prevent duplicate notifications */
+  let lastNotifiedMtimes: Record<string, number> = {};
+
   /** Log to dedicated file for easy debugging */
   const log = async (message: string): Promise<void> => {
     if (!ENABLE_LOGGING) return; // Skip logging if disabled
@@ -70,25 +73,34 @@ const IrisWatcher: Plugin = async ({ $ }) => {
       const dashboardMtime = await getMtime(DASHBOARD_FILE);
       const updatedReports: string[] = [];
 
+      // Check for report updates
       for (const file of REPORT_FILES) {
         const currentMtime = await getMtime(`${REPORT_DIR}/${file}`);
         const previousMtime = lastReportMtimes[file] ?? 0;
 
         if (currentMtime > previousMtime) {
-          updatedReports.push(file.replace("_report.yaml", ""));
+          // Report was updated
           lastReportMtimes[file] = currentMtime;
+
+          // Only add to notification list if we haven't notified about this version yet
+          const lastNotified = lastNotifiedMtimes[file] ?? 0;
+          if (currentMtime > lastNotified) {
+            updatedReports.push(file.replace("_report.yaml", ""));
+          }
         }
       }
 
       if (updatedReports.length === 0) {
-        return; // No report updates
+        return; // No new updates to notify about
       }
 
       // Check if dashboard was updated after reports changed
       if (dashboardMtime > lastDashboardMtime) {
-        // Dashboard was updated too — likely already handled
+        // Dashboard was updated — Iris likely already handled it
         lastDashboardMtime = dashboardMtime;
-        await log(`Reports updated (${updatedReports.join(", ")}) but dashboard also updated. Skipping.`);
+        // Clear notification flags so we can notify about future updates
+        lastNotifiedMtimes = {};
+        await log(`Reports updated (${updatedReports.join(", ")}) but dashboard also updated. Clearing notification flags.`);
         return;
       }
 
@@ -99,6 +111,12 @@ const IrisWatcher: Plugin = async ({ $ }) => {
       await $`${SEND_SCRIPT} iris "Report updated: ${names}. Check dashboard."`.quiet().catch(async (err: unknown) => {
         await log(`Failed to send message to Iris: ${err}`);
       });
+
+      // Mark these reports as notified
+      for (const name of updatedReports) {
+        const file = `${name}_report.yaml`;
+        lastNotifiedMtimes[file] = lastReportMtimes[file];
+      }
 
       lastDashboardMtime = dashboardMtime;
     } catch (error) {
