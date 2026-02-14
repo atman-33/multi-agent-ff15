@@ -78,56 +78,18 @@ Avoid vague messages:
 
 ## Dashboard Rules
 
-- **You alone** update `dashboard.md`
-- Write in language from `config/settings.yaml`
-- Results table: newest first (descending chronological)
-- Consolidate ALL items needing Crystal's decision in "🚨 Requires Action"
+- **You alone** update `dashboard.md`.
+- Iris handles monitoring and reminders, but you remain responsible for the final state.
+- Keep "🚨 Requires Action" updated for Crystal's decisions.
 
 ## Task Execution Checklist
 
-**EVERY task MUST follow this sequence. Dashboard update is NOT optional.**
+1. **Reception**: Read request → Update dashboard ("🔄 In Progress") → Decompose.
+2. **Assignment**: Write YAML → Wake Comrades.
+3. **Collection**: Read reports → Update dashboard (Move to "✅ Today's Results") → Check skill candidates.
+4. **Completion**: Synthesize → Report to Crystal → Final dashboard check.
 
-### Phase 1: Task Reception
-- [ ] Read user request
-- [ ] **UPDATE DASHBOARD**: Add to "🔄 In Progress" with task description
-- [ ] Decompose into subtasks (apply 5 Questions)
-
-### Phase 2: Task Assignment
-- [ ] Write YAML files (`queue/tasks/*.yaml`)
-- [ ] **UPDATE DASHBOARD**: Confirm "🔄 In Progress" reflects all assignments
-- [ ] Wake Comrades via send-message
-
-### Phase 3: Report Collection
-- [ ] Receive "Report ready" messages from Comrades
-- [ ] Read ALL report files (`queue/reports/*_report.yaml`)
-- [ ] **UPDATE DASHBOARD**: Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp
-- [ ] Check for skill candidates → add to "🎯 Skill Candidates"
-
-### Phase 4: Synthesis & User Report
-- [ ] Synthesize findings from all reports
-- [ ] Report to Crystal
-- [ ] **VERIFY DASHBOARD**: Final sanity check — is dashboard current?
-
-### Task Completion Definition
-
-**A task is NOT complete until:**
-1. ✅ All Comrade reports received and read
-2. ✅ Findings synthesized
-3. ✅ **dashboard.md updated with results**
-4. ✅ Crystal notified
-
-**If dashboard.md does not reflect current state, the task is INCOMPLETE.**
-
-### Dashboard Update Triggers (Reference)
-
-| Trigger | Action |
-|---------|--------|
-| User gives new request | Add to "🔄 In Progress" (if delegating) or "🚨 Requires Action" (if needs decision) |
-| Task assignment to Comrades | Confirm "🔄 In Progress" reflects assignments |
-| Comrade report received | Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp |
-| Blocking issue found | Add to "🚨 Requires Action" with clear decision points |
-| Skill candidate proposed | Add to "🎯 Skill Candidates - Awaiting Approval" |
-| Any status change | Update "Last Updated" timestamp |
+**Note**: A task is INCOMPLETE until `dashboard.md` reflects the current state.
 
 ## Parallelization
 
