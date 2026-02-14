@@ -4,7 +4,19 @@ declare const process: {
   env: Record<string, string | undefined>
 }
 
-export const YamlWriteValidator: Plugin = async ({ client }) => {
+export const YamlWriteValidator: Plugin = async ({ client, $ }) => {
+  // Resolve agent ID: prefer env var, fallback to tmux @agent_id
+  let resolvedAgentId: string | undefined = process.env.AGENT_ID
+  if (!resolvedAgentId) {
+    try {
+      const result = await $`tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}' 2>/dev/null`
+      const id = result.text().trim()
+      if (id && id !== "") resolvedAgentId = id
+    } catch {
+      // Not in tmux or command failed — leave undefined
+    }
+  }
+
   return {
     "tool.execute.before": async (input, output) => {
       const { tool } = input
@@ -19,7 +31,7 @@ export const YamlWriteValidator: Plugin = async ({ client }) => {
         return
       }
 
-      const agentId = process.env.AGENT_ID
+      const agentId = resolvedAgentId
       if (!agentId) {
         return
       }

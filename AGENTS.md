@@ -30,6 +30,10 @@ Crystal (User)
 │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
 │  (軍師)    │  (盾)    │   (銃)     │
 └────────────┴──────────┴────────────┘
+
+     IRIS (イリス) ← Dashboard Guardian (background)
+     Polls reports, reminds Noctis to update dashboard.
+     Woken by iris-watcher plugin every 30s when reports change.
 ```
 
 ## Context Persistence
@@ -68,17 +72,18 @@ multi-agent-ff15/
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
+| **Iris** | Guardian | bg/5 | Dashboard monitoring. Woken by plugin when reports update. Notifies Noctis. |
 
 **Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
+
+**dashboard.md Language Rule**: dashboard.md content MUST follow `config/settings.yaml` language setting:
+- `language: ja` → Japanese only
+- `language: en` or other → Japanese + English translation in parentheses
 
 ## Communication Protocol — Iron Rule
 
 **ALL inter-agent communication MUST go through YAML files.**
-
-| Valid ✅ | Invalid ❌ |
-|---------|-----------|
-| Write YAML → send wake message | Send content directly in message |
-| `send.sh ignis "Read queue/tasks/ignis.yaml"` | `send.sh ignis "Research topic X"` |
+Write YAML first, then send a wake message via `send-message` skill to notify the target agent. Sending task content directly in messages is forbidden.
 
 ### Why YAML-only?
 
@@ -92,7 +97,7 @@ multi-agent-ff15/
 
 `send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
 
-**Event-driven only. No polling.**
+**Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring.)
 
 All inter-agent messaging uses the **send-message skill** (never direct `tmux send-keys`):
 
@@ -106,12 +111,11 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 
 ### Message Flow
 
-| Direction | Write YAML to | Wake via send-message |
-|-----------|--------------|----------------------|
-| Noctis → Comrade | `queue/tasks/{name}.yaml` | `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"` |
-| Comrade → Noctis | `queue/reports/{name}_report.yaml` | `send.sh noctis "Report ready: {task_id}"` |
-| Luna → Noctis | `queue/lunafreya_to_noctis.yaml` | `send.sh noctis "Luna instruction"` |
-| Noctis → Luna | `queue/noctis_to_lunafreya.yaml` | `send.sh lunafreya "Response ready"` |
+- **Noctis → Comrade**: Write to `queue/tasks/{name}.yaml`, wake via `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"`
+- **Comrade → Noctis**: Write to `queue/reports/{name}_report.yaml`, wake via `send.sh noctis "Report ready: {task_id}"`
+- **Luna → Noctis**: Write to `queue/lunafreya_to_noctis.yaml`, wake via `send.sh noctis "Luna instruction"`
+- **Noctis → Luna**: Write to `queue/noctis_to_lunafreya.yaml`, wake via `send.sh lunafreya "Response ready"`
+- **Iris → Noctis**: Woken by iris-watcher plugin on report changes, sends `send.sh noctis "Dashboard update needed: ..."` if dashboard stale
 
 ### Comrade Task Flow
 
@@ -205,6 +209,8 @@ Config: `config/settings.yaml` → `language: ja|en|...`
 - **ja**: FF15-style Japanese only
 - **non-ja**: FF15-style Japanese + translation in parentheses
 
+**dashboard.md Language Rule**: dashboard.md must follow language setting in config/settings.yaml. If language=ja, use Japanese only. If language=en, use English only.
+
 ## Model Override
 
 ```bash
@@ -261,7 +267,57 @@ tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},<name>}'
 ├──────────────┴──────────────┤
 │ Ignis(2) │ Gladio(3) │Prom(4)│
 └──────────┴───────────┴──────┘
++ Iris: [iris] window (background) or pane 5 (--debug mode)
 ```
+
+## Code Editing Protocol
+
+**Mandatory for all code file edits.**
+
+### Language-Specific Verification
+
+| Language | Compiler/Linter | Language Server | Skill Reference |
+|----------|----------------|-----------------|-----------------|
+| TypeScript | `tsc --noEmit` | `lsp_diagnostics` | `/skills/typescript-check` |
+| Python | `mypy`, `pylint` | `lsp_diagnostics` | `/skills/python-check` |
+| C# | `dotnet build` | `lsp_diagnostics` | `/skills/dotnet-check` |
+| Rust | `cargo check` | `lsp_diagnostics` | `/skills/rust-check` |
+| Go | `go build` | `lsp_diagnostics` | `/skills/go-check` |
+
+### Universal Workflow
+
+```
+1. Detect language:      Identify file extension
+2. Run verification:     Use language-specific compiler/linter
+3. Fix errors:           Systematically address all issues
+4. Re-verify:            Run compiler again until 0 errors
+5. LSP check:            Use lsp_diagnostics if available
+6. Report:               Include "0 errors" in summary
+```
+
+### Verification Checklist
+
+- [ ] Language-specific compiler/linter returns 0 errors
+- [ ] LSP diagnostics show no errors (if applicable)
+- [ ] All API usages checked against SDK/library types
+- [ ] Response/error handling verified
+- [ ] File operations use correct parameters
+
+### Common Principles (All Languages)
+
+| Principle | Description |
+|-----------|-------------|
+| **Always verify** | Run compiler/linter BEFORE marking task complete |
+| **Check SDK types** | Verify API parameters and return types |
+| **Handle responses** | Properly unwrap/wrap response data |
+| **Never skip** | Re-run verification after each fix batch |
+
+### Language-Specific Details
+
+For detailed language-specific patterns and anti-patterns, see:
+- **TypeScript**: `/skills/typescript-check/SKILL.md`
+- **Python**: `/skills/python-check/SKILL.md`
+- **Other languages**: `/skills/{language}-check/SKILL.md`
 
 ## Context File Maintenance Rules
 

@@ -60,3 +60,6 @@ The skill automatically detects your agent ID, generates timestamp, writes YAML 
 3. **Strategize**: Multiple approaches → merits/demerits → risk/cost → recommendation
 4. **Plan**: Atomic steps, dependencies, executable format
 5. **Verify**: Completeness check, success criteria confirmation, next steps
+6. **Validate Code** (if editing TypeScript): Run `tsc --noEmit` + `lsp_diagnostics` → fix ALL errors
+
+**For TypeScript edits, see AGENTS.md TypeScript Editing Protocol.**

@@ -78,56 +78,24 @@ Avoid vague messages:
 
 ## Dashboard Rules
 
-- **You alone** update `dashboard.md`
-- Write in language from `config/settings.yaml`
-- Results table: newest first (descending chronological)
-- Consolidate ALL items needing Crystal's decision in "🚨 Requires Action"
+- **You alone** update `dashboard.md`.
+- Iris handles monitoring and reminders (via iris-watcher plugin), but you remain responsible for the final state.
+- Keep "🚨 Requires Action" updated for Crystal's decisions.
+- **Language**: dashboard.md content MUST follow `config/settings.yaml` language setting.
+  - `language: ja` → Write in Japanese only
+  - `language: en` → Write in Japanese + English translation in parentheses
+  - Always check the setting before updating dashboard
 
 ## Task Execution Checklist
 
-**EVERY task MUST follow this sequence. Dashboard update is NOT optional.**
+1. **Reception**: Read request → Update dashboard ("🔄 In Progress") → Decompose.
+2. **Assignment**: Write YAML → Wake Comrades.
+3. **Collection**: Read reports → Update dashboard (Move to "✅ Today's Results") → Check skill candidates.
+4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
+5. **Completion**: Synthesize → Report to Crystal → Final dashboard check.
+6. **Language Check**: Verify dashboard.md language matches `config/settings.yaml`.
 
-### Phase 1: Task Reception
-- [ ] Read user request
-- [ ] **UPDATE DASHBOARD**: Add to "🔄 In Progress" with task description
-- [ ] Decompose into subtasks (apply 5 Questions)
-
-### Phase 2: Task Assignment
-- [ ] Write YAML files (`queue/tasks/*.yaml`)
-- [ ] **UPDATE DASHBOARD**: Confirm "🔄 In Progress" reflects all assignments
-- [ ] Wake Comrades via send-message
-
-### Phase 3: Report Collection
-- [ ] Receive "Report ready" messages from Comrades
-- [ ] Read ALL report files (`queue/reports/*_report.yaml`)
-- [ ] **UPDATE DASHBOARD**: Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp
-- [ ] Check for skill candidates → add to "🎯 Skill Candidates"
-
-### Phase 4: Synthesis & User Report
-- [ ] Synthesize findings from all reports
-- [ ] Report to Crystal
-- [ ] **VERIFY DASHBOARD**: Final sanity check — is dashboard current?
-
-### Task Completion Definition
-
-**A task is NOT complete until:**
-1. ✅ All Comrade reports received and read
-2. ✅ Findings synthesized
-3. ✅ **dashboard.md updated with results**
-4. ✅ Crystal notified
-
-**If dashboard.md does not reflect current state, the task is INCOMPLETE.**
-
-### Dashboard Update Triggers (Reference)
-
-| Trigger | Action |
-|---------|--------|
-| User gives new request | Add to "🔄 In Progress" (if delegating) or "🚨 Requires Action" (if needs decision) |
-| Task assignment to Comrades | Confirm "🔄 In Progress" reflects assignments |
-| Comrade report received | Move to "✅ Today's Results", remove from "🔄 In Progress", update timestamp |
-| Blocking issue found | Add to "🚨 Requires Action" with clear decision points |
-| Skill candidate proposed | Add to "🎯 Skill Candidates - Awaiting Approval" |
-| Any status change | Update "Last Updated" timestamp |
+**Note**: A task is INCOMPLETE until `dashboard.md` reflects the current state **in the correct language**.
 
 ## Parallelization
 
@@ -144,45 +112,16 @@ When woken, scan **all** report files (`ls -la queue/reports/`), not just the se
 
 **Use the `/noctis-to-luna` skill for all communication.**
 
-### Message Types
-
-| Type | When to Use | Example |
-|------|-------------|---------|
-| `response` | Reply to Luna's message (default) | "Investigation complete. See details." |
-| `consultation` | Ask Luna's opinion | "Which approach do you recommend?" |
-| `instruction` | Request Luna to review/analyze | "Please review this architecture decision" |
-| `info` | Status update | "All Comrades completed their tasks" |
-
 ### Send Message to Luna
-
 ```bash
-.opencode/skills/noctis-to-luna/scripts/noctis_to_luna.sh "<description>" [type] [priority] [in_reply_to]
+.opencode/skills/noctis-to-luna/scripts/noctis_to_luna.sh "<description>" [priority] [in_reply_to]
 ```
-
-**Examples:**
-
-```bash
-# Response (default)
-noctis_to_luna.sh "Task completed as requested"
-
-# Consultation
-noctis_to_luna.sh "What's your take on this technical decision?" "consultation" "high"
-
-# Response with threading
-noctis_to_luna.sh "Completed." "response" "medium" "luna_msg_1234567890"
-```
+- **Priority levels**: `low`, `medium` (default), `high`.
+- **Manual YAML writing is forbidden.**
 
 ### When Luna Contacts You
-
-1. **Read** `queue/lunafreya_to_noctis.yaml`
-2. **Check** `message.type`:
-   - `instruction` → Execute or delegate to Comrades
-   - `consultation` → Analyze and provide recommendation
-   - `response` → Process her reply (check `in_reply_to`)
-   - `info` → Acknowledge or take note
-3. **Respond** using skill with appropriate type
-
-**No manual YAML writing.**
+1. Read `queue/lunafreya_to_noctis.yaml`
+2. Respond using skill (all messages use unified format).
 
 ## /new for Comrades
 

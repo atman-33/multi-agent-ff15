@@ -75,6 +75,7 @@ generate_prompt() {
 SETUP_ONLY=false
 OPEN_TERMINAL=false
 CLEAN_MODE=false
+DEBUG_MODE=false
 MODE="normal"
 SHELL_OVERRIDE=""
 MODE_CONFIG_FILE="./config/models.yaml"
@@ -87,6 +88,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -c|--clean)
             CLEAN_MODE=true
+            shift
+            ;;
+        -d|--debug)
+            DEBUG_MODE=true
             shift
             ;;
         --fullpower)
@@ -143,6 +148,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  -c, --clean         Clean start (reset queues and dashboard)"
             echo "                      If omitted, resume from previous state"
+            echo "  -d, --debug         Debug mode (show Iris pane in main window)"
             echo "  --fullpower         Start in Full Power mode"
             echo "  --lite              Start in Lite mode"
             echo "  --free-kimi         Start in Free mode (Kimi K2.5)"
@@ -156,6 +162,7 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  ./standby.sh              # Resume from previous state"
             echo "  ./standby.sh -c           # Clean start (reset queues)"
+            echo "  ./standby.sh -d           # Debug mode (Iris pane visible)"
             echo "  ./standby.sh -s           # Setup only (manual OpenCode launch)"
             echo "  ./standby.sh -t           # Start all agents + open terminal tab"
             echo "  ./standby.sh -shell bash  # Start with bash prompt"
@@ -259,6 +266,8 @@ IGNIS_MODEL=$(require_mode_value "$MODE" "ignis" "model")
 GLADIOLUS_MODEL=$(require_mode_value "$MODE" "gladiolus" "model")
 PROMPTO_MODEL=$(require_mode_value "$MODE" "prompto" "model")
 LUNAFREYA_MODEL=$(require_mode_value "$MODE" "lunafreya" "model")
+IRIS_MODEL=$(get_mode_value "$MODE" "iris" "model")
+IRIS_MODEL=${IRIS_MODEL:-"github-copilot/gpt-5-mini"}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Startup banner
@@ -289,10 +298,12 @@ show_battle_cry() {
     # ═══════════════════════════════════════════════════════════════════════════
     # Party Formation
     # ═══════════════════════════════════════════════════════════════════════════
-    echo -e "\033[1;37m                       【 P A R T Y ・ 5 Agents 】\033[0m"
+    echo -e "\033[1;37m                       【 P A R T Y ・ 6 Agents 】\033[0m"
     echo ""
     echo -e "     \033[1;33m👑 Noctis\033[0m      \033[1;35m✨ Lunafreya\033[0m     \033[1;36m⚔ Ignis\033[0m      \033[1;34m🛡 Gladiolus\033[0m    \033[1;32m🔫 Prompto\033[0m"
     echo -e "      \033[0;90m(King)\033[0m         \033[0;90m(Oracle)\033[0m       \033[0;90m(Comrade)\033[0m      \033[0;90m(Comrade)\033[0m     \033[0;90m(Comrade)\033[0m"
+    echo -e "                                                     \033[1;35m🌸 Iris\033[0m"
+    echo -e "                                                      \033[0;90m(Guardian)\033[0m"
     echo ""
     echo -e "                     \033[1;36m「 了解、いつでも準備OKだ 」\033[0m"
     echo ""
@@ -426,8 +437,10 @@ if [ "$CLEAN_MODE" = true ]; then
     log_info "📊 Initializing dashboard..."
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
 
-    # English version (unified for all language settings)
-    cat > ./dashboard.md << EOF
+    # Branch by language setting
+    if [ "$LANG_SETTING" = "ja" ]; then
+        # Japanese only
+        cat > ./dashboard.md << EOF
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
 
@@ -438,8 +451,8 @@ None
 None
 
 ## ✅ Today's Results
-| Time | Field | Mission | Result |
-|------|-------|---------|--------|
+| Time | 担当 | ミッション | 結果 |
+|------|------|-----------|------|
 
 ## 🎯 Skill Candidates - Awaiting Approval
 None
@@ -453,6 +466,35 @@ None
 ## ❓ Confirmation Items
 None
 EOF
+    else
+        # Bilingual (Japanese + English)
+        cat > ./dashboard.md << EOF
+# 📊 Mission Status (ミッションステータス)
+Last Updated: ${TIMESTAMP}
+
+## 🚨 Requires Action (要対応)
+None
+
+## 🔄 In Progress (進行中)
+None
+
+## ✅ Today's Results (本日の成果)
+| Time | Field (担当) | Mission (ミッション) | Result (結果) |
+|------|--------------|----------------------|---------------|
+
+## 🎯 Skill Candidates - Awaiting Approval (スキル候補 - 承認待ち)
+None
+
+## 🛠️ Generated Skills (生成済みスキル)
+None
+
+## ⏸️ On Standby (待機中)
+None
+
+## ❓ Confirmation Items (確認事項)
+None
+EOF
+    fi
 
     log_success "  └─ Dashboard initialized (language: $LANG_SETTING, shell: $SHELL_SETTING)"
 else
@@ -478,9 +520,9 @@ if ! command -v tmux &> /dev/null; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 5: Create ff15 session (unified session, 5 panes)
+# STEP 5: Create ff15 session (unified session, 5 main panes + Iris)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Layout:
+# Normal mode layout (5 panes, Iris in hidden window):
 # ┌──────────────┬──────────────┐
 # │    Noctis    │  Lunafreya   │  ← Top row: Command layer
 # │   (pane 0)  │   (pane 1)   │
@@ -488,8 +530,19 @@ fi
 # │ Ignis  │ Gladiolus │Prompto │  ← Bottom row: Workers
 # │(pane 2)│ (pane 3)  │(pane 4)│
 # └────────┴───────────┴────────┘
+# + [iris] window (hidden, running in background)
 #
-log_war "⚔️ Building ff15 session (deploying 5 agents)..."
+# Debug mode layout (6 panes, Iris visible):
+# ┌──────────────┬──────────────┐
+# │    Noctis    │  Lunafreya   │
+# │   (pane 0)   │   (pane 1)   │  (50% : 50%)
+# ├──────┬───────┼───────┬──────┤
+# │Ignis │Gladio │Prompto│ Iris │
+# │(pn 2)│ (pn 3)│ (pn 4)│(pn 5)│  (25% each)
+# └──────┴───────┴───────┴──────┘
+#
+AGENT_COUNT=6
+log_war "⚔️ Building ff15 session (deploying ${AGENT_COUNT} agents)..."
 
 # Create session (first pane becomes Noctis)
 if ! tmux new-session -d -s ff15 -n "main" -x 200 -y 50 2>/dev/null; then
@@ -512,100 +565,68 @@ fi
 PANE_BASE=$(tmux show-options -gv pane-base-index 2>/dev/null || echo 0)
 PANE_BASE=${PANE_BASE:-0}
 
-# --- Step A: Top row split (Noctis left | Lunafreya right) ---
-# Split pane 0 horizontally → creates pane 1 (Lunafreya)
-tmux split-window -h -t "ff15:main.${PANE_BASE}"
+# ═══════════════════════════════════════════════════════════════════════════════
+# Layout Strategy:
+# Standard mode (default): 6 panes with Iris visible on bottom-right
+#   Top row (50%): Noctis (50%) | Lunafreya (50%)
+#   Bottom row (50%): Ignis (25%) | Gladiolus (25%) | Prompto (25%) | Iris (25%)
+# Debug mode: Reserved for future debugging features (currently same as standard)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# --- Step B: Bottom row creation ---
-# Split Noctis (pane 0) vertically → creates bottom-left pane (Ignis)
-tmux split-window -v -t "ff15:main.${PANE_BASE}"
+# ─── Create layout with Iris visible on bottom-right ───
+# Target layout:
+#   Top row (50%): Noctis (50%) | Lunafreya (50%)
+#   Bottom row (50%): Ignis (25%) | Gladiolus (25%) | Prompto (25%) | Iris (25%)
 
-# --- Step C: Split bottom-right area ---
-# Split Lunafreya (pane 1) vertically → creates bottom-right area
-# After split-v on pane 0, pane indices shift:
-#   pane 0 = Noctis (top-left)
-#   pane 1 = Ignis (bottom-left) — newly created
-#   pane 2 = Lunafreya (top-right) — shifted from 1 to 2
-# Now split Lunafreya (pane 2) vertically:
-tmux split-window -v -t "ff15:main.$((PANE_BASE+2))"
+# Step 1: Split top/bottom (50/50)
+tmux split-window -v -l 50% -t "ff15:main.${PANE_BASE}"
+# pane 0 = top, pane 1 = bottom
 
-# After this split:
-#   pane 0 = Noctis (top-left)
-#   pane 1 = Ignis (bottom-left)
-#   pane 2 = Lunafreya (top-right)
-#   pane 3 = bottom-right (new from Lunafreya split)
-
-# --- Step D: Split bottom-right into Gladiolus and Prompto ---
-tmux split-window -h -t "ff15:main.$((PANE_BASE+3))"
-
-# After this split:
-#   pane 0 = Noctis (top-left)
-#   pane 1 = Ignis (bottom-left)
-#   pane 2 = Lunafreya (top-right)
-#   pane 3 = Gladiolus (bottom-center)
-#   pane 4 = Prompto (bottom-right)
-
-# --- Step E: Split bottom-left (Ignis) to give space for 3 equal columns ---
-# We need Ignis to share the bottom row equally with Gladiolus and Prompto
-# Current bottom layout: Ignis(50%) | Gladiolus(25%) | Prompto(25%)
-# We want: Ignis(33%) | Gladiolus(33%) | Prompto(33%)
-# This is tricky. Let me use a different approach.
-
-# Actually, let me redo the layout strategy. The simplest approach:
-# 1. Start with initial pane (Noctis)
-# 2. Split top/bottom (50/50)
-# 3. Split top left/right (Noctis | Lunafreya)
-# 4. Split bottom into 3 (Ignis | Gladiolus | Prompto)
-
-# Kill extra panes and restart layout
-tmux kill-pane -t "ff15:main.$((PANE_BASE+4))" 2>/dev/null || true
-tmux kill-pane -t "ff15:main.$((PANE_BASE+3))" 2>/dev/null || true
-tmux kill-pane -t "ff15:main.$((PANE_BASE+2))" 2>/dev/null || true
-tmux kill-pane -t "ff15:main.$((PANE_BASE+1))" 2>/dev/null || true
-
-# Restart with clean layout
-# Pane 0: Noctis (full window initially)
-
-# Split top/bottom (Noctis top, bottom row below)
-tmux split-window -v -t "ff15:main.${PANE_BASE}"
-# pane 0 = Noctis (top), pane 1 = bottom
-
-# Split top row: Noctis left, Lunafreya right
-tmux split-window -h -t "ff15:main.${PANE_BASE}"
+# Step 2: Split top row: Noctis left, Lunafreya right (50/50)
+tmux split-window -h -l 50% -t "ff15:main.${PANE_BASE}"
 # pane 0 = Noctis (top-left), pane 1 = Lunafreya (top-right), pane 2 = bottom
 
-# Split bottom into 3: first split creates Ignis left + rest right
-# pane 2 is the bottom row
-tmux split-window -h -l 66% -t "ff15:main.$((PANE_BASE+2))"
-# pane 2 = Ignis (bottom-left ~33%), pane 3 = bottom-right (~66%)
+# Step 3: Split bottom into 4 parts
+# First split: Ignis (left 25%) + rest (right 75%)
+tmux split-window -h -l 75% -t "ff15:main.$((PANE_BASE+2))"
+# pane 0 = Noctis, pane 1 = Lunafreya, pane 2 = Ignis (bottom-left), pane 3 = rest (75%)
 
-# Split bottom-right into Gladiolus + Prompto
-tmux split-window -h -t "ff15:main.$((PANE_BASE+3))"
-# pane 2 = Ignis, pane 3 = Gladiolus, pane 4 = Prompto
+# Step 4: Split rest into Gladiolus (left 33.3% of rest = 25% of total) + remaining (66.6% of rest = 50% of total)
+tmux split-window -h -l 66% -t "ff15:main.$((PANE_BASE+3))"
+# pane 0 = Noctis, pane 1 = Lunafreya, pane 2 = Ignis, pane 3 = Gladiolus, pane 4 = rest (50%)
+
+# Step 5: Split remaining into Prompto (left 50%) + Iris (right 50%)
+tmux split-window -h -l 50% -t "ff15:main.$((PANE_BASE+4))"
+# pane 0 = Noctis, pane 1 = Lunafreya, pane 2 = Ignis, pane 3 = Gladiolus, pane 4 = Prompto, pane 5 = Iris
 
 # Final layout:
-#   pane 0 = Noctis (top-left)
-#   pane 1 = Lunafreya (top-right)
-#   pane 2 = Ignis (bottom-left)
-#   pane 3 = Gladiolus (bottom-center)
-#   pane 4 = Prompto (bottom-right)
+#   pane 0 = Noctis (top-left, 50% width)
+#   pane 1 = Lunafreya (top-right, 50% width)
+#   pane 2 = Ignis (bottom-left, 25% width)
+#   pane 3 = Gladiolus (bottom-center-left, 25% width)
+#   pane 4 = Prompto (bottom-center-right, 25% width)
+#   pane 5 = Iris (bottom-right, 25% width)
 
-# ─── Configure all 5 panes ───
-PANE_LABELS=("noctis" "lunafreya" "ignis" "gladiolus" "prompto")
-PANE_COLORS=("magenta" "cyan" "red" "blue" "blue")
+# Configure all 6 panes
+PANE_LABELS=("noctis" "lunafreya" "ignis" "gladiolus" "prompto" "iris")
+PANE_COLORS=("magenta" "cyan" "red" "blue" "blue" "magenta")
+PANE_COUNT=6
+IRIS_PANE_TARGET="ff15:main.$((PANE_BASE+5))"
 
-for i in {0..4}; do
+# ─── Configure all panes with agent identities ───
+for i in $(seq 0 $((PANE_COUNT-1))); do
     p=$((PANE_BASE + i))
     label="${PANE_LABELS[$i]}"
     color="${PANE_COLORS[$i]}"
+    target="ff15:main.${p}"
 
-     # Set agent identity
-     tmux set-option -p -t "ff15:main.${p}" @agent_id "${label}"
-     tmux select-pane -t "ff15:main.${p}" -T "${label}"
+    # Set agent identity
+    tmux set-option -p -t "${target}" @agent_id "${label}"
+    tmux select-pane -t "${target}" -T "${label}"
 
     # Set prompt and working directory
     PROMPT_STR=$(generate_prompt "${label}" "${color}" "$SHELL_SETTING")
-    tmux send-keys -t "ff15:main.${p}" "cd \"$(pwd)\" && export PS1='${PROMPT_STR}' && clear" Enter
+    tmux send-keys -t "${target}" "cd \"$(pwd)\" && export PS1='${PROMPT_STR}' && clear" Enter
 done
 
 # Noctis pane gets special background
@@ -615,7 +636,7 @@ tmux select-pane -t "ff15:main.${PANE_BASE}" -P 'bg=#002b36'
 tmux set-option -t ff15 -w pane-border-status top
 tmux set-option -t ff15 -w pane-border-format '#{pane_index} #{@agent_id}'
 
-log_success "  └─ ff15 session (5 panes) built"
+log_success "  └─ ff15 session (5 main panes + Iris) built"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -632,24 +653,30 @@ if [ "$SETUP_ONLY" = false ]; then
 
     log_war "👑 Launching OpenCode for all agents (native agent mode)..."
 
-    # Agent models and pane indices
-    AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto")
-    AGENT_MODELS=("${NOCTIS_MODEL}" "${LUNAFREYA_MODEL}" "${IGNIS_MODEL}" "${GLADIOLUS_MODEL}" "${PROMPTO_MODEL}")
+    # All 6 agents in main window
+    # Pane numbers: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto, 5=Iris
+    AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto" "iris")
+    AGENT_MODELS=("${NOCTIS_MODEL}" "${LUNAFREYA_MODEL}" "${IGNIS_MODEL}" "${GLADIOLUS_MODEL}" "${PROMPTO_MODEL}" "${IRIS_MODEL}")
+    AGENT_TARGETS=()
+    for i in {0..5}; do
+        AGENT_TARGETS+=("ff15:main.$((PANE_BASE+i))")
+    done
 
-    for i in {0..4}; do
-        p=$((PANE_BASE + i))
+    # Launch all agents
+    for i in "${!AGENT_NAMES[@]}"; do
         name="${AGENT_NAMES[$i]}"
         model="${AGENT_MODELS[$i]}"
+        target="${AGENT_TARGETS[$i]}"
 
-        tmux send-keys -t "ff15:main.${p}" "opencode --agent ${name} --model ${model}"
-        tmux send-keys -t "ff15:main.${p}" Enter
-        log_info "  └─ ${name} launched (--agent ${name})"
+        tmux send-keys -t "${target}" "export AGENT_ID=${name} && opencode --agent ${name} --model ${model}"
+        tmux send-keys -t "${target}" Enter
+        log_info "  └─ ${name} launched (--agent ${name}, target: ${target})"
 
         # Wait for stability
         sleep 1
     done
 
-    log_success "✅ Started in ${MODE_NAME} mode (5 agents deployed with native agent definitions)"
+    log_success "✅ Started in ${MODE_NAME} mode (${AGENT_COUNT} agents deployed with native agent definitions)"
     echo ""
 fi
 
@@ -667,14 +694,14 @@ echo "  ┌───────────────────────
 echo "  │  📋 Party Formation                                       │"
 echo "  └──────────────────────────────────────────────────────────┘"
 echo ""
-echo "     【ff15 session】Unified session (all 5 agents)"
+echo "     【ff15 session】Unified session (${AGENT_COUNT} agents)"
 echo "     ┌──────────────┬──────────────┐"
 echo "     │    Noctis    │  Lunafreya   │  ← Command layer"
-echo "     │   (pane 0)  │   (pane 1)   │"
-echo "     ├──────────────┴──────────────┤"
-echo "     │ Ignis  │ Gladiolus │Prompto │  ← Worker layer"
-echo "     │(pane 2)│ (pane 3)  │(pane 4)│"
-echo "     └────────┴───────────┴────────┘"
+echo "     │   (pane 0)   │   (pane 1)   │     (50% : 50%)"
+echo "     ├──────┬───────┼───────┬──────┤"
+echo "     │Ignis │Gladio │Prompto│ Iris │  ← Worker layer"
+echo "     │(pn 2)│ (pn 3)│ (pn 4)│(pn 5)│     (25% each)"
+echo "     └──────┴───────┴───────┴──────┘"
 echo ""
 
 echo ""

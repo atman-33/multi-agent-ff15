@@ -18,6 +18,7 @@ declare -A PANE_MAP=(
   [ignis]="ff15:main.2"
   [gladiolus]="ff15:main.3"
   [prompto]="ff15:main.4"
+  [iris]="ff15:main.5"
 )
 
 send_one() {
