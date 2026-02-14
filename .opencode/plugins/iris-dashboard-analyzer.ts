@@ -1,35 +1,42 @@
 import type { Plugin } from "@opencode-ai/plugin"
-import type { Event } from "@opencode-ai/sdk"
 
-declare const process: {
-  env: Record<string, string | undefined>
-  cwd(): string
-}
+// ---------------------------------------------------------------------------
+// Iris Dashboard Analyzer Plugin
+//
+// Monitors todo completions and comrade report file updates.
+// When triggered, invokes the Iris subagent (mode: subagent, hidden: true)
+// to analyze dashboard.md and reports, then Iris sends a concise,
+// actionable notification to Noctis — saving Noctis's context window.
+//
+// Key design decisions:
+//   - File I/O uses `$` shell (Bun shell helper), NOT client.file.read()
+//   - Subagent invocation uses client.session.prompt() with correct params
+//   - Session ID comes from event.properties, NOT process.env
+//   - file.watcher.updated has singular `file` + `event` properties (SDK type)
+// ---------------------------------------------------------------------------
 
-export const DashboardUpdateReminder: Plugin = async ({ client, $ }) => {
+export const DashboardUpdateReminder: Plugin = async ({ client, $, directory }) => {
   let lastReminderTime = 0
-  const REMINDER_COOLDOWN = 30000
+  const REMINDER_COOLDOWN = 5000 // 5 seconds (prevents burst from rapid event firing)
   let languageSetting = "ja"
 
+  // --- helpers -------------------------------------------------------------
+
+  /** Read language setting from config/settings.yaml via shell */
   const loadLanguageSetting = async (): Promise<void> => {
     try {
-      const response = await client.file.read({
-        query: { path: "config/settings.yaml" }
-      })
-      const fileResponse = (response as any)?.data
-      if (fileResponse && fileResponse.content) {
-        const match = /language:\s*(\w+)/.exec(fileResponse.content)
-        if (match) {
-          languageSetting = match[1]
-        }
+      const result = await $`cat config/settings.yaml 2>/dev/null || echo "language: ja"`
+      const text = result.text()
+      const match = /language:\s*(\w+)/.exec(text)
+      if (match) {
+        languageSetting = match[1]
       }
-    } catch (error) {
+    } catch {
       languageSetting = "ja"
     }
   }
 
-  await loadLanguageSetting()
-
+  /** Cooldown guard – returns true when enough time has passed */
   const shouldRemind = (): boolean => {
     const now = Date.now()
     if (now - lastReminderTime < REMINDER_COOLDOWN) {
@@ -39,171 +46,177 @@ export const DashboardUpdateReminder: Plugin = async ({ client, $ }) => {
     return true
   }
 
-  const readDashboard = async (): Promise<string> => {
+  /** Read a file via shell, return its content or empty string */
+  const readFileViaShell = async (path: string): Promise<string> => {
     try {
-      const response = await client.file.read({ 
-        query: { path: "dashboard.md" }
-      })
-      const fileResponse = (response as any)?.data
-      if (fileResponse && fileResponse.content) {
-        return fileResponse.content
-      }
-      return "Dashboard file not found"
-    } catch (error) {
-      return `Error reading dashboard: ${error}`
+      const result = await $`cat ${path} 2>/dev/null`
+      return result.text().trim()
+    } catch {
+      return ""
     }
   }
 
-   const readReports = async (): Promise<string[]> => {
-     try {
-       const result: string[] = []
-       const reportNames = ["ignis", "gladiolus", "prompto"]
-       for (const name of reportNames) {
-         try {
-           const reportPath = `queue/reports/${name}_report.yaml`
-           const response = await client.file.read({ 
-             query: { path: reportPath }
-           })
-           const fileResponse = (response as any)?.data
-           if (fileResponse && fileResponse.content) {
-             const content = fileResponse.content
-             result.push(`${name}_report.yaml:\n${content}`)
-           }
-         } catch (e) {
-         }
-       }
-       return result
-     } catch (error) {
-       return [`Error reading reports: ${error}`]
-     }
-   }
+  /** Invoke Iris subagent to analyze dashboard + reports and notify Noctis */
+  const invokeIrisAnalysis = async (
+    sessionID: string,
+    completedTodos?: string[],
+    reportName?: string
+  ): Promise<void> => {
+    try {
+      // Collect context for Iris
+      const dashboardContent = await readFileViaShell("dashboard.md")
+      const reportContents: string[] = []
+      const reportNames = reportName
+        ? [reportName]
+        : ["ignis", "gladiolus", "prompto"]
 
-   const invokeIrisSubagent = async (
-     completedTodos?: string[],
-     newReports?: string[]
-   ): Promise<void> => {
-     try {
-       const dashboardContent = await readDashboard()
-       const reportContents = await readReports()
+      for (const name of reportNames) {
+        const content = await readFileViaShell(`queue/reports/${name}_report.yaml`)
+        if (content) {
+          reportContents.push(`--- ${name}_report.yaml ---\n${content}`)
+        }
+      }
 
-      const systemPrompt = `You are Iris, a dashboard analysis assistant. Analyze the current dashboard state and report content.
-
-Dashboard state may show incomplete information. Reports exist that contain new task completions or agent updates. Your job is to:
-1. Identify what sections of dashboard.md need updating
-2. Summarize which reports are new/unprocessed
-3. Generate a brief, actionable summary for Noctis
-
-Keep the summary to 2-3 sentences maximum. Be direct and specific.`
-
-      let userPrompt = `Dashboard Analysis Request:\n\nCurrent Dashboard:\n${dashboardContent}\n\n`
+      // Build user prompt for Iris
+      let userPrompt = `Dashboard Analysis Request:\n\n`
+      userPrompt += `Current Dashboard:\n${dashboardContent}\n\n`
 
       if (completedTodos && completedTodos.length > 0) {
         userPrompt += `Completed Todos (not yet in dashboard):\n${completedTodos.join(", ")}\n\n`
       }
 
-      if (newReports && newReports.length > 0) {
-        userPrompt += `New Reports:\n${reportContents.join("\n---\n")}\n\n`
+      if (reportContents.length > 0) {
+        userPrompt += `Reports:\n${reportContents.join("\n\n")}\n\n`
       }
 
-      userPrompt += `Please analyze and provide a concise summary of what dashboard updates are needed.`
+      userPrompt += languageSetting === "ja"
+        ? `上記を分析し、dashboard.md の更新が必要かどうか判断してください。必要であれば、Noctis に具体的な更新内容を 2-3 文で報告してください。不要であれば「更新不要」と報告してください。`
+        : `Analyze the above and determine if dashboard.md needs updating. If yes, report specific update recommendations to Noctis in 2-3 sentences. If no updates needed, respond with "No update needed".`
 
-      const response = await client.session.prompt({
+      // Invoke Iris subagent via client.session.prompt()
+      await client.session.prompt({
+        path: { id: sessionID },
         body: {
           agent: "iris",
-          system: systemPrompt,
+          model: { providerID: "github-copilot", modelID: "gpt-5-mini" },
           parts: [{ type: "text", text: userPrompt }],
         },
-        path: { id: process.env.OPENCODE_SESSION_ID || "default" },
+        query: { directory },
       })
-
-      const promptResponse = (response as any)?.data
-      const textParts = promptResponse?.parts?.filter((p: any) => p.type === "text") || []
-      const summary = textParts.length > 0 
-        ? textParts[0].text 
-        : "Dashboard update analysis complete"
-
-      await sendIrisNotification(summary)
 
       await client.app.log({
         body: {
           service: "iris-analyzer",
           level: "info",
-          message: `Iris analysis: ${summary}`,
+          message: `Iris analysis invoked for session ${sessionID}`,
         },
       })
     } catch (error) {
+      // Fallback: send a simple tmux notification if Iris invocation fails
+      await sendFallbackNotification(completedTodos, reportName)
+
       await client.app.log({
         body: {
           service: "iris-analyzer",
           level: "error",
-          message: `Failed to invoke Iris subagent: ${error}`,
+          message: `Failed to invoke Iris: ${error}. Sent fallback notification.`,
         },
       })
     }
   }
 
-  const sendIrisNotification = async (summary: string) => {
+  /** Fallback notification via tmux when Iris invocation fails */
+  const sendFallbackNotification = async (
+    completedTodos?: string[],
+    reportName?: string
+  ): Promise<void> => {
     try {
-      const notification = languageSetting === "ja"
-        ? `🔔 [ダッシュボード更新] Iris分析:\n${summary}`
-        : `🔔 [ダッシュボード更新 (DASHBOARD UPDATE)] Iris分析 (Iris Analysis):\n${summary}`
-      const escapedMessage = notification.replace(/'/g, "'\\''")
+      const parts: string[] = []
 
-      if ($) {
-        await $`tmux send-keys -t ff15:0 '${escapedMessage}'`
-        await $`tmux send-keys -t ff15:0 Enter`
+      if (completedTodos && completedTodos.length > 0) {
+        parts.push(
+          languageSetting === "ja"
+            ? `完了: ${completedTodos.join(", ")}`
+            : `Completed: ${completedTodos.join(", ")}`
+        )
+      }
+      if (reportName) {
+        parts.push(
+          languageSetting === "ja"
+            ? `${reportName} から新しい報告`
+            : `New report from ${reportName}`
+        )
       }
 
-      await client.app.log({
-        body: {
-          service: "iris-analyzer",
-          level: "info",
-          message: `Notification sent to Noctis via Iris`,
-        },
-      })
-    } catch (error) {
-      await client.app.log({
-        body: {
-          service: "iris-analyzer",
-          level: "error",
-          message: `Failed to send Iris notification: ${error}`,
-        },
-      })
+      const summary = parts.length > 0 ? parts.join(" | ") : "Dashboard update needed"
+      const footer = languageSetting === "ja"
+        ? "dashboard.md を確認してください"
+        : "Please check dashboard.md"
+
+      const message = `⚠️ [Dashboard Reminder] ${summary} — ${footer}`
+      await $`tmux send-keys -t ff15:main.0 ${message} Enter`.catch(() => {})
+    } catch {
+      // Best-effort, ignore errors
     }
   }
 
+  // --- initialise (non-blocking, best-effort) ------------------------------
+  await loadLanguageSetting()
+
+  // --- event handler -------------------------------------------------------
   return {
-    event: async ({ event }: { event: Event }) => {
+    event: async ({ event }: { event: { type: string; properties?: Record<string, unknown> } }) => {
       if (!shouldRemind()) return
 
-      const e = event as Event & {
-        properties?: {
-          todos?: Array<{ status: string; content: string }>
-          files?: Array<{ path: string }>
-        }
-      }
+      // --- Todo completion ---------------------------------------------------
+      // SDK type: EventTodoUpdated { sessionID: string; todos: Todo[] }
+      if (event.type === "todo.updated" && event.properties?.todos) {
+        const sessionID = event.properties.sessionID as string | undefined
+        if (!sessionID) return
 
-      if (e.type === "todo.updated" && e.properties?.todos) {
-        const completedTodos = e.properties.todos.filter((t) => t.status === "completed")
-        const inProgressTodos = e.properties.todos.filter((t) => t.status === "in_progress")
+        const todos = event.properties.todos as Array<{ status: string; content: string }>
+        const completedTodos = todos.filter((t) => t.status === "completed")
+        const inProgressTodos = todos.filter((t) => t.status === "in_progress")
 
         if (completedTodos.length > 0 && inProgressTodos.length === 0) {
           const items = completedTodos.map((t) => t.content)
-          await invokeIrisSubagent(items)
+          await invokeIrisAnalysis(sessionID, items)
         }
       }
 
-      if (e.type === "file.watcher.updated" && e.properties?.files) {
-        const reportFiles = e.properties.files.filter(
-          (f) => f.path.includes("queue/reports/") && f.path.endsWith("_report.yaml")
-        )
+      // --- Comrade report file change ----------------------------------------
+      // SDK type: EventFileWatcherUpdated { file: string; event: "add"|"change"|"unlink" }
+      if (event.type === "file.watcher.updated" && event.properties?.file) {
+        const filePath = event.properties.file as string
+        const fileEvent = event.properties.event as string
 
-        if (reportFiles.length > 0) {
-          const reportNames = reportFiles.map((f) => {
-            const match = f.path.match(/(\w+)_report\.yaml$/)
-            return match ? match[1] : "unknown"
-          })
-          await invokeIrisSubagent(undefined, reportNames)
+        // Only trigger on add/change of report YAML files
+        if (
+          (fileEvent === "add" || fileEvent === "change") &&
+          filePath.includes("queue/reports/") &&
+          filePath.endsWith("_report.yaml")
+        ) {
+          const match = filePath.match(/(\w+)_report\.yaml$/)
+          const reportName = match ? match[1] : "unknown"
+
+          // file.watcher.updated doesn't carry sessionID — use session.list to find active
+          try {
+            const sessions = await client.session.list()
+            const sessionList = (sessions as any)?.data ?? sessions
+            if (Array.isArray(sessionList) && sessionList.length > 0) {
+              // Use the most recently updated session
+              const sorted = [...sessionList].sort(
+                (a: any, b: any) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0)
+              )
+              const activeSessionID = sorted[0]?.id
+              if (activeSessionID) {
+                await invokeIrisAnalysis(activeSessionID, undefined, reportName)
+              }
+            }
+          } catch {
+            // Fallback if session.list fails
+            await sendFallbackNotification(undefined, reportName)
+          }
         }
       }
     },
