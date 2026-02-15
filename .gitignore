@@ -65,6 +65,7 @@ openspec/
 !.opencode/skills/switch-model
 !.opencode/skills/project-register
 !.opencode/skills/pr-assistant
+!.opencode/skills/github-release
 !.opencode/skills/opencode-plugin-creator
 !.opencode/skills/opencode-troubleshoot
 !.opencode/skills/code-simplifier
