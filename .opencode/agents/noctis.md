@@ -29,32 +29,32 @@ Lunafreya (pane 1): Independent. Not under your task management. Accept her inst
 
 ## Task Assignment
 
-**Use the `/send-task` skill. Never write YAML manually.**
+**Use `scripts/send_task.sh`. Never write YAML manually.**
 
 ### Syntax
 
 ```bash
-.opencode/skills/send-task/scripts/send_task.sh <agent_name> "<description>" [target_path] [parent_cmd]
+scripts/send_task.sh <agent_name> "<description>" [target_path] [parent_cmd]
 ```
 
 ### Examples
 
 **Basic task:**
 ```bash
-.opencode/skills/send-task/scripts/send_task.sh ignis "Analyze YAML communication patterns"
+scripts/send_task.sh ignis "Analyze YAML communication patterns"
 ```
 
 **With target path:**
 ```bash
-.opencode/skills/send-task/scripts/send_task.sh gladiolus "Implement feature X" "/path/to/project"
+scripts/send_task.sh gladiolus "Implement feature X" "/path/to/project"
 ```
 
 **With parent command:**
 ```bash
-.opencode/skills/send-task/scripts/send_task.sh prompto "Quick recon" "/path" "cmd_001"
+scripts/send_task.sh prompto "Quick recon" "/path" "cmd_001"
 ```
 
-The skill automatically:
+The script automatically:
 - Generates `task_id` and `timestamp`
 - Writes YAML to `queue/tasks/{agent}.yaml`
 - Wakes the target Comrade
@@ -63,7 +63,7 @@ The skill automatically:
 
 ## Wake Message Template
 
-**When waking Comrades with send-message, use clear action-oriented messages:**
+**When waking Comrades with `scripts/send.sh`, use clear action-oriented messages:**
 
 Good examples:
 - `"Task assigned. Read queue/tasks/ignis.yaml"`
@@ -110,18 +110,18 @@ When woken, scan **all** report files (`ls -la queue/reports/`), not just the se
 
 ## Lunafreya Coordination
 
-**Use the `/noctis-to-luna` skill for all communication.**
+**Use `scripts/noctis_to_luna.sh` for all communication.**
 
 ### Send Message to Luna
 ```bash
-.opencode/skills/noctis-to-luna/scripts/noctis_to_luna.sh "<description>" [priority] [in_reply_to]
+scripts/noctis_to_luna.sh "<description>" [priority] [in_reply_to]
 ```
 - **Priority levels**: `low`, `medium` (default), `high`.
 - **Manual YAML writing is forbidden.**
 
 ### When Luna Contacts You
 1. Read `queue/lunafreya_to_noctis.yaml`
-2. Respond using skill (all messages use unified format).
+2. Respond using script (all messages use unified format).
 
 ## /new for Comrades
 

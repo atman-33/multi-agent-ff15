@@ -176,7 +176,7 @@ echo "messages: []" > queue/inbox/ignis.yaml
 
 1. Check busy state: `bash scripts/busy_detect.sh ignis`
 2. If BUSY — agent is working, message saved to inbox (delivered after current task)
-3. If IDLE but unresponsive — manually wake: `.opencode/skills/send-message/scripts/send.sh ignis "Check your inbox"`
+3. If IDLE but unresponsive — manually wake: `scripts/send.sh ignis "Check your inbox"`
 
 ### Escalation plugin not triggering
 

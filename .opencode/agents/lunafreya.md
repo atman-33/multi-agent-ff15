@@ -28,18 +28,18 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
-**Use the `/luna-to-noctis` skill for all communication.**
+**Use `scripts/luna_to_noctis.sh` for all communication.**
 
 ### Send Message to Noctis
 ```bash
-.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
+scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
 ```
 - **Message types**: `instruction` (default), `consultation`, `response`, `info`.
 - **Manual YAML writing is forbidden.**
 
 ### When Noctis Contacts You
 1. Read `queue/noctis_to_lunafreya.yaml`
-2. Check `message.type` and respond using skill with appropriate type.
+2. Check `message.type` and respond using script with appropriate type.
 
 ## Anti-Polling (F003)
 

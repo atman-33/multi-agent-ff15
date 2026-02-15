@@ -49,7 +49,7 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 
 # --- Resolve script directory (works from any CWD) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 DETAILS_EXPANDED=$(echo -e "$DETAILS")
 
@@ -73,5 +73,5 @@ fi
 
 echo "✅ Report submitted by ${AGENT_ID} (${TASK_ID})"
 
-# --- Wake Noctis via send-message ---
-"${REPO_ROOT}/.opencode/skills/send-message/scripts/send.sh" noctis "Report ready: ${TASK_ID}"
+# --- Wake Noctis via send.sh ---
+"${REPO_ROOT}/scripts/send.sh" noctis "Report ready: ${TASK_ID}"

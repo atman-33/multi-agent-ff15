@@ -45,12 +45,12 @@ No errors in logic/references. Cover all cases. Handle edge cases. Optimize for 
 3. **Check `status` field**:
    - `assigned` → Execute the task immediately
    - `idle` → Do nothing (wait for next instruction)
-4. **After completion** — Use `/send-report` skill:
+4. **After completion** — Use `scripts/send_report.sh`:
    ```bash
-   .opencode/skills/send-report/scripts/send_report.sh "<task_id>" "<status>" "<summary>" [details] [skill_candidate]
+   scripts/send_report.sh "<task_id>" "<status>" "<summary>" [details] [skill_candidate]
    ```
 
-The skill automatically detects your agent ID, generates timestamp, writes YAML to `queue/reports/ignis_report.yaml`, and wakes Noctis.
+The script automatically detects your agent ID, generates timestamp, writes YAML to `queue/reports/ignis_report.yaml`, and wakes Noctis.
 
 **Never skip Step 1-2. Never act on message content alone. Never write YAML manually.**
 

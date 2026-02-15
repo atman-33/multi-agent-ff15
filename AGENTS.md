@@ -83,7 +83,7 @@ multi-agent-ff15/
 ## Communication Protocol — Iron Rule
 
 **ALL inter-agent communication MUST go through YAML files.**
-Write YAML first, then send a wake message via `send-message` skill to notify the target agent. Sending task content directly in messages is forbidden.
+Write YAML via messaging scripts, which automatically handle inbox writes and agent wake-up. Sending task content directly in messages is forbidden.
 
 ### Why YAML-only?
 
@@ -99,25 +99,25 @@ Write YAML first, then send a wake message via `send-message` skill to notify th
 
 **Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring. Inbox-watcher plugin polls every 30s for escalation.)
 
-All inter-agent messaging uses the **send-message skill** (never direct `tmux send-keys`):
+All inter-agent messaging uses `scripts/send.sh` (never direct `tmux send-keys`):
 
 ```bash
 # Single
-.opencode/skills/send-message/scripts/send.sh <target> "message"
+scripts/send.sh <target> "message"
 
 # Multiple (2s interval auto)
-.opencode/skills/send-message/scripts/send.sh ignis "msg" gladiolus "msg" prompto "msg"
+scripts/send.sh ignis "msg" gladiolus "msg" prompto "msg"
 ```
 
-send-message automatically: writes to inbox (`queue/inbox/{agent}.yaml`), checks busy state (skips tmux nudge if busy), then sends tmux wake.
+send.sh automatically: writes to inbox (`queue/inbox/{agent}.yaml`), checks busy state (skips tmux nudge if busy), then sends tmux wake.
 
 ### Message Flow
 
-- **Noctis → Comrade**: Write to `queue/tasks/{name}.yaml`, wake via `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"`
-- **Comrade → Noctis**: Write to `queue/reports/{name}_report.yaml`, wake via `send.sh noctis "Report ready: {task_id}"`
-- **Luna → Noctis**: Write to `queue/lunafreya_to_noctis.yaml`, wake via `send.sh noctis "Luna instruction"`
-- **Noctis → Luna**: Write to `queue/noctis_to_lunafreya.yaml`, wake via `send.sh lunafreya "Response ready"`
-- **Iris → Noctis**: Woken by iris-watcher plugin on report changes, sends `send.sh noctis "Dashboard update needed: ..."` if dashboard stale
+- **Noctis → Comrade**: `scripts/send_task.sh <name> "<description>"` (writes task YAML + inbox + wakes agent)
+- **Comrade → Noctis**: `scripts/send_report.sh "<task_id>" "<status>" "<summary>"` (writes report YAML + inbox + wakes Noctis)
+- **Luna → Noctis**: `scripts/luna_to_noctis.sh "<description>"` (writes channel YAML + inbox + wakes Noctis)
+- **Noctis → Luna**: `scripts/noctis_to_luna.sh "<description>"` (writes channel YAML + inbox + wakes Luna)
+- **Iris → Noctis**: Woken by iris-watcher plugin on report changes, sends `scripts/send.sh noctis "Dashboard update needed: ..."` if dashboard stale
 
 ### Comrade Task Flow
 
@@ -133,7 +133,7 @@ When you receive ANY message or wake up:
    - `idle` → Do nothing (wait for next instruction)
 4. **After completion**:
    - Write report to `queue/reports/{your_name}_report.yaml`
-   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
+   - Notify Noctis: `scripts/send.sh noctis "Report ready: {task_id}"`
    - Return to idle
 
 **Never skip Step 1-2. Never act on message content alone.**
@@ -158,7 +158,7 @@ report:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Execute tasks yourself | Delegate to Comrades |
-| F002 | Use task agents | Use send-message skill |
+| F002 | Use task agents | Use `scripts/send.sh` |
 | F003 | Polling | Event-driven |
 | F004 | Skip context reading | Always read first |
 
@@ -168,7 +168,7 @@ report:
 |----|--------|-------------|
 | F001 | Contact user directly | Report to Noctis |
 | F002 | Order other Comrades | Request through Noctis |
-| F003 | Use task agents | Use send-message skill |
+| F003 | Use task agents | Use `scripts/send.sh` |
 | F004 | Polling | Event-driven |
 | F005 | Skip context reading | Always read first |
 | F006 | Modify other Comrades' files | Own files only (RACE-001) |
@@ -178,7 +178,7 @@ report:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Accept tasks from Noctis | Execute autonomously |
-| F002 | Use task agents | Use send-message skill |
+| F002 | Use task agents | Use `scripts/send.sh` |
 | F003 | Polling | Event-driven |
 | F004 | Direct instructions to Comrades | Go through Noctis |
 
@@ -194,7 +194,7 @@ All YAML writes use `scripts/yaml_write_flock.sh` for atomic writes with exclusi
 scripts/yaml_write_flock.sh <target_file> "<yaml_content>"
 ```
 
-Skills (`send-task`, `send-report`, `luna-to-noctis`, `noctis-to-luna`) already use this wrapper. Direct `cat >` writes to queue YAML files are forbidden.
+Scripts (`send_task.sh`, `send_report.sh`, `luna_to_noctis.sh`, `noctis_to_luna.sh`) already use this wrapper. Direct `cat >` writes to queue YAML files are forbidden.
 
 ## YAML Status Transitions
 

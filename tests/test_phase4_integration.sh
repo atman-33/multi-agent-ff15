@@ -362,12 +362,12 @@ if [[ ! -f "${REPO_ROOT}/scripts/yaml_write_flock.sh" ]]; then
   echo "    ❌ yaml_write_flock.sh missing"
 fi
 
-if ! grep -q "yaml_write_flock" "${REPO_ROOT}/.opencode/skills/send-task/scripts/send_task.sh" 2>/dev/null; then
+if ! grep -q "yaml_write_flock" "${REPO_ROOT}/scripts/send_task.sh" 2>/dev/null; then
   BC_OK=false
   echo "    ❌ send-task not using yaml_write_flock"
 fi
 
-if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/.opencode/skills/send-report/scripts/send_report.sh" 2>/dev/null; then
+if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/scripts/send_report.sh" 2>/dev/null; then
   BC_OK=false
   echo "    ❌ send-report not using yaml_write_flock"
 fi

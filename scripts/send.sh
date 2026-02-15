@@ -12,7 +12,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
 BUSY_DETECT="${REPO_ROOT}/scripts/busy_detect.sh"
 

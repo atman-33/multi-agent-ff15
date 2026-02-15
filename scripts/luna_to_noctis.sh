@@ -36,7 +36,7 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 
 # --- Resolve script directory (works from any CWD) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 YAML_CONTENT=$(cat << EOF
 # Lunafreya → Noctis communication channel
@@ -59,5 +59,5 @@ WAKE_MSG="Lunafreya からのレターがあります"
 
 echo "✅ Message sent to Noctis (${MSG_ID})"
 
-# --- Wake Noctis via send-message ---
-"${REPO_ROOT}/.opencode/skills/send-message/scripts/send.sh" noctis "$WAKE_MSG"
+# --- Wake Noctis via send.sh ---
+"${REPO_ROOT}/scripts/send.sh" noctis "$WAKE_MSG"
