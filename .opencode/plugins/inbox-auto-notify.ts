@@ -121,7 +121,9 @@ except Exception as e:
           await log(`[NOTIFY] Sending wake message for new message ${latestUnreadId}`);
 
           await $`tmux send-keys -t ${myPane} Enter`.quiet();
+          await new Promise(resolve => setTimeout(resolve, 50));
           await $`tmux send-keys -t ${myPane} "You have new inbox messages. Run: scripts/inbox_read.sh ${agentId}"`.quiet();
+          await new Promise(resolve => setTimeout(resolve, 50));
           await $`tmux send-keys -t ${myPane} Enter`.quiet();
 
           notifiedMessageIds.add(latestUnreadId);

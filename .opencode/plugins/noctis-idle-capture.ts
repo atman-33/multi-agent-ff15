@@ -5,14 +5,8 @@ declare const process: {
 };
 
 /**
- * Noctis Idle Capture — On session.idle, captures Noctis terminal
- * and sends cleaned output to Iris inbox for dashboard update. Runs on Noctis only.
- *
- * Capture strategy:
- *   1. Capture 300 lines of scrollback from tmux
- *   2. Strip ANSI escape sequences
- *   3. Filter out noise (empty lines, shell prompts, known commands)
- *   4. Take last 80 meaningful lines
+ * Noctis Idle Capture — On session.idle, captures Noctis terminal (300 lines)
+ * and sends to Iris inbox for dashboard update. Runs on Noctis only.
  */
 const NoctisIdleCapture: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID;
@@ -21,8 +15,7 @@ const NoctisIdleCapture: Plugin = async ({ $ }) => {
   }
 
   const NOCTIS_PANE = "ff15:main.0";
-  const RAW_CAPTURE_LINES = 300;  // Capture more raw lines to find useful content
-  const OUTPUT_LINES = 80;        // Send at most this many cleaned lines to Iris
+  const CAPTURE_LINES = 300;
   const COOLDOWN_MS = 10_000;
   const ENABLE_LOGGING = false;
 
@@ -50,12 +43,12 @@ const NoctisIdleCapture: Plugin = async ({ $ }) => {
       lastCaptureTime = now;
 
       try {
-        // Capture raw output, strip ANSI codes, filter noise, take last N lines
-        const result = await $`tmux capture-pane -t ${NOCTIS_PANE} -p -S -${RAW_CAPTURE_LINES} -E -1 | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g; s/\x1b\][^\x07]*\x07//g; s/\x1b(B//g; s/\x1b\[[\?]*[0-9;]*[a-zA-Z]//g' | grep -v '^\s*$' | grep -v '^\s*\\\\' | grep -Ev '^\([^)]+\) [^ ]*\$' | grep -Ev '^(export |source |cd |opencode )' | tail -n ${OUTPUT_LINES}`.quiet();
+        // Simply capture last 300 lines from tmux pane
+        const result = await $`tmux capture-pane -t ${NOCTIS_PANE} -p -S -${CAPTURE_LINES} -E -1`.quiet();
         const capturedOutput = result.text().trim();
 
         if (!capturedOutput) {
-          await log("Empty capture after filtering, skipping");
+          await log("Empty capture, skipping");
           return;
         }
 
