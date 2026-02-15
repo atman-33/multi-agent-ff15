@@ -15,7 +15,7 @@ const PANE_MAP: Record<string, string> = {
 
 const InboxAutoNotify: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID;
-  if (agentId !== "noctis") {
+  if (!agentId) {
     return {};
   }
 
@@ -25,26 +25,19 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
     if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
-      await $`echo "[${timestamp}] inbox-auto-notify: ${message}" >> logs/inbox-auto-notify.log`.quiet();
+      await $`echo "[${timestamp}] inbox-auto-notify [${agentId}]: ${message}" >> logs/inbox-auto-notify-${agentId}.log`.quiet();
     } catch {}
   };
 
-  const extractAgent = (filePath: string): string | undefined => {
-    const match = filePath.match(/queue\/inbox\/(\w+)\.yaml$/);
-    return match?.[1];
-  };
+  const myInbox = `queue/inbox/${agentId}.yaml`;
+  const myPane = PANE_MAP[agentId];
 
-  const isBusy = async (agent: string): Promise<boolean> => {
-    try {
-      await $`scripts/busy_detect.sh ${agent}`.quiet();
-      return false;
-    } catch (err: unknown) {
-      const exitCode = (err as { exitCode?: number }).exitCode;
-      return exitCode === 1;
-    }
-  };
+  if (!myPane) {
+    await log(`No pane mapping for agent ${agentId}, plugin disabled`);
+    return {};
+  }
 
-  await log("Inbox auto-notify started (event-driven, runs on Noctis only)");
+  await log(`Inbox auto-notify started (monitoring own inbox: ${myInbox})`);
 
   return {
     event: async ({ event }) => {
@@ -52,30 +45,18 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
 
       const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
       
-      if (!props.file.includes("queue/inbox/")) return;
-      if (props.file.endsWith(".lock")) return;
+      if (!props.file.endsWith(myInbox)) return;
       if (props.event !== "change" && props.event !== "add") return;
 
-      const targetAgent = extractAgent(props.file);
-      if (!targetAgent) return;
-
-      if (targetAgent === agentId) return;
-
-      const pane = PANE_MAP[targetAgent];
-      if (!pane) return;
-
-      const busy = await isBusy(targetAgent);
-      if (busy) {
-        await log(`Skipped wake for ${targetAgent} (BUSY). Message stays in inbox.`);
-        return;
-      }
+      await log(`Inbox file changed, notifying via tmux`);
 
       try {
-        await $`tmux send-keys -t ${pane} "You have new inbox messages. Run: scripts/inbox_read.sh ${targetAgent}"`.quiet();
-        await $`tmux send-keys -t ${pane} Enter`.quiet();
-        await log(`Woke ${targetAgent} via tmux (${pane})`);
+        await $`tmux send-keys -t ${myPane} Enter`.quiet();
+        await $`tmux send-keys -t ${myPane} "You have new inbox messages. Run: scripts/inbox_read.sh ${agentId}"`.quiet();
+        await $`tmux send-keys -t ${myPane} Enter`.quiet();
+        await log(`Successfully sent wake message via tmux`);
       } catch (err) {
-        await log(`Failed to wake ${targetAgent}: ${err}`);
+        await log(`Failed to send wake message: ${err}`);
       }
     },
   };
