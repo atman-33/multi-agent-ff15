@@ -56,6 +56,7 @@ multi-agent-ff15/
 │   └── inbox/{agent}.yaml         # Per-agent inbox (sole communication channel)
 ├── context/                       # Project-specific context
 ├── memory/                        # Memory MCP storage
+├── docs/private/                  # Supplementary report output (補足ドキュメント出力先)
 ├── dashboard.md                   # Status board
 └── standby.sh                     # Deployment script
 ```
@@ -129,6 +130,35 @@ report:
   skill_candidate: null
   timestamp: "ISO 8601"
 ```
+
+## Supplementary Reports Output Location
+
+When agents generate detailed reports, supplementary reports, analysis documents, or any large output files that are not the main task deliverable:
+
+**Output to: `docs/private/`**
+
+### Rules
+
+| Output Type | Location | Example |
+|-------------|----------|---------|
+| Detailed analysis reports | `docs/private/` | Research findings, comparison tables |
+| Supplementary documents | `docs/private/` | Supporting materials, references |
+| Large output files | `docs/private/` | Generated articles, code samples |
+| Main deliverables | As specified by user | Usually project root or specific path |
+| YAML reports | `queue/inbox/` | Use `send_report.sh` exclusively |
+
+### File Naming Convention
+
+```
+docs/private/{task_type}-{agent_name}-{timestamp}.md
+```
+
+Examples:
+- `docs/private/analysis-ignis-20260215.md`
+- `docs/private/article-gladiolus-v2.md`
+- `docs/private/research-prompto-frameworks.md`
+
+**Never clutter the root directory with supplementary files.** Use `docs/private/` for all non-essential outputs.
 
 ## Forbidden Actions
 
