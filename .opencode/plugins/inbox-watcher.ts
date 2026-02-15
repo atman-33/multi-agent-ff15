@@ -38,6 +38,7 @@ const InboxWatcher: Plugin = async ({ $ }) => {
 
   let firstUnreadSeen: number | null = null;
   let lastEscalation: number = 0;
+  let updating = false;
 
   const log = async (message: string): Promise<void> => {
     if (!ENABLE_LOGGING) return;
@@ -58,13 +59,15 @@ const InboxWatcher: Plugin = async ({ $ }) => {
   };
 
   const sendWakeMessage = async (): Promise<boolean> => {
+    await log(`[ESCALATE] Sending wake message to ${myPane}...`);
     try {
       await $`tmux send-keys -t ${myPane} Enter`.quiet();
       await $`tmux send-keys -t ${myPane} "You have unread inbox messages. Run: scripts/inbox_read.sh ${agentId}"`.quiet();
       await $`tmux send-keys -t ${myPane} Enter`.quiet();
+      await log(`[ESCALATE] Wake message sent successfully`);
       return true;
     } catch (err) {
-      await log(`Escalation failed: tmux error - ${err}`);
+      await log(`[ESCALATE] Failed: tmux error - ${err}`);
       return false;
     }
   };
@@ -82,38 +85,47 @@ const InboxWatcher: Plugin = async ({ $ }) => {
   };
 
   const checkAndEscalate = async (): Promise<void> => {
-    const now = Date.now();
-    const unreadCount = await getUnreadCount();
+    if (updating) return;
 
-    if (unreadCount === 0) {
-      firstUnreadSeen = null;
-      return;
-    }
+    try {
+      updating = true;
+      await log(`[POLL] Checking inbox for unread messages...`);
+      const now = Date.now();
+      const unreadCount = await getUnreadCount();
+      await log(`[POLL] Unread count: ${unreadCount}`);
 
-    if (firstUnreadSeen === null) {
-      firstUnreadSeen = now;
-      await log(`First unread detected (count: ${unreadCount})`);
-      return;
-    }
+      if (unreadCount === 0) {
+        firstUnreadSeen = null;
+        return;
+      }
 
-    const elapsed = now - firstUnreadSeen;
-    if (elapsed < ESCALATION_THRESHOLD_MS) {
-      await log(`${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed (threshold: ${Math.round(ESCALATION_THRESHOLD_MS / 1000)}s)`);
-      return;
-    }
+      if (firstUnreadSeen === null) {
+        firstUnreadSeen = now;
+        await log(`First unread detected (count: ${unreadCount})`);
+        return;
+      }
 
-    if (now - lastEscalation < COOLDOWN_MS) {
-      await log(`Cooldown active (${Math.round((now - lastEscalation) / 1000)}s since last escalation, cooldown: ${Math.round(COOLDOWN_MS / 1000)}s)`);
-      return;
-    }
+      const elapsed = now - firstUnreadSeen;
+      if (elapsed < ESCALATION_THRESHOLD_MS) {
+        await log(`${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed (threshold: ${Math.round(ESCALATION_THRESHOLD_MS / 1000)}s)`);
+        return;
+      }
 
-    await log(`Escalating: ${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed`);
-    const success = await sendWakeMessage();
-    if (success) {
-      lastEscalation = now;
-      await logEscalation(unreadCount, elapsed);
-      firstUnreadSeen = null;
-      await log(`Wake message sent successfully`);
+      if (now - lastEscalation < COOLDOWN_MS) {
+        await log(`Cooldown active (${Math.round((now - lastEscalation) / 1000)}s since last escalation, cooldown: ${Math.round(COOLDOWN_MS / 1000)}s)`);
+        return;
+      }
+
+      await log(`Escalating: ${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed`);
+      const success = await sendWakeMessage();
+      if (success) {
+        lastEscalation = now;
+        await logEscalation(unreadCount, elapsed);
+        firstUnreadSeen = null;
+        await log(`Wake message sent successfully`);
+      }
+    } finally {
+      setTimeout(() => { updating = false; }, 2000);
     }
   };
 

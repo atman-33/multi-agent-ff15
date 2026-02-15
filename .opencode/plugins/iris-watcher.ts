@@ -317,7 +317,9 @@ except Exception:
       if (event.type !== "file.watcher.updated") return;
 
       const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
-      if (props.event !== "change") return;
+      // Accept both "add" and "change" events
+      // os.rename() atomic writes may emit "add" instead of "change" on Linux/inotify
+      if (props.event !== "change" && props.event !== "add") return;
 
       if (updating) return;
 

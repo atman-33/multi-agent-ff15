@@ -90,8 +90,8 @@ try:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     os.rename(tmp_file, inbox_file)
-    # Touch file to trigger file watcher events
-    os.utime(inbox_file, None)
+    # Note: os.rename triggers file watcher events (add/change).
+    # No additional os.utime needed — it caused duplicate watcher events.
     sys.exit(0)
 
 except yaml.YAMLError as e:
