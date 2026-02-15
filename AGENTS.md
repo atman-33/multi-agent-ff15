@@ -24,7 +24,7 @@ Crystal (User)
 │  (王)    │ (Leader +   │  (神凪)     │   Direct user interaction
 │          │  Task Mgr)  │            │   Can command Noctis
 └────┬─────┘            └────────────┘
-     │ YAML + send-message
+     │ YAML inbox
      ▼
 ┌────────────┬──────────┬────────────┐
 │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
@@ -32,8 +32,8 @@ Crystal (User)
 └────────────┴──────────┴────────────┘
 
      IRIS (イリス) ← Dashboard Guardian (background)
-     Polls reports, reminds Noctis to update dashboard.
-     Woken by iris-watcher plugin every 30s when reports change.
+     Monitors inbox for report notifications, reminds Noctis to update dashboard.
+     Woken by iris-watcher plugin when new reports appear in Noctis inbox.
 ```
 
 ## Context Persistence
@@ -41,7 +41,7 @@ Crystal (User)
 ```
 Layer 1: Memory MCP        — Persistent across sessions (preferences, rules)
 Layer 2: Project            — config/projects.yaml + context/{project}.md
-Layer 3: YAML Queue         — queue/tasks/, queue/reports/, lunafreya↔noctis channels
+Layer 3: YAML Inbox         — queue/inbox/{agent}.yaml (sole communication channel)
 Layer 4: Session (Volatile) — AGENTS.md + .opencode/agents/*.md (auto-loaded, reset by /new)
 ```
 
@@ -53,10 +53,7 @@ multi-agent-ff15/
 ├── .opencode/agents/*.md          # Agent-specific system prompts (auto-loaded)
 ├── config/                        # settings.yaml, models.yaml, projects.yaml
 ├── queue/
-│   ├── tasks/{ignis,gladiolus,prompto}.yaml
-│   ├── reports/{ignis,gladiolus,prompto}_report.yaml
-│   ├── lunafreya_to_noctis.yaml   # Luna → Noctis
-│   └── noctis_to_lunafreya.yaml   # Noctis → Luna
+│   └── inbox/{agent}.yaml         # Per-agent inbox (sole communication channel)
 ├── context/                       # Project-specific context
 ├── memory/                        # Memory MCP storage
 ├── dashboard.md                   # Status board
@@ -82,61 +79,43 @@ multi-agent-ff15/
 
 ## Communication Protocol — Iron Rule
 
-**ALL inter-agent communication MUST go through YAML files.**
-Write YAML via messaging scripts, which automatically handle inbox writes and agent wake-up. Sending task content directly in messages is forbidden.
+**ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
+Use messaging scripts exclusively. They handle inbox writes atomically. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
 
-### Why YAML-only?
+### Why Inbox-only?
 
-1. **State persistence** — Messages disappear, YAML survives restarts
-2. **Source of truth** — One canonical location for task status
-3. **Recovery** — Agents resume from YAML after crash
+1. **State persistence** — Inbox survives restarts, messages with read tracking
+2. **Source of truth** — One canonical location per agent
+3. **Recovery** — Agents resume from unread inbox messages after crash
 4. **Audit trail** — YAML files are git-trackable
 5. **No confusion** — Agents always know where to look
 
-### send-message Purpose
-
-`send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
-
-**Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring. Inbox-watcher plugin polls every 30s for escalation.)
-
-All inter-agent messaging uses `scripts/send.sh` (never direct `tmux send-keys`):
-
-```bash
-# Single
-scripts/send.sh <target> "message"
-
-# Multiple (2s interval auto)
-scripts/send.sh ignis "msg" gladiolus "msg" prompto "msg"
-```
-
-send.sh automatically: writes to inbox (`queue/inbox/{agent}.yaml`), checks busy state (skips tmux nudge if busy), then sends tmux wake.
+**Event-driven only. No polling.** (Exception: Inbox-watcher plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 
-- **Noctis → Comrade**: `scripts/send_task.sh <name> "<description>"` (writes task YAML + inbox + wakes agent)
-- **Comrade → Noctis**: `scripts/send_report.sh "<task_id>" "<status>" "<summary>"` (writes report YAML + inbox + wakes Noctis)
-- **Luna → Noctis**: `scripts/luna_to_noctis.sh "<description>"` (writes channel YAML + inbox + wakes Noctis)
-- **Noctis → Luna**: `scripts/noctis_to_luna.sh "<description>"` (writes channel YAML + inbox + wakes Luna)
-- **Iris → Noctis**: Woken by iris-watcher plugin on report changes, sends `scripts/send.sh noctis "Dashboard update needed: ..."` if dashboard stale
+- **Noctis → Comrade**: `scripts/send_task.sh <name> "<description>"` (writes to Comrade's inbox)
+- **Comrade → Noctis**: `scripts/send_report.sh "<task_id>" "<status>" "<summary>"` (writes to Noctis's inbox)
+- **Luna → Noctis**: `scripts/luna_to_noctis.sh "<description>"` (writes to Noctis's inbox)
+- **Noctis → Luna**: `scripts/noctis_to_luna.sh "<description>"` (writes to Luna's inbox)
+- **Iris → Noctis**: `scripts/inbox_write.sh noctis iris system "<message>"` (dashboard reminders)
+
+All scripts write to `queue/inbox/{target}.yaml` via `inbox_write.sh`. The `inbox-auto-notify` plugin (runs on Noctis) detects file changes and wakes target agents via tmux automatically.
 
 ### Comrade Task Flow
 
-**CRITICAL: YAML is the ONLY source of truth. Ignore message content.**
+**CRITICAL: Inbox is the ONLY source of truth. Ignore tmux message content.**
 
 When you receive ANY message or wake up:
 
 1. **Check inbox**: `scripts/inbox_read.sh {your_name} --peek`
    - If unread > 0: `scripts/inbox_read.sh {your_name}` (read + mark as read, process in order)
-2. **Read your task file**: `cat queue/tasks/{your_name}.yaml`
-3. **Check `status` field**:
-   - `assigned` → Execute immediately at senior engineer quality
-   - `idle` → Do nothing (wait for next instruction)
-4. **After completion**:
-   - Write report to `queue/reports/{your_name}_report.yaml`
-   - Notify Noctis: `scripts/send.sh noctis "Report ready: {task_id}"`
-   - Return to idle
+2. **Read task from inbox message**: Look for `task_assigned` type messages. The `content` field contains the task YAML.
+3. **If task found** → Execute immediately at senior engineer quality
+   **If no task** → Do nothing (wait for next instruction)
+4. **After completion**: Use `scripts/send_report.sh "<task_id>" "<status>" "<summary>"`
 
-**Never skip Step 1-2. Never act on message content alone.**
+**Never skip Step 1. Never act on tmux message content alone.**
 
 ### Report Format
 
@@ -158,7 +137,7 @@ report:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Execute tasks yourself | Delegate to Comrades |
-| F002 | Use task agents | Use `scripts/send.sh` |
+| F002 | Write directly to agent inboxes | Use messaging scripts |
 | F003 | Polling | Event-driven |
 | F004 | Skip context reading | Always read first |
 
@@ -168,7 +147,7 @@ report:
 |----|--------|-------------|
 | F001 | Contact user directly | Report to Noctis |
 | F002 | Order other Comrades | Request through Noctis |
-| F003 | Use task agents | Use `scripts/send.sh` |
+| F003 | Write directly to agent inboxes | Use `scripts/send_report.sh` |
 | F004 | Polling | Event-driven |
 | F005 | Skip context reading | Always read first |
 | F006 | Modify other Comrades' files | Own files only (RACE-001) |
@@ -178,7 +157,7 @@ report:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Accept tasks from Noctis | Execute autonomously |
-| F002 | Use task agents | Use `scripts/send.sh` |
+| F002 | Write directly to agent inboxes | Use `scripts/luna_to_noctis.sh` |
 | F003 | Polling | Event-driven |
 | F004 | Direct instructions to Comrades | Go through Noctis |
 
@@ -194,7 +173,7 @@ All YAML writes use `scripts/yaml_write_flock.sh` for atomic writes with exclusi
 scripts/yaml_write_flock.sh <target_file> "<yaml_content>"
 ```
 
-Scripts (`send_task.sh`, `send_report.sh`, `luna_to_noctis.sh`, `noctis_to_luna.sh`) already use this wrapper. Direct `cat >` writes to queue YAML files are forbidden.
+Inbox writes go through `scripts/inbox_write.sh` which has its own flock protection. Direct `cat >` writes to queue YAML files are forbidden.
 
 ## YAML Status Transitions
 
@@ -256,9 +235,9 @@ AGENTS.md + agent system prompt are auto-loaded.
 3. Check inbox:  scripts/inbox_read.sh {name} --peek
    - If unread > 0: scripts/inbox_read.sh {name} (read + mark as read, process in order)
 4. Role-based:
-   - Noctis: Read queue/tasks/*.yaml + queue/reports/*.yaml + dashboard.md
-   - Comrades: Read queue/tasks/{name}.yaml (assigned=resume, idle=wait)
-   - Lunafreya: Check lunafreya_to_noctis.yaml + noctis_to_lunafreya.yaml
+   - Noctis: Read dashboard.md, check inbox for pending task reports and Luna messages
+   - Comrades: Check inbox for `task_assigned` messages (found=resume, none=wait)
+   - Lunafreya: Check inbox for `noctis_response` type messages
 5. Read context/{project}.md if task has project field
 ```
 

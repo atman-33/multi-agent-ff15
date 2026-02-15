@@ -4,24 +4,22 @@ declare const process: {
   env: Record<string, string | undefined>;
 };
 
+/**
+ * Iris Watcher — monitors queue/inbox/noctis.yaml for report_received messages.
+ * If dashboard is stale after new reports, writes to Iris inbox (auto-notify wakes Iris).
+ * Runs on Iris agent only.
+ */
 const IrisWatcher: Plugin = async ({ $ }) => {
-  // Only execute on Iris agent to prevent duplicate notifications
   const agentId = process.env.AGENT_ID;
   if (agentId !== "iris") {
     return {};
   }
 
-  const REPORT_FILES = [
-    "queue/reports/ignis_report.yaml",
-    "queue/reports/gladiolus_report.yaml",
-    "queue/reports/prompto_report.yaml",
-  ];
+  const NOCTIS_INBOX = "queue/inbox/noctis.yaml";
   const DASHBOARD_FILE = "dashboard.md";
-  const SEND_SCRIPT = ".opencode/skills/send-message/scripts/send.sh";
   const ENABLE_LOGGING = false;
 
-  let lastReportMtimes: Record<string, number> = {};
-  let lastNotifiedMtimes: Record<string, number> = {};
+  const processedReportIds = new Set<string>();
   let lastDashboardMtime = 0;
 
   const log = async (message: string): Promise<void> => {
@@ -42,16 +40,40 @@ const IrisWatcher: Plugin = async ({ $ }) => {
     }
   };
 
-  const initMtimes = async (): Promise<void> => {
-    for (const file of REPORT_FILES) {
-      const mtime = await getMtime(file);
-      lastReportMtimes[file] = mtime;
+  const getReportMessages = async (): Promise<Array<{ id: string; from: string; read: boolean }>> => {
+    try {
+      const result = await $`python3 -c "
+import yaml, sys
+try:
+    with open('${NOCTIS_INBOX}', 'r') as f:
+        data = yaml.safe_load(f) or {}
+    messages = data.get('messages', [])
+    for m in messages:
+        if isinstance(m, dict) and m.get('type') == 'report_received':
+            print(f\"{m.get('id', '?')}|{m.get('from', '?')}|{m.get('read', True)}\")
+except Exception:
+    pass
+"`.quiet();
+      const lines = result.text().trim().split("\n").filter(Boolean);
+      return lines.map((line) => {
+        const [id, from, read] = line.split("|");
+        return { id, from, read: read === "True" };
+      });
+    } catch {
+      return [];
     }
-    lastDashboardMtime = await getMtime(DASHBOARD_FILE);
-    await log(`Iris Watcher initialized (event-driven). Baseline mtimes: ${JSON.stringify(lastReportMtimes)}`);
   };
 
-  await initMtimes();
+  const initProcessed = async (): Promise<void> => {
+    const reports = await getReportMessages();
+    for (const r of reports) {
+      processedReportIds.add(r.id);
+    }
+    lastDashboardMtime = await getMtime(DASHBOARD_FILE);
+    await log(`Iris Watcher initialized (inbox-based). ${processedReportIds.size} existing reports tracked.`);
+  };
+
+  await initProcessed();
 
   return {
     event: async ({ event }) => {
@@ -59,53 +81,46 @@ const IrisWatcher: Plugin = async ({ $ }) => {
 
       const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
       const changedFile = props.file;
-      const eventType = props.event;
 
-      const isReportFile = REPORT_FILES.some(f => changedFile.endsWith(f));
+      const isNoctisInbox = changedFile.endsWith(NOCTIS_INBOX);
       const isDashboard = changedFile.endsWith(DASHBOARD_FILE);
 
-      if (!isReportFile && !isDashboard) return;
+      if (!isNoctisInbox && !isDashboard) return;
 
       if (isDashboard) {
         const dashboardMtime = await getMtime(DASHBOARD_FILE);
         if (dashboardMtime > lastDashboardMtime) {
           lastDashboardMtime = dashboardMtime;
-          lastNotifiedMtimes = {};
-          await log(`Dashboard updated. Clearing notification flags.`);
+          await log(`Dashboard updated. Will require new reports to trigger.`);
         }
         return;
       }
 
-      if (isReportFile && eventType === "change") {
-        const reportMtime = await getMtime(changedFile);
-        const previousMtime = lastReportMtimes[changedFile] ?? 0;
+      if (isNoctisInbox && props.event === "change") {
+        const reports = await getReportMessages();
+        const newReports = reports.filter((r) => !processedReportIds.has(r.id));
 
-        if (reportMtime <= previousMtime) return;
+        if (newReports.length === 0) return;
 
-        lastReportMtimes[changedFile] = reportMtime;
-
-        const lastNotified = lastNotifiedMtimes[changedFile] ?? 0;
-        if (reportMtime <= lastNotified) return;
+        for (const r of newReports) {
+          processedReportIds.add(r.id);
+        }
 
         const dashboardMtime = await getMtime(DASHBOARD_FILE);
         if (dashboardMtime > lastDashboardMtime) {
           lastDashboardMtime = dashboardMtime;
-          lastNotifiedMtimes = {};
-          await log(`Report updated but dashboard also updated. Clearing flags.`);
+          await log(`New reports found but dashboard recently updated. Skipping.`);
           return;
         }
 
-        if (reportMtime <= dashboardMtime) return;
+        const reporters = newReports.map((r) => r.from).join(", ");
+        await log(`New report(s) from: ${reporters}. Dashboard stale. Writing to Iris inbox.`);
 
-        const agentName = changedFile.match(/(\w+)_report\.yaml$/)?.[1] || "unknown";
-        await log(`Report updated: ${agentName}. Dashboard stale. Waking Iris.`);
-
-        await $`${SEND_SCRIPT} iris "Report updated: ${agentName}. Check dashboard."`.quiet().catch(async (err: unknown) => {
-          await log(`Failed to send message to Iris: ${err}`);
-        });
-
-        lastNotifiedMtimes[changedFile] = reportMtime;
-        lastDashboardMtime = dashboardMtime;
+        try {
+          await $`scripts/inbox_write.sh iris iris-watcher system "Dashboard update needed: report(s) from ${reporters}"`.quiet();
+        } catch (err) {
+          await log(`Failed to write to Iris inbox: ${err}`);
+        }
       }
     },
   };

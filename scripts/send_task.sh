@@ -47,14 +47,12 @@ task:
   timestamp: "${TIMESTAMP}"
 EOF
 )
-"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/tasks/${AGENT_NAME}.yaml" "$YAML_CONTENT"
-
 INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
 if [[ -x "$INBOX_SCRIPT" ]]; then
-  "$INBOX_SCRIPT" "$AGENT_NAME" "noctis" "task_assigned" "queue/tasks/${AGENT_NAME}.yaml updated (${TASK_ID})" 2>/dev/null || true
+  "$INBOX_SCRIPT" "$AGENT_NAME" "noctis" "task_assigned" "${YAML_CONTENT}" 2>/dev/null || true
+else
+  echo "ERROR: inbox_write.sh not found at ${INBOX_SCRIPT}" >&2
+  exit 1
 fi
 
 echo "✅ Task assigned to ${AGENT_NAME} (${TASK_ID})"
-
-# --- Wake agent via send.sh ---
-"${REPO_ROOT}/scripts/send.sh" "${AGENT_NAME}" "Task assigned. Read queue/tasks/${AGENT_NAME}.yaml"

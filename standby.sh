@@ -349,10 +349,6 @@ if [ "$CLEAN_MODE" = true ]; then
     if [ "$NEED_BACKUP" = true ]; then
         mkdir -p "$BACKUP_DIR" || true
         cp "./dashboard.md" "$BACKUP_DIR/" 2>/dev/null || true
-        cp -r "./queue/reports" "$BACKUP_DIR/" 2>/dev/null || true
-        cp -r "./queue/tasks" "$BACKUP_DIR/" 2>/dev/null || true
-        cp "./queue/lunafreya_to_noctis.yaml" "$BACKUP_DIR/" 2>/dev/null || true
-        cp "./queue/noctis_to_lunafreya.yaml" "$BACKUP_DIR/" 2>/dev/null || true
         cp -r "./queue/inbox" "$BACKUP_DIR/" 2>/dev/null || true
         log_info "📦 Previous records backed up: $BACKUP_DIR"
     fi
@@ -363,62 +359,11 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Create queue directories if they don't exist (needed for first launch)
-[ -d ./queue/reports ] || mkdir -p ./queue/reports
-[ -d ./queue/tasks ] || mkdir -p ./queue/tasks
 [ -d ./queue/inbox ] || mkdir -p ./queue/inbox
 [ -d ./queue/metrics ] || mkdir -p ./queue/metrics
 
 if [ "$CLEAN_MODE" = true ]; then
     log_info "📜 Discarding previous mission records..."
-
-    # Comrade task file reset (ignis, gladiolus, prompto)
-    for WORKER_NAME in ignis gladiolus prompto; do
-        cat > ./queue/tasks/${WORKER_NAME}.yaml << EOF
-# ${WORKER_NAME} task file
-task:
-  task_id: null
-  parent_cmd: null
-  description: null
-  target_path: null
-  status: idle
-  timestamp: ""
-EOF
-    done
-
-    # Comrade report file reset (ignis, gladiolus, prompto)
-    for WORKER_NAME in ignis gladiolus prompto; do
-        cat > ./queue/reports/${WORKER_NAME}_report.yaml << EOF
-worker_id: ${WORKER_NAME}
-task_id: null
-timestamp: ""
-status: idle
-result: null
-EOF
-    done
-
-    # Lunafreya → Noctis communication channel reset
-    cat > ./queue/lunafreya_to_noctis.yaml << EOF
-# Lunafreya → Noctis communication channel
-message:
-  message_id: null
-  type: null
-  in_reply_to: null
-  description: null
-  priority: null
-  timestamp: null
-EOF
-
-    # Noctis → Lunafreya communication channel reset
-    cat > ./queue/noctis_to_lunafreya.yaml << EOF
-# Noctis → Lunafreya communication channel
-message:
-  message_id: null
-  type: null
-  in_reply_to: null
-  description: null
-  priority: null
-  timestamp: null
-EOF
 
     # Inbox reset (all 6 agents)
     for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
@@ -428,12 +373,11 @@ EOF
     # Escalation metrics reset
     rm -f ./queue/metrics/*_escalation.yaml 2>/dev/null || true
 
-    # Remove legacy files if they exist
+    rm -rf ./queue/tasks 2>/dev/null || true
+    rm -rf ./queue/reports 2>/dev/null || true
+    rm -f ./queue/lunafreya_to_noctis.yaml 2>/dev/null || true
+    rm -f ./queue/noctis_to_lunafreya.yaml 2>/dev/null || true
     rm -f ./queue/noctis_to_ignis.yaml 2>/dev/null || true
-    rm -f ./queue/tasks/iris.yaml 2>/dev/null || true
-    rm -f ./queue/reports/iris_report.yaml 2>/dev/null || true
-    rm -f ./queue/tasks/lunafreya.yaml 2>/dev/null || true
-    rm -f ./queue/reports/lunafreya_report.yaml 2>/dev/null || true
 
     log_success "✅ Cleanup complete"
 else

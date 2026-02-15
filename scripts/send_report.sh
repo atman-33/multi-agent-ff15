@@ -64,14 +64,12 @@ $(if [[ -n "$DETAILS_EXPANDED" ]]; then echo "$DETAILS_EXPANDED" | sed 's/^/    
   timestamp: "${TIMESTAMP}"
 EOF
 )
-"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/reports/${AGENT_ID}_report.yaml" "$YAML_CONTENT"
-
 INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
 if [[ -x "$INBOX_SCRIPT" ]]; then
-  "$INBOX_SCRIPT" "noctis" "$AGENT_ID" "report_received" "queue/reports/${AGENT_ID}_report.yaml updated (${TASK_ID})" 2>/dev/null || true
+  "$INBOX_SCRIPT" "noctis" "$AGENT_ID" "report_received" "${YAML_CONTENT}" 2>/dev/null || true
+else
+  echo "ERROR: inbox_write.sh not found at ${INBOX_SCRIPT}" >&2
+  exit 1
 fi
 
 echo "✅ Report submitted by ${AGENT_ID} (${TASK_ID})"
-
-# --- Wake Noctis via send.sh ---
-"${REPO_ROOT}/scripts/send.sh" noctis "Report ready: ${TASK_ID}"

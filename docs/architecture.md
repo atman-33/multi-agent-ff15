@@ -12,7 +12,7 @@
       │  (王)    │ (Leader +   │  (神凪)     │   Direct user interaction
       │          │  Task Mgr)  │            │   Can command Noctis
       └────┬─────┘            └────────────┘
-           │ YAML + send-keys        ▲
+           │ YAML inbox             ▲
            ▼                          │
       ┌────────────┬──────────┬────────────┐
       │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
@@ -51,10 +51,10 @@ Forbidden. Event-driven only. API bills stay predictable.
 |-------|------|----------|
 | Memory MCP | Preferences, rules, cross-project knowledge | Everything |
 | Project files | `config/projects.yaml`, `context/*.md` | Everything |
-| YAML Queue | Tasks, reports (source of truth) | Everything |
+| YAML Inbox | `queue/inbox/{agent}.yaml` (sole communication channel) | Everything |
 | Session | `AGENTS.md`, `.opencode/agents/*.md` | `/new` resets it |
 
-After `/new`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its task YAML. No expensive re-prompting.
+After `/new`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its inbox. No expensive re-prompting.
 
 ---
 
@@ -98,7 +98,7 @@ Four-layer context structure for efficient knowledge sharing:
 |-------|----------|---------|
 | Layer 1: Memory MCP | `memory/noctis_memory.jsonl` | Cross-project, cross-session long-term memory |
 | Layer 2: Project | `config/projects.yaml`, `projects/<id>.yaml`, `context/{project}.md` | Project-specific information & technical knowledge |
-| Layer 3: YAML Queue | `queue/noctis_to_ignis.yaml`, `queue/tasks/`, `queue/reports/` | Task management - instructions & reports (source of truth) |
+| Layer 3: YAML Inbox | `queue/inbox/{agent}.yaml` | Communication + task management (source of truth) |
 | Layer 4: Session | AGENTS.md, .opencode/agents/*.md | Working context (resets with /new) |
 
 ### /new Protocol (Cost Optimization)
@@ -110,7 +110,7 @@ Comrades' recovery cost after `/new`: **~1,950 tokens** (39% of 5,000 target)
 1. AGENTS.md (auto-loaded) → Recognize as ff15 system member
 2. `tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}'` → Confirm own ID
 3. Load Memory MCP → Restore Crystal's preferences (~700 tokens)
-4. Load task YAML → Check next assignment (~800 tokens)
+4. Check inbox → Resume pending task (~800 tokens)
 
 The design of "what NOT to load" is key to cost reduction.
 
@@ -175,16 +175,13 @@ multi-agent-ff15/
 │   └── <project_id>.yaml   # All information for each project
 │
 ├── queue/                    # Communication files
-│   ├── lunafreya_to_noctis.yaml
-│   ├── noctis_to_lunafreya.yaml
-│   ├── tasks/                # Task files for each worker
-│   │   ├── ignis.yaml
-│   │   ├── gladiolus.yaml
-│   │   └── prompto.yaml
-│   └── reports/              # Worker reports
-│       ├── ignis_report.yaml
-│       ├── gladiolus_report.yaml
-│       └── prompto_report.yaml
+│   └── inbox/               # Per-agent inbox (sole communication channel)
+│       ├── noctis.yaml
+│       ├── lunafreya.yaml
+│       ├── ignis.yaml
+│       ├── gladiolus.yaml
+│       ├── prompto.yaml
+│       └── iris.yaml
 │
 ├── memory/                   # Memory MCP storage
 ├── dashboard.md              # Real-time status overview

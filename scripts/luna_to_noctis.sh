@@ -48,16 +48,12 @@ message:
   timestamp: "${TIMESTAMP}"
 EOF
 )
-"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/lunafreya_to_noctis.yaml" "$YAML_CONTENT"
-
 INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
 if [[ -x "$INBOX_SCRIPT" ]]; then
-  "$INBOX_SCRIPT" "noctis" "lunafreya" "luna_instruction" "${DESCRIPTION}" 2>/dev/null || true
+  "$INBOX_SCRIPT" "noctis" "lunafreya" "luna_instruction" "${YAML_CONTENT}" 2>/dev/null || true
+else
+  echo "ERROR: inbox_write.sh not found at ${INBOX_SCRIPT}" >&2
+  exit 1
 fi
 
-WAKE_MSG="Lunafreya からのレターがあります"
-
 echo "✅ Message sent to Noctis (${MSG_ID})"
-
-# --- Wake Noctis via send.sh ---
-"${REPO_ROOT}/scripts/send.sh" noctis "$WAKE_MSG"

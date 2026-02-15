@@ -4,17 +4,21 @@ declare const process: {
   env: Record<string, string | undefined>
 }
 
+const DEPRECATED_PATHS = [
+  "queue/tasks/",
+  "queue/reports/",
+  "queue/lunafreya_to_noctis.yaml",
+  "queue/noctis_to_lunafreya.yaml",
+]
+
 export const YamlWriteValidator: Plugin = async ({ client, $ }) => {
-  // Resolve agent ID: prefer env var, fallback to tmux @agent_id
   let resolvedAgentId: string | undefined = process.env.AGENT_ID
   if (!resolvedAgentId) {
     try {
       const result = await $`tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}' 2>/dev/null`
       const id = result.text().trim()
       if (id && id !== "") resolvedAgentId = id
-    } catch {
-      // Not in tmux or command failed — leave undefined
-    }
+    } catch {}
   }
 
   return {
@@ -22,78 +26,46 @@ export const YamlWriteValidator: Plugin = async ({ client, $ }) => {
       const { tool } = input
       const { args } = output
 
-      if (tool !== "write" && tool !== "edit") {
-        return
-      }
+      if (tool !== "write" && tool !== "edit") return
 
       const filePath = args.filePath as string | undefined
-      if (!filePath) {
-        return
-      }
+      if (!filePath) return
 
       const agentId = resolvedAgentId
-      if (!agentId) {
-        return
-      }
+      if (!agentId) return
 
       const normalizedPath = filePath.replace(/^\.?\//, "")
       const validationErrors: string[] = []
 
-      if (agentId === "noctis") {
-        if (normalizedPath === "queue/lunafreya_to_noctis.yaml") {
-          validationErrors.push(
-            "❌ FILE DIRECTION ERROR (Noctis)\n" +
-            "\n" +
-            "You are trying to WRITE to your INCOMING file.\n" +
-            "\n" +
-            "File naming: sender_to_receiver.yaml\n" +
-            "  • lunafreya_TO_noctis = Luna sends TO you (INCOMING = you READ)\n" +
-            "  • noctis_TO_lunafreya = You send TO Luna (OUTGOING = you WRITE)\n" +
-            "\n" +
-            "Correct action:\n" +
-            "  READ from:  queue/lunafreya_to_noctis.yaml (Luna → You)\n" +
-            "  WRITE to:   queue/noctis_to_lunafreya.yaml (You → Luna)\n"
-          )
-        }
+      const inboxSelfMatch = normalizedPath.match(/^queue\/inbox\/(\w+)\.yaml$/)
+      if (inboxSelfMatch && inboxSelfMatch[1] === agentId) {
+        validationErrors.push(
+          `❌ INBOX SELF-WRITE BLOCKED (${agentId})\n` +
+          "\n" +
+          `You are trying to write to your OWN inbox: queue/inbox/${agentId}.yaml\n` +
+          "\n" +
+          "Agents must NOT write to their own inbox.\n" +
+          "Use messaging scripts to send messages to OTHER agents' inboxes:\n" +
+          "  scripts/send_task.sh <agent> \"<description>\"  (Noctis → Comrade)\n" +
+          "  scripts/send_report.sh \"<task_id>\" \"<status>\" \"<summary>\"  (Comrade → Noctis)\n" +
+          "  scripts/luna_to_noctis.sh \"<description>\"  (Luna → Noctis)\n" +
+          "  scripts/noctis_to_luna.sh \"<description>\"  (Noctis → Luna)\n"
+        )
       }
 
-      if (agentId === "lunafreya") {
-        if (normalizedPath === "queue/noctis_to_lunafreya.yaml") {
+      for (const deprecated of DEPRECATED_PATHS) {
+        if (normalizedPath.startsWith(deprecated) || normalizedPath === deprecated.replace(/\/$/, "")) {
           validationErrors.push(
-            "❌ FILE DIRECTION ERROR (Lunafreya)\n" +
+            `❌ DEPRECATED PATH (${agentId})\n` +
             "\n" +
-            "You are trying to WRITE to your INCOMING file.\n" +
+            `Writing to '${normalizedPath}' is no longer supported.\n` +
             "\n" +
-            "File naming: sender_to_receiver.yaml\n" +
-            "  • noctis_TO_lunafreya = Noctis sends TO you (INCOMING = you READ)\n" +
-            "  • lunafreya_TO_noctis = You send TO Noctis (OUTGOING = you WRITE)\n" +
-            "\n" +
-            "Correct action:\n" +
-            "  READ from:  queue/noctis_to_lunafreya.yaml (Noctis → You)\n" +
-            "  WRITE to:   queue/lunafreya_to_noctis.yaml (You → Noctis)\n"
+            "The inbox system (queue/inbox/) is the sole communication channel.\n" +
+            "Use the appropriate messaging script instead:\n" +
+            "  scripts/send_task.sh, scripts/send_report.sh,\n" +
+            "  scripts/luna_to_noctis.sh, scripts/noctis_to_luna.sh\n"
           )
-        }
-      }
-
-      const comrades = ["ignis", "gladiolus", "prompto"]
-      if (comrades.includes(agentId)) {
-        if (
-          normalizedPath === "queue/lunafreya_to_noctis.yaml" ||
-          normalizedPath === "queue/noctis_to_lunafreya.yaml"
-        ) {
-          validationErrors.push(
-            `❌ UNAUTHORIZED CHANNEL ACCESS (${agentId})\n` +
-            "\n" +
-            "You are trying to write to Noctis ↔ Lunafreya coordination channel.\n" +
-            "\n" +
-            "Comrades should NOT write to these files:\n" +
-            "  • queue/lunafreya_to_noctis.yaml (Luna → Noctis only)\n" +
-            "  • queue/noctis_to_lunafreya.yaml (Noctis → Luna only)\n" +
-            "\n" +
-            "Your communication channels:\n" +
-            `  WRITE to:   queue/reports/${agentId}_report.yaml (your report to Noctis)\n` +
-            `  READ from:  queue/tasks/${agentId}.yaml (tasks from Noctis)\n`
-          )
+          break
         }
       }
 

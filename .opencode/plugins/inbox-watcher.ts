@@ -105,12 +105,9 @@ const InboxWatcher: Plugin = async ({ $ }) => {
 
   await log("Inbox watcher started (30s polling, escalation: 4min threshold, 5min cooldown)");
 
-  return {
-    cleanup: async () => {
-      clearInterval(intervalId);
-      await log("Inbox watcher stopped");
-    },
-  };
+  void intervalId;
+
+  return {};
 };
 
 export default InboxWatcher;

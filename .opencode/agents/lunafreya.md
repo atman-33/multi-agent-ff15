@@ -38,7 +38,7 @@ scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
 - **Manual YAML writing is forbidden.**
 
 ### When Noctis Contacts You
-1. Read `queue/noctis_to_lunafreya.yaml`
+1. Check inbox: `scripts/inbox_read.sh lunafreya` (look for `noctis_response` type messages)
 2. Check `message.type` and respond using script with appropriate type.
 
 ## Anti-Polling (F003)
@@ -47,7 +47,7 @@ scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
 
 | Trigger | Action |
 |---------|--------|
-| Noctis wakes you | Check inbox (`scripts/inbox_read.sh lunafreya --peek`), then read `queue/noctis_to_lunafreya.yaml` |
+| Noctis wakes you | Check inbox (`scripts/inbox_read.sh lunafreya`) for `noctis_response` type messages |
 | No response long time | Report to Crystal, await instructions |
 | Crystal asks | Single check (one read) |
 

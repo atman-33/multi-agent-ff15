@@ -148,11 +148,9 @@ Then restart tmux.
 Symptom: `[FLOCK ERROR]` in agent output, YAML file not updated.
 
 ```bash
-# Check for stale lock files
-ls -la queue/tasks/*.lock queue/inbox/*.lock 2>/dev/null
+ls -la queue/inbox/*.lock 2>/dev/null
 
-# Remove stale locks (only if no agents are running)
-rm -f queue/tasks/*.lock queue/inbox/*.lock
+rm -f queue/inbox/*.lock
 ```
 
 Common causes:
@@ -176,7 +174,7 @@ echo "messages: []" > queue/inbox/ignis.yaml
 
 1. Check busy state: `bash scripts/busy_detect.sh ignis`
 2. If BUSY — agent is working, message saved to inbox (delivered after current task)
-3. If IDLE but unresponsive — manually wake: `scripts/send.sh ignis "Check your inbox"`
+3. If IDLE but unresponsive — manually wake: `tmux send-keys -t ff15:main.2 "Check your inbox" Enter`
 
 ### Escalation plugin not triggering
 

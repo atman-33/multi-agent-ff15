@@ -373,9 +373,9 @@ if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/scripts/send_report.s
 fi
 
 for agent in ignis gladiolus prompto; do
-  if [[ ! -f "${REPO_ROOT}/queue/tasks/${agent}.yaml" ]] && [[ ! -f "${REPO_ROOT}/queue/inbox/${agent}.yaml" ]]; then
+  if [[ ! -f "${REPO_ROOT}/queue/inbox/${agent}.yaml" ]]; then
     BC_OK=false
-    echo "    ❌ Missing task/inbox files for ${agent}"
+    echo "    ❌ Missing inbox file for ${agent}"
   fi
 done
 
