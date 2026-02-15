@@ -668,7 +668,7 @@ if [ "$SETUP_ONLY" = false ]; then
         model="${AGENT_MODELS[$i]}"
         target="${AGENT_TARGETS[$i]}"
 
-        tmux send-keys -t "${target}" "export AGENT_ID=${name} && opencode --agent ${name} --model ${model}"
+        tmux send-keys -t "${target}" "export AGENT_ID=${name} && export OPENCODE_EXPERIMENTAL_FILEWATCHER=true && opencode --agent ${name} --model ${model}"
         tmux send-keys -t "${target}" Enter
         log_info "  └─ ${name} launched (--agent ${name}, target: ${target})"
 
