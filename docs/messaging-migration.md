@@ -17,11 +17,10 @@ The inbox-based messaging system with automatic agent notification.
 ## Message Flow
 
 ```
-Noctis → Comrade:   scripts/send_task.sh <name> "<desc>"    → queue/inbox/{name}.yaml
-Comrade → Noctis:   scripts/send_report.sh "<id>" "<s>" ... → queue/inbox/noctis.yaml
-Luna → Noctis:      scripts/luna_to_noctis.sh "<desc>"      → queue/inbox/noctis.yaml
-Noctis → Luna:      scripts/noctis_to_luna.sh "<desc>"      → queue/inbox/lunafreya.yaml
-Iris → Noctis:      scripts/inbox_write.sh noctis iris ...   → queue/inbox/noctis.yaml
+Noctis → Comrade:   scripts/send_task.sh <name> "<desc>"              → queue/inbox/{name}.yaml
+Comrade → Noctis:   scripts/send_report.sh "<id>" "<s>" ...           → queue/inbox/noctis.yaml
+Agent → Agent:      scripts/send_message.sh <from> <to> "<msg>" ...   → queue/inbox/{to}.yaml
+Iris → Noctis:      scripts/send_message.sh iris noctis "<msg>"       → queue/inbox/noctis.yaml
 ```
 
 All scripts write to `queue/inbox/{target}.yaml`. The `inbox-auto-notify` plugin detects file changes and wakes target agents via tmux automatically.

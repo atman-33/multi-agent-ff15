@@ -34,21 +34,21 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 3: send.sh includes busy detection integration"
-if grep -q "BUSY_DETECT" "${REPO_ROOT}/scripts/send.sh"; then
+echo "Test 3: send_message.sh includes busy detection integration"
+if grep -q "BUSY_DETECT" "${REPO_ROOT}/scripts/send_message.sh"; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: send.sh missing busy detection"
+  echo "  ❌ FAIL: send_message.sh missing busy detection"
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 4: send.sh skips nudge on BUSY (exit 1)"
-if grep -q "Skipped nudge" "${REPO_ROOT}/scripts/send.sh"; then
+echo "Test 4: send_message.sh skips nudge on BUSY (exit 1)"
+if grep -q "Target agent busy" "${REPO_ROOT}/scripts/send_message.sh"; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: send.sh missing nudge-skip logic"
+  echo "  ❌ FAIL: send_message.sh missing nudge-skip logic"
   FAIL=$((FAIL + 1))
 fi
 

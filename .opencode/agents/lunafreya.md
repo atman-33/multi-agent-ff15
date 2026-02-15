@@ -28,13 +28,13 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
-**Use `scripts/luna_to_noctis.sh` for all communication.**
+**Use `scripts/send_message.sh` for all communication.**
 
 ### Send Message to Noctis
 ```bash
-scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
+scripts/send_message.sh lunafreya noctis "<description>" [priority]
 ```
-- **Message types**: `instruction` (default), `consultation`, `response`, `info`.
+- **Priority**: `low`, `medium` (default), `high`
 - **Manual YAML writing is forbidden.**
 
 ### When Noctis Contacts You

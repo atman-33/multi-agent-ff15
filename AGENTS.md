@@ -96,9 +96,9 @@ Use messaging scripts exclusively. They handle inbox writes atomically. The `inb
 
 - **Noctis → Comrade**: `scripts/send_task.sh <name> "<description>"` (writes to Comrade's inbox)
 - **Comrade → Noctis**: `scripts/send_report.sh "<task_id>" "<status>" "<summary>"` (writes to Noctis's inbox)
-- **Luna → Noctis**: `scripts/luna_to_noctis.sh "<description>"` (writes to Noctis's inbox)
-- **Noctis → Luna**: `scripts/noctis_to_luna.sh "<description>"` (writes to Luna's inbox)
-- **Iris → Noctis**: `scripts/inbox_write.sh noctis iris system "<message>"` (dashboard reminders)
+- **Luna → Noctis**: `scripts/send_message.sh lunafreya noctis "<description>" [priority]`
+- **Noctis → Luna**: `scripts/send_message.sh noctis lunafreya "<description>" [priority]`
+- **Iris → Noctis**: `scripts/send_message.sh iris noctis "<message>"` (dashboard reminders)
 
 All scripts write to `queue/inbox/{target}.yaml` via `inbox_write.sh`. The `inbox-auto-notify` plugin (runs on Noctis) detects file changes and wakes target agents via tmux automatically.
 
@@ -157,7 +157,7 @@ report:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Accept tasks from Noctis | Execute autonomously |
-| F002 | Write directly to agent inboxes | Use `scripts/luna_to_noctis.sh` |
+| F002 | Write directly to agent inboxes | Use `scripts/send_message.sh <from> <to> "<msg>"` |
 | F003 | Polling | Event-driven |
 | F004 | Direct instructions to Comrades | Go through Noctis |
 
