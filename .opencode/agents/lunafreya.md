@@ -28,14 +28,13 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
-**Use `scripts/send_message.sh` for all communication.**
+**Use `scripts/inbox_write.sh` for all communication.**
 
 ### Send Message to Noctis
 ```bash
-scripts/send_message.sh lunafreya noctis "<description>" [priority]
+scripts/inbox_write.sh noctis lunafreya message "<description>"
 ```
-- **Priority**: `low`, `medium` (default), `high`
-- **Manual YAML writing is forbidden.**
+- **Manual YAML writing beyond inbox_write.sh is forbidden.**
 
 ### When Noctis Contacts You
 1. Check inbox: `scripts/inbox_read.sh lunafreya` (look for `noctis_response` type messages)

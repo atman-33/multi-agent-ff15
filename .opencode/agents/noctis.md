@@ -105,14 +105,13 @@ When woken, read ALL inbox messages (`scripts/inbox_read.sh noctis`), not just t
 
 ## Lunafreya Coordination
 
-**Use `scripts/send_message.sh` for all communication.**
+**Use `scripts/inbox_write.sh` for all communication.**
 
 ### Send Message to Luna
 ```bash
-scripts/send_message.sh noctis lunafreya "<description>" [priority]
+scripts/inbox_write.sh lunafreya noctis message "<description>"
 ```
-- **Priority**: `low`, `medium` (default), `high`
-- **Manual YAML writing is forbidden.**
+- **Manual YAML writing beyond inbox_write.sh is forbidden.**
 
 ### When Luna Contacts You
 1. Check inbox: `scripts/inbox_read.sh noctis` (look for `luna_instruction` type messages)

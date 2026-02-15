@@ -81,27 +81,33 @@ multi-agent-ff15/
 ## Communication Protocol — Iron Rule
 
 **ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
-Use messaging scripts exclusively. They handle inbox writes atomically. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
+Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
 
 ### Why Inbox-only?
 
 1. **State persistence** — Inbox survives restarts, messages with read tracking
 2. **Source of truth** — One canonical location per agent
 3. **Recovery** — Agents resume from unread inbox messages after crash
-4. **Audit trail** — YAML files are git-trackable
+4. **Audit trail** — YAML files are git-trackable, full communication history
 5. **No confusion** — Agents always know where to look
 
 **Event-driven only. No polling.** (Exception: Inbox-watcher plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 
+**Task Assignment & Reports (use dedicated scripts):**
 - **Noctis → Comrade**: `scripts/send_task.sh <name> "<description>"` (writes to Comrade's inbox)
 - **Comrade → Noctis**: `scripts/send_report.sh "<task_id>" "<status>" "<summary>"` (writes to Noctis's inbox)
-- **Luna → Noctis**: `scripts/send_message.sh lunafreya noctis "<description>" [priority]`
-- **Noctis → Luna**: `scripts/send_message.sh noctis lunafreya "<description>" [priority]`
-- **Iris → Noctis**: `scripts/send_message.sh iris noctis "<message>"` (dashboard reminders)
 
-All scripts write to `queue/inbox/{target}.yaml` via `inbox_write.sh`. The `inbox-auto-notify` plugin (runs on Noctis) detects file changes and wakes target agents via tmux automatically.
+**General Agent Communication (use inbox_write.sh directly):**
+- **Luna → Noctis**: `scripts/inbox_write.sh noctis lunafreya message "<description>"`
+- **Noctis → Luna**: `scripts/inbox_write.sh lunafreya noctis message "<description>"`
+- **Iris → Noctis**: `scripts/inbox_write.sh noctis iris message "<message>"`
+- **Any → Any**: `scripts/inbox_write.sh <target> <from> <type> "<content>"`
+
+**Never use send_message.sh directly.** It abstracts away the inbox, making communication history harder to trace. Always write to inbox YAML files via `inbox_write.sh` for full audit trail.
+
+The `inbox-auto-notify` plugin detects file changes and wakes target agents via tmux automatically.
 
 ### Comrade Task Flow
 
@@ -167,7 +173,7 @@ Examples:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Execute tasks yourself | Delegate to Comrades |
-| F002 | Write directly to agent inboxes | Use messaging scripts |
+| F002 | Write directly to agent inboxes | Use `inbox_write.sh` or task/report scripts |
 | F003 | Polling | Event-driven |
 | F004 | Skip context reading | Always read first |
 
@@ -187,7 +193,7 @@ Examples:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Accept tasks from Noctis | Execute autonomously |
-| F002 | Write directly to agent inboxes | Use `scripts/send_message.sh <from> <to> "<msg>"` |
+| F002 | Write directly to agent inboxes | Use `scripts/inbox_write.sh <target> <from> message "<msg>"` |
 | F003 | Polling | Event-driven |
 | F004 | Direct instructions to Comrades | Go through Noctis |
 

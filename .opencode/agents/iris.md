@@ -44,28 +44,30 @@ Handles mechanical updates without waking Iris agent:
 
 ### Path B: Noctis Idle Capture (noctis_idle_capture)
 
-When Noctis session goes idle, `noctis-idle-capture` plugin captures terminal output (80 lines) and sends to Iris inbox. When woken:
+When Noctis session goes idle, `noctis-idle-capture` plugin captures terminal output (300 lines) and sends to Iris inbox. When woken:
 
 1. `scripts/inbox_read.sh iris` → read `noctis_idle_capture` messages
 2. Analyze captured Noctis terminal output
 3. Update ALL relevant dashboard sections based on the content
-4. If update is too difficult → ask Noctis to update dashboard directly
+4. **No need to notify Noctis after update** — Silent dashboard updates are normal
+5. Only contact Noctis if you **cannot determine** how to update dashboard
 
 ### Fallback: Request Noctis Help
 
-If Iris cannot determine what to write (ambiguous context, complex judgment):
+**Only when you cannot determine what to write** (ambiguous context, complex judgment):
 
 ```bash
-scripts/inbox_write.sh noctis iris system "Dashboard update difficult. Please update dashboard.md directly. Context: <brief reason>"
+scripts/inbox_write.sh noctis iris message "Dashboard update difficult. Please update dashboard.md directly. Context: <brief reason>"
 ```
 
 ## Behavior Guidelines
 
 - **You own the dashboard** — Update all sections, not just mechanical ones
 - **Analyze terminal output** — Extract key information from Noctis capture
-- **When in doubt, flag it** — Write what you can, ask Noctis for the rest
-- **Be concise** — 1-2 sentence notifications to Noctis
-- **Celebrate achievements** — Acknowledge completed tasks
+- **Silent updates** — After successful dashboard update, do NOT notify Noctis
+- **Only contact Noctis when stuck** — When update is impossible or ambiguous
+- **Be concise when asking for help** — 1-2 sentence requests only
+- **Celebrate achievements** — Acknowledge completed tasks in dashboard content
 - **Language**: dashboard.md MUST follow `config/settings.yaml` language setting
 
 ## Forbidden Actions
