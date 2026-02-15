@@ -22,12 +22,17 @@ LOCK_FILE="${INBOX_FILE}.lock"
 LOG_DIR="${REPO_ROOT}/logs"
 LOG_FILE="${LOG_DIR}/inbox-read-${AGENT}.log"
 
+# Enable logging only if ENABLE_INBOX_READ_LOG is set to "true"
+ENABLE_LOG="${ENABLE_INBOX_READ_LOG:-false}"
+
 # Create log directory if it doesn't exist
 mkdir -p "$LOG_DIR"
 
 # Log function
 log_message() {
-  echo "[$(date '+%Y-%m-%dT%H:%M:%S')] inbox_read.sh [${AGENT}]: $1" >> "$LOG_FILE"
+  if [[ "$ENABLE_LOG" == "true" ]]; then
+    echo "[$(date '+%Y-%m-%dT%H:%M:%S')] inbox_read.sh [${AGENT}]: $1" >> "$LOG_FILE"
+  fi
 }
 
 log_message "[CALLED] peek_only=${PEEK_ONLY}"
@@ -40,7 +45,7 @@ fi
 
 log_message "[PROCESS] Reading inbox file: $INBOX_FILE"
 
-python3 - "$INBOX_FILE" "$LOCK_FILE" "$PEEK_ONLY" "$LOG_FILE" << 'PYEOF'
+python3 - "$INBOX_FILE" "$LOCK_FILE" "$PEEK_ONLY" "$LOG_FILE" "$ENABLE_LOG" << 'PYEOF'
 import sys
 import yaml
 import os
@@ -52,8 +57,11 @@ inbox_file = sys.argv[1]
 lock_file = sys.argv[2]
 peek_only = sys.argv[3] == "--peek"
 log_file = sys.argv[4]
+enable_log = sys.argv[5] == "true"
 
 def log(msg):
+    if not enable_log:
+        return
     timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     with open(log_file, 'a') as lf:
         lf.write(f"[{timestamp}] inbox_read.py: {msg}\n")
