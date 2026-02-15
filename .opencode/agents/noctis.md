@@ -71,26 +71,26 @@ scripts/inbox_read.sh noctis           # Read all unread messages
 
 Messages include task reports from Comrades, instructions from Lunafreya, and system notifications.
 
-## Dashboard Rules
+## Dashboard Rules (Iris-Primary Model)
 
-- **You alone** update `dashboard.md`.
-- Iris handles monitoring and reminders (via iris-watcher plugin), but you remain responsible for the final state.
-- Keep "🚨 Requires Action" updated for Crystal's decisions.
+Iris owns ALL dashboard sections. The `noctis-idle-capture` plugin sends your terminal output to Iris on session.idle, and Iris updates dashboard accordingly. **You do NOT need to update dashboard.md** unless Iris asks for help.
+
+When Iris requests help ("Dashboard update difficult. Please update dashboard.md directly."):
+1. Read the context from Iris's message
+2. Update dashboard.md directly
 - **Language**: dashboard.md content MUST follow `config/settings.yaml` language setting.
   - `language: ja` → Write in Japanese only
-  - `language: en` → Write in Japanese + English translation in parentheses
-  - Always check the setting before updating dashboard
+  - `language: en` → Write in English only
 
 ## Task Execution Checklist
 
-1. **Reception**: Check inbox (`scripts/inbox_read.sh noctis --peek`) → Read messages → Update dashboard ("🔄 In Progress") → Decompose.
-2. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake).
-3. **Collection**: Read report messages from inbox → Update dashboard (Move to "✅ Today's Results") → Check skill candidates.
+1. **Reception**: Check inbox (`scripts/inbox_read.sh noctis --peek`) → Read messages → Decompose task.
+2. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake, iris-watcher auto-updates "In Progress").
+3. **Collection**: Read report messages from inbox. Iris auto-updates dashboard — no manual update needed.
 4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
-5. **Completion**: Synthesize → Report to Crystal → Final dashboard check.
-6. **Language Check**: Verify dashboard.md language matches `config/settings.yaml`.
+5. **Completion**: Synthesize → Report to Crystal.
 
-**Note**: A task is INCOMPLETE until `dashboard.md` reflects the current state **in the correct language**.
+**Note**: Iris owns all dashboard sections. `noctis-idle-capture` plugin sends your terminal output to Iris on session.idle. You only update dashboard when Iris requests help.
 
 ## Parallelization
 

@@ -51,7 +51,10 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
       if (event.type !== "file.watcher.updated") return;
 
       const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
-      if (!props.file.includes("queue/inbox/") || props.event !== "change") return;
+      
+      if (!props.file.includes("queue/inbox/")) return;
+      if (props.file.endsWith(".lock")) return;
+      if (props.event !== "change" && props.event !== "add") return;
 
       const targetAgent = extractAgent(props.file);
       if (!targetAgent) return;

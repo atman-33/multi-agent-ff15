@@ -90,6 +90,8 @@ try:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     os.rename(tmp_file, inbox_file)
+    # Touch file to trigger file watcher events
+    os.utime(inbox_file, None)
     sys.exit(0)
 
 except yaml.YAMLError as e:

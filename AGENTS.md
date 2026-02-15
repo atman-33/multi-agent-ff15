@@ -32,8 +32,8 @@ Crystal (User)
 └────────────┴──────────┴────────────┘
 
      IRIS (イリス) ← Dashboard Guardian (background)
-     Monitors inbox for report notifications, reminds Noctis to update dashboard.
-     Woken by iris-watcher plugin when new reports appear in Noctis inbox.
+     Owns ALL dashboard.md sections. Auto-updates via iris-watcher plugin.
+     Receives Noctis terminal capture on session.idle for judgment-section updates.
 ```
 
 ## Context Persistence
@@ -65,18 +65,18 @@ multi-agent-ff15/
 
 | Agent | Role | Pane | Key Responsibility |
 |-------|------|------|--------------------|
-| **Noctis** | King | 0 | Decompose tasks, assign to Comrades, update dashboard. Never self-execute. |
+| **Noctis** | King | 0 | Decompose tasks, assign to Comrades. Never self-execute. |
 | **Lunafreya** | Oracle | 1 | Independent. Direct user interaction. Can command Noctis. |
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
-| **Iris** | Guardian | bg/5 | Dashboard monitoring. Woken by plugin when reports update. Notifies Noctis. |
+| **Iris** | Guardian | bg/5 | Dashboard auto-updater. Owns ALL dashboard sections. Woken by plugins on inbox changes and Noctis idle capture. |
 
-**Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
+**Dashboard**: Iris-primary model. Iris owns and auto-updates ALL dashboard sections. Noctis only edits dashboard when Iris requests help. See noctis.md and iris.md for details.
 
 **dashboard.md Language Rule**: dashboard.md content MUST follow `config/settings.yaml` language setting:
 - `language: ja` → Japanese only
-- `language: en` or other → Japanese + English translation in parentheses
+- `language: en` or other → English only
 
 ## Communication Protocol — Iron Rule
 
