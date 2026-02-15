@@ -71,3 +71,17 @@ modes:
       model: github-copilot/grok-code-fast-1
     iris:
       model: github-copilot/gpt-5-mini
+
+  gpt5mini:
+    noctis:
+      model: github-copilot/gpt-5-mini
+    ignis:
+      model: github-copilot/gpt-5-mini
+    gladiolus:
+      model: github-copilot/gpt-5-mini
+    prompto:
+      model: github-copilot/gpt-5-mini
+    lunafreya:
+      model: github-copilot/gpt-5-mini
+    iris:
+      model: github-copilot/gpt-5-mini

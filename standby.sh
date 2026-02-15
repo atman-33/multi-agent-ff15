@@ -126,6 +126,14 @@ while [[ $# -gt 0 ]]; do
             MODE="free-glm"
             shift
             ;;
+        --gpt5mini)
+            if [ "$MODE" != "normal" ]; then
+                echo "Error: Only one mode can be specified"
+                exit 1
+            fi
+            MODE="gpt5mini"
+            shift
+            ;;
         -t|--terminal)
             OPEN_TERMINAL=true
             shift
@@ -153,6 +161,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --lite              Start in Lite mode"
             echo "  --free-kimi         Start in Free mode (Kimi K2.5)"
             echo "  --free-glm          Start in Free mode (GLM 4.7)"
+            echo "  --gpt5mini          Start in GPT-5 Mini mode (all agents)"
             echo "  -s, --setup-only    Setup tmux session only (no OpenCode launch)"
             echo "  -t, --terminal      Open new tab in Windows Terminal"
             echo "  -shell, --shell SH  Specify shell (bash or zsh)"
@@ -170,6 +179,7 @@ while [[ $# -gt 0 ]]; do
             echo "  ./standby.sh --lite       # Start in Lite mode"
             echo "  ./standby.sh --free-kimi  # Start in Free mode (Kimi K2.5)"
             echo "  ./standby.sh --free-glm   # Start in Free mode (GLM 4.7)"
+            echo "  ./standby.sh --gpt5mini   # Start in GPT-5 Mini mode (all agents)"
             echo "  ./standby.sh -c --fullpower  # Clean start + Full Power mode"
             echo "  ./standby.sh -shell zsh   # Start with zsh prompt"
             echo ""
@@ -182,6 +192,7 @@ while [[ $# -gt 0 ]]; do
             echo "  Lite (--lite):            Low-cost configuration"
             echo "  Free Kimi (--free-kimi):  Free (Kimi K2.5)"
             echo "  Free GLM (--free-glm):    Free (GLM 4.7)"
+            echo "  GPT-5 Mini (--gpt5mini):  All agents use GPT-5 Mini"
             echo ""
             echo "Aliases:"
             echo "  ffa   → tmux attach-session -t ff15"
@@ -255,6 +266,7 @@ case "$MODE" in
     lite) MODE_NAME="Lite" ;;
     free-kimi) MODE_NAME="Free (Kimi K2.5)" ;;
     free-glm) MODE_NAME="Free (GLM 4.7)" ;;
+    gpt5mini) MODE_NAME="GPT-5 Mini (All)" ;;
     *)
         echo "Error: Unsupported mode: $MODE"
         exit 1
