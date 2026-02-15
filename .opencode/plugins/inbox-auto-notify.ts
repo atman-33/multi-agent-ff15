@@ -71,7 +71,8 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
       }
 
       try {
-        await $`tmux send-keys -t ${pane} "You have new inbox messages. Run: scripts/inbox_read.sh ${targetAgent}" Enter`.quiet();
+        await $`tmux send-keys -t ${pane} "You have new inbox messages. Run: scripts/inbox_read.sh ${targetAgent}"`.quiet();
+        await $`tmux send-keys -t ${pane} Enter`.quiet();
         await log(`Woke ${targetAgent} via tmux (${pane})`);
       } catch (err) {
         await log(`Failed to wake ${targetAgent}: ${err}`);
