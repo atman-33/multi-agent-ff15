@@ -38,8 +38,7 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
-# --- YAML generation ---
-cat > "${REPO_ROOT}/queue/lunafreya_to_noctis.yaml" << EOF
+YAML_CONTENT=$(cat << EOF
 # Lunafreya → Noctis communication channel
 message:
   message_id: ${MSG_ID}
@@ -48,6 +47,13 @@ message:
   priority: ${PRIORITY}
   timestamp: "${TIMESTAMP}"
 EOF
+)
+"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/lunafreya_to_noctis.yaml" "$YAML_CONTENT"
+
+INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
+if [[ -x "$INBOX_SCRIPT" ]]; then
+  "$INBOX_SCRIPT" "noctis" "lunafreya" "luna_instruction" "${DESCRIPTION}" 2>/dev/null || true
+fi
 
 WAKE_MSG="Lunafreya からのレターがあります"
 

@@ -51,10 +51,9 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
-# --- YAML generation ---
 DETAILS_EXPANDED=$(echo -e "$DETAILS")
 
-cat > "${REPO_ROOT}/queue/reports/${AGENT_ID}_report.yaml" << EOF
+YAML_CONTENT=$(cat << EOF
 report:
   task_id: "${TASK_ID}"
   status: ${STATUS}
@@ -64,6 +63,13 @@ $(if [[ -n "$DETAILS_EXPANDED" ]]; then echo "$DETAILS_EXPANDED" | sed 's/^/    
   skill_candidate: ${SKILL_CANDIDATE}
   timestamp: "${TIMESTAMP}"
 EOF
+)
+"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/reports/${AGENT_ID}_report.yaml" "$YAML_CONTENT"
+
+INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
+if [[ -x "$INBOX_SCRIPT" ]]; then
+  "$INBOX_SCRIPT" "noctis" "$AGENT_ID" "report_received" "queue/reports/${AGENT_ID}_report.yaml updated (${TASK_ID})" 2>/dev/null || true
+fi
 
 echo "✅ Report submitted by ${AGENT_ID} (${TASK_ID})"
 

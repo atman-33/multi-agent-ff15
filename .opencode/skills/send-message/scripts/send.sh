@@ -11,7 +11,13 @@
 
 set -euo pipefail
 
-# Agent name → pane target mapping
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
+BUSY_DETECT="${REPO_ROOT}/scripts/busy_detect.sh"
+
+SENDER="${AGENT_ID:-unknown}"
+
 declare -A PANE_MAP=(
   [noctis]="ff15:main.0"
   [lunafreya]="ff15:main.1"
@@ -31,15 +37,24 @@ send_one() {
     return 1
   fi
 
-  # [1st] Send message
+  if [[ -x "$INBOX_SCRIPT" ]]; then
+    "$INBOX_SCRIPT" "$agent" "$SENDER" "reminder" "$message" 2>/dev/null || true
+  fi
+
+  if [[ -x "$BUSY_DETECT" ]]; then
+    "$BUSY_DETECT" "$agent" 2>/dev/null
+    if [[ $? -eq 1 ]]; then
+      echo "Skipped nudge to $agent (BUSY). Message saved to inbox."
+      return 0
+    fi
+  fi
+
   tmux send-keys -t "$target" "$message"
-  # [2nd] Send Enter
   tmux send-keys -t "$target" Enter
 
   echo "Sent to $agent ($target)"
 }
 
-# --- Argument validation ---
 if [[ $# -lt 2 ]]; then
   echo "Usage: send.sh <agent> <message> [<agent2> <message2> ...]" >&2
   exit 1
@@ -50,7 +65,6 @@ if [[ $(( $# % 2 )) -ne 0 ]]; then
   exit 1
 fi
 
-# --- Send messages ---
 first=true
 while [[ $# -ge 2 ]]; do
   if [[ "$first" == true ]]; then

@@ -38,8 +38,7 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
-# --- YAML generation ---
-cat > "${REPO_ROOT}/queue/noctis_to_lunafreya.yaml" << EOF
+YAML_CONTENT=$(cat << EOF
 # Noctis → Lunafreya communication channel
 message:
   message_id: ${MSG_ID}
@@ -48,6 +47,8 @@ message:
   priority: ${PRIORITY}
   timestamp: "${TIMESTAMP}"
 EOF
+)
+"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/noctis_to_lunafreya.yaml" "$YAML_CONTENT"
 
 # --- Unified wake message ---
 WAKE_MSG="Noctis からのお便りです"

@@ -47,7 +47,7 @@ When needed, instruct Noctis for project-wide coordination.
 
 | Trigger | Action |
 |---------|--------|
-| Noctis wakes you | Read `queue/noctis_to_lunafreya.yaml` |
+| Noctis wakes you | Check inbox (`scripts/inbox_read.sh lunafreya --peek`), then read `queue/noctis_to_lunafreya.yaml` |
 | No response long time | Report to Crystal, await instructions |
 | Crystal asks | Single check (one read) |
 

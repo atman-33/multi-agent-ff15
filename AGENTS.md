@@ -97,7 +97,7 @@ Write YAML first, then send a wake message via `send-message` skill to notify th
 
 `send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
 
-**Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring.)
+**Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring. Inbox-watcher plugin polls every 30s for escalation.)
 
 All inter-agent messaging uses the **send-message skill** (never direct `tmux send-keys`):
 
@@ -108,6 +108,8 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 # Multiple (2s interval auto)
 .opencode/skills/send-message/scripts/send.sh ignis "msg" gladiolus "msg" prompto "msg"
 ```
+
+send-message automatically: writes to inbox (`queue/inbox/{agent}.yaml`), checks busy state (skips tmux nudge if busy), then sends tmux wake.
 
 ### Message Flow
 
@@ -123,16 +125,18 @@ All inter-agent messaging uses the **send-message skill** (never direct `tmux se
 
 When you receive ANY message or wake up:
 
-1. **Read your task file**: `cat queue/tasks/{your_name}.yaml`
-2. **Check `status` field**:
+1. **Check inbox**: `scripts/inbox_read.sh {your_name} --peek`
+   - If unread > 0: `scripts/inbox_read.sh {your_name}` (read + mark as read, process in order)
+2. **Read your task file**: `cat queue/tasks/{your_name}.yaml`
+3. **Check `status` field**:
    - `assigned` → Execute immediately at senior engineer quality
    - `idle` → Do nothing (wait for next instruction)
-3. **After completion**:
+4. **After completion**:
    - Write report to `queue/reports/{your_name}_report.yaml`
    - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
    - Return to idle
 
-**Never skip Step 1. Never act on message content alone.**
+**Never skip Step 1-2. Never act on message content alone.**
 
 ### Report Format
 
@@ -181,6 +185,16 @@ report:
 ## RACE-001: No Concurrent File Writes
 
 Never assign multiple Comrades to write the same file. Each Comrade modifies only their dedicated files.
+
+### flock Protection
+
+All YAML writes use `scripts/yaml_write_flock.sh` for atomic writes with exclusive locking:
+
+```bash
+scripts/yaml_write_flock.sh <target_file> "<yaml_content>"
+```
+
+Skills (`send-task`, `send-report`, `luna-to-noctis`, `noctis-to-luna`) already use this wrapper. Direct `cat >` writes to queue YAML files are forbidden.
 
 ## YAML Status Transitions
 
@@ -239,16 +253,22 @@ AGENTS.md + agent system prompt are auto-loaded.
 ```
 1. Check ID:  tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
 2. Load Memory MCP:  memory_read_graph()
-3. Role-based:
+3. Check inbox:  scripts/inbox_read.sh {name} --peek
+   - If unread > 0: scripts/inbox_read.sh {name} (read + mark as read, process in order)
+4. Role-based:
    - Noctis: Read queue/tasks/*.yaml + queue/reports/*.yaml + dashboard.md
    - Comrades: Read queue/tasks/{name}.yaml (assigned=resume, idle=wait)
    - Lunafreya: Check lunafreya_to_noctis.yaml + noctis_to_lunafreya.yaml
-4. Read context/{project}.md if task has project field
+5. Read context/{project}.md if task has project field
 ```
 
 ### After Compaction
 
 Same as /new recovery. Source of truth = YAML files (dashboard.md is secondary).
+
+### Inbox Recovery
+
+Inbox files (`queue/inbox/{name}.yaml`) persist across crashes and `/new`. Unread messages remain `read: false` until explicitly processed. On recovery, inbox check (step 3) catches any messages missed during downtime. No special repair needed — flock + atomic writes ensure YAML integrity.
 
 ## tmux
 

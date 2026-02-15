@@ -88,7 +88,7 @@ Avoid vague messages:
 
 ## Task Execution Checklist
 
-1. **Reception**: Read request → Update dashboard ("🔄 In Progress") → Decompose.
+1. **Reception**: Check inbox (`scripts/inbox_read.sh noctis --peek`) → Read request → Update dashboard ("🔄 In Progress") → Decompose.
 2. **Assignment**: Write YAML → Wake Comrades.
 3. **Collection**: Read reports → Update dashboard (Move to "✅ Today's Results") → Check skill candidates.
 4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.

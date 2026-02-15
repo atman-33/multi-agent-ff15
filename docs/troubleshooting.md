@@ -138,3 +138,69 @@ echo "set -g mouse on" >> ~/.tmux.conf
 ```
 
 Then restart tmux.
+
+---
+
+## Messaging System Issues
+
+### flock timeout (YAML write fails)
+
+Symptom: `[FLOCK ERROR]` in agent output, YAML file not updated.
+
+```bash
+# Check for stale lock files
+ls -la queue/tasks/*.lock queue/inbox/*.lock 2>/dev/null
+
+# Remove stale locks (only if no agents are running)
+rm -f queue/tasks/*.lock queue/inbox/*.lock
+```
+
+Common causes:
+- Another process holds the lock for >5 seconds
+- WSL2 symlink pointing to Windows filesystem (flock requires Linux FS)
+
+### Inbox messages not delivered
+
+```bash
+# Check inbox file exists and is valid YAML
+python3 -c "import yaml; print(yaml.safe_load(open('queue/inbox/ignis.yaml')))"
+
+# Check unread count
+bash scripts/inbox_read.sh ignis --peek
+
+# Reinitialize corrupted inbox
+echo "messages: []" > queue/inbox/ignis.yaml
+```
+
+### Agent not responding to messages
+
+1. Check busy state: `bash scripts/busy_detect.sh ignis`
+2. If BUSY — agent is working, message saved to inbox (delivered after current task)
+3. If IDLE but unresponsive — manually wake: `.opencode/skills/send-message/scripts/send.sh ignis "Check your inbox"`
+
+### Escalation plugin not triggering
+
+The `inbox-watcher.ts` plugin:
+- Only runs on the **noctis** agent
+- Only monitors **Comrades** (Ignis, Gladiolus, Prompto)
+- Requires 4 minutes of continuous unread messages before `/clear`
+- Has 5-minute cooldown per agent
+
+```bash
+# Check escalation logs
+cat queue/metrics/ignis_escalation.yaml 2>/dev/null
+cat queue/metrics/gladiolus_escalation.yaml 2>/dev/null
+cat queue/metrics/prompto_escalation.yaml 2>/dev/null
+```
+
+### Inbox overflow (too many messages)
+
+Inbox auto-prunes to 50 messages (all unread + newest 30 read). If inbox grows unexpectedly:
+
+```bash
+# Check message count
+python3 -c "import yaml; msgs=yaml.safe_load(open('queue/inbox/noctis.yaml'))['messages']; print(f'Total: {len(msgs)}, Unread: {sum(1 for m in msgs if not m.get(\"read\", False))}')"
+
+# Reset inbox (loses history)
+echo "messages: []" > queue/inbox/noctis.yaml
+```

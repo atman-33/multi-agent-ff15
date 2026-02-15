@@ -36,8 +36,7 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
-# --- YAML generation ---
-cat > "${REPO_ROOT}/queue/tasks/${AGENT_NAME}.yaml" << EOF
+YAML_CONTENT=$(cat << EOF
 # ${AGENT_NAME} task file
 task:
   task_id: ${TASK_ID}
@@ -47,6 +46,13 @@ task:
   status: assigned
   timestamp: "${TIMESTAMP}"
 EOF
+)
+"${REPO_ROOT}/scripts/yaml_write_flock.sh" "${REPO_ROOT}/queue/tasks/${AGENT_NAME}.yaml" "$YAML_CONTENT"
+
+INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
+if [[ -x "$INBOX_SCRIPT" ]]; then
+  "$INBOX_SCRIPT" "$AGENT_NAME" "noctis" "task_assigned" "queue/tasks/${AGENT_NAME}.yaml updated (${TASK_ID})" 2>/dev/null || true
+fi
 
 echo "✅ Task assigned to ${AGENT_NAME} (${TASK_ID})"
 

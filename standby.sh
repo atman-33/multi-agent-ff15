@@ -353,6 +353,7 @@ if [ "$CLEAN_MODE" = true ]; then
         cp -r "./queue/tasks" "$BACKUP_DIR/" 2>/dev/null || true
         cp "./queue/lunafreya_to_noctis.yaml" "$BACKUP_DIR/" 2>/dev/null || true
         cp "./queue/noctis_to_lunafreya.yaml" "$BACKUP_DIR/" 2>/dev/null || true
+        cp -r "./queue/inbox" "$BACKUP_DIR/" 2>/dev/null || true
         log_info "📦 Previous records backed up: $BACKUP_DIR"
     fi
 fi
@@ -364,6 +365,8 @@ fi
 # Create queue directories if they don't exist (needed for first launch)
 [ -d ./queue/reports ] || mkdir -p ./queue/reports
 [ -d ./queue/tasks ] || mkdir -p ./queue/tasks
+[ -d ./queue/inbox ] || mkdir -p ./queue/inbox
+[ -d ./queue/metrics ] || mkdir -p ./queue/metrics
 
 if [ "$CLEAN_MODE" = true ]; then
     log_info "📜 Discarding previous mission records..."
@@ -417,6 +420,14 @@ message:
   timestamp: null
 EOF
 
+    # Inbox reset (all 6 agents)
+    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+        echo "messages: []" > ./queue/inbox/${AGENT_NAME}.yaml
+    done
+
+    # Escalation metrics reset
+    rm -f ./queue/metrics/*_escalation.yaml 2>/dev/null || true
+
     # Remove legacy files if they exist
     rm -f ./queue/noctis_to_ignis.yaml 2>/dev/null || true
     rm -f ./queue/tasks/iris.yaml 2>/dev/null || true
@@ -427,6 +438,10 @@ EOF
     log_success "✅ Cleanup complete"
 else
     log_info "📜 Resuming from previous state..."
+    # Initialize inbox files if they don't exist (first launch without --clean)
+    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+        [ -f ./queue/inbox/${AGENT_NAME}.yaml ] || echo "messages: []" > ./queue/inbox/${AGENT_NAME}.yaml
+    done
     log_success "✅ Queues and reports preserved"
 fi
 
@@ -449,6 +464,14 @@ None
 
 ## 🔄 In Progress
 None
+
+## 📬 Inbox Status
+| Agent | Unread |
+|-------|--------|
+| Noctis | 0 |
+| Ignis | 0 |
+| Gladiolus | 0 |
+| Prompto | 0 |
 
 ## ✅ Today's Results
 | Time | 担当 | ミッション | 結果 |
@@ -478,6 +501,14 @@ None
 ## 🔄 In Progress (進行中)
 None
 
+## 📬 Inbox Status (受信状況)
+| Agent | Unread (未読) |
+|-------|---------------|
+| Noctis | 0 |
+| Ignis | 0 |
+| Gladiolus | 0 |
+| Prompto | 0 |
+
 ## ✅ Today's Results (本日の成果)
 | Time | Field (担当) | Mission (ミッション) | Result (結果) |
 |------|--------------|----------------------|---------------|
@@ -505,6 +536,16 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 4: Check tmux existence
 # ═══════════════════════════════════════════════════════════════════════════════
+if ! command -v flock &> /dev/null; then
+    echo ""
+    echo "  ╔════════════════════════════════════════════════════════╗"
+    echo "  ║  [ERROR] flock not found!                              ║"
+    echo "  ║  Install util-linux:  sudo apt install util-linux      ║"
+    echo "  ╚════════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+fi
+
 if ! command -v tmux &> /dev/null; then
     echo ""
     echo "  ╔════════════════════════════════════════════════════════╗"
