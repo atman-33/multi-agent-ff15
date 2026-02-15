@@ -1,6 +1,16 @@
 import type { Plugin } from "@opencode-ai/plugin";
 
+declare const process: {
+  env: Record<string, string | undefined>;
+};
+
 const IrisWatcher: Plugin = async ({ $ }) => {
+  // Only execute on Iris agent to prevent duplicate notifications
+  const agentId = process.env.AGENT_ID;
+  if (agentId !== "iris") {
+    return {};
+  }
+
   const REPORT_FILES = [
     "queue/reports/ignis_report.yaml",
     "queue/reports/gladiolus_report.yaml",
