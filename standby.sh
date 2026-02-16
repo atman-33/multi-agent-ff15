@@ -337,9 +337,17 @@ echo -e "  \033[1;33m行くぞ、パーティ編成開始だ\033[0m (Setting up 
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 1: Clean up existing sessions
+# STEP 1: Clean up existing sessions and processes
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "🧹 Cleaning up existing sessions..."
+log_info "🧹 Cleaning up existing OpenCode processes..."
+if pkill -f "opencode --agent" 2>/dev/null; then
+    log_info "  └─ OpenCode processes terminated"
+    sleep 1  # Wait for process termination
+else
+    log_info "  └─ No OpenCode processes found"
+fi
+
+log_info "🧹 Cleaning up existing tmux sessions..."
 tmux kill-session -t ff15 2>/dev/null && log_info "  └─ ff15 session cleaned" || log_info "  └─ ff15 session not found"
 # Legacy session cleanup
 tmux kill-session -t kingsglaive 2>/dev/null && log_info "  └─ kingsglaive session (legacy) cleaned" || true
