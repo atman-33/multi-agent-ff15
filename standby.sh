@@ -423,6 +423,9 @@ if [ "$CLEAN_MODE" = true ]; then
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
 
+## 👑 Latest Report to Crystal
+None
+
 ## 🚨 Requires Action
 None
 
@@ -455,6 +458,9 @@ EOF
         cat > ./dashboard.md << EOF
 # 📊 Mission Status (ミッションステータス)
 Last Updated: ${TIMESTAMP}
+
+## 👑 Latest Report to Crystal (最新の王の報告)
+None
 
 ## 🚨 Requires Action (要対応・確認事項)
 None
