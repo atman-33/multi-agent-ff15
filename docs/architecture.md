@@ -22,15 +22,13 @@
                                      ▼
                              ┌────────────┐
                              │    IRIS    │ ← Guardian (Monitor)
-                             │  (守護者)   │   Dashboard monitoring
-                             │            │   Notifies Noctis
+                             │  (守護者)   │   Dashboard management
+                             │            │   Context aggregator
                              └────────────┘
 
       Session: ff15 (unified session - 6 panes)
       Panes: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto, 5=Iris
 ```
-
----
 
 ## Communication Protocol
 

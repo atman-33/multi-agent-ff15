@@ -32,7 +32,7 @@ Crystal (User)
 └────────────┴──────────┴────────────┘
 
      IRIS (イリス) ← Dashboard Guardian (background)
-     Owns ALL dashboard.md sections. Auto-updates via iris-watcher plugin.
+     Owns ALL dashboard.md sections. Auto-updates via dashboard-auto-updater plugin.
      Receives Noctis terminal capture on session.idle for judgment-section updates.
 ```
 
@@ -106,7 +106,7 @@ Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin autom
 4. **Audit trail** — YAML files are git-trackable, full communication history
 5. **No confusion** — Agents always know where to look
 
-**Event-driven only. No polling.** (Exception: Inbox-watcher plugin polls every 30s for escalation of unresponsive agents.)
+**Event-driven only. No polling.** (Exception: Dashboard-auto-updater plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 

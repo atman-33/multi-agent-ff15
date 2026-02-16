@@ -85,7 +85,7 @@ When Iris requests help ("Dashboard update difficult. Please update dashboard.md
 ## Task Execution Checklist
 
 1. **Reception**: Check inbox (`scripts/inbox_read.sh noctis --peek`) → Read messages → Decompose task.
-2. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake, iris-watcher auto-updates "In Progress").
+2. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake, dashboard-auto-updater auto-updates "In Progress").
 3. **Collection**: Read report messages from inbox. Iris auto-updates dashboard — no manual update needed.
 4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
 5. **Completion**: Synthesize → Report to Crystal.

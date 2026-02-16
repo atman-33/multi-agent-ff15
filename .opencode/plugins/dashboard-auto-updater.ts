@@ -5,14 +5,16 @@ declare const process: {
 };
 
 /**
- * Iris Watcher — Dashboard auto-updater (Iris-primary model).
+ * Dashboard Auto Updater — Independent dashboard automation.
  *
- * Iris owns ALL dashboard sections. Two update paths:
- *   Path A: Inbox file monitoring (task_assigned / report_received)
- *   Path B: noctis_idle_capture in Iris inbox → wakes Iris for full dashboard update
+ * Automatically updates mechanical sections of dashboard.md based on inbox activity.
+ * - Path A: Inbox file monitoring (task_assigned → In Progress / report_received → Today's Results)
+ * - Path B: noctis_idle_capture in Iris inbox → handled by Iris agent (not this plugin)
  */
-const IrisWatcher: Plugin = async ({ $ }) => {
+const DashboardAutoUpdater: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID;
+  // Run on any agent, typically Iris or Noctis, but it's independent.
+  // Ideally run on a dedicated 'system' or 'iris' budget.
   if (agentId !== "iris") {
     return {};
   }
@@ -41,7 +43,7 @@ const IrisWatcher: Plugin = async ({ $ }) => {
       const timestamp = new Date().toISOString();
       const logLine = `[${timestamp}] iris-watcher: ${message}\n`;
       await $`echo ${logLine} >> logs/iris-watcher.log`.quiet();
-    } catch {}
+    } catch { }
   };
 
   const getLanguage = async (): Promise<string> => {
@@ -99,7 +101,7 @@ os.rename(tmp, target)
   // ─── Inbox Parsers ───
 
   const getReportMessages = async (): Promise<
-    Array<{ id: string; from: string; status: string; summary: string; taskId: string }>
+    Array<{ id: string; from: string; status: string; summary: string; taskId: string; }>
   > => {
     try {
       const result = await $`python3 -c "
@@ -143,9 +145,9 @@ except Exception:
   };
 
   const getTaskMessages = async (): Promise<
-    Array<{ id: string; agent: string; description: string; taskId: string }>
+    Array<{ id: string; agent: string; description: string; taskId: string; }>
   > => {
-    const allTasks: Array<{ id: string; agent: string; description: string; taskId: string }> = [];
+    const allTasks: Array<{ id: string; agent: string; description: string; taskId: string; }> = [];
     for (const [agent, inboxPath] of Object.entries(COMRADE_INBOXES)) {
       try {
         const result = await $`python3 -c "
@@ -187,7 +189,7 @@ except Exception:
   };
 
   const getLunaInstructionMessages = async (): Promise<
-    Array<{ id: string; content: string }>
+    Array<{ id: string; content: string; }>
   > => {
     try {
       const result = await $`python3 -c "
@@ -379,7 +381,7 @@ except Exception:
     event: async ({ event }) => {
       if (event.type !== "file.watcher.updated") return;
 
-      const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
+      const props = event.properties as { file: string; event: "add" | "change" | "unlink"; };
       // Accept both "add" and "change" events
       // os.rename() atomic writes may emit "add" instead of "change" on Linux/inotify
       if (props.event !== "change" && props.event !== "add") return;
@@ -457,4 +459,4 @@ except Exception:
   };
 };
 
-export default IrisWatcher;
+export default DashboardAutoUpdater;
