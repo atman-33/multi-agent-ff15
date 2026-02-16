@@ -30,6 +30,7 @@ const IrisWatcher: Plugin = async ({ $ }) => {
 
   const processedReportIds = new Set<string>();
   const processedTaskIds = new Set<string>();
+  const processedLunaInstructionIds = new Set<string>();
   let updating = false;
 
   // ─── Helpers ───
@@ -185,6 +186,36 @@ except Exception:
     return allTasks;
   };
 
+  const getLunaInstructionMessages = async (): Promise<
+    Array<{ id: string; content: string }>
+  > => {
+    try {
+      const result = await $`python3 -c "
+import yaml
+try:
+    with open('${NOCTIS_INBOX}', 'r') as f:
+        data = yaml.safe_load(f) or {}
+    messages = data.get('messages', [])
+    for m in messages:
+        if isinstance(m, dict) and m.get('type') == 'luna_instruction':
+            content = m.get('content', '')
+            print(f\"{m.get('id', '?')}~{content}\")
+except Exception:
+    pass
+"`.quiet();
+      const lines = result.text().trim().split("\n").filter(Boolean);
+      return lines.map((line) => {
+        const parts = line.split("~");
+        return {
+          id: parts[0] || "?",
+          content: parts[1] || "",
+        };
+      });
+    } catch {
+      return [];
+    }
+  };
+
   // ─── Dashboard Section Updaters ───
 
   const updateInProgress = (
@@ -294,6 +325,36 @@ except Exception:
     return lines.join("\n");
   };
 
+  const addToRequiresAction = (
+    dashboard: string,
+    instruction: string,
+    lang: string,
+  ): string => {
+    const isJa = lang === "ja";
+    const prefix = isJa ? "Lunafreya からの指示:" : "Instruction from Lunafreya:";
+    const newItem = `- ${prefix} ${instruction}`;
+
+    const lines = dashboard.split("\n");
+    const sectionIdx = lines.findIndex((l) => l.startsWith("## 🚨 Requires Action"));
+    if (sectionIdx === -1) return dashboard;
+
+    let nextIdx = lines.length;
+    for (let i = sectionIdx + 1; i < lines.length; i++) {
+      if (lines[i].startsWith("## ")) { nextIdx = i; break; }
+    }
+
+    const sectionContent = lines.slice(sectionIdx + 1, nextIdx).join("\n");
+    if (sectionContent.includes(instruction)) {
+      return dashboard;
+    }
+
+    let insertAt = nextIdx;
+    while (insertAt > sectionIdx && lines[insertAt - 1].trim() === "") insertAt--;
+    lines.splice(insertAt, 0, newItem);
+
+    return lines.join("\n");
+  };
+
   const updateTimestamp = (dashboard: string, time: string): string => {
     return dashboard.replace(/^Last Updated:.*$/m, `Last Updated: ${time}`);
   };
@@ -305,7 +366,9 @@ except Exception:
     for (const r of reports) processedReportIds.add(r.id);
     const tasks = await getTaskMessages();
     for (const t of tasks) processedTaskIds.add(t.id);
-    await log(`Iris Watcher initialized. ${processedReportIds.size} reports, ${processedTaskIds.size} tasks tracked.`);
+    const lunaInstructions = await getLunaInstructionMessages();
+    for (const li of lunaInstructions) processedLunaInstructionIds.add(li.id);
+    await log(`Iris Watcher initialized. ${processedReportIds.size} reports, ${processedTaskIds.size} tasks, ${processedLunaInstructionIds.size} luna instructions tracked.`);
   };
 
   await initProcessed();
@@ -354,9 +417,16 @@ except Exception:
         if (isNoctisInbox) {
           const reports = await getReportMessages();
           const newReports = reports.filter((r) => !processedReportIds.has(r.id));
-          if (newReports.length === 0) return;
+
+          const lunaInstructions = await getLunaInstructionMessages();
+          const newLunaInstructions = lunaInstructions.filter(
+            (li) => !processedLunaInstructionIds.has(li.id),
+          );
+
+          if (newReports.length === 0 && newLunaInstructions.length === 0) return;
 
           let dashboard = await readDashboard();
+
           for (const report of newReports) {
             processedReportIds.add(report.id);
             dashboard = removeFromInProgress(dashboard, report.from);
@@ -365,6 +435,13 @@ except Exception:
             );
             await log(`Results added: ${report.from} - ${report.status} - ${report.summary}`);
           }
+
+          for (const li of newLunaInstructions) {
+            processedLunaInstructionIds.add(li.id);
+            dashboard = addToRequiresAction(dashboard, li.content, lang);
+            await log(`Requires Action added: Lunafreya instruction - ${li.content}`);
+          }
+
           dashboard = updateTimestamp(dashboard, now);
           await writeDashboard(dashboard);
           return;
