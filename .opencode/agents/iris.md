@@ -66,7 +66,8 @@ Analyze the `noctis_idle_capture` log content to update specific sections:
 
 | Target Section | Trigger Patterns in Log | Action |
 |----------------|-------------------------|--------|
-| **🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed", "Question for user" | List the specific items needing user attention. **Include both action requests AND confirmation items here.** |
+| **🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed" | List items needing user attention. **If log shows resolution/completion, REMOVE the corresponding item.** |
+| **✅ Today's Results** | "Fixed", "Resolved", "Done", "Completed manual task" | **If Noctis resolved a 'Requires Action' item or performed a manual task not tracked by inbox**, add it here. |
 | **🎯 Skill Candidates** | "Reusable pattern", "Create skill", "Document as skill", "Promote to skill" | List the candidate name and brief description. |
 | **🛠️ Generated Skills** | "Skill created", "Generated skill", "New skill added" | List the name of the newly created skill. |
 | **⏸️ On Standby** | "Next:", "Pending:", "Later:", "Parked task" | List tasks or agents that are waiting or scheduled for later. |
