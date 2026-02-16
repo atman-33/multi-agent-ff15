@@ -1,0 +1,61 @@
+name: Test Suite
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install pyyaml
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/*.sh
+        chmod +x tests/*.sh
+        
+    - name: Run Phase 3 Tests (Busy Detection)
+      run: |
+        echo "Running Phase 3 tests..."
+        ./tests/test_phase3_busy_detect.sh
+      continue-on-error: false
+      
+    - name: Run Phase 4 Tests (Integration)
+      run: |
+        echo "Running Phase 4 tests..."
+        ./tests/test_phase4_integration.sh
+      continue-on-error: false
+      
+    - name: Run Inbox Overflow Test
+      run: |
+        echo "Running inbox overflow test..."
+        ./tests/test_inbox_overflow.sh
+      continue-on-error: true
+      
+    - name: Run Stress Tests (flock)
+      run: |
+        echo "Running flock stress test..."
+        ./tests/stress_test_flock.sh
+      continue-on-error: true
+      
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "========================================"
+        echo "Test Summary"
+        echo "========================================"
+        echo "All required tests completed"
