@@ -60,6 +60,32 @@ scripts/inbox_write.sh noctis iris message "Dashboard update difficult. Please u
 ```
 
 
+
+## ⚠️ CRITICAL: Dashboard Structure Integrity
+
+**NEVER change the section headers or their order in dashboard.md.**
+
+The following structure is MANDATORY and MUST be preserved exactly:
+
+1. `## 👑 Latest Report to Crystal`
+2. `## 🚨 Requires Action`
+3. `## 🔄 In Progress`
+4. `## 📬 Inbox Status`
+5. `## ✅ Today's Results`
+6. `## 🎯 Skill Candidates`
+7. `## 🛠️ Generated Skills`
+8. `## ⏸️ On Standby`
+
+**You may ONLY update the CONTENT under each header. Do NOT:**
+- Remove headers
+- Rename headers
+- Change the order of headers
+- Add new top-level headers (except when explicitly instructed by system updates)
+
+If you accidentally break the structure, you will receive a system alert to fix it immediately.
+
+---
+
 ## Data Extraction Rules (from Noctis terminal)
 
 Analyze the `noctis_idle_capture` log content to update specific sections:
