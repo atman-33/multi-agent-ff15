@@ -61,7 +61,7 @@ const InboxWatcher: Plugin = async ({ $ }) => {
   const sendWakeMessage = async (): Promise<boolean> => {
     await log(`[ESCALATE] Sending wake message to ${myPane}...`);
     try {
-      await $`tmux send-keys -t ${myPane} Enter`.quiet();
+      await $`tmux send-keys -t ${myPane} C-u`.quiet();
       await new Promise(resolve => setTimeout(resolve, 50));
       await $`tmux send-keys -t ${myPane} "You have unread inbox messages. Run: scripts/inbox_read.sh ${agentId}"`.quiet();
       await new Promise(resolve => setTimeout(resolve, 50));
