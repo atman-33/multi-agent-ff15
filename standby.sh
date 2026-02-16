@@ -449,9 +449,6 @@ None
 
 ## ⏸️ On Standby
 None
-
-## ❓ Confirmation Items
-None
 EOF
     else
         # Bilingual (Japanese + English)
@@ -459,7 +456,7 @@ EOF
 # 📊 Mission Status (ミッションステータス)
 Last Updated: ${TIMESTAMP}
 
-## 🚨 Requires Action (要対応)
+## 🚨 Requires Action (要対応・確認事項)
 None
 
 ## 🔄 In Progress (進行中)
@@ -484,9 +481,6 @@ None
 None
 
 ## ⏸️ On Standby (待機中)
-None
-
-## ❓ Confirmation Items (確認事項)
 None
 EOF
     fi

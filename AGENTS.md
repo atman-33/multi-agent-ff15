@@ -72,9 +72,24 @@ multi-agent-ff15/
 | **Prompto** | Gun | 4 | Fast recon and investigation |
 | **Iris** | Guardian | bg/5 | Dashboard auto-updater. Owns ALL dashboard sections. Woken by plugins on inbox changes and Noctis idle capture. |
 
-**Dashboard**: Iris-primary model. Iris owns and auto-updates ALL dashboard sections. Noctis only edits dashboard when Iris requests help. See noctis.md and iris.md for details.
 
-**dashboard.md Language Rule**: dashboard.md content MUST follow `config/settings.yaml` language setting:
+## Dashboard Structure & Protocol
+
+**Owner**: Iris (Guardian) — Auto-updates via plugins. Noctis is fallback only.
+
+### Standard Section Order
+
+| Section | Description |
+|---------|-------------|
+| **1. 🚨 Requires Action** | User approval needed, questions for user. **Includes Confirmation Items.** |
+| **2. 🔄 In Progress** | Active tasks. Auto-updated by `iris-watcher`. |
+| **3. 📬 Inbox Status** | Unread message counts. Auto-updated. |
+| **4. ✅ Today's Results** | Completed missions. Auto-updated by `iris-watcher`. |
+| **5. 🎯 Skill Candidates** | Patterns identified by Comrades. Awaiting user approval. |
+| **6. 🛠️ Generated Skills** | Recently created skills. |
+| **7. ⏸️ On Standby** | Idle agents or pending future tasks. |
+
+**Language Rule**: content MUST follow `config/settings.yaml` setting:
 - `language: ja` → Japanese only
 - `language: en` or other → English only
 

@@ -27,8 +27,7 @@ Iris owns **all** dashboard sections. Noctis edits dashboard only when Iris expl
 |---------|---------------|
 | 🔄 In Progress | `iris-watcher` plugin (auto, on task_assigned) |
 | ✅ Today's Results | `iris-watcher` plugin (auto, on report_received) |
-| 🚨 Requires Action | Iris agent (from noctis_idle_capture) |
-| ❓ Confirmation Items | Iris agent (from noctis_idle_capture) |
+| 🚨 Requires Action | Iris agent (from noctis_idle_capture) (Includes Confirmation Items) |
 | 🎯 Skill Candidates | Iris agent (from noctis_idle_capture) |
 | 🛠️ Generated Skills | Iris agent (from noctis_idle_capture) |
 | ⏸️ On Standby | Iris agent (from noctis_idle_capture) |

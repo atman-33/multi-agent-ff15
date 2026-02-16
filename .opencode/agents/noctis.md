@@ -73,7 +73,7 @@ Messages include task reports from Comrades, instructions from Lunafreya, and sy
 
 ## Dashboard Rules (Iris-Primary Model)
 
-Iris owns ALL dashboard sections. The `noctis-idle-capture` plugin sends your terminal output to Iris on session.idle, and Iris updates dashboard accordingly. **You do NOT need to update dashboard.md** unless Iris asks for help.
+Iris owns ALL dashboard sections. The `noctis-idle-capture` plugin sends your terminal output to Iris on session.idle, and Iris updates dashboard accordingly. **You do NOT need to update dashboard.md** unless Iris asks for help. (Note: 'Requires Action' section includes user confirmation items.)
 
 When Iris requests help ("Dashboard update difficult. Please update dashboard.md directly."):
 1. Read the context from Iris's message
