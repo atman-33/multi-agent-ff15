@@ -66,7 +66,7 @@ multi-agent-ff15/
 | Agent | Role | Pane | Key Responsibility |
 |-------|------|------|--------------------|
 | **Noctis** | King | 0 | Decompose tasks, assign to Comrades. Never self-execute. |
-| **Lunafreya** | Oracle | 1 | Independent. Direct user interaction. Can command Noctis. |
+| **Lunafreya** | Oracle | 1 | Independent. Direct user interaction. Can command Noctis. **Can implement directly.** |
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
