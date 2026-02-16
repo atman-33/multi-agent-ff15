@@ -59,7 +59,18 @@ When Noctis session goes idle, `noctis-idle-capture` plugin captures terminal ou
 scripts/inbox_write.sh noctis iris message "Dashboard update difficult. Please update dashboard.md directly. Context: <brief reason>"
 ```
 
-## Behavior Guidelines
+
+## Data Extraction Rules (from Noctis terminal)
+
+Analyze the `noctis_idle_capture` log content to update specific sections:
+
+| Target Section | Trigger Patterns in Log | Action |
+|----------------|-------------------------|--------|
+| **🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed", "Question for user" | List the specific items needing user attention. **Include both action requests AND confirmation items here.** |
+| **🎯 Skill Candidates** | "Reusable pattern", "Create skill", "Document as skill", "Promote to skill" | List the candidate name and brief description. |
+| **🛠️ Generated Skills** | "Skill created", "Generated skill", "New skill added" | List the name of the newly created skill. |
+| **⏸️ On Standby** | "Next:", "Pending:", "Later:", "Parked task" | List tasks or agents that are waiting or scheduled for later. |
+
 
 - **You own the dashboard** — Update all sections, not just mechanical ones
 - **Analyze terminal output** — Extract key information from Noctis capture
