@@ -197,7 +197,7 @@ try:
         data = yaml.safe_load(f) or {}
     messages = data.get('messages', [])
     for m in messages:
-        if isinstance(m, dict) and m.get('type') == 'luna_instruction':
+        if isinstance(m, dict) and m.get('from') == 'lunafreya' and m.get('type') in ('message', 'luna_instruction'):
             content = m.get('content', '')
             print(f\"{m.get('id', '?')}~{content}\")
 except Exception:
