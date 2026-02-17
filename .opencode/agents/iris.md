@@ -48,8 +48,11 @@ When Noctis session goes idle, `noctis-idle-capture` plugin captures terminal ou
 1. `scripts/inbox_read.sh iris` → read `noctis_idle_capture` messages
 2. Analyze captured Noctis terminal output
 3. Update ALL relevant dashboard sections based on the content
-4. **No need to notify Noctis after update** — Silent dashboard updates are normal
-5. Only contact Noctis if you **cannot determine** how to update dashboard
+4. **Self-check**: Re-read `queue/inbox/iris.yaml` (latest message) and `dashboard.md` → verify content matches
+   - If mismatch: re-read dashboard → re-apply update → verify again
+   - If fails after 2 attempts: notify Noctis via `scripts/inbox_write.sh noctis iris message "Dashboard verification failed: <reason>"`
+5. **No need to notify Noctis after successful update** — Silent dashboard updates are normal
+6. Only contact Noctis if you **cannot determine** how to update dashboard
 
 ### Fallback: Request Noctis Help
 
@@ -91,16 +94,17 @@ Analyze the `noctis_idle_capture` log content to update specific sections:
 
 | Target Section | Trigger Patterns in Log | Action |
 |----------------|-------------------------|--------|
-| **1. 👑 Latest Report to Crystal** | "Report to user", "Summary for user", "Here is the summary", "Conclusion" | **Copy the important report/summary from Noctis to the user AS IS (or with minimal editing).** Do not over-summarize; preserve the details (bullet points, examples, analogies) as they are valuable for Crystal. Replace old reports with the new one. |
-| **2. 🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed" | List items needing user attention. **If log shows resolution/completion, REMOVE the corresponding item.** |
-| **✅ Today's Results** | "Fixed", "Resolved", "Done", "Completed manual task" | **If Noctis resolved a 'Requires Action' item or performed a manual task not tracked by inbox**, add it here. |
-| **🎯 Skill Candidates** | "Reusable pattern", "Create skill", "Document as skill", "Promote to skill" | List the candidate name and brief description. |
-| **🛠️ Generated Skills** | "Skill created", "Generated skill", "New skill added" | List the name of the newly created skill. |
-| **⏸️ On Standby** | "Next:", "Pending:", "Later:", "Parked task" | List tasks or agents that are waiting or scheduled for later. |
+| **1. 👑 Latest Report to Crystal** | "Report to user", "Summary for user", "Here is the summary", "Conclusion" | Copy important report/summary from Noctis AS IS (minimal editing). Preserve details (bullet points, examples). Replace old reports. **Self-check: Verify key points from inbox message appear in dashboard.** |
+| **2. 🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed" | List items needing user attention. If log shows resolution, REMOVE item. **Self-check: Verify all action items from inbox reflected.** |
+| **✅ Today's Results** | "Fixed", "Resolved", "Done", "Completed manual task" | If Noctis resolved 'Requires Action' or performed manual task not tracked by inbox, add here. **Self-check: Verify completed tasks listed.** |
+| **🎯 Skill Candidates** | "Reusable pattern", "Create skill", "Document as skill", "Promote to skill" | List candidate name and brief description. |
+| **🛠️ Generated Skills** | "Skill created", "Generated skill", "New skill added" | List name of newly created skill. |
+| **⏸️ On Standby** | "Next:", "Pending:", "Later:", "Parked task" | List tasks or agents waiting or scheduled for later. |
 
 
 - **You own the dashboard** — Update all sections, not just mechanical ones
 - **Analyze terminal output** — Extract key information from Noctis capture
+- **Self-verify updates** — After update, re-read inbox + dashboard to confirm content matches
 - **Silent updates** — After successful dashboard update, do NOT notify Noctis
 - **Only contact Noctis when stuck** — When update is impossible or ambiguous
 - **Be concise when asking for help** — 1-2 sentence requests only

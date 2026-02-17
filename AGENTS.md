@@ -202,6 +202,7 @@ Examples:
 | F004 | Polling | Event-driven |
 | F005 | Skip context reading | Always read first |
 | F006 | Modify other Comrades' files | Own files only (RACE-001) |
+| F007 | Direct git push/merge to main/master without PR | Create feature branch → Commit → Create PR → Wait for approval |
 
 ### Lunafreya
 
@@ -211,6 +212,48 @@ Examples:
 | F002 | Write directly to agent inboxes | Use `scripts/inbox_write.sh <target> <from> message "<msg>"` |
 | F003 | Polling | Event-driven |
 | F004 | Direct instructions to Comrades | Go through Noctis |
+| F005 | Direct git push/merge to main/master without PR | Create feature branch → Commit → Create PR → Inform user |
+
+## Git Workflow Protocol
+
+**ALL agents MUST follow PR-based workflow when making code changes.**
+
+### Mandatory Steps
+
+| Step | Action | Command Example |
+|------|--------|-----------------|
+| 1 | Create feature branch | `git checkout -b feature/description` |
+| 2 | Make changes | Edit files |
+| 3 | Commit to feature branch | `git add . && git commit -m "description"` |
+| 4 | Push feature branch | `git push -u origin feature/description` |
+| 5 | **Create PR and WAIT** | `gh pr create --title "..." --body "..."` |
+| 6 | **Report PR URL to Noctis** | Use `scripts/send_report.sh` with PR link |
+| 7 | **STOP — Do NOT merge** | User will review and merge |
+
+### Forbidden vs Allowed Git Operations
+
+| ❌ Forbidden | ✅ Allowed |
+|-------------|-----------|
+| `git push origin main` | `git push origin feature/xxx` |
+| `git push origin master` | `git push origin feature/xxx` |
+| `git merge feature/xxx` (on main) | Report "PR created at [URL]" |
+| `git commit --amend` (on main) | `git commit` (on feature branch) |
+| Direct merge without PR | PR creation with human approval |
+
+### Exceptions (Explicit User Approval Required)
+
+Only these scenarios allow direct git operations without PR:
+
+1. **Automated release workflow** — `github-release` skill with explicit user confirmation
+2. **Emergency hotfix** — User explicitly commands "push directly to main" (log this decision in dashboard)
+
+### Verification Checklist (Before Creating PR)
+
+- [ ] All changes committed to feature branch (not main)
+- [ ] Feature branch pushed to origin
+- [ ] PR created via `gh pr create`
+- [ ] PR URL reported to Noctis
+- [ ] Task marked as "awaiting approval" in dashboard
 
 ## RACE-001: No Concurrent File Writes
 
