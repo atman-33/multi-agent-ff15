@@ -25,7 +25,6 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
     "## 👑 Latest Report to Crystal",
     "## 🚨 Requires Action",
     "## 🔄 In Progress",
-    "## 📬 Inbox Status",
     "## ✅ Today's Results",
     "## 🎯 Skill Candidates",
     "## 🛠️ Generated Skills",
@@ -62,7 +61,14 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
         }
       }
 
-      // Check order (only for headers that exist)
+      // Check for unauthorized headers (strict mode)
+      for (const found of foundHeaders) {
+        if (!REQUIRED_HEADERS.includes(found)) {
+          issues.push(`Unauthorized header: "${found}"`);
+        }
+      }
+
+      // Check order (only for headers that exist and are required)
       let lastIndex = -1;
       for (const required of REQUIRED_HEADERS) {
         const currentIndex = foundHeaders.indexOf(required);

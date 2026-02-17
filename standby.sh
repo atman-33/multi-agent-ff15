@@ -416,10 +416,8 @@ if [ "$CLEAN_MODE" = true ]; then
     log_info "📊 Initializing dashboard..."
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
 
-    # Branch by language setting
-    if [ "$LANG_SETTING" = "ja" ]; then
-        # Japanese only
-        cat > ./dashboard.md << EOF
+    # English-only dashboard (simplified)
+    cat > ./dashboard.md <<EOF
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
 
@@ -432,19 +430,11 @@ None
 ## 🔄 In Progress
 None
 
-## 📬 Inbox Status
-| Agent | Unread |
-|-------|--------|
-| Noctis | 0 |
-| Ignis | 0 |
-| Gladiolus | 0 |
-| Prompto | 0 |
-
 ## ✅ Today's Results
-| Time | 担当 | ミッション | 結果 |
-|------|------|-----------|------|
+| Time | Agent | Mission | Result |
+|------|-------|---------|--------|
 
-## 🎯 Skill Candidates - Awaiting Approval
+## 🎯 Skill Candidates
 None
 
 ## 🛠️ Generated Skills
@@ -453,45 +443,8 @@ None
 ## ⏸️ On Standby
 None
 EOF
-    else
-        # Bilingual (Japanese + English)
-        cat > ./dashboard.md << EOF
-# 📊 Mission Status (ミッションステータス)
-Last Updated: ${TIMESTAMP}
 
-## 👑 Latest Report to Crystal (最新の王の報告)
-None
-
-## 🚨 Requires Action (要対応・確認事項)
-None
-
-## 🔄 In Progress (進行中)
-None
-
-## 📬 Inbox Status (受信状況)
-| Agent | Unread (未読) |
-|-------|---------------|
-| Noctis | 0 |
-| Ignis | 0 |
-| Gladiolus | 0 |
-| Prompto | 0 |
-
-## ✅ Today's Results (本日の成果)
-| Time | Field (担当) | Mission (ミッション) | Result (結果) |
-|------|--------------|----------------------|---------------|
-
-## 🎯 Skill Candidates - Awaiting Approval (スキル候補 - 承認待ち)
-None
-
-## 🛠️ Generated Skills (生成済みスキル)
-None
-
-## ⏸️ On Standby (待機中)
-None
-EOF
-    fi
-
-    log_success "  └─ Dashboard initialized (language: $LANG_SETTING, shell: $SHELL_SETTING)"
+    log_success "  └─ Dashboard initialized (shell: $SHELL_SETTING)"
 else
     log_info "📊 Preserving previous dashboard"
 fi

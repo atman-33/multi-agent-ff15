@@ -70,11 +70,10 @@ The following structure is MANDATORY and MUST be preserved exactly:
 1. `## 👑 Latest Report to Crystal`
 2. `## 🚨 Requires Action`
 3. `## 🔄 In Progress`
-4. `## 📬 Inbox Status`
-5. `## ✅ Today's Results`
-6. `## 🎯 Skill Candidates`
-7. `## 🛠️ Generated Skills`
-8. `## ⏸️ On Standby`
+4. `## ✅ Today's Results`
+5. `## 🎯 Skill Candidates`
+6. `## 🛠️ Generated Skills`
+7. `## ⏸️ On Standby`
 
 **You may ONLY update the CONTENT under each header. Do NOT:**
 - Remove headers

@@ -84,11 +84,10 @@ multi-agent-ff15/
 | **1. 👑 Latest Report to Crystal** | Significant findings, summaries, or proposals from Noctis/Comrades. |
 | **2. 🚨 Requires Action** | User approval needed, questions for user. **Includes Confirmation Items.** |
 | **3. 🔄 In Progress** | Active tasks. Auto-updated by `dashboard-auto-updater`. |
-| **4. 📬 Inbox Status** | Unread message counts. Auto-updated. |
-| **5. ✅ Today's Results** | Completed missions. Auto-updated by `dashboard-auto-updater`. |
-| **6. 🎯 Skill Candidates** | Patterns identified by Comrades. Awaiting user approval. |
-| **7. 🛠️ Generated Skills** | Recently created skills. |
-| **8. ⏸️ On Standby** | Idle agents or pending future tasks. |
+| **4. ✅ Today's Results** | Completed missions. Auto-updated by `dashboard-auto-updater`. Latest results appear first. |
+| **5. 🎯 Skill Candidates** | Patterns identified by Comrades. Awaiting user approval. |
+| **6. 🛠️ Generated Skills** | Recently created skills. |
+| **7. ⏸️ On Standby** | Idle agents or pending future tasks. |
 
 **Language Rule**: content MUST follow `config/settings.yaml` setting:
 - `language: ja` → Japanese only

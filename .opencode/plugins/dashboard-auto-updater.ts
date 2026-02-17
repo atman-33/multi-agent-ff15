@@ -46,22 +46,7 @@ const DashboardAutoUpdater: Plugin = async ({ $ }) => {
     } catch { }
   };
 
-  const getLanguage = async (): Promise<string> => {
-    try {
-      const result = await $`python3 -c "
-import yaml
-try:
-    with open('${SETTINGS_FILE}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    print(data.get('language', 'ja'))
-except Exception:
-    print('ja')
-"`.quiet();
-      return result.text().trim();
-    } catch {
-      return "ja";
-    }
-  };
+  // Language setting removed - dashboard is now English-only
 
   const readDashboard = async (): Promise<string> => {
     try {
@@ -224,7 +209,6 @@ except Exception:
     dashboard: string,
     agent: string,
     description: string,
-    lang: string,
   ): string => {
     const agentCap = agent.charAt(0).toUpperCase() + agent.slice(1);
     const newRow = `| ${agentCap} | ${description} |`;
@@ -241,10 +225,7 @@ except Exception:
     const hasTable = sectionContent.some((l) => l.startsWith("| "));
 
     if (!hasTable) {
-      const isJa = lang === "ja";
-      const tableHeader = isJa
-        ? "| 担当 | タスク |\n|------|--------|"
-        : "| Agent (担当) | Task (タスク) |\n|--------------|---------------|";
+      const tableHeader = "| Agent | Task |\n|-------|------|";
       const newSection = [lines[sectionIdx], tableHeader, newRow, ""];
       lines.splice(sectionIdx, nextIdx - sectionIdx, ...newSection);
     } else {
@@ -284,7 +265,6 @@ except Exception:
       .filter((l) =>
         l.startsWith("| ") &&
         !l.startsWith("|--") &&
-        !l.startsWith("| 担当") &&
         !l.startsWith("| Agent"),
       );
 
@@ -302,14 +282,11 @@ except Exception:
     status: string,
     summary: string,
     time: string,
-    lang: string,
   ): string => {
-    const isJa = lang === "ja";
     const agentCap = agent.charAt(0).toUpperCase() + agent.slice(1);
     const statusIcon = status === "done" ? "✅" : "❌";
     const resultText = `${statusIcon} ${summary}`;
-    const missionCol = isJa ? "-" : "-";
-    const newRow = `| ${time} | ${agentCap} | ${missionCol} | ${resultText} |`;
+    const newRow = `| ${time} | ${agentCap} | - | ${resultText} |`;
 
     const lines = dashboard.split("\n");
     const sectionIdx = lines.findIndex((l) => l.startsWith("## ✅ Today's Results"));
@@ -320,8 +297,21 @@ except Exception:
       if (lines[i].startsWith("## ")) { nextIdx = i; break; }
     }
 
-    let insertAt = nextIdx;
-    while (insertAt > sectionIdx && lines[insertAt - 1].trim() === "") insertAt--;
+    // Find table header separator (|---|) and insert after it
+    let insertAt = -1;
+    for (let i = sectionIdx + 1; i < nextIdx; i++) {
+      if (lines[i].trim().startsWith("|--")) {
+        insertAt = i + 1;
+        break;
+      }
+    }
+
+    // If no table header found, insert at end of section (fallback)
+    if (insertAt === -1) {
+      insertAt = nextIdx;
+      while (insertAt > sectionIdx && lines[insertAt - 1].trim() === "") insertAt--;
+    }
+
     lines.splice(insertAt, 0, newRow);
 
     return lines.join("\n");
@@ -330,10 +320,8 @@ except Exception:
   const addToRequiresAction = (
     dashboard: string,
     instruction: string,
-    lang: string,
   ): string => {
-    const isJa = lang === "ja";
-    const prefix = isJa ? "Lunafreya からの指示:" : "Instruction from Lunafreya:";
+    const prefix = "Instruction from Lunafreya:";
     const newItem = `- ${prefix} ${instruction}`;
 
     const lines = dashboard.split("\n");
@@ -397,7 +385,6 @@ except Exception:
 
       try {
         updating = true;
-        const lang = await getLanguage();
         const now = await getCurrentTime();
 
         if (isComradeInbox) {
@@ -408,7 +395,7 @@ except Exception:
           let dashboard = await readDashboard();
           for (const task of newTasks) {
             processedTaskIds.add(task.id);
-            dashboard = updateInProgress(dashboard, task.agent, task.description, lang);
+            dashboard = updateInProgress(dashboard, task.agent, task.description);
             await log(`In Progress added: ${task.agent} - ${task.description}`);
           }
           dashboard = updateTimestamp(dashboard, now);
@@ -433,14 +420,14 @@ except Exception:
             processedReportIds.add(report.id);
             dashboard = removeFromInProgress(dashboard, report.from);
             dashboard = addToTodaysResults(
-              dashboard, report.from, report.status, report.summary, now, lang,
+              dashboard, report.from, report.status, report.summary, now,
             );
             await log(`Results added: ${report.from} - ${report.status} - ${report.summary}`);
           }
 
           for (const li of newLunaInstructions) {
             processedLunaInstructionIds.add(li.id);
-            dashboard = addToRequiresAction(dashboard, li.content, lang);
+            dashboard = addToRequiresAction(dashboard, li.content);
             await log(`Requires Action added: Lunafreya instruction - ${li.content}`);
           }
 
