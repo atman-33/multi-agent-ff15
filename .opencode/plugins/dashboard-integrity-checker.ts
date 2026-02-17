@@ -31,6 +31,11 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
     "## ⏸️ On Standby"
   ];
 
+  // Debounce mechanism to prevent duplicate alerts
+  // (os.rename() atomic writes trigger multiple file watcher events)
+  let lastCheckTime = 0;
+  const DEBOUNCE_MS = 1000; // 1 second
+
   const log = async (message: string): Promise<void> => {
     try {
       const timestamp = new Date().toISOString();
@@ -112,6 +117,14 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
 
       if (!props.file.endsWith(DASHBOARD_FILE)) return;
       if (props.event !== "change" && props.event !== "add") return;
+
+      // Debounce: skip if called within DEBOUNCE_MS of last check
+      const now = Date.now();
+      if (now - lastCheckTime < DEBOUNCE_MS) {
+        await log("Skipped (debounced)");
+        return;
+      }
+      lastCheckTime = now;
 
       await log("Dashboard changed, checking structure...");
 

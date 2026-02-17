@@ -337,21 +337,48 @@ echo -e "  \033[1;33m行くぞ、パーティ編成開始だ\033[0m (Setting up 
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 1: Clean up existing sessions and processes
+# STEP 1: Clean up existing tmux sessions and OpenCode processes
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "🧹 Cleaning up existing OpenCode processes..."
-if pkill -f "opencode --agent" 2>/dev/null; then
-    log_info "  └─ OpenCode processes terminated"
-    sleep 1  # Wait for process termination
-else
-    log_info "  └─ No OpenCode processes found"
+log_info "🧹 Cleaning up existing OpenCode processes in ff15 session..."
+
+# Send Ctrl-C to all panes in ff15 session to gracefully stop OpenCode
+if tmux has-session -t ff15 2>/dev/null; then
+    # Get all pane IDs in ff15 session
+    tmux list-panes -s -t ff15 -F '#{pane_id}' 2>/dev/null | while read pane_id; do
+        tmux send-keys -t "$pane_id" C-c 2>/dev/null || true
+    done
+    log_info "  └─ Sent termination signal to all panes"
+    sleep 2  # Wait for graceful shutdown
 fi
 
-log_info "🧹 Cleaning up existing tmux sessions..."
+log_info "🧹 Cleaning up tmux sessions..."
 tmux kill-session -t ff15 2>/dev/null && log_info "  └─ ff15 session cleaned" || log_info "  └─ ff15 session not found"
 # Legacy session cleanup
 tmux kill-session -t kingsglaive 2>/dev/null && log_info "  └─ kingsglaive session (legacy) cleaned" || true
 tmux kill-session -t noctis 2>/dev/null && log_info "  └─ noctis session (legacy) cleaned" || true
+
+# Final cleanup: kill any remaining OpenCode processes from THIS project only
+# (by checking working directory)
+log_info "🧹 Cleaning up any orphaned OpenCode processes..."
+CURRENT_DIR="$(pwd)"
+KILLED_COUNT=0
+for pid in $(pgrep -f "opencode --agent" 2>/dev/null || true); do
+    if [ -d "/proc/$pid" ]; then
+        # Check if process working directory matches current project
+        proc_cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || echo "")
+        if [[ "$proc_cwd" == "$CURRENT_DIR"* ]]; then
+            kill "$pid" 2>/dev/null && KILLED_COUNT=$((KILLED_COUNT + 1)) || true
+        fi
+    fi
+done
+if [ $KILLED_COUNT -gt 0 ]; then
+    log_info "  └─ Cleaned up $KILLED_COUNT orphaned process(es)"
+else
+    log_info "  └─ No orphaned processes found"
+fi
+
+# Wait for processes to fully terminate
+sleep 1
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1.5: Backup previous records (--clean mode only, if content exists)
