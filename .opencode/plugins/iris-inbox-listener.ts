@@ -28,7 +28,7 @@ const IrisInboxListener: Plugin = async ({ $ }) => {
 
   // In-memory cache for this session (will be lost on restart, that's fine for a listener)
   const processedIds = new Set<string>();
-  const ENABLE_LOGGING = true;
+  const ENABLE_LOGGING = false;
 
   const log = async (message: string): Promise<void> => {
     if (!ENABLE_LOGGING) return;
