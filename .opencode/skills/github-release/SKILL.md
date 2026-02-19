@@ -55,14 +55,26 @@ python3 .opencode/skills/github-release/scripts/create_pr.py <from_branch> <to_b
 python3 .opencode/skills/github-release/scripts/create_release.py <version> [--publish]
 ```
 
+## Mandatory Rules (MUST follow)
+
+1. **NEVER work on main/master branch directly**
+   - The workflow script automatically detects if you are on `main`/`master` and creates a release branch
+   - All commits and pushes go to the release branch ONLY
+   - A PR is always required to merge into main
+
+2. **ALWAYS review CHANGELOG.md after script update**
+   - The script inserts a scaffold entry — inspect formatting before committing
+   - Confirm section headers, blank lines, and link references look correct
+
 ## Workflow Pattern
 
-1. **Run Workflow**: Start the interactive script to handle versioning and changelog.
-2. **Review**: Check the generated CHANGELOG.md and `package.json`.
-3. **Commit**: The script commits changes with a standardized message.
-4. **Push**: Push changes to remote.
-5. **PR**: Create a PR to merge release changes to main.
-6. **Release**: Create a GitHub release tagged with `vX.Y.Z`.
+1. **Run Workflow**: Start the interactive script. If on `main`/`master`, it will automatically create `release/vX.Y.Z` branch.
+2. **Version Bump**: Select release type (patch/minor/major/custom).
+3. **Review CHANGELOG.md**: Script inserts scaffold entry. Edit TODOs and verify formatting.
+4. **Commit**: Script commits `package.json` and `CHANGELOG.md` to the release branch.
+5. **Push**: Push the release branch to remote.
+6. **PR**: Create a PR (`release/vX.Y.Z` → `main`). Do NOT merge yourself.
+7. **Release**: Create a GitHub Release tagged `vX.Y.Z` after PR is merged.
 
 ## Requirements
 
