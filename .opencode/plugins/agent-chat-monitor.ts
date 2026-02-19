@@ -42,7 +42,8 @@ function extractAssistantContent(rawContent: string, agentName: string): string 
 function processAssistantText(content: string, agentName: string): string | null {
   const withoutFileContent = content.replace(/<content>[\s\S]*?<\/content>/g, "[ファイル内容省略]");
   const withoutReadme = withoutFileContent.replace(/\[Project README:[\s\S]*?---\n\n/m, "");
-  const cleaned = withoutReadme.replace(/\n{3,}/g, "\n\n").trim();
+  const noHeadings = withoutReadme.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
+  const cleaned = noHeadings.replace(/\n{3,}/g, "\n\n").trim();
 
   return cleaned ? `[${agentName}] ${cleaned}` : null;
 }
