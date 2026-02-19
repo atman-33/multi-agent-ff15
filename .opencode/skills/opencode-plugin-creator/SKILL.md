@@ -88,7 +88,7 @@ The plugin function receives:
 
 ### File Events
 - `file.edited`: After a file is edited
-- `file.watcher.updated`: When file watcher detects changes
+- `file.watcher.updated`: When file watcher detects changes (⚠️ **Experimental**, requires `OPENCODE_EXPERIMENTAL_FILEWATCHER=true`)
 
 ### Installation Events
 - `installation.updated`: When dependencies are updated

@@ -126,6 +126,14 @@ while [[ $# -gt 0 ]]; do
             MODE="free-glm"
             shift
             ;;
+        --gpt5mini)
+            if [ "$MODE" != "normal" ]; then
+                echo "Error: Only one mode can be specified"
+                exit 1
+            fi
+            MODE="gpt5mini"
+            shift
+            ;;
         -t|--terminal)
             OPEN_TERMINAL=true
             shift
@@ -153,6 +161,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --lite              Start in Lite mode"
             echo "  --free-kimi         Start in Free mode (Kimi K2.5)"
             echo "  --free-glm          Start in Free mode (GLM 4.7)"
+            echo "  --gpt5mini          Start in GPT-5 Mini mode (all agents)"
             echo "  -s, --setup-only    Setup tmux session only (no OpenCode launch)"
             echo "  -t, --terminal      Open new tab in Windows Terminal"
             echo "  -shell, --shell SH  Specify shell (bash or zsh)"
@@ -170,6 +179,7 @@ while [[ $# -gt 0 ]]; do
             echo "  ./standby.sh --lite       # Start in Lite mode"
             echo "  ./standby.sh --free-kimi  # Start in Free mode (Kimi K2.5)"
             echo "  ./standby.sh --free-glm   # Start in Free mode (GLM 4.7)"
+            echo "  ./standby.sh --gpt5mini   # Start in GPT-5 Mini mode (all agents)"
             echo "  ./standby.sh -c --fullpower  # Clean start + Full Power mode"
             echo "  ./standby.sh -shell zsh   # Start with zsh prompt"
             echo ""
@@ -182,6 +192,7 @@ while [[ $# -gt 0 ]]; do
             echo "  Lite (--lite):            Low-cost configuration"
             echo "  Free Kimi (--free-kimi):  Free (Kimi K2.5)"
             echo "  Free GLM (--free-glm):    Free (GLM 4.7)"
+            echo "  GPT-5 Mini (--gpt5mini):  All agents use GPT-5 Mini"
             echo ""
             echo "Aliases:"
             echo "  ffa   → tmux attach-session -t ff15"
@@ -255,6 +266,7 @@ case "$MODE" in
     lite) MODE_NAME="Lite" ;;
     free-kimi) MODE_NAME="Free (Kimi K2.5)" ;;
     free-glm) MODE_NAME="Free (GLM 4.7)" ;;
+    gpt5mini) MODE_NAME="GPT-5 Mini (All)" ;;
     *)
         echo "Error: Unsupported mode: $MODE"
         exit 1
@@ -325,13 +337,48 @@ echo -e "  \033[1;33m行くぞ、パーティ編成開始だ\033[0m (Setting up 
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 1: Clean up existing sessions
+# STEP 1: Clean up existing tmux sessions and OpenCode processes
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "🧹 Cleaning up existing sessions..."
+log_info "🧹 Cleaning up existing OpenCode processes in ff15 session..."
+
+# Send Ctrl-C to all panes in ff15 session to gracefully stop OpenCode
+if tmux has-session -t ff15 2>/dev/null; then
+    # Get all pane IDs in ff15 session
+    tmux list-panes -s -t ff15 -F '#{pane_id}' 2>/dev/null | while read pane_id; do
+        tmux send-keys -t "$pane_id" C-c 2>/dev/null || true
+    done
+    log_info "  └─ Sent termination signal to all panes"
+    sleep 2  # Wait for graceful shutdown
+fi
+
+log_info "🧹 Cleaning up tmux sessions..."
 tmux kill-session -t ff15 2>/dev/null && log_info "  └─ ff15 session cleaned" || log_info "  └─ ff15 session not found"
 # Legacy session cleanup
 tmux kill-session -t kingsglaive 2>/dev/null && log_info "  └─ kingsglaive session (legacy) cleaned" || true
 tmux kill-session -t noctis 2>/dev/null && log_info "  └─ noctis session (legacy) cleaned" || true
+
+# Final cleanup: kill any remaining OpenCode processes from THIS project only
+# (by checking working directory)
+log_info "🧹 Cleaning up any orphaned OpenCode processes..."
+CURRENT_DIR="$(pwd)"
+KILLED_COUNT=0
+for pid in $(pgrep -f "opencode --agent" 2>/dev/null || true); do
+    if [ -d "/proc/$pid" ]; then
+        # Check if process working directory matches current project
+        proc_cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || echo "")
+        if [[ "$proc_cwd" == "$CURRENT_DIR"* ]]; then
+            kill "$pid" 2>/dev/null && KILLED_COUNT=$((KILLED_COUNT + 1)) || true
+        fi
+    fi
+done
+if [ $KILLED_COUNT -gt 0 ]; then
+    log_info "  └─ Cleaned up $KILLED_COUNT orphaned process(es)"
+else
+    log_info "  └─ No orphaned processes found"
+fi
+
+# Wait for processes to fully terminate
+sleep 1
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1.5: Backup previous records (--clean mode only, if content exists)
@@ -349,10 +396,7 @@ if [ "$CLEAN_MODE" = true ]; then
     if [ "$NEED_BACKUP" = true ]; then
         mkdir -p "$BACKUP_DIR" || true
         cp "./dashboard.md" "$BACKUP_DIR/" 2>/dev/null || true
-        cp -r "./queue/reports" "$BACKUP_DIR/" 2>/dev/null || true
-        cp -r "./queue/tasks" "$BACKUP_DIR/" 2>/dev/null || true
-        cp "./queue/lunafreya_to_noctis.yaml" "$BACKUP_DIR/" 2>/dev/null || true
-        cp "./queue/noctis_to_lunafreya.yaml" "$BACKUP_DIR/" 2>/dev/null || true
+        cp -r "./queue/inbox" "$BACKUP_DIR/" 2>/dev/null || true
         log_info "📦 Previous records backed up: $BACKUP_DIR"
     fi
 fi
@@ -362,71 +406,33 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Create queue directories if they don't exist (needed for first launch)
-[ -d ./queue/reports ] || mkdir -p ./queue/reports
-[ -d ./queue/tasks ] || mkdir -p ./queue/tasks
+[ -d ./queue/inbox ] || mkdir -p ./queue/inbox
+[ -d ./queue/metrics ] || mkdir -p ./queue/metrics
 
 if [ "$CLEAN_MODE" = true ]; then
     log_info "📜 Discarding previous mission records..."
 
-    # Comrade task file reset (ignis, gladiolus, prompto)
-    for WORKER_NAME in ignis gladiolus prompto; do
-        cat > ./queue/tasks/${WORKER_NAME}.yaml << EOF
-# ${WORKER_NAME} task file
-task:
-  task_id: null
-  parent_cmd: null
-  description: null
-  target_path: null
-  status: idle
-  timestamp: ""
-EOF
+    # Inbox reset (all 6 agents)
+    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+        echo "messages: []" > ./queue/inbox/${AGENT_NAME}.yaml
     done
 
-    # Comrade report file reset (ignis, gladiolus, prompto)
-    for WORKER_NAME in ignis gladiolus prompto; do
-        cat > ./queue/reports/${WORKER_NAME}_report.yaml << EOF
-worker_id: ${WORKER_NAME}
-task_id: null
-timestamp: ""
-status: idle
-result: null
-EOF
-    done
+    # Escalation metrics reset
+    rm -f ./queue/metrics/*_escalation.yaml 2>/dev/null || true
 
-    # Lunafreya → Noctis communication channel reset
-    cat > ./queue/lunafreya_to_noctis.yaml << EOF
-# Lunafreya → Noctis communication channel
-message:
-  message_id: null
-  type: null
-  in_reply_to: null
-  description: null
-  priority: null
-  timestamp: null
-EOF
-
-    # Noctis → Lunafreya communication channel reset
-    cat > ./queue/noctis_to_lunafreya.yaml << EOF
-# Noctis → Lunafreya communication channel
-message:
-  message_id: null
-  type: null
-  in_reply_to: null
-  description: null
-  priority: null
-  timestamp: null
-EOF
-
-    # Remove legacy files if they exist
+    rm -rf ./queue/tasks 2>/dev/null || true
+    rm -rf ./queue/reports 2>/dev/null || true
+    rm -f ./queue/lunafreya_to_noctis.yaml 2>/dev/null || true
+    rm -f ./queue/noctis_to_lunafreya.yaml 2>/dev/null || true
     rm -f ./queue/noctis_to_ignis.yaml 2>/dev/null || true
-    rm -f ./queue/tasks/iris.yaml 2>/dev/null || true
-    rm -f ./queue/reports/iris_report.yaml 2>/dev/null || true
-    rm -f ./queue/tasks/lunafreya.yaml 2>/dev/null || true
-    rm -f ./queue/reports/lunafreya_report.yaml 2>/dev/null || true
 
     log_success "✅ Cleanup complete"
 else
     log_info "📜 Resuming from previous state..."
+    # Initialize inbox files if they don't exist (first launch without --clean)
+    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+        [ -f ./queue/inbox/${AGENT_NAME}.yaml ] || echo "messages: []" > ./queue/inbox/${AGENT_NAME}.yaml
+    done
     log_success "✅ Queues and reports preserved"
 fi
 
@@ -437,12 +443,18 @@ if [ "$CLEAN_MODE" = true ]; then
     log_info "📊 Initializing dashboard..."
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
 
-    # Branch by language setting
-    if [ "$LANG_SETTING" = "ja" ]; then
-        # Japanese only
-        cat > ./dashboard.md << EOF
+    # English-only dashboard (simplified)
+    cat > ./dashboard.md <<EOF
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
+
+## 👑 Latest Report to Crystal
+
+### 💬 Noctis Latest Chat
+_No messages yet_
+
+### 💬 Lunafreya Latest Chat
+_No messages yet_
 
 ## 🚨 Requires Action
 None
@@ -451,10 +463,10 @@ None
 None
 
 ## ✅ Today's Results
-| Time | 担当 | ミッション | 結果 |
-|------|------|-----------|------|
+| Time | Agent | Mission | Result |
+|------|-------|---------|--------|
 
-## 🎯 Skill Candidates - Awaiting Approval
+## 🎯 Skill Candidates
 None
 
 ## 🛠️ Generated Skills
@@ -462,41 +474,9 @@ None
 
 ## ⏸️ On Standby
 None
-
-## ❓ Confirmation Items
-None
 EOF
-    else
-        # Bilingual (Japanese + English)
-        cat > ./dashboard.md << EOF
-# 📊 Mission Status (ミッションステータス)
-Last Updated: ${TIMESTAMP}
 
-## 🚨 Requires Action (要対応)
-None
-
-## 🔄 In Progress (進行中)
-None
-
-## ✅ Today's Results (本日の成果)
-| Time | Field (担当) | Mission (ミッション) | Result (結果) |
-|------|--------------|----------------------|---------------|
-
-## 🎯 Skill Candidates - Awaiting Approval (スキル候補 - 承認待ち)
-None
-
-## 🛠️ Generated Skills (生成済みスキル)
-None
-
-## ⏸️ On Standby (待機中)
-None
-
-## ❓ Confirmation Items (確認事項)
-None
-EOF
-    fi
-
-    log_success "  └─ Dashboard initialized (language: $LANG_SETTING, shell: $SHELL_SETTING)"
+    log_success "  └─ Dashboard initialized (shell: $SHELL_SETTING)"
 else
     log_info "📊 Preserving previous dashboard"
 fi
@@ -505,6 +485,16 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 4: Check tmux existence
 # ═══════════════════════════════════════════════════════════════════════════════
+if ! command -v flock &> /dev/null; then
+    echo ""
+    echo "  ╔════════════════════════════════════════════════════════╗"
+    echo "  ║  [ERROR] flock not found!                              ║"
+    echo "  ║  Install util-linux:  sudo apt install util-linux      ║"
+    echo "  ╚════════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+fi
+
 if ! command -v tmux &> /dev/null; then
     echo ""
     echo "  ╔════════════════════════════════════════════════════════╗"
@@ -668,7 +658,7 @@ if [ "$SETUP_ONLY" = false ]; then
         model="${AGENT_MODELS[$i]}"
         target="${AGENT_TARGETS[$i]}"
 
-        tmux send-keys -t "${target}" "export AGENT_ID=${name} && opencode --agent ${name} --model ${model}"
+        tmux send-keys -t "${target}" "export AGENT_ID=${name} && export OPENCODE_EXPERIMENTAL_FILEWATCHER=true && opencode --agent ${name} --model ${model}"
         tmux send-keys -t "${target}" Enter
         log_info "  └─ ${name} launched (--agent ${name}, target: ${target})"
 

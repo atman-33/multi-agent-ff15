@@ -34,10 +34,9 @@ TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 
 # --- Resolve script directory (works from any CWD) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# --- YAML generation ---
-cat > "${REPO_ROOT}/queue/tasks/${AGENT_NAME}.yaml" << EOF
+YAML_CONTENT=$(cat << EOF
 # ${AGENT_NAME} task file
 task:
   task_id: ${TASK_ID}
@@ -47,8 +46,13 @@ task:
   status: assigned
   timestamp: "${TIMESTAMP}"
 EOF
+)
+INBOX_SCRIPT="${REPO_ROOT}/scripts/inbox_write.sh"
+if [[ -x "$INBOX_SCRIPT" ]]; then
+  "$INBOX_SCRIPT" "$AGENT_NAME" "noctis" "task_assigned" "${YAML_CONTENT}" 2>/dev/null || true
+else
+  echo "ERROR: inbox_write.sh not found at ${INBOX_SCRIPT}" >&2
+  exit 1
+fi
 
 echo "✅ Task assigned to ${AGENT_NAME} (${TASK_ID})"
-
-# --- Wake agent via send-message ---
-"${REPO_ROOT}/.opencode/skills/send-message/scripts/send.sh" "${AGENT_NAME}" "Task assigned. Read queue/tasks/${AGENT_NAME}.yaml"

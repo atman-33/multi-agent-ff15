@@ -43,7 +43,7 @@ projects:
 **Context Loading Order**:
 1. Read Memory MCP via `memory_read_graph()` (system-wide settings)
 2. Read `context/{project_id}.md` (project-specific information)
-3. Read `queue/tasks/{worker_name}.yaml` (your task)
+3. Check inbox via `scripts/inbox_read.sh {name}` (your task)
 
 ### Template Structure
 

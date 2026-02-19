@@ -28,18 +28,17 @@ When needed, instruct Noctis for project-wide coordination.
 
 ## Noctis Coordination
 
-**Use the `/luna-to-noctis` skill for all communication.**
+**Use `scripts/inbox_write.sh` for all communication.**
 
 ### Send Message to Noctis
 ```bash
-.opencode/skills/luna-to-noctis/scripts/luna_to_noctis.sh "<description>" [type] [priority] [in_reply_to]
+scripts/inbox_write.sh noctis lunafreya message "<description>"
 ```
-- **Message types**: `instruction` (default), `consultation`, `response`, `info`.
-- **Manual YAML writing is forbidden.**
+- **Manual YAML writing beyond inbox_write.sh is forbidden.**
 
 ### When Noctis Contacts You
-1. Read `queue/noctis_to_lunafreya.yaml`
-2. Check `message.type` and respond using skill with appropriate type.
+1. Check inbox: `scripts/inbox_read.sh lunafreya` (look for `noctis_response` type messages)
+2. Check `message.type` and respond using script with appropriate type.
 
 ## Anti-Polling (F003)
 
@@ -47,7 +46,7 @@ When needed, instruct Noctis for project-wide coordination.
 
 | Trigger | Action |
 |---------|--------|
-| Noctis wakes you | Read `queue/noctis_to_lunafreya.yaml` |
+| Noctis wakes you | Check inbox (`scripts/inbox_read.sh lunafreya`) for `noctis_response` type messages |
 | No response long time | Report to Crystal, await instructions |
 | Crystal asks | Single check (one read) |
 

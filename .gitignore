@@ -21,6 +21,8 @@ demo_output/
 
 # Runtime data (generated during operation)
 output/
+queue/inbox/
+queue/metrics/
 queue/research/
 queue/tasks/
 queue/reports/
@@ -33,6 +35,7 @@ context/*
 !context/README.md
 queue/*.yaml
 dashboard.md
+agent-chat-monitor.md
 config/projects.yaml
 config/settings.yaml
 logs/
@@ -54,6 +57,7 @@ openspec/
 
 # Commands and skills (managed by OpenCode)
 .github/*
+!.github/workflows
 .opencode/command/*
 .opencode/skills/*
 !.opencode/skills/skill-creator

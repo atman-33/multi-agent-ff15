@@ -370,8 +370,7 @@ log_step "STEP 6: Create directory structure"
 
 # Required directories
 DIRECTORIES=(
-    "queue/tasks"
-    "queue/reports"
+    "queue/inbox"
     "config"
     "status"
     "logs"
@@ -465,74 +464,17 @@ fi
 RESULTS+=("Configuration files: OK")
 
 # ============================================================
-# STEP 8: Initialize worker task/report files
+# STEP 8: Initialize inbox files
 # ============================================================
 log_step "STEP 8: Initialize queue files"
 
-# Create worker task files (Comrades: ignis, gladiolus, prompto)
-for WORKER_NAME in ignis gladiolus prompto; do
-    TASK_FILE="$SCRIPT_DIR/queue/tasks/${WORKER_NAME}.yaml"
-    if [ ! -f "$TASK_FILE" ]; then
-        cat > "$TASK_FILE" << EOF
-# ${WORKER_NAME} task file
-task:
-  task_id: null
-  parent_cmd: null
-  description: null
-  target_path: null
-  status: idle
-  timestamp: ""
-EOF
+for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+    INBOX_FILE="$SCRIPT_DIR/queue/inbox/${AGENT_NAME}.yaml"
+    if [ ! -f "$INBOX_FILE" ]; then
+        echo "messages: []" > "$INBOX_FILE"
     fi
 done
-log_info "Verified/created Comrade task files (ignis/gladiolus/prompto)"
-
-# Create Comrade report files
-for WORKER_NAME in ignis gladiolus prompto; do
-    REPORT_FILE="$SCRIPT_DIR/queue/reports/${WORKER_NAME}_report.yaml"
-    if [ ! -f "$REPORT_FILE" ]; then
-        cat > "$REPORT_FILE" << EOF
-worker_id: ${WORKER_NAME}
-task_id: null
-timestamp: ""
-status: idle
-result: null
-EOF
-    fi
-done
-log_info "Verified/created Comrade report files (ignis/gladiolus/prompto)"
-
-# Lunafreya → Noctis communication channel
-LUNA_CHANNEL="$SCRIPT_DIR/queue/lunafreya_to_noctis.yaml"
-if [ ! -f "$LUNA_CHANNEL" ]; then
-    cat > "$LUNA_CHANNEL" << EOF
-# Lunafreya → Noctis communication channel
-message:
-  message_id: null
-  type: null
-  in_reply_to: null
-  description: null
-  priority: null
-  timestamp: null
-EOF
-    log_info "Created Lunafreya→Noctis communication channel"
-fi
-
-# Noctis → Lunafreya communication channel
-NOCTIS_LUNA_CHANNEL="$SCRIPT_DIR/queue/noctis_to_lunafreya.yaml"
-if [ ! -f "$NOCTIS_LUNA_CHANNEL" ]; then
-    cat > "$NOCTIS_LUNA_CHANNEL" << EOF
-# Noctis → Lunafreya communication channel
-message:
-  message_id: null
-  type: null
-  in_reply_to: null
-  description: null
-  priority: null
-  timestamp: null
-EOF
-    log_info "Created Noctis→Lunafreya communication channel"
-fi
+log_info "Verified/created inbox files for all agents"
 
 RESULTS+=("Queue files: OK")
 

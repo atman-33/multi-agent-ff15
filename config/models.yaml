@@ -4,15 +4,15 @@
 modes:
   normal:
     noctis:
-      model: github-copilot/claude-sonnet-4.5
+      model: github-copilot/claude-sonnet-4.6
     ignis:
-      model: github-copilot/claude-haiku-4.5
+      model: github-copilot/gpt-5.2-codex
     gladiolus:
       model: github-copilot/claude-haiku-4.5
     prompto:
       model: github-copilot/gemini-3-flash-preview
     lunafreya:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
     iris:
       model: github-copilot/gpt-5-mini
 
@@ -22,11 +22,11 @@ modes:
     ignis:
       model: github-copilot/gpt-5.2-codex
     gladiolus:
-      model: github-copilot/claude-sonnet-4.5
+      model: github-copilot/claude-sonnet-4.6
     prompto:
       model: github-copilot/gemini-3-pro-preview
     lunafreya:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
     iris:
       model: github-copilot/gpt-5-mini
 
@@ -36,11 +36,11 @@ modes:
     ignis:
       model: github-copilot/gpt-5-mini
     gladiolus:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
     prompto:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
     lunafreya:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
     iris:
       model: github-copilot/gpt-5-mini
 
@@ -54,7 +54,7 @@ modes:
     prompto:
       model: opencode/glm-4.7-free
     lunafreya:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
     iris:
       model: github-copilot/gpt-5-mini
 
@@ -68,6 +68,20 @@ modes:
     prompto:
       model: opencode/kimi-k2.5-free
     lunafreya:
-      model: github-copilot/grok-code-fast-1
+      model: github-copilot/gpt-5-mini
+    iris:
+      model: github-copilot/gpt-5-mini
+
+  gpt5mini:
+    noctis:
+      model: github-copilot/gpt-5-mini
+    ignis:
+      model: github-copilot/gpt-5-mini
+    gladiolus:
+      model: github-copilot/gpt-5-mini
+    prompto:
+      model: github-copilot/gpt-5-mini
+    lunafreya:
+      model: github-copilot/gpt-5-mini
     iris:
       model: github-copilot/gpt-5-mini

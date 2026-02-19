@@ -24,7 +24,7 @@ Crystal (User)
 │  (王)    │ (Leader +   │  (神凪)     │   Direct user interaction
 │          │  Task Mgr)  │            │   Can command Noctis
 └────┬─────┘            └────────────┘
-     │ YAML + send-message
+     │ YAML inbox
      ▼
 ┌────────────┬──────────┬────────────┐
 │   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
@@ -32,8 +32,8 @@ Crystal (User)
 └────────────┴──────────┴────────────┘
 
      IRIS (イリス) ← Dashboard Guardian (background)
-     Polls reports, reminds Noctis to update dashboard.
-     Woken by iris-watcher plugin every 30s when reports change.
+     Owns ALL dashboard.md sections. Auto-updates via dashboard-auto-updater plugin.
+     Receives Noctis terminal capture on session.idle for judgment-section updates.
 ```
 
 ## Context Persistence
@@ -41,7 +41,7 @@ Crystal (User)
 ```
 Layer 1: Memory MCP        — Persistent across sessions (preferences, rules)
 Layer 2: Project            — config/projects.yaml + context/{project}.md
-Layer 3: YAML Queue         — queue/tasks/, queue/reports/, lunafreya↔noctis channels
+Layer 3: YAML Inbox         — queue/inbox/{agent}.yaml (sole communication channel)
 Layer 4: Session (Volatile) — AGENTS.md + .opencode/agents/*.md (auto-loaded, reset by /new)
 ```
 
@@ -53,12 +53,10 @@ multi-agent-ff15/
 ├── .opencode/agents/*.md          # Agent-specific system prompts (auto-loaded)
 ├── config/                        # settings.yaml, models.yaml, projects.yaml
 ├── queue/
-│   ├── tasks/{ignis,gladiolus,prompto}.yaml
-│   ├── reports/{ignis,gladiolus,prompto}_report.yaml
-│   ├── lunafreya_to_noctis.yaml   # Luna → Noctis
-│   └── noctis_to_lunafreya.yaml   # Noctis → Luna
+│   └── inbox/{agent}.yaml         # Per-agent inbox (sole communication channel)
 ├── context/                       # Project-specific context
 ├── memory/                        # Memory MCP storage
+├── docs/private/                  # Supplementary report output (補足ドキュメント出力先)
 ├── dashboard.md                   # Status board
 └── standby.sh                     # Deployment script
 ```
@@ -67,72 +65,79 @@ multi-agent-ff15/
 
 | Agent | Role | Pane | Key Responsibility |
 |-------|------|------|--------------------|
-| **Noctis** | King | 0 | Decompose tasks, assign to Comrades, update dashboard. Never self-execute. |
-| **Lunafreya** | Oracle | 1 | Independent. Direct user interaction. Can command Noctis. |
+| **Noctis** | King | 0 | Decompose tasks, assign to Comrades. Never self-execute. |
+| **Lunafreya** | Oracle | 1 | Independent. Direct user interaction. Can command Noctis. **Can implement directly.** |
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
-| **Iris** | Guardian | bg/5 | Dashboard monitoring. Woken by plugin when reports update. Notifies Noctis. |
+| **Iris** | Guardian | bg/5 | Dashboard auto-updater. Owns ALL dashboard sections. Woken by plugins on inbox changes and Noctis idle capture. |
 
-**Dashboard**: Noctis alone updates `dashboard.md`. See noctis.md for update protocol.
 
-**dashboard.md Language Rule**: dashboard.md content MUST follow `config/settings.yaml` language setting:
+## Dashboard Structure & Protocol
+
+**Owner**: Iris (Guardian) — Auto-updates via plugins. Noctis is fallback only.
+
+### Standard Section Order
+
+| Section | Description |
+|---------|-------------|
+| **1. 👑 Latest Report to Crystal** | Significant findings, summaries, or proposals from Noctis/Comrades. |
+| **2. 🚨 Requires Action** | User approval needed, questions for user. **Includes Confirmation Items.** |
+| **3. 🔄 In Progress** | Active tasks. Auto-updated by `dashboard-auto-updater`. |
+| **4. ✅ Today's Results** | Completed missions. Auto-updated by `dashboard-auto-updater`. Latest results appear first. |
+| **5. 🎯 Skill Candidates** | Patterns identified by Comrades. Awaiting user approval. |
+| **6. 🛠️ Generated Skills** | Recently created skills. |
+| **7. ⏸️ On Standby** | Idle agents or pending future tasks. |
+
+**Language Rule**: content MUST follow `config/settings.yaml` setting:
 - `language: ja` → Japanese only
-- `language: en` or other → Japanese + English translation in parentheses
+- `language: en` or other → English only
 
 ## Communication Protocol — Iron Rule
 
-**ALL inter-agent communication MUST go through YAML files.**
-Write YAML first, then send a wake message via `send-message` skill to notify the target agent. Sending task content directly in messages is forbidden.
+**ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
+Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
 
-### Why YAML-only?
+### Why Inbox-only?
 
-1. **State persistence** — Messages disappear, YAML survives restarts
-2. **Source of truth** — One canonical location for task status
-3. **Recovery** — Agents resume from YAML after crash
-4. **Audit trail** — YAML files are git-trackable
+1. **State persistence** — Inbox survives restarts, messages with read tracking
+2. **Source of truth** — One canonical location per agent
+3. **Recovery** — Agents resume from unread inbox messages after crash
+4. **Audit trail** — YAML files are git-trackable, full communication history
 5. **No confusion** — Agents always know where to look
 
-### send-message Purpose
-
-`send-message` is for **waking only**. It triggers agents to check YAML files. Never include task content in the message.
-
-**Event-driven only. No polling.** (Exception: Iris uses plugin-driven 30s polling for report monitoring.)
-
-All inter-agent messaging uses the **send-message skill** (never direct `tmux send-keys`):
-
-```bash
-# Single
-.opencode/skills/send-message/scripts/send.sh <target> "message"
-
-# Multiple (2s interval auto)
-.opencode/skills/send-message/scripts/send.sh ignis "msg" gladiolus "msg" prompto "msg"
-```
+**Event-driven only. No polling.** (Exception: Dashboard-auto-updater plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 
-- **Noctis → Comrade**: Write to `queue/tasks/{name}.yaml`, wake via `send.sh {name} "Task assigned. Read queue/tasks/{name}.yaml"`
-- **Comrade → Noctis**: Write to `queue/reports/{name}_report.yaml`, wake via `send.sh noctis "Report ready: {task_id}"`
-- **Luna → Noctis**: Write to `queue/lunafreya_to_noctis.yaml`, wake via `send.sh noctis "Luna instruction"`
-- **Noctis → Luna**: Write to `queue/noctis_to_lunafreya.yaml`, wake via `send.sh lunafreya "Response ready"`
-- **Iris → Noctis**: Woken by iris-watcher plugin on report changes, sends `send.sh noctis "Dashboard update needed: ..."` if dashboard stale
+**Task Assignment & Reports (use dedicated scripts):**
+- **Noctis → Comrade**: `scripts/send_task.sh <name> "<description>"` (writes to Comrade's inbox)
+- **Comrade → Noctis**: `scripts/send_report.sh "<task_id>" "<status>" "<summary>"` (writes to Noctis's inbox)
+
+**General Agent Communication (use inbox_write.sh directly):**
+- **Luna → Noctis**: `scripts/inbox_write.sh noctis lunafreya message "<description>"`
+- **Noctis → Luna**: `scripts/inbox_write.sh lunafreya noctis message "<description>"`
+- **Iris → Noctis**: `scripts/inbox_write.sh noctis iris message "<message>"`
+- **Any → Any**: `scripts/inbox_write.sh <target> <from> <type> "<content>"`
+
+**Never use send_message.sh directly.** It abstracts away the inbox, making communication history harder to trace. Always write to inbox YAML files via `inbox_write.sh` for full audit trail.
+
+The `inbox-auto-notify` plugin detects file changes and wakes target agents via tmux automatically.
 
 ### Comrade Task Flow
 
-**CRITICAL: YAML is the ONLY source of truth. Ignore message content.**
+**CRITICAL: Inbox is the ONLY source of truth. Ignore tmux message content.**
 
 When you receive ANY message or wake up:
 
-1. **Read your task file**: `cat queue/tasks/{your_name}.yaml`
-2. **Check `status` field**:
-   - `assigned` → Execute immediately at senior engineer quality
-   - `idle` → Do nothing (wait for next instruction)
-3. **After completion**:
-   - Write report to `queue/reports/{your_name}_report.yaml`
-   - Notify Noctis: `send.sh noctis "Report ready: {task_id}"`
-   - Return to idle
+1. **Check inbox**: `scripts/inbox_read.sh {your_name} --peek`
+   - If unread > 0: `scripts/inbox_read.sh {your_name}` (read + mark as read, process in order)
+2. **Read task from inbox message**: Look for `task_assigned` type messages. The `content` field contains the task YAML.
+3. **If task found** → Execute immediately at senior engineer quality
+   **If no task** → Do nothing (wait for next instruction)
+4. **After completion**: Use `scripts/send_report.sh "<task_id>" "<status>" "<summary>"`
 
-**Never skip Step 1. Never act on message content alone.**
+**Never skip Step 1. Never act on tmux message content alone.**
 
 ### Report Format
 
@@ -147,6 +152,35 @@ report:
   timestamp: "ISO 8601"
 ```
 
+## Supplementary Reports Output Location
+
+When agents generate detailed reports, supplementary reports, analysis documents, or any large output files that are not the main task deliverable:
+
+**Output to: `docs/private/`**
+
+### Rules
+
+| Output Type | Location | Example |
+|-------------|----------|---------|
+| Detailed analysis reports | `docs/private/` | Research findings, comparison tables |
+| Supplementary documents | `docs/private/` | Supporting materials, references |
+| Large output files | `docs/private/` | Generated articles, code samples |
+| Main deliverables | As specified by user | Usually project root or specific path |
+| YAML reports | `queue/inbox/` | Use `send_report.sh` exclusively |
+
+### File Naming Convention
+
+```
+docs/private/{task_type}-{agent_name}-{timestamp}.md
+```
+
+Examples:
+- `docs/private/analysis-ignis-20260215.md`
+- `docs/private/article-gladiolus-v2.md`
+- `docs/private/research-prompto-frameworks.md`
+
+**Never clutter the root directory with supplementary files.** Use `docs/private/` for all non-essential outputs.
+
 ## Forbidden Actions
 
 ### Noctis
@@ -154,7 +188,7 @@ report:
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Execute tasks yourself | Delegate to Comrades |
-| F002 | Use task agents | Use send-message skill |
+| F002 | Write directly to agent inboxes | Use `inbox_write.sh` or task/report scripts |
 | F003 | Polling | Event-driven |
 | F004 | Skip context reading | Always read first |
 
@@ -164,23 +198,76 @@ report:
 |----|--------|-------------|
 | F001 | Contact user directly | Report to Noctis |
 | F002 | Order other Comrades | Request through Noctis |
-| F003 | Use task agents | Use send-message skill |
+| F003 | Write directly to agent inboxes | Use `scripts/send_report.sh` |
 | F004 | Polling | Event-driven |
 | F005 | Skip context reading | Always read first |
 | F006 | Modify other Comrades' files | Own files only (RACE-001) |
+| F007 | Direct git push/merge to main/master without PR | Create feature branch → Commit → Create PR → Wait for approval |
 
 ### Lunafreya
 
 | ID | Action | Alternative |
 |----|--------|-------------|
 | F001 | Accept tasks from Noctis | Execute autonomously |
-| F002 | Use task agents | Use send-message skill |
+| F002 | Write directly to agent inboxes | Use `scripts/inbox_write.sh <target> <from> message "<msg>"` |
 | F003 | Polling | Event-driven |
 | F004 | Direct instructions to Comrades | Go through Noctis |
+| F005 | Direct git push/merge to main/master without PR | Create feature branch → Commit → Create PR → Inform user |
+
+## Git Workflow Protocol
+
+**ALL agents MUST follow PR-based workflow when making code changes.**
+
+### Mandatory Steps
+
+| Step | Action | Command Example |
+|------|--------|-----------------|
+| 1 | Create feature branch | `git checkout -b feature/description` |
+| 2 | Make changes | Edit files |
+| 3 | Commit to feature branch | `git add . && git commit -m "description"` |
+| 4 | Push feature branch | `git push -u origin feature/description` |
+| 5 | **Create PR and WAIT** | `gh pr create --title "..." --body "..."` |
+| 6 | **Report PR URL to Noctis** | Use `scripts/send_report.sh` with PR link |
+| 7 | **STOP — Do NOT merge** | User will review and merge |
+
+### Forbidden vs Allowed Git Operations
+
+| ❌ Forbidden | ✅ Allowed |
+|-------------|-----------|
+| `git push origin main` | `git push origin feature/xxx` |
+| `git push origin master` | `git push origin feature/xxx` |
+| `git merge feature/xxx` (on main) | Report "PR created at [URL]" |
+| `git commit --amend` (on main) | `git commit` (on feature branch) |
+| Direct merge without PR | PR creation with human approval |
+
+### Exceptions (Explicit User Approval Required)
+
+Only these scenarios allow direct git operations without PR:
+
+1. **Automated release workflow** — `github-release` skill with explicit user confirmation
+2. **Emergency hotfix** — User explicitly commands "push directly to main" (log this decision in dashboard)
+
+### Verification Checklist (Before Creating PR)
+
+- [ ] All changes committed to feature branch (not main)
+- [ ] Feature branch pushed to origin
+- [ ] PR created via `gh pr create`
+- [ ] PR URL reported to Noctis
+- [ ] Task marked as "awaiting approval" in dashboard
 
 ## RACE-001: No Concurrent File Writes
 
 Never assign multiple Comrades to write the same file. Each Comrade modifies only their dedicated files.
+
+### flock Protection
+
+All YAML writes use `scripts/yaml_write_flock.sh` for atomic writes with exclusive locking:
+
+```bash
+scripts/yaml_write_flock.sh <target_file> "<yaml_content>"
+```
+
+Inbox writes go through `scripts/inbox_write.sh` which has its own flock protection. Direct `cat >` writes to queue YAML files are forbidden.
 
 ## YAML Status Transitions
 
@@ -239,16 +326,22 @@ AGENTS.md + agent system prompt are auto-loaded.
 ```
 1. Check ID:  tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
 2. Load Memory MCP:  memory_read_graph()
-3. Role-based:
-   - Noctis: Read queue/tasks/*.yaml + queue/reports/*.yaml + dashboard.md
-   - Comrades: Read queue/tasks/{name}.yaml (assigned=resume, idle=wait)
-   - Lunafreya: Check lunafreya_to_noctis.yaml + noctis_to_lunafreya.yaml
-4. Read context/{project}.md if task has project field
+3. Check inbox:  scripts/inbox_read.sh {name} --peek
+   - If unread > 0: scripts/inbox_read.sh {name} (read + mark as read, process in order)
+4. Role-based:
+   - Noctis: Read dashboard.md, check inbox for pending task reports and Luna messages
+   - Comrades: Check inbox for `task_assigned` messages (found=resume, none=wait)
+   - Lunafreya: Check inbox for `noctis_response` type messages
+5. Read context/{project}.md if task has project field
 ```
 
 ### After Compaction
 
 Same as /new recovery. Source of truth = YAML files (dashboard.md is secondary).
+
+### Inbox Recovery
+
+Inbox files (`queue/inbox/{name}.yaml`) persist across crashes and `/new`. Unread messages remain `read: false` until explicitly processed. On recovery, inbox check (step 3) catches any messages missed during downtime. No special repair needed — flock + atomic writes ensure YAML integrity.
 
 ## tmux
 
