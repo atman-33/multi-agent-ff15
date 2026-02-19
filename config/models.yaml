@@ -6,11 +6,11 @@ modes:
     noctis:
       model: github-copilot/claude-sonnet-4.6
     ignis:
-      model: github-copilot/gpt-5.2-codex
+      model: github-copilot/claude-sonnet-4.6
     gladiolus:
-      model: github-copilot/claude-haiku-4.5
+      model: github-copilot/gpt-5.2-codex
     prompto:
-      model: github-copilot/gemini-3-flash-preview
+      model: github-copilot/gemini-3-pro-preview
     lunafreya:
       model: github-copilot/gpt-5-mini
     iris:
@@ -20,11 +20,11 @@ modes:
     noctis:
       model: github-copilot/claude-opus-4.6
     ignis:
-      model: github-copilot/gpt-5.2-codex
+      model: github-copilot/claude-opus-4.6
     gladiolus:
-      model: github-copilot/claude-sonnet-4.6
+      model: github-copilot/claude-opus-4.6
     prompto:
-      model: github-copilot/gemini-3-pro-preview
+      model: github-copilot/claude-opus-4.6
     lunafreya:
       model: github-copilot/gpt-5-mini
     iris:
