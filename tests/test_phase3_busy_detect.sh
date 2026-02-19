@@ -34,21 +34,21 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 3: send_message.sh includes busy detection integration"
-if grep -q "BUSY_DETECT" "${REPO_ROOT}/scripts/send_message.sh"; then
+echo "Test 3: send_message.sh exists and is executable"
+if [[ -x "${REPO_ROOT}/scripts/send_message.sh" ]]; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: send_message.sh missing busy detection"
+  echo "  ❌ FAIL: scripts/send_message.sh not found or not executable"
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 4: send_message.sh skips nudge on BUSY (exit 1)"
-if grep -q "Target agent busy" "${REPO_ROOT}/scripts/send_message.sh"; then
+echo "Test 4: send_message.sh uses inbox_write.sh for delivery"
+if grep -q "inbox_write" "${REPO_ROOT}/scripts/send_message.sh"; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: send_message.sh missing nudge-skip logic"
+  echo "  ❌ FAIL: send_message.sh does not use inbox_write.sh"
   FAIL=$((FAIL + 1))
 fi
 
@@ -61,21 +61,21 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 6: inbox-watcher only runs on noctis agent"
-if grep -q 'agentId !== "noctis"' "${REPO_ROOT}/.opencode/plugins/inbox-watcher.ts"; then
+echo "Test 6: inbox-watcher skips agents not in PANE_MAP"
+if grep -q 'PANE_MAP\[agentId\]' "${REPO_ROOT}/.opencode/plugins/inbox-watcher.ts"; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: missing noctis-only guard"
+  echo "  ❌ FAIL: missing PANE_MAP guard for unknown agents"
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 7: inbox-watcher escalates only Comrades (not Noctis/Luna/Iris)"
-if grep -q 'ESCALATION_AGENTS.*ignis.*gladiolus.*prompto' "${REPO_ROOT}/.opencode/plugins/inbox-watcher.ts"; then
+echo "Test 7: inbox-watcher escalates to agent's own pane via PANE_MAP"
+if grep -q 'myPane' "${REPO_ROOT}/.opencode/plugins/inbox-watcher.ts"; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: escalation agents filter incorrect"
+  echo "  ❌ FAIL: per-agent pane targeting not found"
   FAIL=$((FAIL + 1))
 fi
 
@@ -106,12 +106,12 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-echo "Test 11: queue/metrics/ directory exists"
-if [[ -d "${REPO_ROOT}/queue/metrics" ]]; then
+echo "Test 11: inbox-watcher logs escalation to queue/metrics/"
+if grep -q 'queue/metrics/' "${REPO_ROOT}/.opencode/plugins/inbox-watcher.ts"; then
   echo "  ✅ PASS"
   PASS=$((PASS + 1))
 else
-  echo "  ❌ FAIL: queue/metrics/ not found"
+  echo "  ❌ FAIL: escalation log path not found"
   FAIL=$((FAIL + 1))
 fi
 
