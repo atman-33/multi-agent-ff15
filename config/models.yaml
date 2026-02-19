@@ -4,7 +4,7 @@
 modes:
   normal:
     noctis:
-      model: github-copilot/claude-sonnet-4.5
+      model: github-copilot/claude-sonnet-4.6
     ignis:
       model: github-copilot/gpt-5.2-codex
     gladiolus:
@@ -22,7 +22,7 @@ modes:
     ignis:
       model: github-copilot/gpt-5.2-codex
     gladiolus:
-      model: github-copilot/claude-sonnet-4.5
+      model: github-copilot/claude-sonnet-4.6
     prompto:
       model: github-copilot/gemini-3-pro-preview
     lunafreya:

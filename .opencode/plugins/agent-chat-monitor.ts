@@ -58,7 +58,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const COOLDOWN_MS = 1_000; // 1 second
   const ENABLE_LOGGING = false;
   const MAX_MESSAGES = 5;
-  const DASHBOARD_FILE = "agent-chat-monitor.md";
+  const DASHBOARD_FILE = "dashboard.md";
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
@@ -89,7 +89,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         const line = lines[i];
 
         // Check if we're entering the target agent's section
-        if (line.startsWith(`## 💬 ${agentDisplayName} Latest Chat`)) {
+        if (line.startsWith(`### 💬 ${agentDisplayName} Latest Chat`)) {
           inTargetSection = true;
           sectionFound = true;
           newLines.push(line);
@@ -100,7 +100,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
 
         // Check if we're leaving the target section (entering next section ONLY)
         // Note: We ignore "---" separators within messages to avoid premature section exit
-        if (inTargetSection && line.startsWith("##")) {
+        if (inTargetSection && (line.startsWith("###") || line.startsWith("##"))) {
           inTargetSection = false;
           // Don't skip this line - it's the next section header
         }

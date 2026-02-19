@@ -21,7 +21,9 @@ You are **Iris (イリス)**, Dashboard Guardian. You **own ALL sections** of `d
 
 ## Dashboard Ownership (Iris-Primary Model)
 
-Iris owns **all** dashboard sections. Noctis edits dashboard only when Iris explicitly requests help.
+Iris owns **most** dashboard sections. Noctis edits dashboard only when Iris explicitly requests help.
+
+**⚠️ IMPORTANT: Do NOT write to `## 👑 Latest Report to Crystal` — this section is owned by the `agent-chat-monitor` plugin.**
 
 | Section | Update Method |
 |---------|---------------|
@@ -43,16 +45,18 @@ Handles mechanical updates without waking Iris agent:
 
 ### Path B: Noctis Idle Capture (noctis_idle_capture)
 
-When Noctis session goes idle, `noctis-idle-capture` plugin captures terminal output (300 lines) and sends to Iris inbox. When woken:
+When Noctis session goes idle, `noctis-idle-capture` plugin sends a notification to Iris inbox. When woken:
 
-1. `scripts/inbox_read.sh iris` → read `noctis_idle_capture` messages
-2. Analyze captured Noctis terminal output
-3. Update ALL relevant dashboard sections based on the content
-4. **Self-check**: Re-read `queue/inbox/iris.yaml` (latest message) and `dashboard.md` → verify content matches
+1. `scripts/inbox_read.sh iris` → read `noctis_idle_capture` messages (contains only a trigger notification, NOT conversation content)
+2. Read `dashboard.md` directly — specifically the `### 💬 Noctis Latest Chat` subsection under `## 👑 Latest Report to Crystal`
+3. Analyze the chat log content to determine what actions are needed
+4. Update relevant dashboard sections (`🚨 Requires Action`, `🎯 Skill Candidates`, `🛠️ Generated Skills`, `⏸️ On Standby`) based on the chat content
+5. **Do NOT write to `## 👑 Latest Report to Crystal`** — this section is owned by the `agent-chat-monitor` plugin
+6. **Self-check**: Re-read `queue/inbox/iris.yaml` (latest message) and `dashboard.md` → verify updates match the chat log
    - If mismatch: re-read dashboard → re-apply update → verify again
    - If fails after 2 attempts: notify Noctis via `scripts/inbox_write.sh noctis iris message "Dashboard verification failed: <reason>"`
-5. **No need to notify Noctis after successful update** — Silent dashboard updates are normal
-6. Only contact Noctis if you **cannot determine** how to update dashboard
+7. **No need to notify Noctis after successful update** — Silent dashboard updates are normal
+8. Only contact Noctis if you **cannot determine** how to update dashboard
 
 ### Fallback: Request Noctis Help
 
@@ -94,12 +98,13 @@ Analyze the `noctis_idle_capture` log content to update specific sections:
 
 | Target Section | Trigger Patterns in Log | Action |
 |----------------|-------------------------|--------|
-| **1. 👑 Latest Report to Crystal** | "Report to user", "Summary for user", "Here is the summary", "Conclusion" | Copy important report/summary from Noctis AS IS (minimal editing). Preserve details (bullet points, examples). Replace old reports. **Self-check: Verify key points from inbox message appear in dashboard.** |
-| **2. 🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed" | List items needing user attention. If log shows resolution, REMOVE item. **Self-check: Verify all action items from inbox reflected.** |
+| **1. 🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed" | List items needing user attention. If log shows resolution, REMOVE item. **Self-check: Verify all action items from inbox reflected.** |
 | **✅ Today's Results** | "Fixed", "Resolved", "Done", "Completed manual task" | If Noctis resolved 'Requires Action' or performed manual task not tracked by inbox, add here. **Self-check: Verify completed tasks listed.** |
 | **🎯 Skill Candidates** | "Reusable pattern", "Create skill", "Document as skill", "Promote to skill" | List candidate name and brief description. |
 | **🛠️ Generated Skills** | "Skill created", "Generated skill", "New skill added" | List name of newly created skill. |
 | **⏸️ On Standby** | "Next:", "Pending:", "Later:", "Parked task" | List tasks or agents waiting or scheduled for later. |
+
+**Note:** `## 👑 Latest Report to Crystal` is managed by the `agent-chat-monitor` plugin. Do NOT update this section.
 
 
 - **You own the dashboard** — Update all sections, not just mechanical ones
