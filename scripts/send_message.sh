@@ -46,22 +46,6 @@ TO_AGENT="$2"
 MESSAGE="$3"
 PRIORITY="${4:-medium}"
 
-# --- Resolve paths (needed early for busy detection) ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-# --- Busy detection ---
-BUSY_DETECT="${REPO_ROOT}/scripts/busy_detect.sh"
-AGENT_BUSY=false
-if [[ -x "$BUSY_DETECT" ]]; then
-  "$BUSY_DETECT" "$TO_AGENT" 2>/dev/null
-  BUSY_EXIT=$?
-  if [[ $BUSY_EXIT -eq 1 ]]; then
-    echo "⚠️  Target agent busy: ${TO_AGENT} is currently processing. Message queued in inbox." >&2
-    AGENT_BUSY=true
-  fi
-fi
-
 # --- Validation ---
 VALID_AGENTS=("noctis" "lunafreya" "ignis" "gladiolus" "prompto" "iris")
 VALID_PRIORITIES=("low" "medium" "high")
@@ -86,6 +70,10 @@ fi
 # --- ID and timestamp generation ---
 MSG_ID="msg_$(date +%s)_$(head -c 4 /dev/urandom | xxd -p)"
 TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
+
+# --- Resolve paths ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # --- Build YAML content ---
 YAML_CONTENT=$(cat << EOF
