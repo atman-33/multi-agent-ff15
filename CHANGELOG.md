@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.0] - 2026-02-15
+## [0.2.0] - 2026-02-20
+
+### Added
+- TODO: List new features and capabilities
+
+### Changed
+- TODO: List changes to existing functionality
+
+### Fixed
+- TODO: List bug fixes
+
+### Deprecated
+- TODO: List deprecated features (if any)
+
+### Removed
+- TODO: List removed features (if any)
+
+### Security
+- TODO: List security improvements (if any)
+
+[0.2.0]: https://github.com/junda-org/multi-agent-ff15/compare/v0.1.0...v0.2.0
 
 ### Added
 - **github-release skill** - Automate GitHub release workflows including version bumping, changelog updates, PR creation, and GitHub Release publishing
