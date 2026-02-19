@@ -25,19 +25,20 @@ const PANE_MAP: Record<string, string> = {
   iris: "ff15:main.5",
 };
 
+const ESCALATION_AGENTS = ["ignis", "gladiolus", "prompto"];
+
 const InboxWatcher: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID;
   if (!agentId) {
     return {};
   }
 
-  const myPane = PANE_MAP[agentId];
-  if (!myPane) {
+  if (agentId !== "noctis") {
     return {};
   }
 
-  let firstUnreadSeen: number | null = null;
-  let lastEscalation: number = 0;
+  let firstUnreadSeen: Record<string, number | null> = {};
+  let lastEscalation: Record<string, number> = {};
   let updating = false;
 
   const log = async (message: string): Promise<void> => {
@@ -48,9 +49,9 @@ const InboxWatcher: Plugin = async ({ $ }) => {
     } catch {}
   };
 
-  const getUnreadCount = async (): Promise<number> => {
+  const getUnreadCount = async (targetAgent: string): Promise<number> => {
     try {
-      const result = await $`scripts/inbox_read.sh ${agentId} --peek`.quiet();
+      const result = await $`scripts/inbox_read.sh ${targetAgent} --peek`.quiet();
       const match = result.text().match(/^(\d+)/);
       return match ? parseInt(match[1], 10) : 0;
     } catch {
@@ -58,31 +59,34 @@ const InboxWatcher: Plugin = async ({ $ }) => {
     }
   };
 
-  const sendWakeMessage = async (): Promise<boolean> => {
-    await log(`[ESCALATE] Sending wake message to ${myPane}...`);
+  const sendWakeMessage = async (targetAgent: string): Promise<boolean> => {
+    const targetPane = PANE_MAP[targetAgent];
+    if (!targetPane) return false;
+    await log(`[ESCALATE] Sending wake message to ${targetAgent} (${targetPane})...`);
     try {
-      await $`tmux send-keys -t ${myPane} C-u`.quiet();
+      await $`tmux send-keys -t ${targetPane} C-u`.quiet();
       await new Promise(resolve => setTimeout(resolve, 50));
-      await $`tmux send-keys -t ${myPane} "You have unread inbox messages. Run: scripts/inbox_read.sh ${agentId}"`.quiet();
+      await $`tmux send-keys -t ${targetPane} "You have unread inbox messages. Run: scripts/inbox_read.sh ${targetAgent}"`.quiet();
       await new Promise(resolve => setTimeout(resolve, 50));
-      await $`tmux send-keys -t ${myPane} Enter`.quiet();
-      await log(`[ESCALATE] Wake message sent successfully`);
+      await $`tmux send-keys -t ${targetPane} Enter`.quiet();
+      await log(`[ESCALATE] Wake message sent to ${targetAgent}`);
       return true;
     } catch (err) {
-      await log(`[ESCALATE] Failed: tmux error - ${err}`);
+      await log(`[ESCALATE] Failed for ${targetAgent}: tmux error - ${err}`);
       return false;
     }
   };
 
   const logEscalation = async (
+    targetAgent: string,
     unreadCount: number,
     elapsedMs: number,
   ): Promise<void> => {
     const timestamp = new Date().toISOString();
     const elapsedSeconds = Math.round(elapsedMs / 1000);
-    const entry = `- timestamp: "${timestamp}"\\n  agent: "${agentId}"\\n  action: "wake_message"\\n  unread_count: ${unreadCount}\\n  elapsed_seconds: ${elapsedSeconds}`;
+    const entry = `- timestamp: "${timestamp}"\\n  agent: "${targetAgent}"\\n  action: "wake_message"\\n  unread_count: ${unreadCount}\\n  elapsed_seconds: ${elapsedSeconds}`;
     try {
-      await $`echo -e ${entry} >> queue/metrics/${agentId}_escalation.yaml`.quiet();
+      await $`echo -e ${entry} >> queue/metrics/${targetAgent}_escalation.yaml`.quiet();
     } catch {}
   };
 
@@ -91,40 +95,43 @@ const InboxWatcher: Plugin = async ({ $ }) => {
 
     try {
       updating = true;
-      await log(`[POLL] Checking inbox for unread messages...`);
       const now = Date.now();
-      const unreadCount = await getUnreadCount();
-      await log(`[POLL] Unread count: ${unreadCount}`);
 
-      if (unreadCount === 0) {
-        firstUnreadSeen = null;
-        return;
-      }
+      for (const targetAgent of ESCALATION_AGENTS) {
+        await log(`[POLL] Checking inbox for ${targetAgent}...`);
+        const unreadCount = await getUnreadCount(targetAgent);
+        await log(`[POLL] ${targetAgent} unread count: ${unreadCount}`);
 
-      if (firstUnreadSeen === null) {
-        firstUnreadSeen = now;
-        await log(`First unread detected (count: ${unreadCount})`);
-        return;
-      }
+        if (unreadCount === 0) {
+          firstUnreadSeen[targetAgent] = null;
+          continue;
+        }
 
-      const elapsed = now - firstUnreadSeen;
-      if (elapsed < ESCALATION_THRESHOLD_MS) {
-        await log(`${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed (threshold: ${Math.round(ESCALATION_THRESHOLD_MS / 1000)}s)`);
-        return;
-      }
+        if (!firstUnreadSeen[targetAgent]) {
+          firstUnreadSeen[targetAgent] = now;
+          await log(`First unread detected for ${targetAgent} (count: ${unreadCount})`);
+          continue;
+        }
 
-      if (now - lastEscalation < COOLDOWN_MS) {
-        await log(`Cooldown active (${Math.round((now - lastEscalation) / 1000)}s since last escalation, cooldown: ${Math.round(COOLDOWN_MS / 1000)}s)`);
-        return;
-      }
+        const elapsed = now - firstUnreadSeen[targetAgent]!;
+        if (elapsed < ESCALATION_THRESHOLD_MS) {
+          await log(`${targetAgent}: ${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed`);
+          continue;
+        }
 
-      await log(`Escalating: ${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed`);
-      const success = await sendWakeMessage();
-      if (success) {
-        lastEscalation = now;
-        await logEscalation(unreadCount, elapsed);
-        firstUnreadSeen = null;
-        await log(`Wake message sent successfully`);
+        const lastEsc = lastEscalation[targetAgent] ?? 0;
+        if (now - lastEsc < COOLDOWN_MS) {
+          await log(`${targetAgent}: Cooldown active (${Math.round((now - lastEsc) / 1000)}s)`);
+          continue;
+        }
+
+        await log(`Escalating ${targetAgent}: ${unreadCount} unread, ${Math.round(elapsed / 1000)}s elapsed`);
+        const success = await sendWakeMessage(targetAgent);
+        if (success) {
+          lastEscalation[targetAgent] = now;
+          await logEscalation(targetAgent, unreadCount, elapsed);
+          firstUnreadSeen[targetAgent] = null;
+        }
       }
     } finally {
       setTimeout(() => { updating = false; }, 2000);

@@ -22,7 +22,6 @@ demo_output/
 # Runtime data (generated during operation)
 output/
 queue/inbox/
-queue/metrics/
 queue/research/
 queue/tasks/
 queue/reports/
