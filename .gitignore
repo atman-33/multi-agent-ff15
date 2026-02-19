@@ -35,6 +35,7 @@ context/*
 !context/README.md
 queue/*.yaml
 dashboard.md
+agent-chat-monitor.md
 config/projects.yaml
 config/settings.yaml
 logs/

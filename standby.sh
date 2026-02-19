@@ -472,6 +472,24 @@ None
 EOF
 
     log_success "  └─ Dashboard initialized (shell: $SHELL_SETTING)"
+
+    # Initialize agent-chat-monitor.md
+    cat > ./agent-chat-monitor.md <<EOF
+# 🤖 Agent Chat Monitor
+Last Updated: ${TIMESTAMP}
+
+## 💬 Noctis Latest Chat
+_No messages yet_
+
+---
+
+## 💬 Lunafreya Latest Chat
+_No messages yet_
+
+---
+EOF
+
+    log_success "  └─ Agent Chat Monitor initialized"
 else
     log_info "📊 Preserving previous dashboard"
 fi
