@@ -8,8 +8,6 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { Toaster } from "sonner";
-import { TitleBar } from "@/components/ui/titlebar";
-import { WindowResizeHandles } from "@/components/ui/window-resize-handles";
 import "./app.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -22,14 +20,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body className="flex flex-col h-screen overflow-hidden">
-        <div className="relative flex flex-col h-screen overflow-hidden">
-          <WindowResizeHandles />
-          <div className="bg-card/80 border-b border-border/50 backdrop-blur-sm shrink-0 z-30">
-            <TitleBar />
-          </div>
-          <div className="flex-1 overflow-hidden">
-            {children}
-          </div>
+        <div className="flex-1 overflow-hidden">
+          {children}
         </div>
         <Toaster
           position="bottom-right"
