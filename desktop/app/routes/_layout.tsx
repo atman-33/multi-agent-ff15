@@ -1,10 +1,10 @@
 import { NavLink, Outlet } from "react-router";
 import {
   LayoutDashboard,
-  MessageSquare,
   Activity,
   Crown,
   Moon,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,12 +15,12 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    label: "Messages: Noctis",
+    label: "Noctis",
     to: "/messages/noctis",
     icon: Crown,
   },
   {
-    label: "Messages: Lunafreya",
+    label: "Lunafreya",
     to: "/messages/lunafreya",
     icon: Moon,
   },
@@ -33,38 +33,63 @@ const navItems = [
 
 export default function Layout() {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-[var(--sidebar-width)] border-r bg-card flex flex-col shrink-0">
-        <div className="p-4 border-b">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            FF15 Desktop
-          </h1>
+      <aside
+        className="shrink-0 flex flex-col border-r border-border/50"
+        style={{ width: "var(--sidebar-width)" }}
+      >
+        {/* Logo area */}
+        <div className="px-4 py-4 border-b border-border/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+              <Zap className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold leading-none">FF15</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-none">
+                Multi-Agent
+              </div>
+            </div>
+          </div>
         </div>
-        <nav className="flex-1 p-2 space-y-1" role="navigation">
+
+        {/* Nav */}
+        <nav className="flex-1 px-2 py-3 space-y-0.5" role="navigation">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground"
+                    ? "bg-primary/15 text-primary border border-primary/20 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                 )
               }
             >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  <item.icon
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    )}
+                  />
+                  {item.label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 border-t text-xs text-muted-foreground">
-          Multi-Agent FF15 v0.1.0
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-border/50">
+          <p className="text-[10px] text-muted-foreground/60 font-mono">
+            v0.1.0
+          </p>
         </div>
       </aside>
 
@@ -75,3 +100,4 @@ export default function Layout() {
     </div>
   );
 }
+

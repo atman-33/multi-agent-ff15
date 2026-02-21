@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { RefreshCw, CheckCircle2, XCircle, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -31,14 +30,20 @@ interface HealthResult {
 
 function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <Badge variant={ok ? "success" : "destructive"}>
+    <div
+      className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+        ok
+          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+          : "bg-destructive/15 text-destructive border border-destructive/25"
+      }`}
+    >
       {ok ? (
-        <CheckCircle2 className="h-3 w-3 mr-1" />
+        <CheckCircle2 className="h-3 w-3" />
       ) : (
-        <XCircle className="h-3 w-3 mr-1" />
+        <XCircle className="h-3 w-3" />
       )}
       {label}
-    </Badge>
+    </div>
   );
 }
 
@@ -65,147 +70,158 @@ export default function HealthPage() {
   }, []);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Server className="h-6 w-6" />
-          Health Check
-        </h2>
+    <div className="flex flex-col h-full">
+      {/* Sticky toolbar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 bg-card/40 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2">
+          <Server className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold">Health Check</h2>
+        </div>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
+          className="h-7 w-7"
           onClick={fetchHealth}
           disabled={loading}
           aria-label="Refresh health check"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
-      {/* Error */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Health Check Failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-auto px-5 py-4">
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Health Check Failed</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      {health && (
-        <div className="space-y-4">
-          {/* WSL */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">WSL Environment</CardTitle>
-              <CardDescription>Windows Subsystem for Linux detection</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">WSL Detected</span>
-                <StatusBadge
-                  ok={health.wsl_detected}
-                  label={health.wsl_detected ? "Yes" : "No"}
-                />
-              </div>
-              {health.wsl_detected && health.wsl_distro && (
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm">Distribution</span>
-                  <span className="text-sm text-muted-foreground">
-                    {health.wsl_distro}
-                  </span>
+        {health && (
+          <div className="space-y-3 max-w-2xl">
+            {/* WSL */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm">WSL Environment</CardTitle>
+                <CardDescription className="text-xs">Windows Subsystem for Linux detection</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">WSL Detected</span>
+                  <StatusBadge
+                    ok={health.wsl_detected}
+                    label={health.wsl_detected ? "Yes" : "No"}
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Dependencies */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Dependencies</CardTitle>
-              <CardDescription>Required system dependencies</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium">tmux</span>
-                  {health.tmux_version && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {health.tmux_version}
-                    </span>
-                  )}
-                </div>
-                <StatusBadge
-                  ok={health.tmux_available}
-                  label={health.tmux_available ? "OK" : "Not Found"}
-                />
-              </div>
-              <div className="border-t" />
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium">python3</span>
-                  {health.python3_version && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {health.python3_version}
-                    </span>
-                  )}
-                </div>
-                <StatusBadge
-                  ok={health.python3_available}
-                  label={health.python3_available ? "OK" : "Not Found"}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Scripts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Script Permissions</CardTitle>
-              <CardDescription>Required scripts must be executable</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {health.scripts_executable.map((script, idx) => (
-                <div key={script.name}>
-                  {idx > 0 && <div className="border-t mb-3" />}
+                {health.wsl_detected && health.wsl_distro && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-mono">{script.name}</span>
-                    <StatusBadge
-                      ok={script.executable}
-                      label={script.executable ? "OK" : "Not Executable"}
-                    />
+                    <span className="text-sm text-muted-foreground">Distribution</span>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {health.wsl_distro}
+                    </span>
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Inbox Access */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Inbox Access</CardTitle>
-              <CardDescription>queue/inbox/ directory permissions</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Readable</span>
-                <StatusBadge
-                  ok={health.inbox_readable}
-                  label={health.inbox_readable ? "OK" : "Error"}
-                />
-              </div>
-              <div className="border-t" />
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Writable</span>
-                <StatusBadge
-                  ok={health.inbox_writable}
-                  label={health.inbox_writable ? "OK" : "Error"}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            {/* Dependencies */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm">Dependencies</CardTitle>
+                <CardDescription className="text-xs">Required system dependencies</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">tmux</span>
+                    {health.tmux_version && (
+                      <span className="text-[10px] font-mono text-muted-foreground/70">
+                        {health.tmux_version}
+                      </span>
+                    )}
+                  </div>
+                  <StatusBadge
+                    ok={health.tmux_available}
+                    label={health.tmux_available ? "OK" : "Not Found"}
+                  />
+                </div>
+                <div className="border-t border-border/40" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">python3</span>
+                    {health.python3_version && (
+                      <span className="text-[10px] font-mono text-muted-foreground/70">
+                        {health.python3_version}
+                      </span>
+                    )}
+                  </div>
+                  <StatusBadge
+                    ok={health.python3_available}
+                    label={health.python3_available ? "OK" : "Not Found"}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Scripts */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm">Script Permissions</CardTitle>
+                <CardDescription className="text-xs">Required scripts must be executable</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                {health.scripts_executable.map((script, idx) => (
+                  <div key={script.name}>
+                    {idx > 0 && <div className="border-t border-border/40 mb-2" />}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {script.name}
+                      </span>
+                      <StatusBadge
+                        ok={script.executable}
+                        label={script.executable ? "OK" : "Not Executable"}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Inbox Access */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm">Inbox Access</CardTitle>
+                <CardDescription className="text-xs">queue/inbox/ directory permissions</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Readable</span>
+                  <StatusBadge
+                    ok={health.inbox_readable}
+                    label={health.inbox_readable ? "OK" : "Error"}
+                  />
+                </div>
+                <div className="border-t border-border/40" />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Writable</span>
+                  <StatusBadge
+                    ok={health.inbox_writable}
+                    label={health.inbox_writable ? "OK" : "Error"}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {!health && !error && !loading && (
+          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+            ヘルスチェック待機中...
+          </div>
+        )}
+      </div>
     </div>
   );
 }

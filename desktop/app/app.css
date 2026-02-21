@@ -4,27 +4,34 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Dark theme — slate/blue palette */
+    --background: 222 47% 5%;
+    --foreground: 215 20% 93%;
+    --card: 222 38% 8%;
+    --card-foreground: 215 20% 93%;
+    --popover: 222 38% 8%;
+    --popover-foreground: 215 20% 93%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 32% 16%;
+    --secondary-foreground: 215 20% 93%;
+    --muted: 216 27% 12%;
+    --muted-foreground: 217 15% 55%;
+    --accent: 217 32% 16%;
+    --accent-foreground: 215 20% 93%;
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 28% 14%;
+    --input: 217 28% 14%;
+    --ring: 217 91% 60%;
     --radius: 0.5rem;
-    --sidebar-width: 240px;
+    --sidebar-width: 220px;
+    --titlebar-height: 40px;
+    /* Success / warning custom tokens */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 5%;
   }
 }
 
@@ -32,24 +39,72 @@
   * {
     @apply border-border;
   }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      "Noto Sans CJK JP",
+      "Noto Sans JP",
+      "Hiragino Kaku Gothic ProN",
+      "Hiragino Sans",
+      "Yu Gothic UI",
+      "Meiryo UI",
+      system-ui,
+      -apple-system,
+      sans-serif,
+      "Noto Color Emoji",
+      "Apple Color Emoji",
+      "Segoe UI Emoji";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
   }
 }
 
+/* Titlebar drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 /* Markdown styling */
+.markdown-body {
+  @apply text-sm leading-relaxed;
+}
 .markdown-body h1 {
-  @apply text-2xl font-bold mt-6 mb-3;
+  @apply text-2xl font-bold mt-6 mb-3 text-foreground;
 }
 .markdown-body h2 {
-  @apply text-xl font-semibold mt-5 mb-2;
+  @apply text-xl font-semibold mt-5 mb-2 text-foreground;
+  @apply border-b border-border pb-1;
 }
 .markdown-body h3 {
-  @apply text-lg font-semibold mt-4 mb-2;
+  @apply text-base font-semibold mt-4 mb-2 text-foreground;
 }
 .markdown-body p {
-  @apply my-2 leading-relaxed;
+  @apply my-2 leading-relaxed text-foreground/90;
 }
 .markdown-body ul {
   @apply list-disc pl-6 my-2;
@@ -61,35 +116,35 @@
   @apply my-1;
 }
 .markdown-body table {
-  @apply w-full border-collapse my-4;
+  @apply w-full border-collapse my-4 text-sm;
 }
 .markdown-body th {
-  @apply border border-border bg-muted px-3 py-2 text-left font-semibold text-sm;
+  @apply border border-border bg-muted px-3 py-2 text-left font-semibold;
 }
 .markdown-body td {
-  @apply border border-border px-3 py-2 text-sm;
+  @apply border border-border px-3 py-2;
 }
 .markdown-body code {
-  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+  @apply bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono text-primary;
 }
 .markdown-body pre {
-  @apply bg-muted p-4 rounded-lg overflow-x-auto my-4;
+  @apply bg-muted/60 border border-border/50 p-4 rounded-lg overflow-x-auto my-4;
 }
 .markdown-body pre code {
-  @apply bg-transparent p-0;
+  @apply bg-transparent p-0 text-foreground/90;
 }
 .markdown-body blockquote {
-  @apply border-l-4 border-border pl-4 italic my-4 text-muted-foreground;
+  @apply border-l-4 border-primary/40 pl-4 italic my-4 text-muted-foreground bg-primary/5 py-1 rounded-r;
 }
 .markdown-body hr {
-  @apply border-border my-6;
+  @apply border-border/50 my-6;
 }
 .markdown-body a {
-  @apply text-primary underline;
+  @apply text-primary underline underline-offset-2 hover:text-primary/80 transition-colors;
 }
 .markdown-body strong {
-  @apply font-bold;
+  @apply font-semibold text-foreground;
 }
 .markdown-body em {
-  @apply italic;
+  @apply italic text-foreground/80;
 }

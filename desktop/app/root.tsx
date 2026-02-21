@@ -8,6 +8,7 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { Toaster } from "sonner";
+import { TitleBar } from "@/components/ui/titlebar";
 import "./app.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -19,9 +20,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>
-        {children}
-        <Toaster position="bottom-right" richColors />
+      <body className="flex flex-col h-screen overflow-hidden">
+        {/* Custom titlebar — replaces native OS titlebar */}
+        <div className="bg-card/80 border-b border-border/50 backdrop-blur-sm shrink-0 z-50">
+          <TitleBar />
+        </div>
+        {/* Page content */}
+        <div className="flex-1 overflow-hidden">
+          {children}
+        </div>
+        <Toaster
+          position="bottom-right"
+          richColors
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: "hsl(222 38% 10%)",
+              border: "1px solid hsl(217 28% 18%)",
+              color: "hsl(215 20% 93%)",
+            },
+          }}
+        />
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -56,3 +75,4 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     </div>
   );
 }
+

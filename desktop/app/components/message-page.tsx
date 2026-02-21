@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { RefreshCw, Mail, Send } from "lucide-react";
+import { RefreshCw, Mail, Send, Loader2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -64,7 +64,6 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   }, [fetchData]);
 
   const handleSend = async () => {
-    // Validation
     const trimmed = sendContent.trim();
     if (!trimmed) {
       setValidationError("メッセージを入力してください");
@@ -85,7 +84,6 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
       });
       toast.success("メッセージを送信しました");
       setSendContent("");
-      // Refresh after sending
       await fetchData();
     } catch (e) {
       toast.error(`送信エラー: ${String(e)}`);
@@ -95,168 +93,194 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold">{title}</h2>
-          <Badge variant={unreadCount > 0 ? "default" : "secondary"}>
-            {unreadCount} unread
-          </Badge>
+    <div className="flex flex-col h-full">
+      {/* Sticky toolbar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 bg-card/40 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {unreadCount > 0 && (
+            <Badge
+              variant="default"
+              className="h-5 text-[10px] px-1.5 py-0 min-w-[20px] justify-center"
+            >
+              {unreadCount}
+            </Badge>
+          )}
         </div>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
+          className="h-7 w-7"
           onClick={fetchData}
           disabled={loading}
           aria-label="Refresh messages"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
-      {/* Error */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      {/* Send Message Form */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Send className="h-4 w-4" />
-            Send Message
-          </CardTitle>
-          <CardDescription>
-            Send a message to {agent}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label
-                  htmlFor="send-from"
-                  className="block text-sm font-medium text-foreground mb-1"
-                >
-                  From
-                </label>
-                <select
-                  id="send-from"
-                  value={sendFrom}
-                  onChange={(e) => setSendFrom(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {ALLOWED_SENDERS.map((sender) => (
-                    <option key={sender} value={sender}>
-                      {sender}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  To
-                </label>
-                <div className="h-10 rounded-md border border-input bg-muted px-3 flex items-center text-sm text-muted-foreground">
-                  {agent}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="send-content"
-                className="block text-sm font-medium text-foreground mb-1"
-              >
-                Message
-              </label>
-              <textarea
-                id="send-content"
-                value={sendContent}
-                onChange={(e) => {
-                  setSendContent(e.target.value);
-                  if (validationError) setValidationError(null);
-                }}
-                placeholder="メッセージを入力..."
-                rows={3}
-                maxLength={MAX_MESSAGE_LENGTH}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-[80px]"
-              />
-              <div className="flex justify-between mt-1">
-                {validationError && (
-                  <p className="text-sm text-destructive">{validationError}</p>
-                )}
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {sendContent.length}/{MAX_MESSAGE_LENGTH}
-                </span>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleSend}
-              disabled={sending || !sendContent.trim()}
-              className="w-full"
-            >
-              {sending ? "Sending..." : "Send Message"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Message List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Inbox
-          </CardTitle>
-          <CardDescription>
-            Read-only view. Messages are not marked as read.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {messages.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              メッセージはありません
-            </div>
-          ) : (
+        {/* Send Message Form */}
+        <Card className="border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Send className="h-3.5 w-3.5 text-primary" />
+              Send Message
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Send a message to {agent}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-3">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`rounded-lg border p-4 ${
-                    msg.read ? "bg-background" : "bg-accent/50 border-primary/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={msg.read ? "secondary" : "default"}>
-                        {msg.read ? "read" : "unread"}
-                      </Badge>
-                      <span className="text-sm font-medium">
-                        from: {msg.from}
-                      </span>
-                      <Badge variant="outline">{msg.msg_type}</Badge>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {msg.timestamp}
-                    </span>
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    ID: {msg.id}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label
+                    htmlFor="send-from"
+                    className="block text-xs font-medium text-muted-foreground mb-1"
+                  >
+                    From
+                  </label>
+                  <select
+                    id="send-from"
+                    value={sendFrom}
+                    onChange={(e) => setSendFrom(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-muted/40 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+                  >
+                    {ALLOWED_SENDERS.map((sender) => (
+                      <option key={sender} value={sender}>
+                        {sender}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    To
+                  </label>
+                  <div className="h-9 rounded-md border border-input bg-muted/20 px-3 flex items-center text-sm text-muted-foreground">
+                    {agent}
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="send-content"
+                  className="block text-xs font-medium text-muted-foreground mb-1"
+                >
+                  Message
+                </label>
+                <textarea
+                  id="send-content"
+                  value={sendContent}
+                  onChange={(e) => {
+                    setSendContent(e.target.value);
+                    if (validationError) setValidationError(null);
+                  }}
+                  placeholder="メッセージを入力..."
+                  rows={3}
+                  maxLength={MAX_MESSAGE_LENGTH}
+                  className="w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-y min-h-[72px] text-foreground placeholder:text-muted-foreground/50"
+                />
+                <div className="flex justify-between mt-1">
+                  {validationError && (
+                    <p className="text-xs text-destructive">{validationError}</p>
+                  )}
+                  <span className="text-[10px] text-muted-foreground/60 ml-auto">
+                    {sendContent.length}/{MAX_MESSAGE_LENGTH}
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSend}
+                disabled={sending || !sendContent.trim()}
+                size="sm"
+                className="w-full"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-3.5 w-3.5 mr-2" />
+                    Send
+                  </>
+                )}
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Message List */}
+        <Card className="border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Mail className="h-3.5 w-3.5 text-primary" />
+              Inbox
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Read-only view. Messages are not marked as read.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+                <MessageSquare className="h-8 w-8 opacity-30" />
+                <p className="text-sm">メッセージはありません</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`rounded-lg border px-4 py-3 transition-colors ${
+                      msg.read
+                        ? "border-border/40 bg-muted/10"
+                        : "border-primary/25 bg-primary/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {!msg.read && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block shrink-0" />
+                        )}
+                        <span className="text-xs font-medium text-foreground">
+                          {msg.from}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                          {msg.msg_type}
+                        </Badge>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/70 shrink-0">
+                        {msg.timestamp}
+                      </span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed">
+                      {msg.content}
+                    </p>
+                    <div className="mt-1.5 text-[10px] text-muted-foreground/50 font-mono">
+                      {msg.id}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

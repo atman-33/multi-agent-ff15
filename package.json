@@ -5,6 +5,8 @@
     "desktop:dev": "cd desktop && npm run tauri:dev",
     "desktop:build": "cd desktop && npm run tauri:build",
     "desktop:typecheck": "cd desktop && npm run typecheck",
+    "desktop:start": "MULTI_AGENT_FF15_ROOT=$(pwd) ./desktop/src-tauri/target/release/multi-agent-ff15-desktop",
+    "desktop:start:appimage": "MULTI_AGENT_FF15_ROOT=$(pwd) './desktop/src-tauri/target/release/bundle/appimage/Multi Agent FF15_0.1.0_amd64.AppImage'",
     "test": "./tests/run_all_tests.sh"
   },
   "devDependencies": {
