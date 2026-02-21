@@ -15,6 +15,14 @@ test_output/
 
 # Node modules (managed by package.json)
 node_modules/
+desktop/node_modules/
+
+# Desktop app build outputs
+desktop/build/
+desktop/.react-router/
+
+# Rust build artifacts
+desktop/src-tauri/target/
 
 # Demo/analysis outputs (generated during tasks)
 demo_output/
