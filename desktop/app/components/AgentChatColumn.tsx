@@ -53,6 +53,31 @@ function mergeTimeline(
   ].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
 }
 
+/** Code block with wrap/scroll toggle button (appears on hover). */
+function CodeBlock({ children }: { children: React.ReactNode }) {
+  const [wrap, setWrap] = useState(false);
+  return (
+    <div className="relative group my-1">
+      <button
+        type="button"
+        onClick={() => setWrap((v) => !v)}
+        title={wrap ? "スクロールモードに切り替え" : "折り返しモードに切り替え"}
+        className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 rounded px-1.5 py-0.5 text-[9px] text-muted-foreground/70 hover:text-foreground/80 leading-none"
+      >
+        {wrap ? "→ scroll" : "↵ wrap"}
+      </button>
+      <pre
+        className={cn(
+          "max-w-full bg-black/20 rounded p-1.5 text-[11px]",
+          wrap ? "whitespace-pre-wrap break-words" : "overflow-x-auto"
+        )}
+      >
+        {children}
+      </pre>
+    </div>
+  );
+}
+
 /** Inbox message bubble — Crystal (right-aligned purple) or agent (left-aligned amber). */
 function InboxBubble({ msg }: { msg: InboxLogRecord }) {
   const ts = new Date(msg.ts);
@@ -87,6 +112,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
               code: ({ children }) => (
                 <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
               ),
+              pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
             }}
           >
             {content}
@@ -116,6 +142,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
             code: ({ children }) => (
               <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
             ),
+            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           }}
         >
           {content}

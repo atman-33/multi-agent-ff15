@@ -21,6 +21,31 @@ function stripAnsi(text: string): string {
 
 const FOLD_CHARS = 800;
 
+/** Code block with wrap/scroll toggle button (appears on hover). */
+function CodeBlock({ children }: { children: React.ReactNode }) {
+  const [wrap, setWrap] = useState(false);
+  return (
+    <div className="relative group my-1">
+      <button
+        type="button"
+        onClick={() => setWrap((v) => !v)}
+        title={wrap ? "スクロールモードに切り替え" : "折り返しモードに切り替え"}
+        className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 rounded px-1.5 py-0.5 text-[9px] text-muted-foreground/70 hover:text-foreground/80 leading-none"
+      >
+        {wrap ? "→ scroll" : "↵ wrap"}
+      </button>
+      <pre
+        className={cn(
+          "max-w-full bg-black/20 rounded p-1.5 text-[11px]",
+          wrap ? "whitespace-pre-wrap break-words" : "overflow-x-auto"
+        )}
+      >
+        {children}
+      </pre>
+    </div>
+  );
+}
+
 interface MessageCardProps {
   record: ChatLogRecord;
   className?: string;
@@ -100,7 +125,7 @@ export default function MessageCard({ record, className }: MessageCardProps) {
                 <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
               );
             },
-            pre: ({ children }) => <pre className="my-1">{children}</pre>,
+            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
             // Lists
             ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 pl-2">{children}</ul>,
             ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 pl-2">{children}</ol>,
