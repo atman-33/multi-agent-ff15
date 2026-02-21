@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Crown, Moon } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
@@ -6,6 +6,7 @@ import type { ChatLogRecord, AgentId } from "@/lib/useAgentChatLog";
 import type { InboxLogRecord } from "@/lib/useInboxLog";
 import { COMRADES, COMRADE_CONFIG, type ComradeId } from "@/lib/useComradeStatus";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 interface AgentChatColumnProps {
@@ -91,6 +92,20 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
   // Normalize escaped "\n" (two chars) to real newlines for proper Markdown rendering
   const content = msg.content.replace(/\\n/g, "\n");
 
+  // Stable reference — prevents CodeBlock from unmounting on every 3s poll re-render
+  const mdComponents = useMemo<Components>(() => ({
+    img: () => null,
+    a: ({ href, children }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">
+        {children}
+      </a>
+    ),
+    code: ({ children }) => (
+      <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
+    ),
+    pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  }), []);
+
   if (isCrystal) {
     return (
       <div className="flex flex-col items-end gap-0.5">
@@ -102,18 +117,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-            components={{
-              img: () => null,
-              a: ({ href, children }) => (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">
-                  {children}
-                </a>
-              ),
-              code: ({ children }) => (
-                <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
-              ),
-              pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-            }}
+            components={mdComponents}
           >
             {content}
           </ReactMarkdown>
@@ -132,18 +136,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-          components={{
-            img: () => null,
-            a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">
-                {children}
-              </a>
-            ),
-            code: ({ children }) => (
-              <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
-            ),
-            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-          }}
+          components={mdComponents}
         >
           {content}
         </ReactMarkdown>

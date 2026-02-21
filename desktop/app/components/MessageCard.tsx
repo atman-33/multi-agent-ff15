@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ChatLogRecord } from "@/lib/useAgentChatLog";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 // ---------------------------------------------------------------------------
@@ -66,6 +67,39 @@ export default function MessageCard({ record, className }: MessageCardProps) {
 
   const isError = record.kind === "error";
 
+  // Stable reference — prevents CodeBlock from unmounting on every 3s poll re-render
+  const mdComponents = useMemo<Components>(() => ({
+    img: () => null,
+    a: ({ href, children }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">
+        {children}
+      </a>
+    ),
+    h1: ({ children }) => <h1 className="text-sm font-bold mt-2 mb-1">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-xs font-bold mt-2 mb-1">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-xs font-semibold mt-1 mb-0.5">{children}</h3>,
+    code: ({ children, className: cls }) => {
+      const isBlock = cls?.includes("language-");
+      return isBlock ? (
+        <code className="block bg-black/30 rounded px-2 py-1 font-mono text-[11px] overflow-x-auto whitespace-pre">
+          {children}
+        </code>
+      ) : (
+        <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
+      );
+    },
+    pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+    ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 pl-2">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 pl-2">{children}</ol>,
+    p: ({ children }) => <p className="my-0.5">{children}</p>,
+    hr: () => <hr className="border-border/30 my-2" />,
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-2 border-border/50 pl-2 italic text-muted-foreground">
+        {children}
+      </blockquote>
+    ),
+  }), []);
+
   return (
     <div
       className={cn(
@@ -96,50 +130,7 @@ export default function MessageCard({ record, className }: MessageCardProps) {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           className="text-xs leading-relaxed text-foreground/90 space-y-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-          components={{
-            // Suppress image embeds for safety
-            img: () => null,
-            // Open links in system browser
-            a: ({ href, children }) => (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 underline hover:text-blue-300"
-              >
-                {children}
-              </a>
-            ),
-            // Headings
-            h1: ({ children }) => <h1 className="text-sm font-bold mt-2 mb-1">{children}</h1>,
-            h2: ({ children }) => <h2 className="text-xs font-bold mt-2 mb-1">{children}</h2>,
-            h3: ({ children }) => <h3 className="text-xs font-semibold mt-1 mb-0.5">{children}</h3>,
-            // Code blocks & inline code
-            code: ({ children, className: cls }) => {
-              const isBlock = cls?.includes("language-");
-              return isBlock ? (
-                <code className="block bg-black/30 rounded px-2 py-1 font-mono text-[11px] overflow-x-auto whitespace-pre">
-                  {children}
-                </code>
-              ) : (
-                <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
-              );
-            },
-            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-            // Lists
-            ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 pl-2">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 pl-2">{children}</ol>,
-            // Paragraphs
-            p: ({ children }) => <p className="my-0.5">{children}</p>,
-            // Horizontal rule
-            hr: () => <hr className="border-border/30 my-2" />,
-            // Blockquote
-            blockquote: ({ children }) => (
-              <blockquote className="border-l-2 border-border/50 pl-2 italic text-muted-foreground">
-                {children}
-              </blockquote>
-            ),
-          }}
+          components={mdComponents}
         >
           {clean}
         </ReactMarkdown>
