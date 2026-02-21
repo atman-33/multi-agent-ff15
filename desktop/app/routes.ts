@@ -5,6 +5,7 @@ export default [
   route("api/dashboard", "routes/api.dashboard.ts"),
   route("api/inbox/:agent", "routes/api.inbox.$agent.ts"),
   route("api/chat-logs", "routes/api.chat-logs.ts"),
+  route("api/crystal-messages", "routes/api.crystal-messages.ts"),
   route("api/health", "routes/api.health.ts"),
   // UI routes
   layout("routes/_layout.tsx", [

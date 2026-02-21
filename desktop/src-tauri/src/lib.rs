@@ -87,6 +87,7 @@ const ALLOWED_SENDERS: &[&str] = &[
 
 const MAX_MESSAGE_LENGTH: usize = 4000;
 const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
+const CRYSTAL_LOG_PATH: &str = "runtime/logs/crystal-messages.jsonl";
 
 // ---------------------------------------------------------------------------
 // Chat log types
@@ -117,6 +118,20 @@ struct ChatLogPage {
     next_cursor: usize,
     /// Total lines in the file (including broken/skipped lines).
     total_lines: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Crystal messages types
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct CrystalMessageRecord {
+    id: String,
+    ts: String,
+    agent: String,
+    content: String,
+    #[serde(rename = "recordIndexAtSend")]
+    record_index_at_send: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +352,56 @@ fn send_crystal_message(target: String, message: String) -> Result<String, Strin
     }
 }
 
+/// Read all Crystal (user) sent messages from the persistent JSONL log.
+#[tauri::command]
+fn read_crystal_messages() -> Result<Vec<CrystalMessageRecord>, String> {
+    let root = get_project_root()?;
+    let log_path = root.join(CRYSTAL_LOG_PATH);
+
+    if !log_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let file = std::fs::File::open(&log_path)
+        .map_err(|e| format!("Failed to open crystal messages file: {}", e))?;
+    let reader = BufReader::new(file);
+
+    let records: Vec<CrystalMessageRecord> = reader
+        .lines()
+        .filter_map(|l| l.ok())
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|line| serde_json::from_str::<CrystalMessageRecord>(&line).ok())
+        .collect();
+
+    Ok(records)
+}
+
+/// Append a single Crystal message record to the persistent JSONL log.
+#[tauri::command]
+fn save_crystal_message(record: CrystalMessageRecord) -> Result<(), String> {
+    let root = get_project_root()?;
+    let log_path = root.join(CRYSTAL_LOG_PATH);
+
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+
+    let json = serde_json::to_string(&record)
+        .map_err(|e| format!("Failed to serialize record: {}", e))?;
+
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| format!("Failed to open crystal messages file: {}", e))?;
+    writeln!(file, "{}", json)
+        .map_err(|e| format!("Failed to write record: {}", e))?;
+
+    Ok(())
+}
+
 /// Run health diagnostics for WSL environment.
 #[tauri::command]
 fn health_check() -> Result<HealthResult, String> {
@@ -449,6 +514,8 @@ pub fn run() {
             send_message,
             read_agent_chat_logs,
             send_crystal_message,
+            read_crystal_messages,
+            save_crystal_message,
             health_check,
         ])
         .run(tauri::generate_context!())

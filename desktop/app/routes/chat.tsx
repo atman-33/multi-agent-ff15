@@ -1,18 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAgentChatLog, type AgentId } from "@/lib/useAgentChatLog";
+import { useCrystalMessages } from "@/lib/useCrystalMessages";
+import type { CrystalMessageRecord } from "@/lib/useCrystalMessages";
 import AgentChatColumn from "@/components/AgentChatColumn";
 import MessageComposer from "@/components/MessageComposer";
 import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusBar";
 
 const AGENTS: AgentId[] = ["noctis", "lunafreya"];
 
-export interface CrystalMessage {
-  id: string;
-  ts: string;
-  content: string;
-  /** Number of agent records in the log at the moment Crystal sent this message. Used for positional interleaving. */
-  recordIndexAtSend: number;
-}
+/** Re-exported for AgentChatColumn compatibility. */
+export type CrystalMessage = CrystalMessageRecord;
 
 interface WaitingState {
   waiting: boolean;
@@ -36,11 +33,9 @@ export default function UnifiedChatRoute() {
 
   const recordsMap = { noctis: noctisRecords, lunafreya: lunafeyaRecords };
 
-  // Crystal sent messages per agent
-  const [crystalMessages, setCrystalMessages] = useState<Record<AgentId, CrystalMessage[]>>({
-    noctis: [],
-    lunafreya: [],
-  });
+  // Crystal sent messages — persisted to file via useCrystalMessages
+  const { getMessagesForAgent: getCrystalMessages, saveMessage: persistCrystalMessage } =
+    useCrystalMessages();
 
   // Waiting (typing indicator) state per agent
   const [waitingState, setWaitingState] = useState<Record<AgentId, WaitingState>>({
@@ -78,22 +73,19 @@ export default function UnifiedChatRoute() {
       // so we can safely read the accurate count right here.
       const currentCount = allRecordsRef.current.filter((r) => r.agent === agent).length;
 
-      const msg: CrystalMessage = {
+      await persistCrystalMessage({
         id: `crystal-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         ts: new Date().toISOString(),
+        agent,
         content,
         recordIndexAtSend: currentCount,
-      };
-      setCrystalMessages((prev) => ({
-        ...prev,
-        [agent]: [...prev[agent], msg],
-      }));
+      });
       setWaitingState((prev) => ({
         ...prev,
         [agent]: { waiting: true, recordCountAtSend: currentCount },
       }));
     },
-    [refresh, allRecordsRef]
+    [refresh, allRecordsRef, persistCrystalMessage]
   );
 
   // Derive stale/idle/online status per agent (task 4.3)
@@ -149,7 +141,7 @@ export default function UnifiedChatRoute() {
             key={agent}
             agent={agent}
             records={recordsMap[agent]}
-            crystalMessages={crystalMessages[agent]}
+            crystalMessages={getCrystalMessages(agent)}
             isWaiting={waitingState[agent].waiting}
             isActive={activeAgent === agent}
             onActivate={() => setActiveAgent(agent)}
