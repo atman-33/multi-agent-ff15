@@ -16,6 +16,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Multi-Agent FF15</title>
+        <meta name="description" content="Multi-agent parallel development framework powered by OpenCode + tmux, inspired by FINAL FANTASY XV." />
+        <meta name="theme-color" content="#0f172a" />
+        <link rel="icon" type="image/x-icon" href="/favicons/favicon.ico" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-touch-icon.png" />
+        <link rel="manifest" href="/favicons/site.webmanifest" />
         <Meta />
         <Links />
       </head>
