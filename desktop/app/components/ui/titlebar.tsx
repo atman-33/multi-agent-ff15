@@ -12,6 +12,52 @@ const ENABLE_WINDOW_DEBUG_LOG =
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.search).get("debugWindow") === "1";
 
+const FALLBACK_TASKBAR_HEIGHT = 48;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function computeFitBounds(monitor: {
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  workArea: { position: { x: number; y: number }; size: { width: number; height: number } };
+}) {
+  const raw = {
+    x: monitor.workArea.position.x,
+    y: monitor.workArea.position.y,
+    width: monitor.workArea.size.width,
+    height: monitor.workArea.size.height,
+  };
+
+  const hasReliableWorkArea =
+    raw.x !== monitor.position.x ||
+    raw.y !== monitor.position.y ||
+    raw.width !== monitor.size.width ||
+    raw.height !== monitor.size.height;
+
+  if (hasReliableWorkArea) return raw;
+
+  return {
+    x: monitor.position.x,
+    y: monitor.position.y,
+    width: monitor.size.width,
+    height: Math.max(200, monitor.size.height - FALLBACK_TASKBAR_HEIGHT),
+  };
+}
+
+async function applyBounds(
+  bounds: { x: number; y: number; width: number; height: number },
+  PhysicalPosition: any,
+  PhysicalSize: any,
+  appWindow: any
+) {
+  await appWindow.setPosition(new PhysicalPosition(bounds.x, bounds.y));
+  await appWindow.setSize(new PhysicalSize(bounds.width, bounds.height));
+  await delay(16);
+  await appWindow.setPosition(new PhysicalPosition(bounds.x, bounds.y));
+}
+
 async function logWindowGeometry(label: string) {
   if (!ENABLE_WINDOW_DEBUG_LOG) return;
   const [{ currentMonitor }, appWindow] = await Promise.all([
@@ -66,8 +112,17 @@ export function TitleBar() {
     if (isFittedToScreen) {
       const restore = restoreBoundsRef.current;
       if (!restore) return;
-      await appWindow.setSize(new PhysicalSize(restore.size.width, restore.size.height));
-      await appWindow.setPosition(new PhysicalPosition(restore.position.x, restore.position.y));
+      await applyBounds(
+        {
+          x: restore.position.x,
+          y: restore.position.y,
+          width: restore.size.width,
+          height: restore.size.height,
+        },
+        PhysicalPosition,
+        PhysicalSize,
+        appWindow
+      );
       setIsFittedToScreen(false);
       restoreBoundsRef.current = null;
       await logWindowGeometry("after-fit-restore");
@@ -86,11 +141,18 @@ export function TitleBar() {
       size: { width: size.width, height: size.height },
     };
 
-    await appWindow.setPosition(
-      new PhysicalPosition(monitor.workArea.position.x, monitor.workArea.position.y)
-    );
-    await appWindow.setSize(
-      new PhysicalSize(monitor.workArea.size.width, monitor.workArea.size.height)
+    const fit = computeFitBounds(monitor);
+
+    await applyBounds(
+      {
+        x: fit.x,
+        y: fit.y,
+        width: fit.width,
+        height: fit.height,
+      },
+      PhysicalPosition,
+      PhysicalSize,
+      appWindow
     );
     setIsFittedToScreen(true);
     await logWindowGeometry("after-fit-expand");
