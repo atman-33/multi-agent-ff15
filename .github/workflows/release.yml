@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.3.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid version format: '$VERSION'. Expected: X.Y.Z"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG=v$VERSION" >> $GITHUB_ENV
+
+      - name: Check tag does not already exist
+        run: |
+          if git tag | grep -qx "${{ env.TAG }}"; then
+            echo "❌ Tag ${{ env.TAG }} already exists"
+            exit 1
+          fi
+
+      - name: Verify version in package.json matches
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "${{ env.VERSION }}" ]; then
+            echo "❌ package.json version ($PKG_VERSION) does not match input (${{ env.VERSION }})"
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        run: |
+          VERSION="${{ env.VERSION }}"
+          # Extract the section for this version between ## [X.Y.Z] headers
+          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "❌ No entry found for version $VERSION in CHANGELOG.md"
+            exit 1
+          fi
+          # Write to file to safely handle multi-line content
+          echo "$NOTES" > /tmp/release_notes.md
+          echo "Release notes extracted ($(wc -l < /tmp/release_notes.md) lines)"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ env.TAG }}" -m "Release ${{ env.TAG }}"
+          git push origin "${{ env.TAG }}"
+          echo "✅ Tag ${{ env.TAG }} created and pushed"
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ env.TAG }}" \
+            --title "Release ${{ env.TAG }}" \
+            --notes-file /tmp/release_notes.md \
+            --verify-tag
+          echo "✅ GitHub Release created: ${{ env.TAG }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
