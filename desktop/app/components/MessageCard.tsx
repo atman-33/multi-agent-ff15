@@ -34,7 +34,7 @@ export default function MessageCard({ record, className }: MessageCardProps) {
   const displayText = displayLines.join("\n");
 
   const ts = new Date(record.ts);
-  const timeStr = ts.toLocaleTimeString("ja-JP", {
+  const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -82,12 +82,12 @@ export default function MessageCard({ record, className }: MessageCardProps) {
           {expanded ? (
             <>
               <ChevronUp className="h-3 w-3" />
-              折りたたむ
+              Collapse
             </>
           ) : (
             <>
               <ChevronDown className="h-3 w-3" />
-              {lines.length - FOLD_LINES} 行を展開
+              {lines.length - FOLD_LINES} more lines
             </>
           )}
         </button>

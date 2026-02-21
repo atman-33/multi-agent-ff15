@@ -2,8 +2,6 @@ import { NavLink, Outlet } from "react-router";
 import {
   LayoutDashboard,
   Activity,
-  Crown,
-  Moon,
   Zap,
   MessagesSquare,
 } from "lucide-react";
@@ -16,19 +14,9 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    label: "Unified Chat",
-    to: "/unified-chat",
+    label: "Chat",
+    to: "/chat",
     icon: MessagesSquare,
-  },
-  {
-    label: "Noctis",
-    to: "/messages/noctis",
-    icon: Crown,
-  },
-  {
-    label: "Lunafreya",
-    to: "/messages/lunafreya",
-    icon: Moon,
   },
   {
     label: "Health",

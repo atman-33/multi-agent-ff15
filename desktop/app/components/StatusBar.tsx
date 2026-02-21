@@ -39,17 +39,17 @@ export default function StatusBar({
   onRefresh,
 }: StatusBarProps) {
   const updatedStr = lastUpdated
-    ? lastUpdated.toLocaleTimeString("ja-JP", {
+    ? lastUpdated.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
       })
-    : "未更新";
+    : "Never";
 
   return (
     <div className="flex items-center gap-4 px-3 py-1.5 rounded-md border border-border/30 bg-white/3 text-xs text-muted-foreground">
       {/* Last updated */}
-      <span className="shrink-0">最終更新: {updatedStr}</span>
+      <span className="shrink-0">Updated: {updatedStr}</span>
 
       <div className="h-3 w-px bg-border/40 shrink-0" />
 
@@ -76,7 +76,7 @@ export default function StatusBar({
           size="icon"
           className="h-5 w-5 text-muted-foreground hover:text-foreground"
           onClick={onRefresh}
-          title="今すぐ更新"
+          title="Refresh"
         >
           <RefreshCw className="h-3 w-3" />
         </Button>

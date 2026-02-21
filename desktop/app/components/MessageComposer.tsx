@@ -18,12 +18,12 @@ const AGENT_CONFIG: Record<AgentId, { label: string; Icon: React.ElementType; pl
   noctis: {
     label: "Noctis",
     Icon: Crown,
-    placeholder: "Noctis へメッセージ…",
+    placeholder: "Message to Noctis…",
   },
   lunafreya: {
     label: "Lunafreya",
     Icon: Moon,
-    placeholder: "Lunafreya へメッセージ…",
+    placeholder: "Message to Lunafreya…",
   },
 };
 
@@ -79,7 +79,7 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
       <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span>
-          送信先:{" "}
+          To:{" "}
           <span className="font-semibold text-foreground">{label}</span>
         </span>
 
@@ -87,13 +87,13 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
         {status === "sent" && (
           <span className="ml-auto flex items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            送信しました
+            Sent
           </span>
         )}
         {status === "failed" && (
           <span className="ml-auto flex items-center gap-1 text-red-400 text-[11px]">
             <XCircle className="h-3.5 w-3.5 shrink-0" />
-            送信失敗: {errorMsg}
+            Send failed: {errorMsg}
           </span>
         )}
       </div>
@@ -107,7 +107,7 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
           className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 text-xs gap-1"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          再送信
+          Retry
         </Button>
       )}
 
@@ -119,7 +119,7 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            rows={3}
+            rows={7}
             className={cn(
               "w-full resize-none rounded-md border bg-background/60 px-3 py-2 text-sm",
               "focus:outline-none focus:ring-1 focus:ring-ring",
@@ -143,7 +143,7 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
           disabled={!canSend}
           size="icon"
           className="self-end h-9 w-9 shrink-0"
-          title={`送信 (Ctrl+Enter) → ${label}`}
+          title={`Send (Ctrl+Enter) → ${label}`}
         >
           <Send className="h-4 w-4" />
         </Button>

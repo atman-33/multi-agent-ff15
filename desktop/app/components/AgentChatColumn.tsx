@@ -80,19 +80,20 @@ export default function AgentChatColumn({
         />
         <span className="text-sm font-medium">{label}</span>
         <span className="ml-auto text-[10px] text-muted-foreground/60">
-          {records.length} 件
+          {records.length} msgs
         </span>
       </button>
 
-      {/* Scrollable message list (task 4.1 – independent scroll) */}
+      {/* Scrollable message list – clicking anywhere in the area also activates this column */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-2 py-2 space-y-2"
+        onClick={onActivate}
+        className="flex-1 overflow-y-auto px-2 py-2 space-y-2 cursor-pointer"
       >
         {records.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground/60">
-            メッセージなし
+            No messages yet
           </div>
         ) : (
           records.map((record) => (
