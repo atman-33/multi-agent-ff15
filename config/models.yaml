@@ -44,31 +44,17 @@ modes:
     iris:
       model: github-copilot/gpt-5-mini
 
-  free-glm:
+  free:
     noctis:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     ignis:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     gladiolus:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     prompto:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     lunafreya:
-      model: github-copilot/gpt-5-mini
-    iris:
-      model: github-copilot/gpt-5-mini
-
-  free-kimi:
-    noctis:
-      model: opencode/kimi-k2.5-free
-    ignis:
-      model: opencode/kimi-k2.5-free
-    gladiolus:
-      model: opencode/kimi-k2.5-free
-    prompto:
-      model: opencode/kimi-k2.5-free
-    lunafreya:
-      model: github-copilot/gpt-5-mini
+      model: opencode/minimax-m2.5-free
     iris:
       model: github-copilot/gpt-5-mini
 

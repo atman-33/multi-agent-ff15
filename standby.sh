@@ -110,20 +110,12 @@ while [[ $# -gt 0 ]]; do
             MODE="lite"
             shift
             ;;
-        --free-kimi)
+        --free)
             if [ "$MODE" != "normal" ]; then
                 echo "Error: Only one mode can be specified"
                 exit 1
             fi
-            MODE="free-kimi"
-            shift
-            ;;
-        --free-glm)
-            if [ "$MODE" != "normal" ]; then
-                echo "Error: Only one mode can be specified"
-                exit 1
-            fi
-            MODE="free-glm"
+            MODE="free"
             shift
             ;;
         --gpt5mini)
@@ -159,8 +151,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -d, --debug         Debug mode (show Iris pane in main window)"
             echo "  --fullpower         Start in Full Power mode"
             echo "  --lite              Start in Lite mode"
-            echo "  --free-kimi         Start in Free mode (Kimi K2.5)"
-            echo "  --free-glm          Start in Free mode (GLM 4.7)"
+            echo "  --free              Start in Free mode (minimax-m2.5-free)"
             echo "  --gpt5mini          Start in GPT-5 Mini mode (all agents)"
             echo "  -s, --setup-only    Setup tmux session only (no OpenCode launch)"
             echo "  -t, --terminal      Open new tab in Windows Terminal"
@@ -177,8 +168,7 @@ while [[ $# -gt 0 ]]; do
             echo "  ./standby.sh -shell bash  # Start with bash prompt"
             echo "  ./standby.sh --fullpower  # Start in Full Power mode"
             echo "  ./standby.sh --lite       # Start in Lite mode"
-            echo "  ./standby.sh --free-kimi  # Start in Free mode (Kimi K2.5)"
-            echo "  ./standby.sh --free-glm   # Start in Free mode (GLM 4.7)"
+            echo "  ./standby.sh --free   # Start in Free mode (minimax-m2.5-free)"
             echo "  ./standby.sh --gpt5mini   # Start in GPT-5 Mini mode (all agents)"
             echo "  ./standby.sh -c --fullpower  # Clean start + Full Power mode"
             echo "  ./standby.sh -shell zsh   # Start with zsh prompt"
@@ -190,8 +180,7 @@ while [[ $# -gt 0 ]]; do
             echo "  Normal (default):         Standard configuration"
             echo "  Full Power (--fullpower): High-performance configuration"
             echo "  Lite (--lite):            Low-cost configuration"
-            echo "  Free Kimi (--free-kimi):  Free (Kimi K2.5)"
-            echo "  Free GLM (--free-glm):    Free (GLM 4.7)"
+            echo "  Free (--free):       Free (minimax-m2.5-free)"
             echo "  GPT-5 Mini (--gpt5mini):  All agents use GPT-5 Mini"
             echo ""
             echo "Aliases:"
@@ -264,8 +253,7 @@ case "$MODE" in
     normal) MODE_NAME="Normal" ;;
     fullpower) MODE_NAME="Full Power" ;;
     lite) MODE_NAME="Lite" ;;
-    free-kimi) MODE_NAME="Free (Kimi K2.5)" ;;
-    free-glm) MODE_NAME="Free (GLM 4.7)" ;;
+    free) MODE_NAME="Free (minimax-m2.5-free)" ;;
     gpt5mini) MODE_NAME="GPT-5 Mini (All)" ;;
     *)
         echo "Error: Unsupported mode: $MODE"
