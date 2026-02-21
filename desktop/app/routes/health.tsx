@@ -54,14 +54,18 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(false);
 
   const fetchHealth = async () => {
-    if (!isTauri) {
-      setError("Desktop app context is required. Please use `npm run desktop:dev`.");
-      return;
-    }
     setLoading(true);
     try {
-      const result = await invoke<HealthResult>("health_check");
-      setHealth(result);
+      if (isTauri) {
+        const result = await invoke<HealthResult>("health_check");
+        setHealth(result);
+      } else {
+        const res = await fetch("/api/health");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setHealth(data as HealthResult);
+      }
       setError(null);
     } catch (e) {
       setError(String(e));

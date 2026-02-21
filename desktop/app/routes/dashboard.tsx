@@ -23,14 +23,18 @@ export default function DashboardPage() {
   const [interval, setInterval_] = useState(5);
 
   const fetchDashboard = useCallback(async () => {
-    if (!isTauri) {
-      setError("Desktop app context is required. Please use `npm run desktop:dev`.");
-      return;
-    }
     setLoading(true);
     try {
-      const result = await invoke<string>("read_dashboard");
-      setContent(result);
+      if (isTauri) {
+        const result = await invoke<string>("read_dashboard");
+        setContent(result);
+      } else {
+        const res = await fetch("/api/dashboard");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setContent(data.content);
+      }
       setError(null);
       setLastUpdated(new Date());
     } catch (e) {

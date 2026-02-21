@@ -82,15 +82,30 @@ export function useAgentChatLog() {
     }, BUFFER_DELAY_MS);
   }, [flushBuffer]);
 
-  /** Fetch records from Tauri. isInitial=true means full initial load. */
+  /** Fetch records from Tauri IPC or web API. isInitial=true means full initial load. */
   const fetchRecords = useCallback(
     async (isInitial: boolean) => {
-      if (!isTauri) return;
       try {
-        const page = await invoke<ChatLogPage>("read_agent_chat_logs", {
-          limit: INITIAL_LIMIT,
-          cursor: isInitial ? null : cursorRef.current ?? null,
-        });
+        let page: ChatLogPage;
+        if (isTauri) {
+          page = await invoke<ChatLogPage>("read_agent_chat_logs", {
+            limit: INITIAL_LIMIT,
+            cursor: isInitial ? null : cursorRef.current ?? null,
+          });
+        } else {
+          const params = new URLSearchParams({
+            limit: String(INITIAL_LIMIT),
+          });
+          if (!isInitial && cursorRef.current != null) {
+            params.set("cursor", String(cursorRef.current));
+          }
+          const res = await fetch(`/api/chat-logs?${params}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          page = await res.json();
+          if ((page as unknown as { error?: string }).error) {
+            throw new Error((page as unknown as { error: string }).error);
+          }
+        }
 
         // Update cursor
         cursorRef.current = page.next_cursor;
@@ -125,12 +140,11 @@ export function useAgentChatLog() {
     fetchRecords(true);
   }, [fetchRecords]);
 
-  // Polling (task 3.2)
+  // Polling
   useEffect(() => {
-    if (!isTauri) return;
     const timer = setInterval(() => fetchRecords(false), POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [isTauri, fetchRecords]);
+  }, [fetchRecords]);
 
   // Cleanup buffer timer on unmount
   useEffect(() => {

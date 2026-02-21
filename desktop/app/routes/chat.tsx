@@ -69,14 +69,6 @@ export default function UnifiedChatRoute() {
         </div>
       )}
 
-      {/* Non-Tauri warning */}
-      {!isTauri && (
-        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
-          Run in the desktop app (Tauri).
-          <code className="ml-1 font-mono">npm run desktop:dev</code>
-        </div>
-      )}
-
       {/* 2-column chat area */}
       <div className="flex-1 grid grid-cols-2 gap-3 min-h-0">
         {AGENTS.map((agent) => (

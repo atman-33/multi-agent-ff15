@@ -44,18 +44,23 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!isTauri) {
-      setError("Desktop app context is required. Please use `npm run desktop:dev`.");
-      return;
-    }
     setLoading(true);
     try {
-      const [count, msgs] = await Promise.all([
-        invoke<number>("peek_inbox", { agent }),
-        invoke<InboxMessage[]>("list_inbox_messages", { agent }),
-      ]);
-      setUnreadCount(count);
-      setMessages(msgs);
+      if (isTauri) {
+        const [count, msgs] = await Promise.all([
+          invoke<number>("peek_inbox", { agent }),
+          invoke<InboxMessage[]>("list_inbox_messages", { agent }),
+        ]);
+        setUnreadCount(count);
+        setMessages(msgs);
+      } else {
+        const res = await fetch(`/api/inbox/${agent}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setUnreadCount(data.count);
+        setMessages(data.messages);
+      }
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -69,10 +74,6 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   }, [fetchData]);
 
   const handleSend = async () => {
-    if (!isTauri) {
-      setValidationError("Desktop app context is required.");
-      return;
-    }
     const trimmed = sendContent.trim();
     if (!trimmed) {
       setValidationError("メッセージを入力してください");
@@ -86,11 +87,23 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
 
     setSending(true);
     try {
-      await invoke<string>("send_message", {
-        target: agent,
-        from: sendFrom,
-        content: trimmed,
-      });
+      if (isTauri) {
+        await invoke<string>("send_message", {
+          target: agent,
+          from: sendFrom,
+          content: trimmed,
+        });
+      } else {
+        const res = await fetch(`/api/inbox/${agent}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from: sendFrom, content: trimmed }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+      }
       toast.success("メッセージを送信しました");
       setSendContent("");
       await fetchData();
