@@ -10,7 +10,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "web": "react-router dev",
-    "web:preview": "react-router build && react-router serve"
+    "web:preview": "react-router build && react-router serve",
+    "web:serve": "react-router-serve ./build/server/index.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@react-router/dev": "^7.1.0",
+    "@react-router/serve": "^7.13.0",
     "@tauri-apps/cli": "^2.2.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
