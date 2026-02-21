@@ -8,13 +8,8 @@ import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusB
 
 const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 
-interface WaitingState {
-  waiting: boolean;
-  recordCountAtSend: number;
-}
-
 export default function UnifiedChatRoute() {
-  const { getRecordsForAgent, lastUpdated, error, isTauri, refresh, allRecordsRef } =
+  const { getRecordsForAgent, lastUpdated, error, isTauri, refresh } =
     useAgentChatLog();
   const [activeAgent, setActiveAgent] = useState<MainAgentId>("noctis");
 
@@ -57,44 +52,52 @@ export default function UnifiedChatRoute() {
     [getInboxMessages]
   );
 
-  // Waiting (typing indicator) state per agent
-  const [waitingState, setWaitingState] = useState<Record<MainAgentId, WaitingState>>({
-    noctis: { waiting: false, recordCountAtSend: 0 },
-    lunafreya: { waiting: false, recordCountAtSend: 0 },
+  // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
+  // until inbox-log.jsonl catches up with the Crystal message.
+  const [optimisticSentAt, setOptimisticSentAt] = useState<Record<MainAgentId, number | null>>({
+    noctis: null,
+    lunafreya: null,
   });
 
-  // When a new agent record arrives after Crystal sent, clear waiting
-  useEffect(() => {
-    AGENTS.forEach((agent) => {
-      const { waiting, recordCountAtSend } = waitingState[agent];
-      if (waiting && recordsMap[agent].length > recordCountAtSend) {
-        setWaitingState((prev) => ({
-          ...prev,
-          [agent]: { ...prev[agent], waiting: false },
-        }));
-      }
-    });
+  // Derive isWaiting: Crystal's most recent message is newer than Agent's last response.
+  // Page-transition-safe because the source of truth is log data, not ephemeral local state.
+  const isWaitingMap = useMemo(() => {
+    const result: Record<MainAgentId, boolean> = { noctis: false, lunafreya: false };
+    for (const agent of AGENTS) {
+      const records = recordsMap[agent];
+      const msgs = getInboxMessages(agent);
+
+      const agentLastAt =
+        records.length > 0 ? new Date(records[records.length - 1].ts).getTime() : null;
+
+      const crystalMsgs = msgs.filter((m) => m.from === "crystal");
+      const crystalLastAt =
+        crystalMsgs.length > 0
+          ? new Date(crystalMsgs[crystalMsgs.length - 1].ts).getTime()
+          : null;
+
+      // Merge log-derived timestamp with optimistic value (whichever is later)
+      const optimistic = optimisticSentAt[agent];
+      const effectiveSentAt =
+        crystalLastAt !== null || optimistic !== null
+          ? Math.max(crystalLastAt ?? 0, optimistic ?? 0)
+          : null;
+
+      result[agent] =
+        effectiveSentAt !== null &&
+        (agentLastAt === null || effectiveSentAt > agentLastAt);
+    }
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noctisRecords, lunafeyaRecords]);
+  }, [noctisRecords, lunafeyaRecords, getInboxMessages, optimisticSentAt]);
 
   const handleCrystalSent = useCallback(
     async (agent: MainAgentId, _content: string) => {
-      // Show typing indicator immediately
-      setWaitingState((prev) => ({
-        ...prev,
-        [agent]: { waiting: true, recordCountAtSend: prev[agent].recordCountAtSend },
-      }));
-
-      // Refresh so allRecordsRef gets the up-to-date log
+      // Optimistic update: show typing indicator immediately before log catches up
+      setOptimisticSentAt((prev) => ({ ...prev, [agent]: Date.now() }));
       await refresh();
-
-      const currentCount = allRecordsRef.current.filter((r) => r.agent === agent).length;
-      setWaitingState((prev) => ({
-        ...prev,
-        [agent]: { waiting: true, recordCountAtSend: currentCount },
-      }));
     },
-    [refresh, allRecordsRef]
+    [refresh]
   );
 
   // Derive stale/idle/online status per agent (task 4.3)
@@ -151,7 +154,7 @@ export default function UnifiedChatRoute() {
             agent={agent}
             records={recordsMap[agent]}
             inboxMessages={getInboxMessages(agent)}
-            isWaiting={waitingState[agent].waiting}
+            isWaiting={isWaitingMap[agent]}
             isActive={activeAgent === agent}
             onActivate={() => setActiveAgent(agent)}
             {...(agent === "noctis" && {
