@@ -8,14 +8,14 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   {
-    label: "Dashboard",
-    to: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
     label: "Chat",
     to: "/chat",
     icon: MessagesSquare,
+  },
+  {
+    label: "Dashboard",
+    to: "/dashboard",
+    icon: LayoutDashboard,
   },
   {
     label: "Health",
