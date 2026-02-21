@@ -156,8 +156,9 @@ function processAssistantText(content: string, agentName: string): string | null
 const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const agentId = process.env.AGENT_ID;
 
-  // Only run for noctis, lunafreya, and iris
-  if (agentId !== "noctis" && agentId !== "lunafreya" && agentId !== "iris") {
+  // Run for all agents (noctis, lunafreya, ignis, gladiolus, prompto, iris)
+  const KNOWN_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris"];
+  if (!agentId || !KNOWN_AGENTS.includes(agentId)) {
     return {};
   }
 
@@ -259,7 +260,15 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         const MAX_CONVERSATIONS = 5;    // Show up to 5 conversation pairs
 
         const messages = messagesResult.data.slice(-MAX_SEARCH_MESSAGES);
-        const agentDisplayName = agentId === "noctis" ? "Noctis" : agentId === "lunafreya" ? "Lunafreya" : "Iris";
+        const DISPLAY_NAMES: Record<string, string> = {
+          noctis: "Noctis",
+          lunafreya: "Lunafreya",
+          ignis: "Ignis",
+          gladiolus: "Gladiolus",
+          prompto: "Prompto",
+          iris: "Iris",
+        };
+        const agentDisplayName = DISPLAY_NAMES[agentId] ?? agentId;
 
         // Extract raw contents first
         const extractedContents: { role: string, content: string; }[] = [];
@@ -357,7 +366,15 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         // Only write assistant messages that haven't been logged yet this session.
         // extractedContents grows by appending new messages each idle cycle, so
         // slicing from lastLoggedAssistantCount gives only the truly new ones.
-        const pane = agentId === "noctis" ? "0" : agentId === "lunafreya" ? "1" : "5";
+        const PANE_MAP: Record<string, string> = {
+          noctis: "0",
+          lunafreya: "1",
+          ignis: "2",
+          gladiolus: "3",
+          prompto: "4",
+          iris: "5",
+        };
+        const pane = PANE_MAP[agentId] ?? "0";
         const assistantItems = extractedContents.filter((item) => item.role === "assistant");
         const newItems = assistantItems.slice(lastLoggedAssistantCount);
         for (const item of newItems) {

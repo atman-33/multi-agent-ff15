@@ -4,16 +4,23 @@ import { Crown, Moon } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
 import type { ChatLogRecord, AgentId } from "@/lib/useAgentChatLog";
 import type { InboxLogRecord } from "@/lib/useInboxLog";
+import { COMRADES, COMRADE_CONFIG, type ComradeId } from "@/lib/useComradeStatus";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 interface AgentChatColumnProps {
-  agent: AgentId;
+  agent: "noctis" | "lunafreya";
   records: ChatLogRecord[];
   inboxMessages: InboxLogRecord[];
   isWaiting: boolean;
   isActive: boolean;
   onActivate: () => void;
+  /** Party props — only used when agent === "noctis" */
+  partyView?: ComradeId | null;
+  onPartyViewChange?: (view: ComradeId | null) => void;
+  partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
+  partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
+  busyMap?: Record<ComradeId, boolean>;
 }
 
 const AGENT_CONFIG = {
@@ -134,6 +141,63 @@ function TypingIndicator({ agentLabel }: { agentLabel: string }) {
   );
 }
 
+/** Mini comrade tab shown in the Noctis column party header. */
+function ComradeTab({
+  comrade,
+  cfg,
+  busy,
+  isSelected,
+  onClick,
+}: {
+  comrade: ComradeId;
+  cfg: { label: string; imageSrc: string };
+  busy: boolean;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const [imgErr, setImgErr] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={busy ? `${cfg.label}: 処理中...` : cfg.label}
+      className={cn(
+        "relative flex flex-col items-center gap-0.5 px-1.5 py-0.5 rounded transition-all duration-150",
+        isSelected
+          ? "bg-amber-500/20 text-amber-300"
+          : "text-muted-foreground/50 hover:text-foreground hover:bg-white/5"
+      )}
+    >
+      {busy && (
+        <span className="absolute inset-0 rounded animate-ping bg-amber-400/10 pointer-events-none" />
+      )}
+      <div
+        className={cn(
+          "h-5 w-5 rounded-full overflow-hidden border transition-all duration-300",
+          busy
+            ? "border-amber-400/70 shadow-[0_0_6px_rgba(251,191,36,0.4)] animate-bounce"
+            : "border-border/30 grayscale opacity-60",
+          isSelected && "border-amber-400/80 opacity-100 grayscale-0"
+        )}
+      >
+        {!imgErr ? (
+          <img
+            src={cfg.imageSrc}
+            alt={cfg.label}
+            onError={() => setImgErr(true)}
+            className="h-full w-full object-cover object-top"
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center bg-white/5 text-[8px] font-semibold">
+            {cfg.label[0]}
+          </div>
+        )}
+      </div>
+      <span className="text-[8px] font-medium leading-none">{cfg.label.slice(0, 2)}</span>
+    </button>
+  );
+}
+
 export default function AgentChatColumn({
   agent,
   records,
@@ -141,13 +205,25 @@ export default function AgentChatColumn({
   isWaiting,
   isActive,
   onActivate,
+  partyView = null,
+  onPartyViewChange,
+  partyRecords,
+  partyInboxMessages,
+  busyMap,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [imgError, setImgError] = useState(false);
 
-  const timeline = mergeTimeline(records, inboxMessages);
+  // Determine active view: Noctis own data or a comrade's data
+  const viewingComrade = agent === "noctis" && partyView !== null;
+  const activeRecords = viewingComrade ? (partyRecords?.[partyView!] ?? []) : records;
+  const activeInboxMessages = viewingComrade ? (partyInboxMessages?.[partyView!] ?? []) : inboxMessages;
+  const activeLabel = viewingComrade ? COMRADE_CONFIG[partyView!].label : label;
+  const activeIsWaiting = viewingComrade ? false : isWaiting;
+
+  const timeline = mergeTimeline(activeRecords, activeInboxMessages);
 
   // Track whether the user is at the bottom
   const handleScroll = () => {
@@ -165,9 +241,9 @@ export default function AgentChatColumn({
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [timeline.length, isWaiting]);
+  }, [timeline.length, activeIsWaiting]);
 
-  const totalCount = records.length + inboxMessages.length;
+  const totalCount = activeRecords.length + activeInboxMessages.length;
 
   return (
     <div
@@ -178,47 +254,116 @@ export default function AgentChatColumn({
           : "border-border/40 bg-white/3"
       )}
     >
-      {/* Column header (task 4.5 – click to activate) */}
-      <button
-        type="button"
-        onClick={onActivate}
-        className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-t-lg border-b cursor-pointer transition-colors select-none",
-          isActive
-            ? "border-primary/40 bg-primary/10 text-primary"
-            : "border-border/30 text-muted-foreground hover:text-foreground hover:bg-white/5"
-        )}
-      >
-        {/* Character avatar image — bounces with amber glow while waiting */}
-        <div className="relative shrink-0">
-          {isWaiting && (
-            <span className="absolute inset-0 rounded-full animate-ping bg-amber-400/30" />
+      {/* Column header */}
+      {agent === "noctis" ? (
+        /* Party tab bar: Noctis + Comrades */
+        <div
+          className={cn(
+            "flex items-center gap-1 px-3 py-2 rounded-t-lg border-b select-none",
+            isActive ? "border-primary/40 bg-primary/10" : "border-border/30"
           )}
-          {!imgError ? (
-            <img
-              src={imageSrc}
-              alt={label}
-              onError={() => setImgError(true)}
-              className={cn(
-                "h-7 w-auto object-contain transition-all duration-300",
-                isWaiting && "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+        >
+          {/* Noctis tab */}
+          <button
+            type="button"
+            onClick={() => { onActivate(); onPartyViewChange?.(null); }}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded transition-colors cursor-pointer",
+              !viewingComrade
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+            )}
+          >
+            <div className="relative shrink-0">
+              {isWaiting && (
+                <span className="absolute inset-0 rounded-full animate-ping bg-amber-400/30" />
               )}
-            />
-          ) : (
-            <Icon
-              className={cn(
-                "h-4 w-4",
-                isActive ? "text-primary" : "text-muted-foreground",
-                isWaiting && "animate-bounce text-amber-400"
+              {!imgError ? (
+                <img
+                  src={imageSrc}
+                  alt={label}
+                  onError={() => setImgError(true)}
+                  className={cn(
+                    "h-6 w-auto object-contain transition-all duration-300",
+                    isWaiting && "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+                  )}
+                />
+              ) : (
+                <Icon
+                  className={cn(
+                    "h-4 w-4",
+                    !viewingComrade ? "text-primary" : "text-muted-foreground",
+                    isWaiting && "animate-bounce text-amber-400"
+                  )}
+                />
               )}
-            />
-          )}
+            </div>
+            <span className="text-xs font-medium">{label}</span>
+          </button>
+
+          {/* Divider */}
+          <div className="h-5 w-px bg-border/30 mx-1 shrink-0" />
+
+          {/* Comrade party tabs */}
+          <div className="flex items-center gap-0.5">
+            {COMRADES.map((comrade) => (
+              <ComradeTab
+                key={comrade}
+                comrade={comrade}
+                cfg={COMRADE_CONFIG[comrade]}
+                busy={busyMap?.[comrade] ?? false}
+                isSelected={partyView === comrade}
+                onClick={() => { onActivate(); onPartyViewChange?.(comrade); }}
+              />
+            ))}
+          </div>
+
+          <span className="ml-auto text-[10px] text-muted-foreground/60 shrink-0">
+            {totalCount} msgs
+          </span>
         </div>
-        <span className="text-sm font-medium">{label}</span>
-        <span className="ml-auto text-[10px] text-muted-foreground/60">
-          {totalCount} msgs
-        </span>
-      </button>
+      ) : (
+        /* Standard header (Lunafreya) */
+        <button
+          type="button"
+          onClick={onActivate}
+          className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-t-lg border-b cursor-pointer transition-colors select-none",
+            isActive
+              ? "border-primary/40 bg-primary/10 text-primary"
+              : "border-border/30 text-muted-foreground hover:text-foreground hover:bg-white/5"
+          )}
+        >
+          <div className="relative shrink-0">
+            {isWaiting && (
+              <span className="absolute inset-0 rounded-full animate-ping bg-amber-400/30" />
+            )}
+            {!imgError ? (
+              <img
+                src={imageSrc}
+                alt={label}
+                onError={() => setImgError(true)}
+                className={cn(
+                  "h-7 w-auto object-contain transition-all duration-300",
+                  isWaiting && "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+                )}
+              />
+            ) : (
+              <Icon
+                className={cn(
+                  "h-4 w-4",
+                  isActive ? "text-primary" : "text-muted-foreground",
+                  isWaiting && "animate-bounce text-amber-400"
+                )}
+              />
+            )}
+          </div>
+          <span className="text-sm font-medium">{label}</span>
+          <span className="ml-auto text-[10px] text-muted-foreground/60">
+            {totalCount} msgs
+          </span>
+        </button>
+      )}
 
       {/* Scrollable message list */}
       <div
@@ -227,7 +372,7 @@ export default function AgentChatColumn({
         onClick={onActivate}
         className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 cursor-pointer"
       >
-        {timeline.length === 0 && !isWaiting ? (
+        {timeline.length === 0 && !activeIsWaiting ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground/60">
             No messages yet
           </div>
@@ -240,7 +385,7 @@ export default function AgentChatColumn({
                 /* Agent answer — left-aligned with label */
                 <div key={item.record.id} className="flex flex-col items-start gap-0.5">
                   <span className="text-[10px] font-semibold text-muted-foreground/60 ml-1">
-                    {label}
+                    {activeLabel}
                   </span>
                   <div className="w-full">
                     <MessageCard record={item.record} />
@@ -249,7 +394,7 @@ export default function AgentChatColumn({
               )
             )}
             {/* Typing indicator */}
-            {isWaiting && <TypingIndicator agentLabel={label} />}
+            {activeIsWaiting && <TypingIndicator agentLabel={activeLabel} />}
           </>
         )}
       </div>

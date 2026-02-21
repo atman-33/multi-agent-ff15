@@ -3,19 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { cn } from "@/lib/utils";
 import { Send, RotateCcw, Crown, Moon, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { AgentId } from "@/lib/useAgentChatLog";
+import type { MainAgentId } from "@/lib/useAgentChatLog";
 
 const MAX_MESSAGE_LENGTH = 4000;
 
 type SendStatus = "idle" | "sending" | "sent" | "failed";
 
 interface MessageComposerProps {
-  activeAgent: AgentId;
+  activeAgent: MainAgentId;
   isTauri: boolean;
-  onSent?: (agent: AgentId, content: string) => void;
+  onSent?: (agent: MainAgentId, content: string) => void;
 }
 
-const AGENT_CONFIG: Record<AgentId, { label: string; Icon: React.ElementType; placeholder: string }> = {
+const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType; placeholder: string }> = {
   noctis: {
     label: "Noctis",
     Icon: Crown,
@@ -32,7 +32,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
-  const [lastAgent, setLastAgent] = useState<AgentId>(activeAgent);
+  const [lastAgent, setLastAgent] = useState<MainAgentId>(activeAgent);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const { label, Icon, placeholder } = AGENT_CONFIG[activeAgent];
@@ -42,7 +42,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
     content.trim().length > 0 && !isOverLimit && status !== "sending";
 
   const doSend = useCallback(
-    async (target: AgentId, message: string) => {
+    async (target: MainAgentId, message: string) => {
       setStatus("sending");
       setErrorMsg(null);
       try {

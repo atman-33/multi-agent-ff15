@@ -27,7 +27,9 @@ interface ChatLogPage {
   total_lines: number;
 }
 
-export type AgentId = "noctis" | "lunafreya";
+export type AgentId = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto" | "iris";
+/** Agents that have their own dedicated chat column. */
+export type MainAgentId = "noctis" | "lunafreya";
 
 const POLL_INTERVAL_MS = 3_000;
 const INITIAL_LIMIT = 100;
