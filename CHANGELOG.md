@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.3.0] - 2026-02-21
+
+### Added
+- **mode selection and descriptions to standby script** - Add `--fullpower` and `--lite` mode options with descriptive help text
+- **minimax-m2.5-free model support** - Update free mode to use the latest free model
+
+### Changed
+- **test workflow update** - Migrate from Python to Node.js/npm for GitHub Actions CI/CD
+- **model updates** - Updated Ignis and Gladiolus agents with new model configurations
+
+### Fixed
+- **file locking improvements** - Increased retry attempts and adjusted sleep duration for more reliable file operations
+
 ## [0.2.0] - 2026-02-20
 
 ### Added
@@ -54,3 +68,5 @@ Initial release.
 
 [0.2.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atman-33/multi-agent-ff15/releases/tag/v0.1.0
+
+[0.3.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.2.0...v0.3.0
