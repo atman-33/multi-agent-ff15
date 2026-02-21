@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Crown, Moon } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
@@ -16,11 +16,13 @@ const AGENT_CONFIG = {
     label: "Noctis",
     Icon: Crown,
     shortcut: "Ctrl+1",
+    imageSrc: "/images/noctis.png",
   },
   lunafreya: {
     label: "Lunafreya",
     Icon: Moon,
     shortcut: "Ctrl+2",
+    imageSrc: "/images/lunafreya.png",
   },
 } as const;
 
@@ -30,9 +32,10 @@ export default function AgentChatColumn({
   isActive,
   onActivate,
 }: AgentChatColumnProps) {
-  const { label, Icon } = AGENT_CONFIG[agent];
+  const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
+  const [imgError, setImgError] = useState(false);
 
   // Track whether the user is at the bottom
   const handleScroll = () => {
@@ -55,7 +58,7 @@ export default function AgentChatColumn({
   return (
     <div
       className={cn(
-        "flex flex-col h-full rounded-lg border transition-all duration-150",
+        "flex flex-col h-full rounded-lg border transition-all duration-150 overflow-hidden",
         isActive
           ? "border-primary/60 bg-primary/5 shadow-sm"
           : "border-border/40 bg-white/3"
@@ -72,12 +75,22 @@ export default function AgentChatColumn({
             : "border-border/30 text-muted-foreground hover:text-foreground hover:bg-white/5"
         )}
       >
-        <Icon
-          className={cn(
-            "h-4 w-4 shrink-0",
-            isActive ? "text-primary" : "text-muted-foreground"
-          )}
-        />
+        {/* Character avatar image */}
+        {!imgError ? (
+          <img
+            src={imageSrc}
+            alt={label}
+            onError={() => setImgError(true)}
+            className="h-7 w-auto object-contain shrink-0"
+          />
+        ) : (
+          <Icon
+            className={cn(
+              "h-4 w-4 shrink-0",
+              isActive ? "text-primary" : "text-muted-foreground"
+            )}
+          />
+        )}
         <span className="text-sm font-medium">{label}</span>
         <span className="ml-auto text-[10px] text-muted-foreground/60">
           {records.length} msgs
@@ -89,7 +102,7 @@ export default function AgentChatColumn({
         ref={scrollRef}
         onScroll={handleScroll}
         onClick={onActivate}
-        className="flex-1 overflow-y-auto px-2 py-2 space-y-2 cursor-pointer"
+        className="flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-2 cursor-pointer"
       >
         {records.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground/60">
