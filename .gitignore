@@ -84,7 +84,7 @@ openspec/
 !.opencode/skills/typescript-check
 
 # Docs (private/internal use only)
-docs/private
+docs/private/
 
 # Runtime logs (generated at runtime, not committed)
 runtime/logs/
