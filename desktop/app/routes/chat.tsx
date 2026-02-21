@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAgentChatLog, type AgentId } from "@/lib/useAgentChatLog";
 import { useInboxLog } from "@/lib/useInboxLog";
+import { useComradeStatus } from "@/lib/useComradeStatus";
 import AgentChatColumn from "@/components/AgentChatColumn";
+import ComradeAvatarBar from "@/components/ComradeAvatarBar";
 import MessageComposer from "@/components/MessageComposer";
 import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusBar";
 
@@ -31,6 +33,9 @@ export default function UnifiedChatRoute() {
 
   // Inbox messages (Crystal→agent + agent→agent) from runtime/logs/inbox-log.jsonl
   const { getMessagesForAgent: getInboxMessages } = useInboxLog();
+
+  // Comrade (ignis/gladiolus/prompto/iris) busy state from inbox-log.jsonl
+  const { busyMap } = useComradeStatus();
 
   // Waiting (typing indicator) state per agent
   const [waitingState, setWaitingState] = useState<Record<AgentId, WaitingState>>({
@@ -110,6 +115,9 @@ export default function UnifiedChatRoute() {
         lastUpdated={lastUpdated}
         onRefresh={refresh}
       />
+
+      {/* Comrade avatar bar */}
+      <ComradeAvatarBar busyMap={busyMap} />
 
       {/* Error banner */}
       {error && (

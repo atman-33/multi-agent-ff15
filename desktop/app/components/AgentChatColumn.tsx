@@ -189,22 +189,31 @@ export default function AgentChatColumn({
             : "border-border/30 text-muted-foreground hover:text-foreground hover:bg-white/5"
         )}
       >
-        {/* Character avatar image */}
-        {!imgError ? (
-          <img
-            src={imageSrc}
-            alt={label}
-            onError={() => setImgError(true)}
-            className="h-7 w-auto object-contain shrink-0"
-          />
-        ) : (
-          <Icon
-            className={cn(
-              "h-4 w-4 shrink-0",
-              isActive ? "text-primary" : "text-muted-foreground"
-            )}
-          />
-        )}
+        {/* Character avatar image — bounces with amber glow while waiting */}
+        <div className="relative shrink-0">
+          {isWaiting && (
+            <span className="absolute inset-0 rounded-full animate-ping bg-amber-400/30" />
+          )}
+          {!imgError ? (
+            <img
+              src={imageSrc}
+              alt={label}
+              onError={() => setImgError(true)}
+              className={cn(
+                "h-7 w-auto object-contain transition-all duration-300",
+                isWaiting && "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+              )}
+            />
+          ) : (
+            <Icon
+              className={cn(
+                "h-4 w-4",
+                isActive ? "text-primary" : "text-muted-foreground",
+                isWaiting && "animate-bounce text-amber-400"
+              )}
+            />
+          )}
+        </div>
         <span className="text-sm font-medium">{label}</span>
         <span className="ml-auto text-[10px] text-muted-foreground/60">
           {totalCount} msgs

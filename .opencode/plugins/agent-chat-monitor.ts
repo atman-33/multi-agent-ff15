@@ -156,8 +156,8 @@ function processAssistantText(content: string, agentName: string): string | null
 const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const agentId = process.env.AGENT_ID;
 
-  // Only run for noctis and lunafreya
-  if (agentId !== "noctis" && agentId !== "lunafreya") {
+  // Only run for noctis, lunafreya, and iris
+  if (agentId !== "noctis" && agentId !== "lunafreya" && agentId !== "iris") {
     return {};
   }
 
@@ -259,7 +259,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         const MAX_CONVERSATIONS = 5;    // Show up to 5 conversation pairs
 
         const messages = messagesResult.data.slice(-MAX_SEARCH_MESSAGES);
-        const agentDisplayName = agentId === "noctis" ? "Noctis" : "Lunafreya";
+        const agentDisplayName = agentId === "noctis" ? "Noctis" : agentId === "lunafreya" ? "Lunafreya" : "Iris";
 
         // Extract raw contents first
         const extractedContents: { role: string, content: string; }[] = [];
@@ -357,7 +357,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         // Only write assistant messages that haven't been logged yet this session.
         // extractedContents grows by appending new messages each idle cycle, so
         // slicing from lastLoggedAssistantCount gives only the truly new ones.
-        const pane = agentId === "noctis" ? "0" : "1";
+        const pane = agentId === "noctis" ? "0" : agentId === "lunafreya" ? "1" : "5";
         const assistantItems = extractedContents.filter((item) => item.role === "assistant");
         const newItems = assistantItems.slice(lastLoggedAssistantCount);
         for (const item of newItems) {
