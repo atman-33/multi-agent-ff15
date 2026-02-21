@@ -418,6 +418,10 @@ if [ "$CLEAN_MODE" = true ]; then
     rm -f ./queue/noctis_to_lunafreya.yaml 2>/dev/null || true
     rm -f ./queue/noctis_to_ignis.yaml 2>/dev/null || true
 
+    # Runtime logs reset
+    rm -rf ./runtime/logs 2>/dev/null || true
+    log_info "🗑️  runtime/logs cleared"
+
     log_success "✅ Cleanup complete"
 else
     log_info "📜 Resuming from previous state..."
