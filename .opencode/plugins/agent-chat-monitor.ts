@@ -150,7 +150,7 @@ function processAssistantText(content: string, agentName: string): string | null
   const withoutReadme = withoutFileContent.replace(/\[Project README:[\s\S]*?---\n\n/m, "");
   const cleaned = withoutReadme.replace(/\n{3,}/g, "\n\n").trim();
 
-  return cleaned ? `[${agentName}] ${cleaned}` : null;
+  return cleaned ? `${cleaned}` : null;
 }
 
 const AgentChatMonitor: Plugin = async ({ $, client }) => {
@@ -168,6 +168,13 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
+  /**
+   * C案: in-memory cursor.
+   * Tracks how many assistant messages have already been written to JSONL for
+   * the current session. On session.created it resets to 0, so each new
+   * session starts fresh without re-logging old messages.
+   */
+  let lastLoggedAssistantCount = 0;
 
   const log = async (message: string): Promise<void> => {
     if (!ENABLE_LOGGING) return;
@@ -193,6 +200,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
 
         if (newSessionId) {
           currentSessionId = newSessionId;
+          lastLoggedAssistantCount = 0; // reset cursor for new session
           if (ENABLE_LOGGING) {
             await log(`Captured session ID from session.created: ${newSessionId}`);
           }
@@ -345,12 +353,14 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           return;
         }
 
-        // --- JSONL logging ---
-        // Write one record per assistant message (user-visible responses only)
-        // Exception-isolated so it never breaks the dashboard send above.
+        // --- JSONL logging (C案: cursor-based dedup) ---
+        // Only write assistant messages that haven't been logged yet this session.
+        // extractedContents grows by appending new messages each idle cycle, so
+        // slicing from lastLoggedAssistantCount gives only the truly new ones.
         const pane = agentId === "noctis" ? "0" : "1";
-        for (const item of extractedContents) {
-          if (item.role !== "assistant") continue;
+        const assistantItems = extractedContents.filter((item) => item.role === "assistant");
+        const newItems = assistantItems.slice(lastLoggedAssistantCount);
+        for (const item of newItems) {
           const normalized = normalizeContent(item.content);
           if (!normalized) continue;
           const record: ChatLogRecord = {
@@ -365,6 +375,9 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           };
           await appendJsonlRecord($, JSONL_LOG_PATH, record);
         }
+        // Advance cursor by the number of items actually present (not just new ones),
+        // so that if extractedContents grows we always know the correct offset.
+        lastLoggedAssistantCount = assistantItems.length;
 
       } catch (error) {
         if (ENABLE_LOGGING) {

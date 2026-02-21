@@ -12,6 +12,7 @@ type SendStatus = "idle" | "sending" | "sent" | "failed";
 interface MessageComposerProps {
   activeAgent: AgentId;
   isTauri: boolean;
+  onSent?: (agent: AgentId, content: string) => void;
 }
 
 const AGENT_CONFIG: Record<AgentId, { label: string; Icon: React.ElementType; placeholder: string }> = {
@@ -27,7 +28,7 @@ const AGENT_CONFIG: Record<AgentId, { label: string; Icon: React.ElementType; pl
   },
 };
 
-export default function MessageComposer({ activeAgent, isTauri }: MessageComposerProps) {
+export default function MessageComposer({ activeAgent, isTauri, onSent }: MessageComposerProps) {
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
@@ -60,6 +61,7 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
         }
         setStatus("sent");
         setContent("");
+        onSent?.(target, message.trim());
         // Auto-clear "sent" badge after 2 s
         setTimeout(() => setStatus("idle"), 2_000);
       } catch (e) {

@@ -2,7 +2,6 @@ import { NavLink, Outlet } from "react-router";
 import {
   LayoutDashboard,
   Activity,
-  Zap,
   MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +36,11 @@ export default function Layout() {
         <div className="px-4 py-4 border-b border-border/50">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-              <Zap className="h-3.5 w-3.5 text-primary" />
+              <img
+                src="/favicons/favicon-32x32.png"
+                alt="FF15"
+                className="h-4 w-4 object-contain"
+              />
             </div>
             <div>
               <div className="text-sm font-semibold leading-none">FF15</div>

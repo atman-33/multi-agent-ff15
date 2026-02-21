@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAgentChatLog, type AgentId } from "@/lib/useAgentChatLog";
 import AgentChatColumn from "@/components/AgentChatColumn";
 import MessageComposer from "@/components/MessageComposer";
@@ -6,8 +6,21 @@ import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusB
 
 const AGENTS: AgentId[] = ["noctis", "lunafreya"];
 
+export interface CrystalMessage {
+  id: string;
+  ts: string;
+  content: string;
+  /** Number of agent records in the log at the moment Crystal sent this message. Used for positional interleaving. */
+  recordIndexAtSend: number;
+}
+
+interface WaitingState {
+  waiting: boolean;
+  recordCountAtSend: number;
+}
+
 export default function UnifiedChatRoute() {
-  const { getRecordsForAgent, lastUpdated, error, isTauri, refresh } =
+  const { getRecordsForAgent, lastUpdated, error, isTauri, refresh, allRecordsRef } =
     useAgentChatLog();
   const [activeAgent, setActiveAgent] = useState<AgentId>("noctis");
 
@@ -22,6 +35,66 @@ export default function UnifiedChatRoute() {
   );
 
   const recordsMap = { noctis: noctisRecords, lunafreya: lunafeyaRecords };
+
+  // Crystal sent messages per agent
+  const [crystalMessages, setCrystalMessages] = useState<Record<AgentId, CrystalMessage[]>>({
+    noctis: [],
+    lunafreya: [],
+  });
+
+  // Waiting (typing indicator) state per agent
+  const [waitingState, setWaitingState] = useState<Record<AgentId, WaitingState>>({
+    noctis: { waiting: false, recordCountAtSend: 0 },
+    lunafreya: { waiting: false, recordCountAtSend: 0 },
+  });
+
+  // When a new agent record arrives after Crystal sent, clear waiting
+  useEffect(() => {
+    AGENTS.forEach((agent) => {
+      const { waiting, recordCountAtSend } = waitingState[agent];
+      if (waiting && recordsMap[agent].length > recordCountAtSend) {
+        setWaitingState((prev) => ({
+          ...prev,
+          [agent]: { ...prev[agent], waiting: false },
+        }));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noctisRecords, lunafeyaRecords]);
+
+  const handleCrystalSent = useCallback(
+    async (agent: AgentId, content: string) => {
+      // Show typing indicator immediately while we fetch the latest record count
+      setWaitingState((prev) => ({
+        ...prev,
+        [agent]: { waiting: true, recordCountAtSend: prev[agent].recordCountAtSend },
+      }));
+
+      // Await an immediate refresh so allRecordsRef gets the up-to-date log
+      // (fixes the 3-second polling gap: Noctis may have responded since the last poll)
+      await refresh();
+
+      // allRecordsRef.current is updated synchronously inside fetchRecords,
+      // so we can safely read the accurate count right here.
+      const currentCount = allRecordsRef.current.filter((r) => r.agent === agent).length;
+
+      const msg: CrystalMessage = {
+        id: `crystal-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        ts: new Date().toISOString(),
+        content,
+        recordIndexAtSend: currentCount,
+      };
+      setCrystalMessages((prev) => ({
+        ...prev,
+        [agent]: [...prev[agent], msg],
+      }));
+      setWaitingState((prev) => ({
+        ...prev,
+        [agent]: { waiting: true, recordCountAtSend: currentCount },
+      }));
+    },
+    [refresh, allRecordsRef]
+  );
 
   // Derive stale/idle/online status per agent (task 4.3)
   const agentStatuses = useMemo(
@@ -76,6 +149,8 @@ export default function UnifiedChatRoute() {
             key={agent}
             agent={agent}
             records={recordsMap[agent]}
+            crystalMessages={crystalMessages[agent]}
+            isWaiting={waitingState[agent].waiting}
             isActive={activeAgent === agent}
             onActivate={() => setActiveAgent(agent)}
           />
@@ -83,7 +158,7 @@ export default function UnifiedChatRoute() {
       </div>
 
       {/* Message composer */}
-      <MessageComposer activeAgent={activeAgent} isTauri={isTauri} />
+      <MessageComposer activeAgent={activeAgent} isTauri={isTauri} onSent={handleCrystalSent} />
     </div>
   );
 }

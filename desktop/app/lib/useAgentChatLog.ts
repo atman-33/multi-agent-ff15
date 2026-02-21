@@ -59,6 +59,12 @@ export function useAgentChatLog() {
   // Buffer: pending records to merge after BUFFER_DELAY_MS
   const pendingRef = useRef<ChatLogRecord[]>([]);
   const bufferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Ref that is updated SYNCHRONOUSLY inside fetchRecords before the buffer
+   * delay fires. Consumers can read this immediately after `await refresh()`
+   * to get the truly up-to-date record list without waiting for React state.
+   */
+  const allRecordsRef = useRef<ChatLogRecord[]>([]);
 
   /** Flush pending records into state (task 3.4) */
   const flushBuffer = useCallback(() => {
@@ -114,9 +120,16 @@ export function useAgentChatLog() {
 
         if (isInitial) {
           // Replace full state on initial load
+          allRecordsRef.current = page.records;
           setAllRecords(page.records);
           setLastUpdated(new Date());
         } else {
+          // Sync the ref immediately (before the 100 ms buffer delay)
+          const existingIds = new Set(allRecordsRef.current.map((r) => r.id));
+          const fresh = page.records.filter((r) => !existingIds.has(r.id));
+          if (fresh.length > 0) {
+            allRecordsRef.current = [...allRecordsRef.current, ...fresh];
+          }
           // Buffer new records and flush after BUFFER_DELAY_MS
           pendingRef.current = [...pendingRef.current, ...page.records];
           scheduleFlush();
@@ -165,6 +178,7 @@ export function useAgentChatLog() {
 
   return {
     allRecords,
+    allRecordsRef,
     getRecordsForAgent,
     lastUpdated,
     error,
