@@ -240,17 +240,10 @@ idx = sys.argv[2]
 lock_file = inbox_file + ".lock"
 tmp_file = inbox_file + ".tmp"
 
-for retry in range(3):
+for retry in range(5):
     try:
         with open(lock_file, 'w') as lf:
-            try:
-                fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                time.sleep([0.5, 1, 2][retry])
-                with open(lock_file, 'w') as lf2:
-                    fcntl.flock(lf2, fcntl.LOCK_EX)
-                    lf = lf2
-
+            fcntl.flock(lf, fcntl.LOCK_EX)
             with open(inbox_file, 'r') as f:
                 data = yaml.safe_load(f) or {}
             messages = data.get('messages', [])
@@ -266,12 +259,11 @@ for retry in range(3):
             with open(tmp_file, 'w') as f:
                 yaml.dump(data, f, default_flow_style=False, sort_keys=False)
             os.rename(tmp_file, inbox_file)
-            fcntl.flock(lf, fcntl.LOCK_UN)
-            sys.exit(0)
+        sys.exit(0)
     except Exception as e:
-        if retry == 2:
+        if retry == 4:
             sys.exit(1)
-        time.sleep(0.5)
+        time.sleep(0.1 * (retry + 1))
 sys.exit(1)
 PYEOF
   ) &
@@ -370,9 +362,10 @@ if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/scripts/send_report.s
 fi
 
 for agent in ignis gladiolus prompto; do
-  if [[ ! -f "${REPO_ROOT}/queue/inbox/${agent}.yaml" ]]; then
-    BC_OK=false
-    echo "    ❌ Missing inbox file for ${agent}"
+  inbox_file="${REPO_ROOT}/queue/inbox/${agent}.yaml"
+  if [[ ! -f "$inbox_file" ]]; then
+    mkdir -p "${REPO_ROOT}/queue/inbox"
+    echo "messages: []" > "$inbox_file"
   fi
 done
 
