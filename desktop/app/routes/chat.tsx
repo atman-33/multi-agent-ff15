@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAgentChatLog, type AgentId, type MainAgentId } from "@/lib/useAgentChatLog";
 import { useInboxLog } from "@/lib/useInboxLog";
-import { useComradeStatus, COMRADES, type ComradeId } from "@/lib/useComradeStatus";
+import { COMRADES, type ComradeId } from "@/lib/useComradeStatus";
 import AgentChatColumn from "@/components/AgentChatColumn";
 import MessageComposer from "@/components/MessageComposer";
 import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusBar";
@@ -28,9 +28,6 @@ export default function UnifiedChatRoute() {
   // Inbox messages (Crystal→agent + agent→agent) from runtime/logs/inbox-log.jsonl
   const { getMessagesForAgent: getInboxMessages } = useInboxLog();
 
-  // Comrade (ignis/gladiolus/prompto/iris) busy state from inbox-log.jsonl
-  const { busyMap } = useComradeStatus();
-
   // Party view: which comrade (or null = Noctis itself) is shown in the Noctis column
   const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(null);
 
@@ -51,6 +48,22 @@ export default function UnifiedChatRoute() {
       ) as Record<ComradeId, ReturnType<typeof getInboxMessages>>,
     [getInboxMessages]
   );
+
+  // Unified busy state for Comrades: same logic as isWaitingMap (Noctis/Lunafreya).
+  // busy = last inbox-log message to agent > last agent-chat-monitor answer from agent.
+  const busyMap = useMemo(() => {
+    const result = {} as Record<ComradeId, boolean>;
+    for (const c of COMRADES) {
+      const records = comradeRecords[c];
+      const msgs = comradeInboxMessages[c];
+      const agentLastAt =
+        records.length > 0 ? new Date(records[records.length - 1].ts).getTime() : null;
+      const lastInboxAt =
+        msgs.length > 0 ? new Date(msgs[msgs.length - 1].ts).getTime() : null;
+      result[c] = lastInboxAt !== null && (agentLastAt === null || lastInboxAt > agentLastAt);
+    }
+    return result;
+  }, [comradeRecords, comradeInboxMessages]);
 
   // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
   // until inbox-log.jsonl catches up with the Crystal message.
