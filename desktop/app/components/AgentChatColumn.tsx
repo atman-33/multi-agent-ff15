@@ -3,14 +3,14 @@ import { cn } from "@/lib/utils";
 import { Crown, Moon } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
 import type { ChatLogRecord, AgentId } from "@/lib/useAgentChatLog";
-import type { CrystalMessage } from "@/routes/chat";
+import type { InboxLogRecord } from "@/lib/useInboxLog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 interface AgentChatColumnProps {
   agent: AgentId;
   records: ChatLogRecord[];
-  crystalMessages: CrystalMessage[];
+  inboxMessages: InboxLogRecord[];
   isWaiting: boolean;
   isActive: boolean;
   onActivate: () => void;
@@ -32,75 +32,75 @@ const AGENT_CONFIG = {
 } as const;
 
 type MergedItem =
-  | { type: "agent"; record: ChatLogRecord }
-  | { type: "crystal"; msg: CrystalMessage };
+  | { type: "agent"; record: ChatLogRecord; ts: string }
+  | { type: "inbox"; msg: InboxLogRecord; ts: string };
 
-/**
- * Merge agent records and Crystal messages using positional interleaving.
- * Crystal messages are inserted at the index they were sent, independent of
- * timestamps (which can differ in timezone/format between the log and browser).
- *
- * Example with records [R0,R1,R2,R3] and crystal msgs sent at index 1 and 3:
- *   → [R0, C1, R1, R2, C2, R3]
- */
+/** Merge agent records and inbox messages by UTC timestamp (pure sort). */
 function mergeTimeline(
   records: ChatLogRecord[],
-  crystalMessages: CrystalMessage[]
+  inboxMessages: InboxLogRecord[]
 ): MergedItem[] {
-  // Sort crystal messages by the position in the record array when sent
-  const sorted = [...crystalMessages].sort(
-    (a, b) => a.recordIndexAtSend - b.recordIndexAtSend
-  );
-
-  const result: MergedItem[] = [];
-  let cursor = 0;
-
-  for (const msg of sorted) {
-    // Emit all agent records that existed before this Crystal message
-    while (cursor < msg.recordIndexAtSend && cursor < records.length) {
-      result.push({ type: "agent", record: records[cursor] });
-      cursor++;
-    }
-    result.push({ type: "crystal", msg });
-  }
-
-  // Emit any remaining agent records (responses that arrived after last send)
-  while (cursor < records.length) {
-    result.push({ type: "agent", record: records[cursor] });
-    cursor++;
-  }
-
-  return result;
+  return [
+    ...records.map((r) => ({ type: "agent" as const, record: r, ts: r.ts })),
+    ...inboxMessages.map((m) => ({ type: "inbox" as const, msg: m, ts: m.ts })),
+  ].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
 }
 
-/** Crystal's message bubble (right-aligned). */
-function CrystalBubble({ msg }: { msg: CrystalMessage }) {
+/** Inbox message bubble — Crystal (right-aligned purple) or agent (left-aligned amber). */
+function InboxBubble({ msg }: { msg: InboxLogRecord }) {
   const ts = new Date(msg.ts);
   const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
   });
+  const isCrystal = msg.from === "crystal";
+  const fromLabel = msg.from.charAt(0).toUpperCase() + msg.from.slice(1);
+
+  if (isCrystal) {
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground/50">{timeStr}</span>
+          <span className="text-[10px] font-semibold text-primary/80">Crystal</span>
+        </div>
+        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 shadow-sm">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            components={{
+              img: () => null,
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">
+                  {children}
+                </a>
+              ),
+              code: ({ children }) => (
+                <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
+              ),
+            }}
+          >
+            {msg.content}
+          </ReactMarkdown>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col items-end gap-0.5">
+    <div className="flex flex-col items-start gap-0.5">
       <div className="flex items-center gap-1.5">
+        <span className="text-[10px] font-semibold text-amber-400/80">{fromLabel}</span>
         <span className="text-[10px] text-muted-foreground/50">{timeStr}</span>
-        <span className="text-[10px] font-semibold text-primary/80">Crystal</span>
       </div>
-      <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 shadow-sm">
+      <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-xs leading-relaxed text-foreground/85 shadow-sm">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
           components={{
             img: () => null,
             a: ({ href, children }) => (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 underline hover:text-blue-300"
-              >
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">
                 {children}
               </a>
             ),
@@ -137,7 +137,7 @@ function TypingIndicator({ agentLabel }: { agentLabel: string }) {
 export default function AgentChatColumn({
   agent,
   records,
-  crystalMessages,
+  inboxMessages,
   isWaiting,
   isActive,
   onActivate,
@@ -147,7 +147,7 @@ export default function AgentChatColumn({
   const isAtBottomRef = useRef(true);
   const [imgError, setImgError] = useState(false);
 
-  const timeline = mergeTimeline(records, crystalMessages);
+  const timeline = mergeTimeline(records, inboxMessages);
 
   // Track whether the user is at the bottom
   const handleScroll = () => {
@@ -167,7 +167,7 @@ export default function AgentChatColumn({
     }
   }, [timeline.length, isWaiting]);
 
-  const totalCount = records.length + crystalMessages.length;
+  const totalCount = records.length + inboxMessages.length;
 
   return (
     <div
@@ -225,10 +225,10 @@ export default function AgentChatColumn({
         ) : (
           <>
             {timeline.map((item) =>
-              item.type === "crystal" ? (
-                <CrystalBubble key={item.msg.id} msg={item.msg} />
+              item.type === "inbox" ? (
+                <InboxBubble key={item.msg.id} msg={item.msg} />
               ) : (
-                /* Agent message — left-aligned with label */
+                /* Agent answer — left-aligned with label */
                 <div key={item.record.id} className="flex flex-col items-start gap-0.5">
                   <span className="text-[10px] font-semibold text-muted-foreground/60 ml-1">
                     {label}

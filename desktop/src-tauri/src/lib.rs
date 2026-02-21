@@ -87,7 +87,7 @@ const ALLOWED_SENDERS: &[&str] = &[
 
 const MAX_MESSAGE_LENGTH: usize = 4000;
 const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
-const CRYSTAL_LOG_PATH: &str = "runtime/logs/crystal-messages.jsonl";
+const INBOX_LOG_PATH: &str = "runtime/logs/inbox-log.jsonl";
 
 // ---------------------------------------------------------------------------
 // Chat log types
@@ -121,17 +121,25 @@ struct ChatLogPage {
 }
 
 // ---------------------------------------------------------------------------
-// Crystal messages types
+// Inbox log types (unified: Crystal→Agent + Agent→Agent)
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct CrystalMessageRecord {
+struct InboxLogRecord {
     id: String,
     ts: String,
-    agent: String,
+    from: String,
+    to: String,
+    #[serde(rename = "type")]
+    msg_type: String,
     content: String,
-    #[serde(rename = "recordIndexAtSend")]
-    record_index_at_send: usize,
+}
+
+#[derive(Serialize, Debug)]
+struct InboxLogPage {
+    records: Vec<InboxLogRecord>,
+    next_cursor: usize,
+    total_lines: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -352,54 +360,60 @@ fn send_crystal_message(target: String, message: String) -> Result<String, Strin
     }
 }
 
-/// Read all Crystal (user) sent messages from the persistent JSONL log.
+/// Read unified inbox log (Crystal→Agent + Agent→Agent) with optional cursor.
+/// Returns up to 200 records from `cursor` position onward.
+/// If cursor is None, returns the last 200 records.
 #[tauri::command]
-fn read_crystal_messages() -> Result<Vec<CrystalMessageRecord>, String> {
+fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
     let root = get_project_root()?;
-    let log_path = root.join(CRYSTAL_LOG_PATH);
+    let log_path = root.join(INBOX_LOG_PATH);
 
     if !log_path.exists() {
-        return Ok(vec![]);
+        return Ok(InboxLogPage {
+            records: vec![],
+            next_cursor: 0,
+            total_lines: 0,
+        });
     }
 
     let file = std::fs::File::open(&log_path)
-        .map_err(|e| format!("Failed to open crystal messages file: {}", e))?;
+        .map_err(|e| format!("Failed to open inbox log file: {}", e))?;
     let reader = BufReader::new(file);
 
-    let records: Vec<CrystalMessageRecord> = reader
-        .lines()
-        .filter_map(|l| l.ok())
-        .filter(|l| !l.trim().is_empty())
-        .filter_map(|line| serde_json::from_str::<CrystalMessageRecord>(&line).ok())
+    let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
+    let total_lines = lines.len();
+
+    let all_records: Vec<InboxLogRecord> = lines
+        .iter()
+        .filter_map(|line| serde_json::from_str::<InboxLogRecord>(line).ok())
         .collect();
 
-    Ok(records)
-}
+    const LIMIT: usize = 200;
+    let start = match cursor {
+        Some(c) => c,
+        None => {
+            if all_records.len() > LIMIT {
+                all_records.len() - LIMIT
+            } else {
+                0
+            }
+        }
+    };
 
-/// Append a single Crystal message record to the persistent JSONL log.
-#[tauri::command]
-fn save_crystal_message(record: CrystalMessageRecord) -> Result<(), String> {
-    let root = get_project_root()?;
-    let log_path = root.join(CRYSTAL_LOG_PATH);
+    let slice: Vec<InboxLogRecord> = all_records
+        .into_iter()
+        .skip(start)
+        .take(LIMIT)
+        .collect();
 
-    if let Some(parent) = log_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
-    }
+    let consumed = slice.len();
+    let next_cursor = start + consumed;
 
-    let json = serde_json::to_string(&record)
-        .map_err(|e| format!("Failed to serialize record: {}", e))?;
-
-    use std::io::Write;
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-        .map_err(|e| format!("Failed to open crystal messages file: {}", e))?;
-    writeln!(file, "{}", json)
-        .map_err(|e| format!("Failed to write record: {}", e))?;
-
-    Ok(())
+    Ok(InboxLogPage {
+        records: slice,
+        next_cursor,
+        total_lines,
+    })
 }
 
 /// Run health diagnostics for WSL environment.
@@ -514,8 +528,7 @@ pub fn run() {
             send_message,
             read_agent_chat_logs,
             send_crystal_message,
-            read_crystal_messages,
-            save_crystal_message,
+            read_inbox_log,
             health_check,
         ])
         .run(tauri::generate_context!())

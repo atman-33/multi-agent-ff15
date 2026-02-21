@@ -1,15 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAgentChatLog, type AgentId } from "@/lib/useAgentChatLog";
-import { useCrystalMessages } from "@/lib/useCrystalMessages";
-import type { CrystalMessageRecord } from "@/lib/useCrystalMessages";
+import { useInboxLog } from "@/lib/useInboxLog";
 import AgentChatColumn from "@/components/AgentChatColumn";
 import MessageComposer from "@/components/MessageComposer";
 import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusBar";
 
 const AGENTS: AgentId[] = ["noctis", "lunafreya"];
-
-/** Re-exported for AgentChatColumn compatibility. */
-export type CrystalMessage = CrystalMessageRecord;
 
 interface WaitingState {
   waiting: boolean;
@@ -33,9 +29,8 @@ export default function UnifiedChatRoute() {
 
   const recordsMap = { noctis: noctisRecords, lunafreya: lunafeyaRecords };
 
-  // Crystal sent messages — persisted to file via useCrystalMessages
-  const { getMessagesForAgent: getCrystalMessages, saveMessage: persistCrystalMessage } =
-    useCrystalMessages();
+  // Inbox messages (Crystal→agent + agent→agent) from runtime/logs/inbox-log.jsonl
+  const { getMessagesForAgent: getInboxMessages } = useInboxLog();
 
   // Waiting (typing indicator) state per agent
   const [waitingState, setWaitingState] = useState<Record<AgentId, WaitingState>>({
@@ -58,34 +53,23 @@ export default function UnifiedChatRoute() {
   }, [noctisRecords, lunafeyaRecords]);
 
   const handleCrystalSent = useCallback(
-    async (agent: AgentId, content: string) => {
-      // Show typing indicator immediately while we fetch the latest record count
+    async (agent: AgentId, _content: string) => {
+      // Show typing indicator immediately
       setWaitingState((prev) => ({
         ...prev,
         [agent]: { waiting: true, recordCountAtSend: prev[agent].recordCountAtSend },
       }));
 
-      // Await an immediate refresh so allRecordsRef gets the up-to-date log
-      // (fixes the 3-second polling gap: Noctis may have responded since the last poll)
+      // Refresh so allRecordsRef gets the up-to-date log
       await refresh();
 
-      // allRecordsRef.current is updated synchronously inside fetchRecords,
-      // so we can safely read the accurate count right here.
       const currentCount = allRecordsRef.current.filter((r) => r.agent === agent).length;
-
-      await persistCrystalMessage({
-        id: `crystal-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        ts: new Date().toISOString(),
-        agent,
-        content,
-        recordIndexAtSend: currentCount,
-      });
       setWaitingState((prev) => ({
         ...prev,
         [agent]: { waiting: true, recordCountAtSend: currentCount },
       }));
     },
-    [refresh, allRecordsRef, persistCrystalMessage]
+    [refresh, allRecordsRef]
   );
 
   // Derive stale/idle/online status per agent (task 4.3)
@@ -141,7 +125,7 @@ export default function UnifiedChatRoute() {
             key={agent}
             agent={agent}
             records={recordsMap[agent]}
-            crystalMessages={getCrystalMessages(agent)}
+            inboxMessages={getInboxMessages(agent)}
             isWaiting={waitingState[agent].waiting}
             isActive={activeAgent === agent}
             onActivate={() => setActiveAgent(agent)}
