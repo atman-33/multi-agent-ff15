@@ -48,11 +48,16 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
 }
 
 export default function HealthPage() {
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [health, setHealth] = useState<HealthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchHealth = async () => {
+    if (!isTauri) {
+      setError("Desktop app context is required. Please use `npm run desktop:dev`.");
+      return;
+    }
     setLoading(true);
     try {
       const result = await invoke<HealthResult>("health_check");
@@ -67,7 +72,7 @@ export default function HealthPage() {
 
   useEffect(() => {
     fetchHealth();
-  }, []);
+  }, [isTauri]);
 
   return (
     <div className="flex flex-col h-full">

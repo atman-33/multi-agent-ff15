@@ -31,6 +31,7 @@ interface MessagePageProps {
 }
 
 export default function MessagePage({ agent, title }: MessagePageProps) {
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +44,10 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!isTauri) {
+      setError("Desktop app context is required. Please use `npm run desktop:dev`.");
+      return;
+    }
     setLoading(true);
     try {
       const [count, msgs] = await Promise.all([
@@ -57,13 +62,17 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
     } finally {
       setLoading(false);
     }
-  }, [agent]);
+  }, [agent, isTauri]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleSend = async () => {
+    if (!isTauri) {
+      setValidationError("Desktop app context is required.");
+      return;
+    }
     const trimmed = sendContent.trim();
     if (!trimmed) {
       setValidationError("メッセージを入力してください");

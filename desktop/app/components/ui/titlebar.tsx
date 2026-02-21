@@ -46,24 +46,46 @@ export function TitleBar() {
     await appWindow.close();
   };
 
+  const handleStartDrag = async (e: React.MouseEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    const appWindow = await getAppWindow();
+    await appWindow.startDragging();
+  };
+
+  const handleTitleDoubleClick = async () => {
+    const appWindow = await getAppWindow();
+    await appWindow.toggleMaximize();
+  };
+
   return (
     <div
-      className="titlebar-drag flex items-center justify-between select-none shrink-0"
+      data-tauri-drag-region
+      className="flex items-center justify-between select-none shrink-0"
       style={{ height: "var(--titlebar-height)" }}
+      onMouseDown={handleStartDrag}
+      onDoubleClick={handleTitleDoubleClick}
     >
-      {/* Left: App icon + title */}
-      <div className="titlebar-drag flex items-center gap-2 px-4 flex-1">
+      {/* Left: App icon + title — drag area */}
+      <div
+        data-tauri-drag-region
+        className="flex items-center gap-2 px-4 flex-1 cursor-grab active:cursor-grabbing"
+        onMouseDown={handleStartDrag}
+      >
         <div className="w-3.5 h-3.5 rounded-full bg-primary/80 shrink-0" />
         <span className="text-xs font-medium text-muted-foreground tracking-wide">
           Multi-Agent FF15
         </span>
       </div>
 
-      {/* Center: drag handle (invisible, just spacer) */}
-      <div className="titlebar-drag flex-1" />
+      {/* Center: drag handle spacer */}
+      <div
+        data-tauri-drag-region
+        className="flex-1 cursor-grab active:cursor-grabbing"
+        onMouseDown={handleStartDrag}
+      />
 
-      {/* Right: window controls */}
-      <div className="titlebar-no-drag flex items-center h-full">
+      {/* Right: window controls — NO drag region */}
+      <div className="flex items-center h-full">
         <button
           onClick={handleMinimize}
           aria-label="Minimize"

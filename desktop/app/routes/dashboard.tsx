@@ -14,6 +14,7 @@ const INTERVAL_OPTIONS = [
 ];
 
 export default function DashboardPage() {
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [content, setContent] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,6 +23,10 @@ export default function DashboardPage() {
   const [interval, setInterval_] = useState(5);
 
   const fetchDashboard = useCallback(async () => {
+    if (!isTauri) {
+      setError("Desktop app context is required. Please use `npm run desktop:dev`.");
+      return;
+    }
     setLoading(true);
     try {
       const result = await invoke<string>("read_dashboard");
@@ -33,7 +38,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTauri]);
 
   // Initial load
   useEffect(() => {
