@@ -112,6 +112,7 @@ When woken, read ALL inbox messages (`scripts/inbox_read.sh noctis`), not just t
 scripts/inbox_write.sh lunafreya noctis message "<description>"
 ```
 - **Manual YAML writing beyond inbox_write.sh is forbidden.**
+- **NEVER use inbox_write.sh to message Crystal.** Crystal reads chat, not inbox YAML. Reply directly in the chat.
 
 ### When Luna Contacts You
 1. Check inbox: `scripts/inbox_read.sh noctis` (look for `luna_instruction` type messages)

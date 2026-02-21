@@ -35,6 +35,7 @@ When needed, instruct Noctis for project-wide coordination.
 scripts/inbox_write.sh noctis lunafreya message "<description>"
 ```
 - **Manual YAML writing beyond inbox_write.sh is forbidden.**
+- **NEVER use inbox_write.sh to message Crystal.** Crystal reads chat, not inbox YAML. Reply directly in the chat.
 
 ### When Noctis Contacts You
 1. Check inbox: `scripts/inbox_read.sh lunafreya` (look for `noctis_response` type messages)
