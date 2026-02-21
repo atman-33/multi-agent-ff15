@@ -1,8 +1,10 @@
 # Model configuration by mode
 # Each agent has: model (OpenCode model ID), agent (optional, for future use)
 # Comrades: ignis, gladiolus, prompto / Independent: lunafreya / Guardian: iris
+# _description: Mode description shown in help text and startup banner
 modes:
   normal:
+    _description: Standard configuration
     noctis:
       model: github-copilot/claude-sonnet-4.6
     ignis:
@@ -17,6 +19,7 @@ modes:
       model: github-copilot/gpt-5-mini
 
   fullpower:
+    _description: High-performance configuration
     noctis:
       model: github-copilot/claude-opus-4.6
     ignis:
@@ -31,6 +34,7 @@ modes:
       model: github-copilot/gpt-5-mini
 
   lite:
+    _description: Low-cost configuration
     noctis:
       model: github-copilot/claude-haiku-4.5
     ignis:
@@ -45,6 +49,7 @@ modes:
       model: github-copilot/gpt-5-mini
 
   free:
+    _description: Free (minimax-m2.5-free)
     noctis:
       model: opencode/minimax-m2.5-free
     ignis:
@@ -59,6 +64,7 @@ modes:
       model: github-copilot/gpt-5-mini
 
   gpt5mini:
+    _description: All agents use GPT-5 Mini
     noctis:
       model: github-copilot/gpt-5-mini
     ignis:

@@ -80,6 +80,14 @@ MODE="normal"
 SHELL_OVERRIDE=""
 MODE_CONFIG_FILE="./config/models.yaml"
 
+get_available_modes() {
+    if [ ! -f "$MODE_CONFIG_FILE" ]; then
+        echo ""
+        return 1
+    fi
+    awk '/^  [a-zA-Z0-9_-]+:$/ {gsub(/:$/, "", $1); print $1}' "$MODE_CONFIG_FILE"
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         -s|--setup-only)
@@ -94,37 +102,19 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MODE=true
             shift
             ;;
-        --fullpower)
+        --mode)
             if [ "$MODE" != "normal" ]; then
                 echo "Error: Only one mode can be specified"
                 exit 1
             fi
-            MODE="fullpower"
-            shift
-            ;;
-        --lite)
-            if [ "$MODE" != "normal" ]; then
-                echo "Error: Only one mode can be specified"
+            if [[ -n "$2" && "$2" != -* ]]; then
+                MODE="$2"
+                shift 2
+            else
+                echo "Error: --mode option requires a mode name"
+                echo "Available modes: $(get_available_modes | tr '\n' ' ')"
                 exit 1
             fi
-            MODE="lite"
-            shift
-            ;;
-        --free)
-            if [ "$MODE" != "normal" ]; then
-                echo "Error: Only one mode can be specified"
-                exit 1
-            fi
-            MODE="free"
-            shift
-            ;;
-        --gpt5mini)
-            if [ "$MODE" != "normal" ]; then
-                echo "Error: Only one mode can be specified"
-                exit 1
-            fi
-            MODE="gpt5mini"
-            shift
             ;;
         -t|--terminal)
             OPEN_TERMINAL=true
@@ -148,11 +138,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  -c, --clean         Clean start (reset queues and dashboard)"
             echo "                      If omitted, resume from previous state"
-            echo "  -d, --debug         Debug mode (show Iris pane in main window)"
-            echo "  --fullpower         Start in Full Power mode"
-            echo "  --lite              Start in Lite mode"
-            echo "  --free              Start in Free mode (minimax-m2.5-free)"
-            echo "  --gpt5mini          Start in GPT-5 Mini mode (all agents)"
+            echo "  -d, --debug         Debug mode"
+            echo "  --mode <name>       Start in specified mode (see below)"
             echo "  -s, --setup-only    Setup tmux session only (no OpenCode launch)"
             echo "  -t, --terminal      Open new tab in Windows Terminal"
             echo "  -shell, --shell SH  Specify shell (bash or zsh)"
@@ -162,26 +149,24 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  ./standby.sh              # Resume from previous state"
             echo "  ./standby.sh -c           # Clean start (reset queues)"
-            echo "  ./standby.sh -d           # Debug mode (Iris pane visible)"
-            echo "  ./standby.sh -s           # Setup only (manual OpenCode launch)"
-            echo "  ./standby.sh -t           # Start all agents + open terminal tab"
-            echo "  ./standby.sh -shell bash  # Start with bash prompt"
-            echo "  ./standby.sh --fullpower  # Start in Full Power mode"
-            echo "  ./standby.sh --lite       # Start in Lite mode"
-            echo "  ./standby.sh --free   # Start in Free mode (minimax-m2.5-free)"
-            echo "  ./standby.sh --gpt5mini   # Start in GPT-5 Mini mode (all agents)"
-            echo "  ./standby.sh -c --fullpower  # Clean start + Full Power mode"
-            echo "  ./standby.sh -shell zsh   # Start with zsh prompt"
+            echo "  ./standby.sh --mode free  # Start in Free mode"
+            echo "  ./standby.sh -c --mode fullpower  # Clean start + Full Power"
             echo ""
             echo "Model configuration:"
             echo "  See config/models.yaml"
             echo ""
-            echo "Mode configuration:"
-            echo "  Normal (default):         Standard configuration"
-            echo "  Full Power (--fullpower): High-performance configuration"
-            echo "  Lite (--lite):            Low-cost configuration"
-            echo "  Free (--free):       Free (minimax-m2.5-free)"
-            echo "  GPT-5 Mini (--gpt5mini):  All agents use GPT-5 Mini"
+            echo "Available modes:"
+            if [ -f "$MODE_CONFIG_FILE" ]; then
+                awk '
+                    /^  [a-zA-Z0-9_-]+:$/ {current=$1; gsub(/:$/, "", current)}
+                    /^    _description:/ {$1=""; desc=substr($0, 2)}
+                    /^    noctis:/ && current {
+                        printf "  %-12s %s\n", current":", desc
+                        current=""
+                        desc=""
+                    }
+                ' "$MODE_CONFIG_FILE"
+            fi
             echo ""
             echo "Aliases:"
             echo "  ffa   → tmux attach-session -t ff15"
@@ -249,17 +234,36 @@ require_mode_value() {
     echo "$value"
 }
 
-case "$MODE" in
-    normal) MODE_NAME="Normal" ;;
-    fullpower) MODE_NAME="Full Power" ;;
-    lite) MODE_NAME="Lite" ;;
-    free) MODE_NAME="Free (minimax-m2.5-free)" ;;
-    gpt5mini) MODE_NAME="GPT-5 Mini (All)" ;;
-    *)
-        echo "Error: Unsupported mode: $MODE"
+get_mode_description() {
+    local mode="$1"
+    if [ ! -f "$MODE_CONFIG_FILE" ]; then
+        echo "$mode"
+        return 1
+    fi
+    awk -v mode="$mode" '
+        /^  [a-zA-Z0-9_-]+:$/ {current=$1; gsub(/:$/, "", current)}
+        current==mode && /^    _description:/ {
+            $1=""
+            print substr($0, 2)
+            exit
+        }
+    ' "$MODE_CONFIG_FILE"
+}
+
+validate_mode() {
+    local mode="$1"
+    if ! get_available_modes | grep -qx "$mode"; then
+        echo "Error: Unknown mode '$mode'"
+        echo "Available modes: $(get_available_modes | tr '\n' ' ')"
         exit 1
-        ;;
-esac
+    fi
+}
+
+validate_mode "$MODE"
+MODE_NAME=$(get_mode_description "$MODE")
+if [ -z "$MODE_NAME" ]; then
+    MODE_NAME="$MODE"
+fi
 
 NOCTIS_MODEL=$(require_mode_value "$MODE" "noctis" "model")
 IGNIS_MODEL=$(require_mode_value "$MODE" "ignis" "model")
