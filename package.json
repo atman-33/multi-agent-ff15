@@ -1,5 +1,8 @@
 {
   "version": "0.2.0",
+  "scripts": {
+    "test": "./tests/run_all_tests.sh"
+  },
   "devDependencies": {
     "@types/node": "^25.2.3"
   }
