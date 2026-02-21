@@ -72,6 +72,17 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
         }
       }
 
+      // Check for duplicate headers
+      const headerCounts = new Map<string, number>();
+      for (const h of foundHeaders) {
+        headerCounts.set(h, (headerCounts.get(h) ?? 0) + 1);
+      }
+      for (const [header, count] of headerCounts) {
+        if (count > 1) {
+          issues.push(`Duplicate header (${count}x): "${header}"`);
+        }
+      }
+
       // Check order (only for headers that exist and are required)
       let lastIndex = -1;
       for (const required of REQUIRED_HEADERS) {

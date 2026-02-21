@@ -162,9 +162,8 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
     return {};
   }
 
-  const COOLDOWN_MS = 1_000; // 1 second
+  const COOLDOWN_MS = 300; // 300 ms — reduced to avoid missing the idle event right after response completion
   const ENABLE_LOGGING = false;
-  const MAX_MESSAGES = 5;
   const JSONL_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
   let lastCaptureTime = 0;
@@ -256,10 +255,6 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           return;
         }
 
-        const MAX_SEARCH_MESSAGES = 20; // Look back further to find conversation pairs
-        const MAX_CONVERSATIONS = 5;    // Show up to 5 conversation pairs
-
-        const messages = messagesResult.data.slice(-MAX_SEARCH_MESSAGES);
         const DISPLAY_NAMES: Record<string, string> = {
           noctis: "Noctis",
           lunafreya: "Lunafreya",
@@ -270,102 +265,14 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         };
         const agentDisplayName = DISPLAY_NAMES[agentId] ?? agentId;
 
-        // Extract raw contents first
-        const extractedContents: { role: string, content: string; }[] = [];
-        for (let idx = 0; idx < messages.length; idx++) {
-          const msg = messages[idx];
-          const role = msg.info?.role || "unknown";
-
-          let rawContent = "";
-          if (Array.isArray(msg.parts)) {
-            rawContent = msg.parts
-              .map((part: any) => {
-                if (part.type === "text" && part.text) {
-                  return part.text;
-                }
-                return "";
-              })
-              .filter((text: string) => text.trim().length > 0)
-              .join("\n\n");
-          }
-
-          let extractedContent: string | null = null;
-          if (role === "user") {
-            extractedContent = extractUserContent(rawContent);
-          } else if (role === "assistant") {
-            extractedContent = extractAssistantContent(rawContent, agentDisplayName);
-          }
-
-          if (extractedContent && extractedContent.trim().length > 0) {
-            extractedContents.push({ role, content: extractedContent });
-          }
-        }
-
-        // Group into conversation pairs (User -> Assistant sequence)
-        // Logic: Scan backwards. Find User message, then attach following Assistant messages.
-        const conversations: string[][] = [];
-        let currentGroup: string[] = [];
-
-        for (let i = extractedContents.length - 1; i >= 0; i--) {
-          const item = extractedContents[i];
-
-          if (item.role === "assistant") {
-            // Add assistant message to potential group (prepend as we scan backwards)
-            currentGroup.unshift(item.content);
-          } else if (item.role === "user") {
-            // Found a user message - this completes a conversation group
-            currentGroup.unshift(item.content);
-            conversations.unshift(currentGroup);
-            currentGroup = []; // Reset for next group
-
-            // Limit to MAX_CONVERSATIONS
-            if (conversations.length >= MAX_CONVERSATIONS) {
-              break;
-            }
-          }
-        }
-
-        // Handle case where we have assistant messages left over (orphaned at start)
-        // or user message without assistant response (unanswered) - already handled by logic
-
-        if (conversations.length === 0) {
-          // Fallback if no proper conversation pairs found (e.g. only assistant messages)
-          // Just take the raw items
-          const flatList = extractedContents.map(c => c.content);
-          const fallbackContent = flatList.slice(-MAX_CONVERSATIONS).join("\n\n---\n\n");
-          if (fallbackContent.trim()) {
-            // fallback: content available but no conversation pairs — skip (JSONL logging via main path)
-          }
-          return;
-        }
-
-        // Format content
-        let formattedContent: string;
-        if (conversations.length > 1) {
-          const pastConversations = conversations.slice(0, -1); // All except last
-          const latestConversation = conversations[conversations.length - 1]; // Last one
-
-          const pastText = pastConversations.map(group => group.join("\n\n---\n\n")).join("\n\n---\n\n");
-          const latestText = latestConversation.join("\n\n---\n\n");
-
-          formattedContent =
-            `<details>\n<summary>💬 Past ${pastConversations.length} conversation${pastConversations.length !== 1 ? 's' : ''}</summary>\n\n` +
-            pastText +
-            `\n\n</details>\n\n` +
-            latestText;
-        } else {
-          // Only one conversation
-          formattedContent = conversations[0].join("\n\n---\n\n");
-        }
-
-        if (!formattedContent.trim()) {
-          return;
-        }
-
-        // --- JSONL logging (C案: cursor-based dedup) ---
-        // Only write assistant messages that haven't been logged yet this session.
-        // extractedContents grows by appending new messages each idle cycle, so
-        // slicing from lastLoggedAssistantCount gives only the truly new ones.
+        // --- JSONL logging ---
+        // IMPORTANT: This runs BEFORE the conversation-pair grouping check so that
+        // assistant messages are never missed even when no User→Assistant pairs exist
+        // (e.g. orphaned assistant messages, tool-only responses, etc.).
+        //
+        // Fix for sliding-window cursor drift: iterate over the FULL message list
+        // (messagesResult.data) instead of the capped sliding window, so the cursor
+        // stays in sync with the actual session history regardless of its length.
         const PANE_MAP: Record<string, string> = {
           noctis: "0",
           lunafreya: "1",
@@ -375,8 +282,27 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           iris: "5",
         };
         const pane = PANE_MAP[agentId] ?? "0";
-        const assistantItems = extractedContents.filter((item) => item.role === "assistant");
-        const newItems = assistantItems.slice(lastLoggedAssistantCount);
+
+        // Build assistant item list from ALL messages (no sliding-window cap)
+        const allAssistantItems: { content: string }[] = [];
+        for (const msg of messagesResult.data) {
+          const msgAny = msg as any;
+          const role = msgAny.info?.role || "unknown";
+          if (role !== "assistant") continue;
+          let rawContent = "";
+          if (Array.isArray(msgAny.parts)) {
+            rawContent = msgAny.parts
+              .map((part: any) => (part.type === "text" && part.text ? part.text : ""))
+              .filter((text: string) => text.trim().length > 0)
+              .join("\n\n");
+          }
+          const extracted = extractAssistantContent(rawContent, agentDisplayName);
+          if (extracted && extracted.trim().length > 0) {
+            allAssistantItems.push({ content: extracted });
+          }
+        }
+
+        const newItems = allAssistantItems.slice(lastLoggedAssistantCount);
         for (const item of newItems) {
           const normalized = normalizeContent(item.content);
           if (!normalized) continue;
@@ -392,9 +318,8 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           };
           await appendJsonlRecord($, JSONL_LOG_PATH, record);
         }
-        // Advance cursor by the number of items actually present (not just new ones),
-        // so that if extractedContents grows we always know the correct offset.
-        lastLoggedAssistantCount = assistantItems.length;
+        // Advance cursor to the full count so subsequent calls only log truly new messages.
+        lastLoggedAssistantCount = allAssistantItems.length;
 
       } catch (error) {
         if (ENABLE_LOGGING) {
