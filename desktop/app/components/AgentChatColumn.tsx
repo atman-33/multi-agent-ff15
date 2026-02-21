@@ -88,12 +88,12 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
   }
 
   return (
-    <div className="flex flex-col items-start gap-0.5">
+    <div className="flex flex-col items-end gap-0.5">
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] font-semibold text-amber-400/80">{fromLabel}</span>
         <span className="text-[10px] text-muted-foreground/50">{timeStr}</span>
       </div>
-      <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-xs leading-relaxed text-foreground/85 shadow-sm">
+      <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-xs leading-relaxed text-foreground/85 shadow-sm">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
