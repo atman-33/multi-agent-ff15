@@ -440,14 +440,6 @@ if [ "$CLEAN_MODE" = true ]; then
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
 
-## 👑 Latest Report to Crystal
-
-### 💬 Noctis Latest Chat
-_No messages yet_
-
-### 💬 Lunafreya Latest Chat
-_No messages yet_
-
 ## 🚨 Requires Action
 None
 

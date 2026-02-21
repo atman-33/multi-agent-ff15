@@ -118,8 +118,7 @@ function extractUserContent(rawContent: string): string | null {
     .replace(/<user-request>([\s\S]*?)<\/user-request>/g, "$1");
 
   const withoutPrefix = withoutSkillBlocks.replace(/^\[user\]\n*/i, "").trim();
-  const noHeadings = withoutPrefix.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
-  const cleaned = noHeadings.replace(/\n{3,}/g, "\n\n").trim();
+  const cleaned = withoutPrefix.replace(/\n{3,}/g, "\n\n").trim();
 
   return cleaned ? `[User] ${cleaned}` : null;
 }
@@ -149,8 +148,7 @@ function extractAssistantContent(rawContent: string, agentName: string): string 
 function processAssistantText(content: string, agentName: string): string | null {
   const withoutFileContent = content.replace(/<content>[\s\S]*?<\/content>/g, "[ファイル内容省略]");
   const withoutReadme = withoutFileContent.replace(/\[Project README:[\s\S]*?---\n\n/m, "");
-  const noHeadings = withoutReadme.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
-  const cleaned = noHeadings.replace(/\n{3,}/g, "\n\n").trim();
+  const cleaned = withoutReadme.replace(/\n{3,}/g, "\n\n").trim();
 
   return cleaned ? `[${agentName}] ${cleaned}` : null;
 }
@@ -166,7 +164,6 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const COOLDOWN_MS = 1_000; // 1 second
   const ENABLE_LOGGING = false;
   const MAX_MESSAGES = 5;
-  const DASHBOARD_FILE = "dashboard.md";
   const JSONL_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
   let lastCaptureTime = 0;
@@ -178,68 +175,6 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
       const timestamp = new Date().toISOString();
       await $`echo "[${timestamp}] agent-chat-monitor (${agentId}): ${message}" >> logs/agent-chat-monitor.log`.quiet();
     } catch { }
-  };
-
-  const updateDashboard = async (content: string): Promise<void> => {
-    try {
-      const agentDisplayName = agentId === "noctis" ? "Noctis" : "Lunafreya";
-      const timestamp = new Date().toISOString().replace("T", " ").substring(0, 19);
-
-      // Read current dashboard
-      const currentContent = await $`cat ${DASHBOARD_FILE}`.text().catch(() => "");
-
-      // Split by sections
-      const lines = currentContent.split("\n");
-      const newLines: string[] = [];
-      let inTargetSection = false;
-      let sectionFound = false;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Check if we're entering the target agent's section
-        if (line.startsWith(`### 💬 ${agentDisplayName} Latest Chat`)) {
-          inTargetSection = true;
-          sectionFound = true;
-          newLines.push(line);
-          newLines.push(content || "_No messages yet_");
-          newLines.push("");
-          continue;
-        }
-
-        // Check if we're leaving the target section (entering next section ONLY)
-        // Note: We ignore "---" separators within messages to avoid premature section exit
-        if (inTargetSection && (line.startsWith("###") || line.startsWith("##"))) {
-          inTargetSection = false;
-          // Don't skip this line - it's the next section header
-        }
-
-        // Skip lines in target section (they will be replaced)
-        if (inTargetSection) {
-          continue;
-        }
-
-        // Update timestamp in header
-        if (line.startsWith("Last Updated:")) {
-          newLines.push(`Last Updated: ${timestamp}`);
-          continue;
-        }
-
-        newLines.push(line);
-      }
-
-      // Write updated content
-      const updatedContent = newLines.join("\n");
-      await $`echo ${updatedContent} > ${DASHBOARD_FILE}`.quiet();
-
-      if (ENABLE_LOGGING) {
-        await log(`Dashboard updated for ${agentDisplayName}`);
-      }
-    } catch (error) {
-      if (ENABLE_LOGGING) {
-        await log(`Failed to update dashboard: ${error}`);
-      }
-    }
   };
 
   return {
@@ -382,7 +317,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           const flatList = extractedContents.map(c => c.content);
           const fallbackContent = flatList.slice(-MAX_CONVERSATIONS).join("\n\n---\n\n");
           if (fallbackContent.trim()) {
-            await updateDashboard(fallbackContent);
+            // fallback: content available but no conversation pairs — skip (JSONL logging via main path)
           }
           return;
         }
@@ -410,9 +345,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           return;
         }
 
-        await updateDashboard(formattedContent);
-
-        // --- JSONL logging (task 1.1-1.6) ---
+        // --- JSONL logging ---
         // Write one record per assistant message (user-visible responses only)
         // Exception-isolated so it never breaks the dashboard send above.
         const pane = agentId === "noctis" ? "0" : "1";

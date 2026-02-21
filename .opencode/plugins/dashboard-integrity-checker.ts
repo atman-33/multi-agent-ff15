@@ -22,7 +22,6 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
 
   // Expected mandatory headers in order
   const REQUIRED_HEADERS = [
-    "## 👑 Latest Report to Crystal",
     "## 🚨 Requires Action",
     "## 🔄 In Progress",
     "## ✅ Today's Results",

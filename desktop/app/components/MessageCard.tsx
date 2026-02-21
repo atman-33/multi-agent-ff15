@@ -2,9 +2,11 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ChatLogRecord } from "@/lib/useAgentChatLog";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // ---------------------------------------------------------------------------
-// ANSI removal (task 4.8 – frontend double-protection)
+// ANSI removal (frontend double-protection)
 // ---------------------------------------------------------------------------
 
 function stripAnsi(text: string): string {
@@ -17,7 +19,7 @@ function stripAnsi(text: string): string {
     .replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g, ""); // other control chars
 }
 
-const FOLD_LINES = 12;
+const FOLD_CHARS = 800;
 
 interface MessageCardProps {
   record: ChatLogRecord;
@@ -28,10 +30,7 @@ export default function MessageCard({ record, className }: MessageCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const clean = stripAnsi(record.content);
-  const lines = clean.split("\n");
-  const shouldFold = lines.length > FOLD_LINES;
-  const displayLines = shouldFold && !expanded ? lines.slice(0, FOLD_LINES) : lines;
-  const displayText = displayLines.join("\n");
+  const shouldFold = clean.length > FOLD_CHARS;
 
   const ts = new Date(record.ts);
   const timeStr = ts.toLocaleTimeString("en-US", {
@@ -67,10 +66,63 @@ export default function MessageCard({ record, className }: MessageCardProps) {
         )}
       </div>
 
-      {/* Content */}
-      <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground/90">
-        {displayText}
-      </pre>
+      {/* Content — markdown preview with fade-clip when folded */}
+      <div className={cn("relative", shouldFold && !expanded && "max-h-48 overflow-hidden")}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          className="text-xs leading-relaxed text-foreground/90 space-y-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+          components={{
+            // Suppress image embeds for safety
+            img: () => null,
+            // Open links in system browser
+            a: ({ href, children }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 underline hover:text-blue-300"
+              >
+                {children}
+              </a>
+            ),
+            // Headings
+            h1: ({ children }) => <h1 className="text-sm font-bold mt-2 mb-1">{children}</h1>,
+            h2: ({ children }) => <h2 className="text-xs font-bold mt-2 mb-1">{children}</h2>,
+            h3: ({ children }) => <h3 className="text-xs font-semibold mt-1 mb-0.5">{children}</h3>,
+            // Code blocks & inline code
+            code: ({ children, className: cls }) => {
+              const isBlock = cls?.includes("language-");
+              return isBlock ? (
+                <code className="block bg-black/30 rounded px-2 py-1 font-mono text-[11px] overflow-x-auto whitespace-pre">
+                  {children}
+                </code>
+              ) : (
+                <code className="bg-black/30 rounded px-1 font-mono text-[11px]">{children}</code>
+              );
+            },
+            pre: ({ children }) => <pre className="my-1">{children}</pre>,
+            // Lists
+            ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 pl-2">{children}</ul>,
+            ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 pl-2">{children}</ol>,
+            // Paragraphs
+            p: ({ children }) => <p className="my-0.5">{children}</p>,
+            // Horizontal rule
+            hr: () => <hr className="border-border/30 my-2" />,
+            // Blockquote
+            blockquote: ({ children }) => (
+              <blockquote className="border-l-2 border-border/50 pl-2 italic text-muted-foreground">
+                {children}
+              </blockquote>
+            ),
+          }}
+        >
+          {clean}
+        </ReactMarkdown>
+        {/* Gradient fade when folded */}
+        {shouldFold && !expanded && (
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white/5 to-transparent pointer-events-none" />
+        )}
+      </div>
 
       {/* Fold toggle */}
       {shouldFold && (
@@ -87,7 +139,7 @@ export default function MessageCard({ record, className }: MessageCardProps) {
           ) : (
             <>
               <ChevronDown className="h-3 w-3" />
-              {lines.length - FOLD_LINES} more lines
+              Show more
             </>
           )}
         </button>
