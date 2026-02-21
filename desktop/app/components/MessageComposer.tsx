@@ -38,15 +38,26 @@ export default function MessageComposer({ activeAgent, isTauri }: MessageCompose
   const charCount = content.length;
   const isOverLimit = charCount > MAX_MESSAGE_LENGTH;
   const canSend =
-    isTauri && content.trim().length > 0 && !isOverLimit && status !== "sending";
+    content.trim().length > 0 && !isOverLimit && status !== "sending";
 
   const doSend = useCallback(
     async (target: AgentId, message: string) => {
-      if (!isTauri) return;
       setStatus("sending");
       setErrorMsg(null);
       try {
-        await invoke("send_crystal_message", { target, message: message.trim() });
+        if (isTauri) {
+          await invoke("send_crystal_message", { target, message: message.trim() });
+        } else {
+          const res = await fetch(`/api/inbox/${target}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ from: "crystal", content: message.trim() }),
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+        }
         setStatus("sent");
         setContent("");
         // Auto-clear "sent" badge after 2 s
