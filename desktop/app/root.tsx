@@ -8,7 +8,6 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { Toaster } from "sonner";
-import { TitleBar } from "@/components/ui/titlebar";
 import "./app.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -21,10 +20,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body className="flex flex-col h-screen overflow-hidden">
-        {/* Custom titlebar — replaces native OS titlebar */}
-        <div className="bg-card/80 border-b border-border/50 backdrop-blur-sm shrink-0 z-50">
-          <TitleBar />
-        </div>
         {/* Page content */}
         <div className="flex-1 overflow-hidden">
           {children}
