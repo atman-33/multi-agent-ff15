@@ -65,7 +65,7 @@ done
 ## Verifying
 
 ```bash
-bash tests/test_phase4_integration.sh
+bash tests/test_integration.sh
 ```
 
 Expected: 8 passed, 0 failed (4 skipped tests require live tmux agents).
@@ -76,5 +76,5 @@ Individual component tests:
 bash tests/stress_test_flock.sh
 bash tests/stress_test_inbox_concurrent.sh
 bash tests/test_inbox_overflow.sh
-bash tests/test_phase3_busy_detect.sh
+bash tests/test_busy_detection.sh
 ```

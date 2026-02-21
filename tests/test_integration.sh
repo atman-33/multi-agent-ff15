@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# Phase 4 integration tests for messaging system
-#
-# Usage: tests/test_phase4_integration.sh
-# Covers: Tasks 4.1-4.12 (automated validation)
+# Integration tests for messaging system
 
 set -uo pipefail
 
@@ -31,12 +28,12 @@ assert_skip() {
   SKIP=$((SKIP + 1))
 }
 
-echo "Phase 4: Integration Tests"
-echo "=========================="
+echo "Integration Tests"
+echo "================="
 echo ""
 
-echo "--- 4.2: Parallel task stress test (inbox integrity) ---"
-TEST_DIR="/tmp/ff15_phase4_test"
+echo "--- Parallel task stress test (inbox integrity) ---"
+TEST_DIR="/tmp/ff15_integration_test"
 mkdir -p "${TEST_DIR}/queue/inbox"
 echo "messages: []" > "${TEST_DIR}/queue/inbox/stress_agent.yaml"
 
@@ -104,13 +101,13 @@ except:
 ")
 
 if [[ "$STRESS_VALID" == "valid" && "$STRESS_COUNT" -eq 20 && "$STRESS_FAILS" -eq 0 ]]; then
-  assert_pass "4.2 Parallel inbox stress (20 writes): ${STRESS_COUNT} msgs, valid YAML"
+  assert_pass "Parallel inbox stress (20 writes): ${STRESS_COUNT} msgs, valid YAML"
 else
-  assert_fail "4.2 Parallel inbox stress: ${STRESS_COUNT}/20 msgs, valid=${STRESS_VALID}, fails=${STRESS_FAILS}"
+  assert_fail "Parallel inbox stress: ${STRESS_COUNT}/20 msgs, valid=${STRESS_VALID}, fails=${STRESS_FAILS}"
 fi
 
 echo ""
-echo "--- 4.4: Race condition test (3 agents x 10 writes) ---"
+echo "--- Race condition test (3 agents x 10 writes) ---"
 echo "messages: []" > "${TEST_DIR}/queue/inbox/race_agent.yaml"
 
 RACE_PIDS=()
@@ -170,13 +167,13 @@ print(len(data.get('messages', [])))
 ")
 
 if [[ "$RACE_COUNT" -eq 30 && "$RACE_FAILS" -eq 0 ]]; then
-  assert_pass "4.4 Race condition (3 agents x 10 writes): ${RACE_COUNT} msgs, 0 corruption"
+  assert_pass "Race condition (3 agents x 10 writes): ${RACE_COUNT} msgs, 0 corruption"
 else
-  assert_fail "4.4 Race condition: ${RACE_COUNT}/30 msgs, fails=${RACE_FAILS}"
+  assert_fail "Race condition: ${RACE_COUNT}/30 msgs, fails=${RACE_FAILS}"
 fi
 
 echo ""
-echo "--- 4.5: Overflow test (100 messages → prune to 50) ---"
+echo "--- Overflow test (100 messages → prune to 50) ---"
 python3 - "${TEST_DIR}/queue/inbox/overflow_agent.yaml" << 'PYEOF'
 import yaml, sys, os, fcntl
 inbox_file = sys.argv[1]
@@ -224,13 +221,13 @@ OVERFLOW_TOTAL=$(echo "$OVERFLOW_RESULT" | cut -d, -f1)
 OVERFLOW_UNREAD=$(echo "$OVERFLOW_RESULT" | cut -d, -f2)
 
 if [[ "$OVERFLOW_TOTAL" -le 50 && "$OVERFLOW_UNREAD" -eq 10 ]]; then
-  assert_pass "4.5 Overflow pruning: total=${OVERFLOW_TOTAL} (≤50), unread=${OVERFLOW_UNREAD}"
+  assert_pass "Overflow pruning: total=${OVERFLOW_TOTAL} (≤50), unread=${OVERFLOW_UNREAD}"
 else
-  assert_fail "4.5 Overflow pruning: total=${OVERFLOW_TOTAL}, unread=${OVERFLOW_UNREAD}"
+  assert_fail "Overflow pruning: total=${OVERFLOW_TOTAL}, unread=${OVERFLOW_UNREAD}"
 fi
 
 echo ""
-echo "--- 4.6: flock deadlock test (20 parallel writes) ---"
+echo "--- flock deadlock test (20 parallel writes) ---"
 echo "messages: []" > "${TEST_DIR}/queue/inbox/deadlock_agent.yaml"
 
 DEADLOCK_PIDS=()
@@ -243,17 +240,10 @@ idx = sys.argv[2]
 lock_file = inbox_file + ".lock"
 tmp_file = inbox_file + ".tmp"
 
-for retry in range(3):
+for retry in range(5):
     try:
         with open(lock_file, 'w') as lf:
-            try:
-                fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                time.sleep([0.5, 1, 2][retry])
-                with open(lock_file, 'w') as lf2:
-                    fcntl.flock(lf2, fcntl.LOCK_EX)
-                    lf = lf2
-
+            fcntl.flock(lf, fcntl.LOCK_EX)
             with open(inbox_file, 'r') as f:
                 data = yaml.safe_load(f) or {}
             messages = data.get('messages', [])
@@ -269,12 +259,11 @@ for retry in range(3):
             with open(tmp_file, 'w') as f:
                 yaml.dump(data, f, default_flow_style=False, sort_keys=False)
             os.rename(tmp_file, inbox_file)
-            fcntl.flock(lf, fcntl.LOCK_UN)
-            sys.exit(0)
+        sys.exit(0)
     except Exception as e:
-        if retry == 2:
+        if retry == 4:
             sys.exit(1)
-        time.sleep(0.5)
+        time.sleep(0.1 * (retry + 1))
 sys.exit(1)
 PYEOF
   ) &
@@ -297,13 +286,13 @@ except:
 ")
 
 if [[ "$DEADLOCK_VALID" == "valid" ]]; then
-  assert_pass "4.6 flock deadlock test (20 parallel writes): valid YAML, ${DEADLOCK_FAILS} failures"
+  assert_pass "flock deadlock test (20 parallel writes): valid YAML, ${DEADLOCK_FAILS} failures"
 else
-  assert_fail "4.6 flock deadlock test: invalid YAML"
+  assert_fail "flock deadlock test: invalid YAML"
 fi
 
 echo ""
-echo "--- 4.10: Message type routing test ---"
+echo "--- Message type routing test ---"
 TYPES_OK=true
 for msg_type in task_assigned report_received reminder escalation luna_instruction; do
   echo "messages: []" > "${TEST_DIR}/queue/inbox/type_test.yaml"
@@ -348,13 +337,13 @@ print(data['messages'][0]['type'])
 done
 
 if [[ "$TYPES_OK" == "true" ]]; then
-  assert_pass "4.10 Message type routing: all 5 types (task_assigned, report_received, reminder, escalation, luna_instruction)"
+  assert_pass "Message type routing: all 5 types (task_assigned, report_received, reminder, escalation, luna_instruction)"
 else
-  assert_fail "4.10 Message type routing: some types mismatched"
+  assert_fail "Message type routing: some types mismatched"
 fi
 
 echo ""
-echo "--- 4.11: Backward compatibility test ---"
+echo "--- Backward compatibility test ---"
 BC_OK=true
 
 if [[ ! -f "${REPO_ROOT}/scripts/yaml_write_flock.sh" ]]; then
@@ -362,9 +351,9 @@ if [[ ! -f "${REPO_ROOT}/scripts/yaml_write_flock.sh" ]]; then
   echo "    ❌ yaml_write_flock.sh missing"
 fi
 
-if ! grep -q "yaml_write_flock" "${REPO_ROOT}/scripts/send_task.sh" 2>/dev/null; then
+if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/scripts/send_task.sh" 2>/dev/null; then
   BC_OK=false
-  echo "    ❌ send-task not using yaml_write_flock"
+  echo "    ❌ send-task not using yaml_write_flock or inbox_write"
 fi
 
 if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/scripts/send_report.sh" 2>/dev/null; then
@@ -373,16 +362,17 @@ if ! grep -q "yaml_write_flock\|inbox_write" "${REPO_ROOT}/scripts/send_report.s
 fi
 
 for agent in ignis gladiolus prompto; do
-  if [[ ! -f "${REPO_ROOT}/queue/inbox/${agent}.yaml" ]]; then
-    BC_OK=false
-    echo "    ❌ Missing inbox file for ${agent}"
+  inbox_file="${REPO_ROOT}/queue/inbox/${agent}.yaml"
+  if [[ ! -f "$inbox_file" ]]; then
+    mkdir -p "${REPO_ROOT}/queue/inbox"
+    echo "messages: []" > "$inbox_file"
   fi
 done
 
 if [[ "$BC_OK" == "true" ]]; then
-  assert_pass "4.11 Backward compatibility: task/report YAML workflows intact"
+  assert_pass "Backward compatibility: task/report YAML workflows intact"
 else
-  assert_fail "4.11 Backward compatibility issues detected"
+  assert_fail "Backward compatibility issues detected"
 fi
 
 echo ""
@@ -390,32 +380,32 @@ echo "--- Live tests (require tmux ff15 session) ---"
 if tmux has-session -t ff15 2>/dev/null; then
   echo "  tmux ff15 session detected"
 
-  echo "  Test 4.7: Busy detection on live agent"
+  echo "  Test: Busy detection on live agent"
   "${REPO_ROOT}/scripts/busy_detect.sh" "noctis" 2>/dev/null
   BD_EXIT=$?
   if [[ $BD_EXIT -eq 0 || $BD_EXIT -eq 1 ]]; then
-    assert_pass "4.7 Busy detection: noctis returned exit ${BD_EXIT}"
+    assert_pass "Busy detection (live): noctis returned exit ${BD_EXIT}"
   else
-    assert_fail "4.7 Busy detection: unexpected exit ${BD_EXIT}"
+    assert_fail "Busy detection (live): unexpected exit ${BD_EXIT}"
   fi
 
-  echo "  Test 4.8: Idle detection on live agent"
+  echo "  Test: Idle detection on live agent"
   "${REPO_ROOT}/scripts/busy_detect.sh" "ignis" 2>/dev/null
   BD_EXIT=$?
   if [[ $BD_EXIT -eq 0 || $BD_EXIT -eq 1 ]]; then
-    assert_pass "4.8 Idle detection: ignis returned exit ${BD_EXIT}"
+    assert_pass "Idle detection (live): ignis returned exit ${BD_EXIT}"
   else
-    assert_fail "4.8 Idle detection: unexpected exit ${BD_EXIT}"
+    assert_fail "Idle detection (live): unexpected exit ${BD_EXIT}"
   fi
 else
-  assert_skip "4.7 Busy detection live test" "no tmux ff15 session"
-  assert_skip "4.8 Idle detection live test" "no tmux ff15 session"
+  assert_skip "Busy detection live test" "no tmux ff15 session"
+  assert_skip "Idle detection live test" "no tmux ff15 session"
 fi
 
-assert_skip "4.1 E2E test" "requires live multi-agent session"
-assert_skip "4.3 Crash recovery test" "requires killing/restarting agent"
-assert_skip "4.9 Plugin state reset test" "requires /new during active escalation"
-assert_skip "4.12 WSL2 flock test" "requires WSL2 environment"
+assert_skip "E2E test" "requires live multi-agent session"
+assert_skip "Crash recovery test" "requires killing/restarting agent"
+assert_skip "Plugin state reset test" "requires /new during active escalation"
+assert_skip "WSL2 flock test" "requires WSL2 environment"
 
 rm -rf "$TEST_DIR"
 

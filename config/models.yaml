@@ -1,28 +1,16 @@
 # Model configuration by mode
 # Each agent has: model (OpenCode model ID), agent (optional, for future use)
 # Comrades: ignis, gladiolus, prompto / Independent: lunafreya / Guardian: iris
+# _description: Mode description shown in help text and startup banner
 modes:
   normal:
+    _description: Standard configuration
     noctis:
       model: github-copilot/claude-sonnet-4.6
     ignis:
-      model: github-copilot/gpt-5.2-codex
-    gladiolus:
-      model: github-copilot/claude-haiku-4.5
-    prompto:
-      model: github-copilot/gemini-3-flash-preview
-    lunafreya:
-      model: github-copilot/gpt-5-mini
-    iris:
-      model: github-copilot/gpt-5-mini
-
-  fullpower:
-    noctis:
-      model: github-copilot/claude-opus-4.6
-    ignis:
-      model: github-copilot/gpt-5.2-codex
-    gladiolus:
       model: github-copilot/claude-sonnet-4.6
+    gladiolus:
+      model: github-copilot/gpt-5.2-codex
     prompto:
       model: github-copilot/gemini-3-pro-preview
     lunafreya:
@@ -30,7 +18,23 @@ modes:
     iris:
       model: github-copilot/gpt-5-mini
 
+  fullpower:
+    _description: High-performance configuration
+    noctis:
+      model: github-copilot/claude-opus-4.6
+    ignis:
+      model: github-copilot/claude-opus-4.6
+    gladiolus:
+      model: github-copilot/claude-opus-4.6
+    prompto:
+      model: github-copilot/claude-opus-4.6
+    lunafreya:
+      model: github-copilot/gpt-5-mini
+    iris:
+      model: github-copilot/gpt-5-mini
+
   lite:
+    _description: Low-cost configuration
     noctis:
       model: github-copilot/claude-haiku-4.5
     ignis:
@@ -44,35 +48,23 @@ modes:
     iris:
       model: github-copilot/gpt-5-mini
 
-  free-glm:
+  free:
+    _description: Free (minimax-m2.5-free)
     noctis:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     ignis:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     gladiolus:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     prompto:
-      model: opencode/glm-4.7-free
+      model: opencode/minimax-m2.5-free
     lunafreya:
-      model: github-copilot/gpt-5-mini
-    iris:
-      model: github-copilot/gpt-5-mini
-
-  free-kimi:
-    noctis:
-      model: opencode/kimi-k2.5-free
-    ignis:
-      model: opencode/kimi-k2.5-free
-    gladiolus:
-      model: opencode/kimi-k2.5-free
-    prompto:
-      model: opencode/kimi-k2.5-free
-    lunafreya:
-      model: github-copilot/gpt-5-mini
+      model: opencode/minimax-m2.5-free
     iris:
       model: github-copilot/gpt-5-mini
 
   gpt5mini:
+    _description: All agents use GPT-5 Mini
     noctis:
       model: github-copilot/gpt-5-mini
     ignis:

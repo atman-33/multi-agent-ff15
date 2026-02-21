@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Phase 3 validation tests for busy detection and inbox-watcher plugin
+# Busy Detection tests for inbox-watcher plugin
 #
-# Usage: tests/test_phase3_busy_detect.sh
-# Requires: tmux ff15 session running
+# Usage: tests/test_busy_detection.sh
 
 set -uo pipefail
 
@@ -11,8 +10,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PASS=0
 FAIL=0
 
-echo "Phase 3: Busy Detection Tests"
-echo "=============================="
+echo "Busy Detection Tests"
+echo "===================="
 echo ""
 
 echo "Test 1: busy_detect.sh exists and is executable"
@@ -127,7 +126,7 @@ fi
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"
 if [[ $FAIL -eq 0 ]]; then
-  echo "  ✅ ALL PHASE 3 TESTS PASSED"
+  echo "  ✅ ALL BUSY DETECTION TESTS PASSED"
   exit 0
 else
   echo "  ❌ SOME TESTS FAILED"

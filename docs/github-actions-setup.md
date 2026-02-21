@@ -6,14 +6,14 @@ This project uses GitHub Actions to automatically run tests on Pull Requests.
 
 When you create a Pull Request to the `main` branch, GitHub Actions will automatically:
 
-1. Run Phase 3 tests (Busy Detection validation)
-2. Run Phase 4 tests (Integration tests)
+1. Run Busy Detection tests
+2. Run Integration tests
 3. Report test results
 
 ## Required Tests (Must Pass)
 
-- **Phase 3**: Busy detection and inbox-watcher plugin validation
-- **Phase 4**: Integration tests for messaging system
+- **Busy Detection**: busy_detect.sh, inbox-watcher plugin validation
+- **Integration**: messaging system integration tests
 
 ## Optional Tests (Informational)
 
@@ -56,8 +56,8 @@ jobs:
         python-version: '3.11'
     - run: pip install pyyaml
     - run: chmod +x scripts/*.sh tests/*.sh
-    - run: ./tests/test_phase3_busy_detect.sh
-    - run: ./tests/test_phase4_integration.sh
+    - run: ./tests/test_busy_detection.sh
+    - run: ./tests/test_integration.sh
 ```
 
 ## Running Tests Locally
@@ -69,8 +69,8 @@ Before pushing, you can run tests locally:
 chmod +x tests/*.sh
 
 # Run all tests
-./tests/test_phase3_busy_detect.sh
-./tests/test_phase4_integration.sh
+./tests/test_busy_detection.sh
+./tests/test_integration.sh
 ```
 
 ## Test Results

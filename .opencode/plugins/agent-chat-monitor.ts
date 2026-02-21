@@ -13,8 +13,15 @@ function extractUserContent(rawContent: string): string | null {
     }
   }
 
-  const cleanContent = rawContent.replace(/^\[user\]\n*/i, "").trim();
-  return cleanContent ? `[User] ${cleanContent}` : null;
+  const withoutSkillBlocks = rawContent
+    .replace(/<skill-instruction>[\s\S]*?<\/skill-instruction>/g, "")
+    .replace(/<user-request>([\s\S]*?)<\/user-request>/g, "$1");
+
+  const withoutPrefix = withoutSkillBlocks.replace(/^\[user\]\n*/i, "").trim();
+  const noHeadings = withoutPrefix.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
+  const cleaned = noHeadings.replace(/\n{3,}/g, "\n\n").trim();
+
+  return cleaned ? `[User] ${cleaned}` : null;
 }
 
 function extractAssistantContent(rawContent: string, agentName: string): string | null {
