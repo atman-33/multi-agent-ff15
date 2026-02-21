@@ -30,7 +30,6 @@ Iris owns **most** dashboard sections. Noctis edits dashboard only when Iris exp
 | 🚨 Requires Action | Iris agent (from agent_idle_capture) (Includes Confirmation Items) |
 | 🎯 Skill Candidates | Iris agent (from agent_idle_capture) |
 | 🛠️ Generated Skills | Iris agent (from agent_idle_capture) |
-| ⏸️ On Standby | Iris agent (from agent_idle_capture) |
 
 ## How It Works
 
@@ -47,7 +46,7 @@ When Noctis or Lunafreya's session goes idle, `agent-idle-capture` plugin extrac
 
 1. `scripts/inbox_read.sh iris` → read `agent_idle_capture` messages (the `content` field **contains the extracted latest response text**)
 2. Analyze the message content directly — no need to read `dashboard.md` chat sections (they no longer exist)
-3. Update relevant dashboard sections (`🚨 Requires Action`, `🎯 Skill Candidates`, `🛠️ Generated Skills`, `⏸️ On Standby`) based on the content
+3. Update relevant dashboard sections (`🚨 Requires Action`, `🎯 Skill Candidates`, `🛠️ Generated Skills`) based on the content
 4. **Self-check**: Re-read `queue/inbox/iris.yaml` (latest message) and `dashboard.md` → verify updates match the inbox content
    - If mismatch: re-read dashboard → re-apply update → verify again
    - If fails after 2 attempts: notify Noctis via `scripts/inbox_write.sh noctis iris message "Dashboard verification failed: <reason>"`
@@ -70,12 +69,11 @@ scripts/inbox_write.sh noctis iris message "Dashboard update difficult. Please u
 
 The following structure is MANDATORY and MUST be preserved exactly:
 
-1. `## � Requires Action`
+1. `## 🚨 Requires Action`
 2. `## 🔄 In Progress`
 3. `## ✅ Today's Results`
 4. `## 🎯 Skill Candidates`
 5. `## 🛠️ Generated Skills`
-6. `## ⏸️ On Standby`
 
 **You may ONLY update the CONTENT under each header. Do NOT:**
 - Remove headers
@@ -93,11 +91,18 @@ Analyze the `agent_idle_capture` inbox message content to update specific sectio
 
 | Target Section | Trigger Patterns in Log | Action |
 |----------------|-------------------------|--------|
-| **1. 🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed" | List items needing user attention. If log shows resolution, REMOVE item. **Self-check: Verify all action items from inbox reflected.** |
+| **1. 🚨 Requires Action** | "Ask user", "Confirm with user", "Approval needed", "Crystal approval", "Waiting for user" | Crystal-facing items only. **EXCLUDE** agent-to-agent instructions (e.g. "Instruction from Lunafreya", messages to Noctis). Summarize each item in max 3 lines / ~100 chars. If log shows resolution, REMOVE item. **Self-check: Verify all action items from inbox reflected.** |
 | **✅ Today's Results** | "Fixed", "Resolved", "Done", "Completed manual task" | If Noctis resolved 'Requires Action' or performed manual task not tracked by inbox, add here. **Self-check: Verify completed tasks listed.** |
 | **🎯 Skill Candidates** | "Reusable pattern", "Create skill", "Document as skill", "Promote to skill" | List candidate name and brief description. |
 | **🛠️ Generated Skills** | "Skill created", "Generated skill", "New skill added" | List name of newly created skill. |
-| **⏸️ On Standby** | "Next:", "Pending:", "Later:", "Parked task" | List tasks or agents waiting or scheduled for later. |
+
+### Requires Action — Writing Rules
+
+- **Crystal-only**: Only items requiring Crystal (user) action/decision. Never include agent-to-agent instructions or status updates.
+- **No verbatim pastes**: Never copy-paste raw terminal output or full message text. Always summarize.
+- **Max per entry**: 3 lines or ~100 characters. If longer, cut to essential question + choices.
+- **`\n` handling**: When writing from inbox/capture content, convert literal `\n` escape sequences to actual newlines.
+- **Pending future tasks** (previously On Standby): If Crystal should decide later, add as `- [ ] Future: <1-line description>` under Requires Action.
 
 
 

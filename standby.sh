@@ -459,9 +459,6 @@ None
 
 ## 🛠️ Generated Skills
 None
-
-## ⏸️ On Standby
-None
 EOF
 
     log_success "  └─ Dashboard initialized (shell: $SHELL_SETTING)"

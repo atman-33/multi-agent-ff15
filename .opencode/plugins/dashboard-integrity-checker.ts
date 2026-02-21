@@ -26,8 +26,7 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
     "## 🔄 In Progress",
     "## ✅ Today's Results",
     "## 🎯 Skill Candidates",
-    "## 🛠️ Generated Skills",
-    "## ⏸️ On Standby"
+    "## 🛠️ Generated Skills"
   ];
 
   // Debounce mechanism to prevent duplicate alerts
