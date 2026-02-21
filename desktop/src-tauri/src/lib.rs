@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -83,6 +84,40 @@ const ALLOWED_TARGETS: &[&str] = &["noctis", "lunafreya"];
 const ALLOWED_SENDERS: &[&str] = &[
     "crystal", "user", "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris",
 ];
+
+const MAX_MESSAGE_LENGTH: usize = 4000;
+const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
+
+// ---------------------------------------------------------------------------
+// Chat log types
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChatLogMeta {
+    pane: String,
+    event: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChatLogRecord {
+    id: String,
+    ts: String,
+    agent: String,
+    source: String,
+    kind: String,
+    content: String,
+    session_id: String,
+    meta: ChatLogMeta,
+}
+
+#[derive(Serialize, Debug)]
+struct ChatLogPage {
+    records: Vec<ChatLogRecord>,
+    /// Next cursor (line number after the last returned record).
+    next_cursor: usize,
+    /// Total lines in the file (including broken/skipped lines).
+    total_lines: usize,
+}
 
 // ---------------------------------------------------------------------------
 // Commands
@@ -183,6 +218,113 @@ fn send_message(target: String, from: String, content: String) -> Result<String,
         .arg(&from)
         .arg("message")
         .arg(&content)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Failed to execute inbox_write.sh: {}", e))?;
+
+    if output.status.success() {
+        Ok("Message sent successfully".into())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("inbox_write.sh failed: {}", stderr))
+    }
+}
+
+/// Read agent chat JSONL logs with optional cursor-based pagination.
+/// Returns records from `cursor` line onward (0-based), up to `limit` records.
+/// If cursor is None, returns the last `limit` records from the file.
+/// Broken/unparseable lines are silently skipped (task 2.2).
+#[tauri::command]
+fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPage, String> {
+    let root = get_project_root()?;
+    let log_path = root.join(CHAT_LOG_PATH);
+
+    // If file doesn't exist yet, return empty (task 3.5).
+    if !log_path.exists() {
+        return Ok(ChatLogPage {
+            records: vec![],
+            next_cursor: 0,
+            total_lines: 0,
+        });
+    }
+
+    let file =
+        std::fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {}", e))?;
+    let reader = BufReader::new(file);
+
+    // Collect all lines (we need total count and optionally the last N).
+    let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
+    let total_lines = lines.len();
+
+    let start = match cursor {
+        Some(c) => c,
+        None => {
+            // No cursor: return last `limit` lines.
+            if total_lines > limit {
+                total_lines - limit
+            } else {
+                0
+            }
+        }
+    };
+
+    let slice = if start < total_lines {
+        &lines[start..]
+    } else {
+        &lines[0..0]
+    };
+
+    // Parse each line; skip broken lines (task 2.2).
+    let records: Vec<ChatLogRecord> = slice
+        .iter()
+        .take(limit)
+        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(line).ok())
+        .collect();
+
+    let consumed = slice.len().min(limit);
+    let next_cursor = start + consumed;
+
+    Ok(ChatLogPage {
+        records,
+        next_cursor,
+        total_lines,
+    })
+}
+
+/// Send a message from Crystal to a target agent via inbox_write.sh.
+/// target must be "noctis" or "lunafreya". Message is limited to 4000 chars.
+#[tauri::command]
+fn send_crystal_message(target: String, message: String) -> Result<String, String> {
+    // Validate target (task 2.4)
+    if !ALLOWED_TARGETS.contains(&target.as_str()) {
+        return Err(format!(
+            "Invalid target: {}. Allowed: {:?}",
+            target, ALLOWED_TARGETS
+        ));
+    }
+
+    // Validate message length (task 2.4)
+    let message = message.trim().to_string();
+    if message.is_empty() {
+        return Err("Message content cannot be empty".into());
+    }
+    if message.len() > MAX_MESSAGE_LENGTH {
+        return Err(format!(
+            "Message exceeds maximum length ({} chars)",
+            MAX_MESSAGE_LENGTH
+        ));
+    }
+
+    let root = get_project_root()?;
+    let script = root.join("scripts/inbox_write.sh");
+
+    // Execute with args array — no shell interpretation (no injection risk).
+    let output = Command::new("bash")
+        .arg(&script)
+        .arg(&target)
+        .arg("crystal")
+        .arg("message")
+        .arg(&message)
         .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to execute inbox_write.sh: {}", e))?;
@@ -305,6 +447,8 @@ pub fn run() {
             peek_inbox,
             list_inbox_messages,
             send_message,
+            read_agent_chat_logs,
+            send_crystal_message,
             health_check,
         ])
         .run(tauri::generate_context!())

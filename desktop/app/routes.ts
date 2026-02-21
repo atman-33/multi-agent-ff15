@@ -6,6 +6,7 @@ export default [
     route("dashboard", "routes/dashboard.tsx"),
     route("messages/noctis", "routes/messages.noctis.tsx"),
     route("messages/lunafreya", "routes/messages.lunafreya.tsx"),
+    route("unified-chat", "routes/unified-chat.tsx"),
     route("health", "routes/health.tsx"),
   ]),
 ] satisfies RouteConfig;

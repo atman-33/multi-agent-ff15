@@ -5,6 +5,7 @@ import {
   Crown,
   Moon,
   Zap,
+  MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,11 @@ const navItems = [
     label: "Dashboard",
     to: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    label: "Unified Chat",
+    to: "/unified-chat",
+    icon: MessagesSquare,
   },
   {
     label: "Noctis",

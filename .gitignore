@@ -85,3 +85,6 @@ openspec/
 
 # Docs (private/internal use only)
 docs/private
+
+# Runtime logs (generated at runtime, not committed)
+runtime/logs/

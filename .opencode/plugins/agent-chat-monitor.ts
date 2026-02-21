@@ -4,6 +4,106 @@ declare const process: {
   env: Record<string, string | undefined>;
 };
 
+// ---------------------------------------------------------------------------
+// JSONL Logger types & utilities
+// ---------------------------------------------------------------------------
+
+interface ChatLogRecord {
+  id: string;
+  ts: string;
+  agent: string;
+  source: string;
+  kind: "answer" | "status" | "error";
+  content: string;
+  session_id: string;
+  meta: {
+    pane: string;
+    event: string;
+  };
+}
+
+/** Remove ANSI escape sequences and normalize line endings. */
+function normalizeContent(raw: string): string {
+  // Strip ANSI escape codes (CSI sequences, OSC, etc.)
+  // eslint-disable-next-line no-control-regex
+  const stripped = raw.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b[@-Z\\-_]/g, "");
+  // Normalize multiple blank lines
+  return stripped.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Generate a simple unique ID. */
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/**
+ * Rotate JSONL file if it exceeds MAX_LOG_SIZE_BYTES.
+ * Keeps up to MAX_LOG_GENERATIONS generations (.1 through .5).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function rotateIfNeeded($: any, logPath: string): Promise<void> {
+  const MAX_LOG_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+  const MAX_LOG_GENERATIONS = 5;
+
+  try {
+    // Get file size in bytes (returns "0" if file doesn't exist)
+    const sizeStr = await $`wc -c < ${logPath} 2>/dev/null || echo 0`.text();
+    const size = parseInt(sizeStr.trim(), 10);
+
+    if (size < MAX_LOG_SIZE_BYTES) return;
+
+    // Remove oldest generation if it exists
+    await $`rm -f ${logPath}.${MAX_LOG_GENERATIONS}`.quiet();
+
+    // Shift generations: .4 -> .5, .3 -> .4, ... .1 -> .2
+    for (let i = MAX_LOG_GENERATIONS - 1; i >= 1; i--) {
+      await $`mv -f ${logPath}.${i} ${logPath}.${i + 1} 2>/dev/null || true`.quiet();
+    }
+
+    // Current file -> .1
+    await $`mv -f ${logPath} ${logPath}.1`.quiet();
+  } catch {
+    // Rotation errors are non-fatal
+  }
+}
+
+/**
+ * Append a ChatLogRecord to the JSONL file.
+ * - Exception-isolated: never throws.
+ * - Uses flock for exclusive access to prevent concurrent corruption.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function appendJsonlRecord($: any, logPath: string, record: ChatLogRecord): Promise<void> {
+  try {
+    // Ensure directory exists
+    const logDir = logPath.substring(0, logPath.lastIndexOf("/"));
+    await $`mkdir -p ${logDir}`.quiet();
+
+    // Rotate if needed
+    await rotateIfNeeded($, logPath);
+
+    // Serialize (single JSON line)
+    const line = JSON.stringify(record);
+
+    // Append with flock for exclusive access.
+    // zx-style $`...` auto-escapes ${line} and ${logPath}.
+    // The >> redirect is a static shell operator so it's not escaped by $.
+    await $`flock -x -w 5 ${logPath + ".lock"} -c ${"printf '%s\\n' " + JSON.stringify(line) + " >> " + JSON.stringify(logPath)}`.quiet();
+  } catch (err) {
+    // Warning only – never interrupt dashboard send
+    try {
+      const ts = new Date().toISOString();
+      await $`echo ${`[${ts}] agent-chat-monitor JSONL write warning: ${err}`} >> logs/agent-chat-monitor-warn.log`.quiet();
+    } catch { }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Existing content extraction helpers
+// ---------------------------------------------------------------------------
+
 function extractUserContent(rawContent: string): string | null {
   if (rawContent.includes("[analyze-mode]")) {
     const sections = rawContent.split(/\n---\n/);
@@ -67,6 +167,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const ENABLE_LOGGING = false;
   const MAX_MESSAGES = 5;
   const DASHBOARD_FILE = "dashboard.md";
+  const JSONL_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
@@ -310,6 +411,27 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         }
 
         await updateDashboard(formattedContent);
+
+        // --- JSONL logging (task 1.1-1.6) ---
+        // Write one record per assistant message (user-visible responses only)
+        // Exception-isolated so it never breaks the dashboard send above.
+        const pane = agentId === "noctis" ? "0" : "1";
+        for (const item of extractedContents) {
+          if (item.role !== "assistant") continue;
+          const normalized = normalizeContent(item.content);
+          if (!normalized) continue;
+          const record: ChatLogRecord = {
+            id: generateId(),
+            ts: new Date().toISOString(),
+            agent: agentId,
+            source: "terminal_capture",
+            kind: "answer",
+            content: normalized,
+            session_id: sessionId ?? "unknown",
+            meta: { pane, event: "assistant_response" },
+          };
+          await appendJsonlRecord($, JSONL_LOG_PATH, record);
+        }
 
       } catch (error) {
         if (ENABLE_LOGGING) {
