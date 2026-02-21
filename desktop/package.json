@@ -8,7 +8,9 @@
     "typecheck": "react-router typegen && tsc",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "web": "react-router dev",
+    "web:preview": "react-router build && react-router serve"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
