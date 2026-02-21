@@ -70,17 +70,17 @@ export default function UnifiedChatRoute() {
       const agentLastAt =
         records.length > 0 ? new Date(records[records.length - 1].ts).getTime() : null;
 
-      const crystalMsgs = msgs.filter((m) => m.from === "crystal");
-      const crystalLastAt =
-        crystalMsgs.length > 0
-          ? new Date(crystalMsgs[crystalMsgs.length - 1].ts).getTime()
+      // All incoming messages (Crystal or other agents) trigger busy state
+      const lastInboxAt =
+        msgs.length > 0
+          ? new Date(msgs[msgs.length - 1].ts).getTime()
           : null;
 
       // Merge log-derived timestamp with optimistic value (whichever is later)
       const optimistic = optimisticSentAt[agent];
       const effectiveSentAt =
-        crystalLastAt !== null || optimistic !== null
-          ? Math.max(crystalLastAt ?? 0, optimistic ?? 0)
+        lastInboxAt !== null || optimistic !== null
+          ? Math.max(lastInboxAt ?? 0, optimistic ?? 0)
           : null;
 
       result[agent] =
