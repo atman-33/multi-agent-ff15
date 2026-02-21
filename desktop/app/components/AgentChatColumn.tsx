@@ -63,6 +63,8 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
   });
   const isCrystal = msg.from === "crystal";
   const fromLabel = msg.from.charAt(0).toUpperCase() + msg.from.slice(1);
+  // Normalize escaped "\n" (two chars) to real newlines for proper Markdown rendering
+  const content = msg.content.replace(/\\n/g, "\n");
 
   if (isCrystal) {
     return (
@@ -87,7 +89,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
               ),
             }}
           >
-            {msg.content}
+            {content}
           </ReactMarkdown>
         </div>
       </div>
@@ -116,7 +118,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
             ),
           }}
         >
-          {msg.content}
+          {content}
         </ReactMarkdown>
       </div>
     </div>
