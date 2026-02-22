@@ -12,6 +12,7 @@ type SendStatus = "idle" | "sending" | "sent" | "failed";
 type SlashSuggestion = {
   label: string;
   value: string;
+  insertText?: string;
   source: "command" | "skill";
 };
 
@@ -122,7 +123,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
         const selected = filteredSlashSuggestions[selectedSuggestionIndex];
         if (selected) {
           e.preventDefault();
-          applySlashSuggestion(selected.value);
+          applySlashSuggestion(selected.insertText ?? selected.value);
           return;
         }
       }
@@ -276,7 +277,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
                   )}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    applySlashSuggestion(item.value);
+                    applySlashSuggestion(item.insertText ?? item.value);
                   }}
                 >
                   <span className="font-medium text-foreground">{item.value}</span>
