@@ -54,6 +54,14 @@ export async function action({ request }: { request: Request; }) {
       return Response.json({ error: `Invalid model label: ${label}` }, { status: 400 });
     }
 
+    const getModelScript = join(root, "scripts/get-current-model.sh");
+    const beforeResult = spawnSync("bash", [getModelScript, agent], {
+      cwd: root,
+      encoding: "utf-8",
+      timeout: 2000,
+    });
+    const beforeModel = beforeResult.status === 0 ? beforeResult.stdout.trim() : "";
+
     const script = join(root, "scripts/switch-model.sh");
     const result = spawnSync("bash", [script, agent, label], {
       cwd: root,
@@ -61,12 +69,30 @@ export async function action({ request }: { request: Request; }) {
       timeout: 10_000,
     });
 
-    if (result.status === 0) {
-      return Response.json({ ok: true });
+    if (result.status !== 0) {
+      const errorMessage = (result.stderr || result.stdout || "switch-model failed").trim();
+      return Response.json({ error: errorMessage }, { status: 500 });
     }
 
-    const errorMessage = (result.stderr || result.stdout || "switch-model failed").trim();
-    return Response.json({ error: errorMessage }, { status: 500 });
+    // Verify model has changed by checking for up to 5 seconds
+    let afterModel = beforeModel;
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const afterResult = spawnSync("bash", [getModelScript, agent], {
+        cwd: root,
+        encoding: "utf-8",
+        timeout: 2000,
+      });
+      if (afterResult.status === 0) {
+        afterModel = afterResult.stdout.trim();
+        // Break early if we detected a change
+        if (afterModel && afterModel !== beforeModel) {
+          break;
+        }
+      }
+    }
+
+    return Response.json({ ok: true, beforeModel, afterModel });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

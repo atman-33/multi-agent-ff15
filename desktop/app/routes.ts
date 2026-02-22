@@ -12,6 +12,7 @@ export default [
   route("api/slash-suggestions", "routes/api.slash-suggestions.ts"),
   route("api/model-options", "routes/api.model-options.ts"),
   route("api/model-switch", "routes/api.model-switch.ts"),
+  route("api/current-model", "routes/api.current-model.ts"),
   // UI routes
   layout("routes/_layout.tsx", [
     index("routes/index.tsx"),
