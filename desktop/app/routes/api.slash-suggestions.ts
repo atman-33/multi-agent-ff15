@@ -5,6 +5,7 @@ import { getProjectRoot } from "@/lib/getProjectRoot.server";
 interface SlashSuggestion {
   label: string;
   value: string;
+  insertText: string;
   source: "command" | "skill";
 }
 
@@ -40,6 +41,7 @@ export async function loader() {
       return {
         label: `command: ${name}`,
         value: `/${name} `,
+        insertText: `Please use the /${name} command. `,
         source: "command",
       };
     });
@@ -47,6 +49,7 @@ export async function loader() {
     const skillSuggestions: SlashSuggestion[] = Array.from(new Set(skillEntries)).map((entry) => ({
       label: `skill: ${entry}`,
       value: `/${entry} `,
+      insertText: `Please use the /${entry} skill. `,
       source: "skill",
     }));
 

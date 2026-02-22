@@ -12,6 +12,7 @@ type SendStatus = "idle" | "sending" | "sent" | "failed";
 type SlashSuggestion = {
   label: string;
   value: string;
+  insertText?: string;
   source: "command" | "skill";
 };
 
@@ -21,7 +22,7 @@ interface MessageComposerProps {
   onSent?: (agent: MainAgentId, content: string) => void;
 }
 
-const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType; placeholder: string }> = {
+const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType; placeholder: string; }> = {
   noctis: {
     label: "Noctis",
     Icon: Crown,
@@ -35,7 +36,17 @@ const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType
 };
 
 export default function MessageComposer({ activeAgent, isTauri, onSent }: MessageComposerProps) {
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("chat_draft_content") || "";
+    }
+    return "";
+  });
+
+  // Save draft to local storage on content change
+  useEffect(() => {
+    localStorage.setItem("chat_draft_content", content);
+  }, [content]);
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
   const [lastAgent, setLastAgent] = useState<MainAgentId>(activeAgent);
@@ -112,7 +123,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
         const selected = filteredSlashSuggestions[selectedSuggestionIndex];
         if (selected) {
           e.preventDefault();
-          applySlashSuggestion(selected.value);
+          applySlashSuggestion(selected.insertText ?? selected.value);
           return;
         }
       }
@@ -266,7 +277,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
                   )}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    applySlashSuggestion(item.value);
+                    applySlashSuggestion(item.insertText ?? item.value);
                   }}
                 >
                   <span className="font-medium text-foreground">{item.value}</span>
