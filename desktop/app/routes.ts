@@ -7,6 +7,8 @@ export default [
   route("api/chat-logs", "routes/api.chat-logs.ts"),
   route("api/inbox-log", "routes/api.inbox-log.ts"),
   route("api/health", "routes/api.health.ts"),
+  route("api/projects", "routes/api.projects.ts"),
+  route("api/projects/active", "routes/api.projects.active.ts"),
   // UI routes
   layout("routes/_layout.tsx", [
     index("routes/index.tsx"),
@@ -15,5 +17,6 @@ export default [
     route("messages/lunafreya", "routes/messages.lunafreya.tsx"),
     route("chat", "routes/chat.tsx"),
     route("health", "routes/health.tsx"),
+    route("projects", "routes/projects.tsx"),
   ]),
 ] satisfies RouteConfig;

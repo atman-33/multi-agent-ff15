@@ -3,8 +3,10 @@ import {
   LayoutDashboard,
   Activity,
   MessagesSquare,
+  FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AppHeader } from "@/components/AppHeader";
 
 const navItems = [
   {
@@ -16,6 +18,11 @@ const navItems = [
     label: "Dashboard",
     to: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    label: "Projects",
+    to: "/projects",
+    icon: FolderGit2,
   },
   {
     label: "Health",
@@ -90,10 +97,13 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      {/* Main content: header + page */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <AppHeader />
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
