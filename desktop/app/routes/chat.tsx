@@ -12,7 +12,17 @@ const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 export default function UnifiedChatRoute() {
   const { getRecordsForAgent, lastUpdated, error, isTauri, refresh } =
     useAgentChatLog();
-  const [activeAgent, setActiveAgent] = useState<MainAgentId>("noctis");
+  const [activeAgent, setActiveAgent] = useState<MainAgentId>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("chat_active_agent");
+      if (saved === "noctis" || saved === "lunafreya") return saved;
+    }
+    return "noctis";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("chat_active_agent", activeAgent);
+  }, [activeAgent]);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
 
   useEffect(() => {
@@ -25,7 +35,7 @@ export default function UnifiedChatRoute() {
         } else {
           const res = await fetch("/api/model-options");
           if (!res.ok) return;
-          const data = (await res.json()) as { modelOptions?: string[] };
+          const data = (await res.json()) as { modelOptions?: string[]; };
           if (!cancelled && Array.isArray(data.modelOptions)) setModelOptions(data.modelOptions);
         }
       } catch (_) {
@@ -52,7 +62,21 @@ export default function UnifiedChatRoute() {
   const { getMessagesForAgent: getInboxMessages } = useInboxLog();
 
   // Party view: which comrade (or null = Noctis itself) is shown in the Noctis column
-  const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(null);
+  const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("chat_noctis_party_view");
+      if (saved) return saved as ComradeId;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (noctisPartyView) {
+      localStorage.setItem("chat_noctis_party_view", noctisPartyView);
+    } else {
+      localStorage.removeItem("chat_noctis_party_view");
+    }
+  }, [noctisPartyView]);
 
   // Comrade chat records from agent-chat-monitor.jsonl
   const comradeRecords = useMemo(
