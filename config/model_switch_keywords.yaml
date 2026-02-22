@@ -2,9 +2,12 @@
 # `label`: display value for UI and /models search input
 models:
   - label: GPT-5-mini
-  - label: Claude Sonnet 4.5
-  - label: Claude Opus 4.6
-  - label: Claude Haiku 4.5
-  - label: Gemini models
   - label: GPT-5.2-codex
+  - label: Claude Haiku 4.5
+  - label: Claude Sonnet 4.6
+  - label: Claude Opus 4.6
+  - label: Gemini 3 Flash
+  - label: Gemini 3.1 Pro Preview
   - label: Grok Code Fast 1
+  - label: MiniMax M2.5 Free OpenCode Zen
+  - label: GLM-5 Free
