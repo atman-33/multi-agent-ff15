@@ -10,6 +10,7 @@ export default [
   route("api/projects", "routes/api.projects.ts"),
   route("api/projects/active", "routes/api.projects.active.ts"),
   route("api/slash-suggestions", "routes/api.slash-suggestions.ts"),
+  route("api/at-suggestions", "routes/api.at-suggestions.ts"),
   route("api/model-options", "routes/api.model-options.ts"),
   route("api/model-switch", "routes/api.model-switch.ts"),
   route("api/current-model", "routes/api.current-model.ts"),
