@@ -44,6 +44,8 @@ Dynamically switch an FF15 agent's LLM model using `scripts/switch.sh`.
 
 Check all available models: `opencode models`
 
+Desktop/Web UI model list source: `config/model_switch_keywords.yaml`
+
 ## Prerequisites
 
 - **Agent must be idle** — switching during active work may cause context loss

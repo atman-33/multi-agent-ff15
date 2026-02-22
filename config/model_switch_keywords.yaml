@@ -1,0 +1,10 @@
+# Model options for temporary runtime switching via .opencode/skills/switch-model/scripts/switch.sh
+# `label`: display value for UI and /models search input
+models:
+  - label: GPT-5-mini
+  - label: Claude Sonnet 4.5
+  - label: Claude Opus 4.6
+  - label: Claude Haiku 4.5
+  - label: Gemini models
+  - label: GPT-5.2-codex
+  - label: Grok Code Fast 1
