@@ -39,14 +39,14 @@ export async function loader() {
       const name = entry.replace(/\.md$/, "");
       return {
         label: `command: ${name}`,
-        value: `/${name}`,
+        value: `/${name} `,
         source: "command",
       };
     });
 
     const skillSuggestions: SlashSuggestion[] = Array.from(new Set(skillEntries)).map((entry) => ({
       label: `skill: ${entry}`,
-      value: `/${entry}`,
+      value: `/${entry} `,
       source: "skill",
     }));
 
