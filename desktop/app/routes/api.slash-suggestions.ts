@@ -35,15 +35,18 @@ export async function loader() {
     const skillEntries = [".opencode/skills", "opencode/skills"]
       .flatMap((path) => collectDirectoryEntries(root, path));
 
-    const commandSuggestions: SlashSuggestion[] = Array.from(new Set(commandEntries)).map((entry) => ({
-      label: `command: ${entry}`,
-      value: `/command ${entry}`,
-      source: "command",
-    }));
+    const commandSuggestions: SlashSuggestion[] = Array.from(new Set(commandEntries)).map((entry) => {
+      const name = entry.replace(/\.md$/, "");
+      return {
+        label: `command: ${name}`,
+        value: `/${name}`,
+        source: "command",
+      };
+    });
 
     const skillSuggestions: SlashSuggestion[] = Array.from(new Set(skillEntries)).map((entry) => ({
       label: `skill: ${entry}`,
-      value: `/skill ${entry}`,
+      value: `/${entry}`,
       source: "skill",
     }));
 
