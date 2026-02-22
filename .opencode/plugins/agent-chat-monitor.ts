@@ -72,13 +72,18 @@ async function rotateIfNeeded($: any, logPath: string): Promise<void> {
 /**
  * Append a ChatLogRecord to the JSONL file.
  * - Exception-isolated: never throws.
- * - Uses flock for exclusive access to prevent concurrent corruption.
+ * - Uses a temp file + flock for exclusive, quoting-safe access.
+ *   Background: passing JSON.stringify(line) as a bash -c script argument
+ *   caused "ShellError: exit code 1" because internal double-quotes in the
+ *   JSON broke bash's quote parsing.  Writing to a temp file first avoids
+ *   any shell interpolation of the record content.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function appendJsonlRecord($: any, logPath: string, record: ChatLogRecord): Promise<void> {
+  const logDir = logPath.substring(0, logPath.lastIndexOf("/"));
+  let tmpPath = "";
   try {
     // Ensure directory exists
-    const logDir = logPath.substring(0, logPath.lastIndexOf("/"));
     await $`mkdir -p ${logDir}`.quiet();
 
     // Rotate if needed
@@ -87,16 +92,25 @@ async function appendJsonlRecord($: any, logPath: string, record: ChatLogRecord)
     // Serialize (single JSON line)
     const line = JSON.stringify(record);
 
-    // Append with flock for exclusive access.
-    // zx-style $`...` auto-escapes ${line} and ${logPath}.
-    // The >> redirect is a static shell operator so it's not escaped by $.
-    await $`flock -x -w 5 ${logPath + ".lock"} -c ${"printf '%s\\n' " + JSON.stringify(line) + " >> " + JSON.stringify(logPath)}`.quiet();
+    // Write to a temp file so the content is never interpreted by bash.
+    // zx properly escapes ${line} and ${tmpPath} as single shell arguments.
+    tmpPath = `${logDir}/.chatlog_tmp_${generateId()}`;
+    await $`printf '%s\n' ${line} > ${tmpPath}`.quiet();
+
+    // Atomically append the temp file while holding an exclusive lock.
+    await $`flock -x -w 5 ${logPath + ".lock"} cat ${tmpPath} >> ${logPath}`.quiet();
   } catch (err) {
-    // Warning only – never interrupt dashboard send
+    // Always log write errors (not gated by ENABLE_LOGGING)
     try {
       const ts = new Date().toISOString();
-      await $`echo ${`[${ts}] agent-chat-monitor JSONL write warning: ${err}`} >> logs/agent-chat-monitor-warn.log`.quiet();
+      await $`mkdir -p ${logDir}`.quiet();
+      await $`printf '%s\n' ${`[${ts}] agent-chat-monitor JSONL write ERROR: ${err}`} >> ${logDir + "/agent-chat-monitor-warn.log"}`.quiet();
     } catch { }
+  } finally {
+    // Clean up temp file (silent)
+    if (tmpPath) {
+      try { await $`rm -f ${tmpPath}`.quiet(); } catch { }
+    }
   }
 }
 
@@ -124,25 +138,36 @@ function extractUserContent(rawContent: string): string | null {
 }
 
 function extractAssistantContent(rawContent: string, agentName: string): string | null {
-  if (rawContent.includes("<content>") && rawContent.includes("</content>")) {
-    const contentBlockPattern = /<content>[\s\S]*?<\/content>/g;
-    const withoutContent = rawContent.replace(contentBlockPattern, "").trim();
-    if (withoutContent.length === 0 || withoutContent.match(/^\[Tool: read\]\n*$/)) {
-      return null;
-    }
-  }
+  // Step 1: remove <content>...</content> blocks (file read payloads).
+  let working = rawContent.includes("<content>") && rawContent.includes("</content>")
+    ? rawContent.replace(/<content>[\s\S]*?<\/content>/g, "")
+    : rawContent;
 
-  if (rawContent.includes("[Tool:")) {
-    const toolPattern = /\[Tool: \w+\][\s\S]*?(Output:.*?\n)?/g;
-    const withoutTools = rawContent.replace(toolPattern, "").trim();
+  // Step 2: if [Tool:] blocks are present, remove each block precisely.
+  // Previous approach used a non-greedy regex that could accidentally consume
+  // narrative text that follows a tool block.
+  // New approach: split on [Tool: ...] markers and reconstruct only non-tool chunks.
+  if (working.includes("[Tool:")) {
+    // Match a tool header line like "[Tool: read]" up to (and including) the next
+    // "Output: ..." line, or until the next "[Tool:" marker or end of string.
+    // We use a greedy match inside each tool block so it fully consumes the block.
+    const toolBlockPattern = /\[Tool:\s+\w+\][^\[]*?(?:Output:[^\n]*\n?)?(?=\[Tool:|$)/gs;
+    const withoutTools = working.replace(toolBlockPattern, "").trim();
 
     if (withoutTools.length > 0 && !withoutTools.match(/^[\s\-]+$/)) {
       return processAssistantText(withoutTools, agentName);
     }
+    // Fallback: if the improved regex still left nothing, try a plain strip of
+    // "[Tool: xxx]" header lines alone and keep any surrounding prose.
+    const withoutHeaders = working.replace(/^\[Tool:\s+\w+\][^\n]*\n?/gm, "").trim();
+    if (withoutHeaders.length > 0 && !withoutHeaders.match(/^[\s\-]+$/)) {
+      return processAssistantText(withoutHeaders, agentName);
+    }
     return null;
   }
 
-  return processAssistantText(rawContent, agentName);
+  // Step 3: no tool blocks — process as plain assistant text.
+  return processAssistantText(working, agentName);
 }
 
 function processAssistantText(content: string, agentName: string): string | null {
@@ -165,6 +190,16 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const COOLDOWN_MS = 300; // 300 ms — reduced to avoid missing the idle event right after response completion
   const ENABLE_LOGGING = false;
   const JSONL_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
+  const DIAG_LOG_PATH = "logs/agent-chat-monitor-diag.log";
+
+  /** Always-on diagnostic logger (not gated by ENABLE_LOGGING). */
+  const diagLog = async (message: string): Promise<void> => {
+    try {
+      const ts = new Date().toISOString();
+      await $`mkdir -p logs`.quiet();
+      await $`printf '%s\n' ${`[${ts}][${agentId}] ${message}`} >> ${DIAG_LOG_PATH}`.quiet();
+    } catch { }
+  };
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
@@ -244,6 +279,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         }
 
         if (!sessionId) {
+          await diagLog("session.idle fired but session ID could not be resolved — skipping capture");
           return;
         }
 
@@ -299,7 +335,16 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           const extracted = extractAssistantContent(rawContent, agentDisplayName);
           if (extracted && extracted.trim().length > 0) {
             allAssistantItems.push({ content: extracted });
+          } else if (rawContent.trim().length > 0) {
+            // Log filtered content with a preview so the cause can be diagnosed later.
+            const preview = rawContent.replace(/\n/g, "\\n").slice(0, 300);
+            await diagLog(`assistant message filtered (null after extraction). rawLen=${rawContent.length} hasToolBlock=${rawContent.includes("[Tool:")} hasContentBlock=${rawContent.includes("<content>")} preview="${preview}"`);
           }
+        }
+
+        // Diagnostic: always log cursor state so we can detect skips
+        if (allAssistantItems.length > 0 || lastLoggedAssistantCount > 0) {
+          await diagLog(`session=${sessionId} allAssistant=${allAssistantItems.length} lastLogged=${lastLoggedAssistantCount} new=${allAssistantItems.length - lastLoggedAssistantCount}`);
         }
 
         const newItems = allAssistantItems.slice(lastLoggedAssistantCount);
@@ -322,6 +367,8 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         lastLoggedAssistantCount = allAssistantItems.length;
 
       } catch (error) {
+        // Always log handler errors
+        await diagLog(`ERROR in session.idle handler: ${error}`);
         if (ENABLE_LOGGING) {
           await log(`Error in event handler: ${error}`);
         }

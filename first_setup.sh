@@ -479,22 +479,25 @@ else
     log_info "config/settings.yaml already exists"
 fi
 
-# config/projects.yaml
-if [ ! -f "$SCRIPT_DIR/config/projects.yaml" ]; then
-    log_info "Creating config/projects.yaml..."
-    cat > "$SCRIPT_DIR/config/projects.yaml" << 'EOF'
-projects:
-  - id: sample_project
-    name: "Sample Project"
-    path: "/path/to/your/project"
-    priority: high
-    status: active
-
-current_project: sample_project
+# config/current_projects.yaml
+if [ ! -f "$SCRIPT_DIR/config/current_projects.yaml" ]; then
+    log_info "Creating config/current_projects.yaml..."
+    cat > "$SCRIPT_DIR/config/current_projects.yaml" << 'EOF'
+# Active projects configuration
+# Managed by scripts/projects_activate.sh
+active_project_ids: []
+updated_at: ""
+updated_by: ""
 EOF
-    log_success "Created projects.yaml"
+    log_success "Created current_projects.yaml"
 else
-    log_info "config/projects.yaml already exists"
+    log_info "config/current_projects.yaml already exists"
+fi
+
+# projects/ directory (for per-project YAML definitions)
+if [ ! -d "$SCRIPT_DIR/projects" ]; then
+    mkdir -p "$SCRIPT_DIR/projects"
+    log_success "Created projects/ directory"
 fi
 
 RESULTS+=("Configuration files: OK")

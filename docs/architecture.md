@@ -48,7 +48,7 @@ Forbidden. Event-driven only. API bills stay predictable.
 | Layer | What | Survives |
 |-------|------|----------|
 | Memory MCP | Preferences, rules, cross-project knowledge | Everything |
-| Project files | `config/projects.yaml`, `context/*.md` | Everything |
+| Project files | `config/current_projects.yaml`, `projects/<id>.yaml` | Everything |
 | YAML Inbox | `queue/inbox/{agent}.yaml` (sole communication channel) | Everything |
 | Session | `AGENTS.md`, `.opencode/agents/*.md` | `/new` resets it |
 
@@ -95,7 +95,7 @@ Four-layer context structure for efficient knowledge sharing:
 | Layer | Location | Purpose |
 |-------|----------|---------|
 | Layer 1: Memory MCP | `memory/noctis_memory.jsonl` | Cross-project, cross-session long-term memory |
-| Layer 2: Project | `config/projects.yaml`, `projects/<id>.yaml`, `context/{project}.md` | Project-specific information & technical knowledge |
+| Layer 2: Project | `config/current_projects.yaml`, `projects/<id>.yaml` | Project-specific information & technical knowledge |
 | Layer 3: YAML Inbox | `queue/inbox/{agent}.yaml` | Communication + task management (source of truth) |
 | Layer 4: Session | AGENTS.md, .opencode/agents/*.md | Working context (resets with /new) |
 

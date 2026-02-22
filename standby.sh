@@ -401,6 +401,21 @@ fi
 [ -d ./queue/inbox ] || mkdir -p ./queue/inbox
 [ -d ./queue/metrics ] || mkdir -p ./queue/metrics
 
+# Ensure projects directory exists
+[ -d ./projects ] || mkdir -p ./projects
+
+# Initialize config/current_projects.yaml if not exists
+if [ ! -f ./config/current_projects.yaml ]; then
+    cat > ./config/current_projects.yaml << 'EOF'
+# Active projects configuration
+# Managed by scripts/projects_activate.sh
+active_project_ids: []
+updated_at: ""
+updated_by: ""
+EOF
+    log_info "Created config/current_projects.yaml"
+fi
+
 if [ "$CLEAN_MODE" = true ]; then
     log_info "📜 Discarding previous mission records..."
 
@@ -670,6 +685,16 @@ fi
 
 log_info "🌐 Starting Desktop Web App (port: $WEB_PORT)..."
 mkdir -p runtime/logs
+
+# If clean mode, kill existing ff15 web server to pick up the latest build
+if [ "$CLEAN_MODE" = true ] && lsof -Pi :"$WEB_PORT" -sTCP:LISTEN -t &>/dev/null; then
+    EXISTING_CMD=$(lsof -Pi :"$WEB_PORT" -sTCP:LISTEN -Fc 2>/dev/null | grep '^c' | head -1 | sed 's/^c//')
+    if echo "$EXISTING_CMD" | grep -qi "react-router\|node"; then
+        EXISTING_PID=$(lsof -Pi :"$WEB_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1)
+        kill "$EXISTING_PID" 2>/dev/null && log_info "  └─ Stopped existing web server (PID: $EXISTING_PID) for clean restart" || true
+        sleep 1
+    fi
+fi
 
 # If port is already occupied by a non-ff15 process, skip launch
 if lsof -Pi :"$WEB_PORT" -sTCP:LISTEN -t &>/dev/null; then
