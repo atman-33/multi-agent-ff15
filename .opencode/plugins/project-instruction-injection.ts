@@ -205,19 +205,13 @@ ${INJECTION_MARKER_END}`;
         // Generate and inject block (Task 4.6)
         const { block, resolvedFiles } = generateInjectionBlock(projects);
 
-        // Create a synthetic TextPart for injection
-        const injectionPart = {
+        output.parts.push({
           id: `injection-${Date.now()}`,
           sessionID: input.sessionID,
-          messageID: input.messageID || "",
+          messageID: input.messageID ?? "",
           type: "text" as const,
           text: block,
-          synthetic: true,
-        };
-        output.parts = [
-          ...existingParts,
-          injectionPart as unknown as (typeof existingParts)[0],
-        ];
+        } as unknown as (typeof output.parts)[0]);
 
         // Log success (Task 5.3)
         await appendLog({
