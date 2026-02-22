@@ -54,7 +54,7 @@ multi-agent-ff15/
 ├── config/                        # settings.yaml, models.yaml, projects.yaml
 ├── queue/
 │   └── inbox/{agent}.yaml         # Per-agent inbox (sole communication channel)
-├── context/                       # Project-specific context
+├── projects/                      # Per-project metadata
 ├── memory/                        # Memory MCP storage
 ├── docs/private/                  # Supplementary report output (補足ドキュメント出力先)
 ├── dashboard.md                   # Status board
