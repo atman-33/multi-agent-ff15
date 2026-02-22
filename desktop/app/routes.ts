@@ -9,6 +9,7 @@ export default [
   route("api/health", "routes/api.health.ts"),
   route("api/projects", "routes/api.projects.ts"),
   route("api/projects/active", "routes/api.projects.active.ts"),
+  route("api/slash-suggestions", "routes/api.slash-suggestions.ts"),
   // UI routes
   layout("routes/_layout.tsx", [
     index("routes/index.tsx"),
