@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,11 @@ const MAX_MESSAGE_LENGTH = 4000;
 type SendStatus = "idle" | "sending" | "sent" | "failed";
 type ModelSwitchAgent = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto";
 
+type SlashSuggestion = {
+  label: string;
+  value: string;
+  source: "command" | "skill";
+};
 
 interface MessageComposerProps {
   activeAgent: MainAgentId;
@@ -45,6 +50,10 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   const [lastContent, setLastContent] = useState("");
   const [lastAgent, setLastAgent] = useState<MainAgentId>(activeAgent);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [allSlashSuggestions, setAllSlashSuggestions] = useState<SlashSuggestion[]>([]);
+  const [showSlashSuggestions, setShowSlashSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [modelSwitchAgent, setModelSwitchAgent] = useState<ModelSwitchAgent>("noctis");
@@ -171,12 +180,118 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   const handleRetry = () => doSend(lastAgent, lastContent);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSlashSuggestions) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) =>
+          filteredSlashSuggestions.length === 0
+            ? 0
+            : (prev + 1) % filteredSlashSuggestions.length
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) =>
+          filteredSlashSuggestions.length === 0
+            ? 0
+            : (prev - 1 + filteredSlashSuggestions.length) % filteredSlashSuggestions.length
+        );
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const selected = filteredSlashSuggestions[selectedSuggestionIndex];
+        if (selected) {
+          e.preventDefault();
+          applySlashSuggestion(selected.value);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        setShowSlashSuggestions(false);
+      }
+    }
+
     // Ctrl+Enter or Cmd+Enter to send
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSend) {
       e.preventDefault();
       handleSend();
     }
   };
+
+  const activeSlashToken = useMemo(() => {
+    const cursor = textareaRef.current?.selectionStart ?? content.length;
+    const left = content.slice(0, cursor);
+    const slashMatch = left.match(/(?:^|\s)\/(\S*)$/);
+    return slashMatch?.[1] ?? null;
+  }, [content]);
+
+  const filteredSlashSuggestions = useMemo(() => {
+    if (activeSlashToken === null) {
+      return [];
+    }
+
+    const keyword = activeSlashToken.toLowerCase();
+    return allSlashSuggestions.filter(
+      (item) => item.label.toLowerCase().includes(keyword) || item.value.toLowerCase().includes(keyword)
+    );
+  }, [activeSlashToken, allSlashSuggestions]);
+
+  const applySlashSuggestion = (nextValue: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setContent((prev) => `${prev} ${nextValue}`.trimStart());
+      setShowSlashSuggestions(false);
+      return;
+    }
+
+    const cursor = textarea.selectionStart;
+    const left = content.slice(0, cursor);
+    const right = content.slice(cursor);
+    const replacedLeft = left.replace(/(?:^|\s)\/\S*$/, (match) => {
+      const leadingSpace = match.startsWith(" ") ? " " : "";
+      return `${leadingSpace}${nextValue}`;
+    });
+
+    const nextContent = `${replacedLeft}${right}${right.startsWith(" ") || right.length === 0 ? "" : " "}`;
+    setContent(nextContent);
+    setShowSlashSuggestions(false);
+
+    requestAnimationFrame(() => {
+      const nextCursor = replacedLeft.length;
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSlashSuggestions = async () => {
+      try {
+        const res = await fetch("/api/slash-suggestions");
+        if (!res.ok) {
+          return;
+        }
+        const data = await res.json();
+        if (mounted && Array.isArray(data?.suggestions)) {
+          setAllSlashSuggestions(data.suggestions);
+        }
+      } catch {
+        // Non-blocking helper endpoint
+      }
+    };
+
+    loadSlashSuggestions();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const shouldShow = activeSlashToken !== null && filteredSlashSuggestions.length > 0;
+    setShowSlashSuggestions(shouldShow);
+    setSelectedSuggestionIndex(0);
+  }, [activeSlashToken, filteredSlashSuggestions.length]);
 
   return (
     <div className="border-t border-border/40 pt-3 space-y-3">
@@ -264,6 +379,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
       <div className="flex gap-2">
         <div className="relative flex-1">
           <textarea
+            ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -276,6 +392,27 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
               isOverLimit ? "border-red-500/60" : "border-border/50"
             )}
           />
+          {showSlashSuggestions && (
+            <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] max-h-40 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm z-20">
+              {filteredSlashSuggestions.map((item, idx) => (
+                <button
+                  key={`${item.source}-${item.value}`}
+                  type="button"
+                  className={cn(
+                    "w-full px-3 py-2 text-left text-xs hover:bg-accent/70",
+                    idx === selectedSuggestionIndex && "bg-accent"
+                  )}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applySlashSuggestion(item.value);
+                  }}
+                >
+                  <span className="font-medium text-foreground">{item.value}</span>
+                  <span className="ml-2 text-muted-foreground">({item.label})</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* Character count */}
           <span
             className={cn(
