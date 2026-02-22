@@ -13,7 +13,7 @@ function readModelOptions(root: string): string[] {
   if (!existsSync(configPath)) return [];
 
   const raw = readFileSync(configPath, "utf-8");
-  const parsed = parseYaml(raw) as { models?: unknown };
+  const parsed = parseYaml(raw) as { models?: unknown; };
 
   if (!Array.isArray(parsed?.models)) return [];
 
@@ -35,9 +35,9 @@ function readModelOptions(root: string): string[] {
  * POST /api/model-switch
  * Body: { agent: AllowedAgent, label: string }
  */
-export async function action({ request }: { request: Request }) {
+export async function action({ request }: { request: Request; }) {
   try {
-    const body = (await request.json()) as { agent?: string; label?: string };
+    const body = (await request.json()) as { agent?: string; label?: string; };
     const agent = body.agent?.trim() ?? "";
     const label = body.label?.trim() ?? "";
 
@@ -54,7 +54,7 @@ export async function action({ request }: { request: Request }) {
       return Response.json({ error: `Invalid model label: ${label}` }, { status: 400 });
     }
 
-    const script = join(root, ".opencode/skills/switch-model/scripts/switch.sh");
+    const script = join(root, "scripts/switch-model.sh");
     const result = spawnSync("bash", [script, agent, label], {
       cwd: root,
       encoding: "utf-8",

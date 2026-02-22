@@ -2,12 +2,12 @@
 # switch-model: Dynamically switch an FF15 agent's model via OpenCode /models command
 #
 # Usage:
-#   switch.sh <agent_name> <model_keyword>
+#   switch-model.sh <agent_name> <model_keyword>
 #
 # Examples:
-#   switch.sh prompto gpt-5-mini
-#   switch.sh ignis opus
-#   switch.sh gladiolus haiku
+#   switch-model.sh prompto gpt-5-mini
+#   switch-model.sh ignis opus
+#   switch-model.sh gladiolus haiku
 #
 # The agent must be in idle state (not executing a task).
 
@@ -24,7 +24,7 @@ declare -A PANE_INDEX=(
 
 # --- Argument validation ---
 if [[ $# -ne 2 ]]; then
-  echo "Usage: switch.sh <agent_name> <model_keyword>" >&2
+  echo "Usage: switch-model.sh <agent_name> <model_keyword>" >&2
   echo "" >&2
   echo "Model keywords (must match OpenCode /models display exactly):" >&2
   echo "  Claude: opus, sonnet, haiku" >&2
@@ -50,7 +50,7 @@ tmux send-keys -t "$target" '/models'
 tmux send-keys -t "$target" Enter
 
 # Step 2: Wait for UI to appear
-sleep 2
+sleep 0.5
 
 # Step 3: Send model search keyword
 tmux send-keys -t "$target" "$model"
