@@ -4,6 +4,106 @@ declare const process: {
   env: Record<string, string | undefined>;
 };
 
+// ---------------------------------------------------------------------------
+// JSONL Logger types & utilities
+// ---------------------------------------------------------------------------
+
+interface ChatLogRecord {
+  id: string;
+  ts: string;
+  agent: string;
+  source: string;
+  kind: "answer" | "status" | "error";
+  content: string;
+  session_id: string;
+  meta: {
+    pane: string;
+    event: string;
+  };
+}
+
+/** Remove ANSI escape sequences and normalize line endings. */
+function normalizeContent(raw: string): string {
+  // Strip ANSI escape codes (CSI sequences, OSC, etc.)
+  // eslint-disable-next-line no-control-regex
+  const stripped = raw.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b[@-Z\\-_]/g, "");
+  // Normalize multiple blank lines
+  return stripped.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Generate a simple unique ID. */
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/**
+ * Rotate JSONL file if it exceeds MAX_LOG_SIZE_BYTES.
+ * Keeps up to MAX_LOG_GENERATIONS generations (.1 through .5).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function rotateIfNeeded($: any, logPath: string): Promise<void> {
+  const MAX_LOG_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+  const MAX_LOG_GENERATIONS = 5;
+
+  try {
+    // Get file size in bytes (returns "0" if file doesn't exist)
+    const sizeStr = await $`wc -c < ${logPath} 2>/dev/null || echo 0`.text();
+    const size = parseInt(sizeStr.trim(), 10);
+
+    if (size < MAX_LOG_SIZE_BYTES) return;
+
+    // Remove oldest generation if it exists
+    await $`rm -f ${logPath}.${MAX_LOG_GENERATIONS}`.quiet();
+
+    // Shift generations: .4 -> .5, .3 -> .4, ... .1 -> .2
+    for (let i = MAX_LOG_GENERATIONS - 1; i >= 1; i--) {
+      await $`mv -f ${logPath}.${i} ${logPath}.${i + 1} 2>/dev/null || true`.quiet();
+    }
+
+    // Current file -> .1
+    await $`mv -f ${logPath} ${logPath}.1`.quiet();
+  } catch {
+    // Rotation errors are non-fatal
+  }
+}
+
+/**
+ * Append a ChatLogRecord to the JSONL file.
+ * - Exception-isolated: never throws.
+ * - Uses flock for exclusive access to prevent concurrent corruption.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function appendJsonlRecord($: any, logPath: string, record: ChatLogRecord): Promise<void> {
+  try {
+    // Ensure directory exists
+    const logDir = logPath.substring(0, logPath.lastIndexOf("/"));
+    await $`mkdir -p ${logDir}`.quiet();
+
+    // Rotate if needed
+    await rotateIfNeeded($, logPath);
+
+    // Serialize (single JSON line)
+    const line = JSON.stringify(record);
+
+    // Append with flock for exclusive access.
+    // zx-style $`...` auto-escapes ${line} and ${logPath}.
+    // The >> redirect is a static shell operator so it's not escaped by $.
+    await $`flock -x -w 5 ${logPath + ".lock"} -c ${"printf '%s\\n' " + JSON.stringify(line) + " >> " + JSON.stringify(logPath)}`.quiet();
+  } catch (err) {
+    // Warning only – never interrupt dashboard send
+    try {
+      const ts = new Date().toISOString();
+      await $`echo ${`[${ts}] agent-chat-monitor JSONL write warning: ${err}`} >> logs/agent-chat-monitor-warn.log`.quiet();
+    } catch { }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Existing content extraction helpers
+// ---------------------------------------------------------------------------
+
 function extractUserContent(rawContent: string): string | null {
   if (rawContent.includes("[analyze-mode]")) {
     const sections = rawContent.split(/\n---\n/);
@@ -18,8 +118,7 @@ function extractUserContent(rawContent: string): string | null {
     .replace(/<user-request>([\s\S]*?)<\/user-request>/g, "$1");
 
   const withoutPrefix = withoutSkillBlocks.replace(/^\[user\]\n*/i, "").trim();
-  const noHeadings = withoutPrefix.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
-  const cleaned = noHeadings.replace(/\n{3,}/g, "\n\n").trim();
+  const cleaned = withoutPrefix.replace(/\n{3,}/g, "\n\n").trim();
 
   return cleaned ? `[User] ${cleaned}` : null;
 }
@@ -49,27 +148,33 @@ function extractAssistantContent(rawContent: string, agentName: string): string 
 function processAssistantText(content: string, agentName: string): string | null {
   const withoutFileContent = content.replace(/<content>[\s\S]*?<\/content>/g, "[ファイル内容省略]");
   const withoutReadme = withoutFileContent.replace(/\[Project README:[\s\S]*?---\n\n/m, "");
-  const noHeadings = withoutReadme.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
-  const cleaned = noHeadings.replace(/\n{3,}/g, "\n\n").trim();
+  const cleaned = withoutReadme.replace(/\n{3,}/g, "\n\n").trim();
 
-  return cleaned ? `[${agentName}] ${cleaned}` : null;
+  return cleaned ? `${cleaned}` : null;
 }
 
 const AgentChatMonitor: Plugin = async ({ $, client }) => {
   const agentId = process.env.AGENT_ID;
 
-  // Only run for noctis and lunafreya
-  if (agentId !== "noctis" && agentId !== "lunafreya") {
+  // Run for all agents (noctis, lunafreya, ignis, gladiolus, prompto, iris)
+  const KNOWN_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris"];
+  if (!agentId || !KNOWN_AGENTS.includes(agentId)) {
     return {};
   }
 
-  const COOLDOWN_MS = 1_000; // 1 second
+  const COOLDOWN_MS = 300; // 300 ms — reduced to avoid missing the idle event right after response completion
   const ENABLE_LOGGING = false;
-  const MAX_MESSAGES = 5;
-  const DASHBOARD_FILE = "dashboard.md";
+  const JSONL_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
+  /**
+   * C案: in-memory cursor.
+   * Tracks how many assistant messages have already been written to JSONL for
+   * the current session. On session.created it resets to 0, so each new
+   * session starts fresh without re-logging old messages.
+   */
+  let lastLoggedAssistantCount = 0;
 
   const log = async (message: string): Promise<void> => {
     if (!ENABLE_LOGGING) return;
@@ -77,68 +182,6 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
       const timestamp = new Date().toISOString();
       await $`echo "[${timestamp}] agent-chat-monitor (${agentId}): ${message}" >> logs/agent-chat-monitor.log`.quiet();
     } catch { }
-  };
-
-  const updateDashboard = async (content: string): Promise<void> => {
-    try {
-      const agentDisplayName = agentId === "noctis" ? "Noctis" : "Lunafreya";
-      const timestamp = new Date().toISOString().replace("T", " ").substring(0, 19);
-
-      // Read current dashboard
-      const currentContent = await $`cat ${DASHBOARD_FILE}`.text().catch(() => "");
-
-      // Split by sections
-      const lines = currentContent.split("\n");
-      const newLines: string[] = [];
-      let inTargetSection = false;
-      let sectionFound = false;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Check if we're entering the target agent's section
-        if (line.startsWith(`### 💬 ${agentDisplayName} Latest Chat`)) {
-          inTargetSection = true;
-          sectionFound = true;
-          newLines.push(line);
-          newLines.push(content || "_No messages yet_");
-          newLines.push("");
-          continue;
-        }
-
-        // Check if we're leaving the target section (entering next section ONLY)
-        // Note: We ignore "---" separators within messages to avoid premature section exit
-        if (inTargetSection && (line.startsWith("###") || line.startsWith("##"))) {
-          inTargetSection = false;
-          // Don't skip this line - it's the next section header
-        }
-
-        // Skip lines in target section (they will be replaced)
-        if (inTargetSection) {
-          continue;
-        }
-
-        // Update timestamp in header
-        if (line.startsWith("Last Updated:")) {
-          newLines.push(`Last Updated: ${timestamp}`);
-          continue;
-        }
-
-        newLines.push(line);
-      }
-
-      // Write updated content
-      const updatedContent = newLines.join("\n");
-      await $`echo ${updatedContent} > ${DASHBOARD_FILE}`.quiet();
-
-      if (ENABLE_LOGGING) {
-        await log(`Dashboard updated for ${agentDisplayName}`);
-      }
-    } catch (error) {
-      if (ENABLE_LOGGING) {
-        await log(`Failed to update dashboard: ${error}`);
-      }
-    }
   };
 
   return {
@@ -157,6 +200,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
 
         if (newSessionId) {
           currentSessionId = newSessionId;
+          lastLoggedAssistantCount = 0; // reset cursor for new session
           if (ENABLE_LOGGING) {
             await log(`Captured session ID from session.created: ${newSessionId}`);
           }
@@ -211,105 +255,71 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           return;
         }
 
-        const MAX_SEARCH_MESSAGES = 20; // Look back further to find conversation pairs
-        const MAX_CONVERSATIONS = 5;    // Show up to 5 conversation pairs
+        const DISPLAY_NAMES: Record<string, string> = {
+          noctis: "Noctis",
+          lunafreya: "Lunafreya",
+          ignis: "Ignis",
+          gladiolus: "Gladiolus",
+          prompto: "Prompto",
+          iris: "Iris",
+        };
+        const agentDisplayName = DISPLAY_NAMES[agentId] ?? agentId;
 
-        const messages = messagesResult.data.slice(-MAX_SEARCH_MESSAGES);
-        const agentDisplayName = agentId === "noctis" ? "Noctis" : "Lunafreya";
+        // --- JSONL logging ---
+        // IMPORTANT: This runs BEFORE the conversation-pair grouping check so that
+        // assistant messages are never missed even when no User→Assistant pairs exist
+        // (e.g. orphaned assistant messages, tool-only responses, etc.).
+        //
+        // Fix for sliding-window cursor drift: iterate over the FULL message list
+        // (messagesResult.data) instead of the capped sliding window, so the cursor
+        // stays in sync with the actual session history regardless of its length.
+        const PANE_MAP: Record<string, string> = {
+          noctis: "0",
+          lunafreya: "1",
+          ignis: "2",
+          gladiolus: "3",
+          prompto: "4",
+          iris: "5",
+        };
+        const pane = PANE_MAP[agentId] ?? "0";
 
-        // Extract raw contents first
-        const extractedContents: { role: string, content: string; }[] = [];
-        for (let idx = 0; idx < messages.length; idx++) {
-          const msg = messages[idx];
-          const role = msg.info?.role || "unknown";
-
+        // Build assistant item list from ALL messages (no sliding-window cap)
+        const allAssistantItems: { content: string }[] = [];
+        for (const msg of messagesResult.data) {
+          const msgAny = msg as any;
+          const role = msgAny.info?.role || "unknown";
+          if (role !== "assistant") continue;
           let rawContent = "";
-          if (Array.isArray(msg.parts)) {
-            rawContent = msg.parts
-              .map((part: any) => {
-                if (part.type === "text" && part.text) {
-                  return part.text;
-                }
-                return "";
-              })
+          if (Array.isArray(msgAny.parts)) {
+            rawContent = msgAny.parts
+              .map((part: any) => (part.type === "text" && part.text ? part.text : ""))
               .filter((text: string) => text.trim().length > 0)
               .join("\n\n");
           }
-
-          let extractedContent: string | null = null;
-          if (role === "user") {
-            extractedContent = extractUserContent(rawContent);
-          } else if (role === "assistant") {
-            extractedContent = extractAssistantContent(rawContent, agentDisplayName);
-          }
-
-          if (extractedContent && extractedContent.trim().length > 0) {
-            extractedContents.push({ role, content: extractedContent });
+          const extracted = extractAssistantContent(rawContent, agentDisplayName);
+          if (extracted && extracted.trim().length > 0) {
+            allAssistantItems.push({ content: extracted });
           }
         }
 
-        // Group into conversation pairs (User -> Assistant sequence)
-        // Logic: Scan backwards. Find User message, then attach following Assistant messages.
-        const conversations: string[][] = [];
-        let currentGroup: string[] = [];
-
-        for (let i = extractedContents.length - 1; i >= 0; i--) {
-          const item = extractedContents[i];
-
-          if (item.role === "assistant") {
-            // Add assistant message to potential group (prepend as we scan backwards)
-            currentGroup.unshift(item.content);
-          } else if (item.role === "user") {
-            // Found a user message - this completes a conversation group
-            currentGroup.unshift(item.content);
-            conversations.unshift(currentGroup);
-            currentGroup = []; // Reset for next group
-
-            // Limit to MAX_CONVERSATIONS
-            if (conversations.length >= MAX_CONVERSATIONS) {
-              break;
-            }
-          }
+        const newItems = allAssistantItems.slice(lastLoggedAssistantCount);
+        for (const item of newItems) {
+          const normalized = normalizeContent(item.content);
+          if (!normalized) continue;
+          const record: ChatLogRecord = {
+            id: generateId(),
+            ts: new Date().toISOString(),
+            agent: agentId,
+            source: "terminal_capture",
+            kind: "answer",
+            content: normalized,
+            session_id: sessionId ?? "unknown",
+            meta: { pane, event: "assistant_response" },
+          };
+          await appendJsonlRecord($, JSONL_LOG_PATH, record);
         }
-
-        // Handle case where we have assistant messages left over (orphaned at start)
-        // or user message without assistant response (unanswered) - already handled by logic
-
-        if (conversations.length === 0) {
-          // Fallback if no proper conversation pairs found (e.g. only assistant messages)
-          // Just take the raw items
-          const flatList = extractedContents.map(c => c.content);
-          const fallbackContent = flatList.slice(-MAX_CONVERSATIONS).join("\n\n---\n\n");
-          if (fallbackContent.trim()) {
-            await updateDashboard(fallbackContent);
-          }
-          return;
-        }
-
-        // Format content
-        let formattedContent: string;
-        if (conversations.length > 1) {
-          const pastConversations = conversations.slice(0, -1); // All except last
-          const latestConversation = conversations[conversations.length - 1]; // Last one
-
-          const pastText = pastConversations.map(group => group.join("\n\n---\n\n")).join("\n\n---\n\n");
-          const latestText = latestConversation.join("\n\n---\n\n");
-
-          formattedContent =
-            `<details>\n<summary>💬 Past ${pastConversations.length} conversation${pastConversations.length !== 1 ? 's' : ''}</summary>\n\n` +
-            pastText +
-            `\n\n</details>\n\n` +
-            latestText;
-        } else {
-          // Only one conversation
-          formattedContent = conversations[0].join("\n\n---\n\n");
-        }
-
-        if (!formattedContent.trim()) {
-          return;
-        }
-
-        await updateDashboard(formattedContent);
+        // Advance cursor to the full count so subsequent calls only log truly new messages.
+        lastLoggedAssistantCount = allAssistantItems.length;
 
       } catch (error) {
         if (ENABLE_LOGGING) {

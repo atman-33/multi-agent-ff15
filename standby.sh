@@ -418,6 +418,10 @@ if [ "$CLEAN_MODE" = true ]; then
     rm -f ./queue/noctis_to_lunafreya.yaml 2>/dev/null || true
     rm -f ./queue/noctis_to_ignis.yaml 2>/dev/null || true
 
+    # Runtime logs reset
+    rm -rf ./runtime/logs 2>/dev/null || true
+    log_info "🗑️  runtime/logs cleared"
+
     log_success "✅ Cleanup complete"
 else
     log_info "📜 Resuming from previous state..."
@@ -440,14 +444,6 @@ if [ "$CLEAN_MODE" = true ]; then
 # 📊 Mission Status
 Last Updated: ${TIMESTAMP}
 
-## 👑 Latest Report to Crystal
-
-### 💬 Noctis Latest Chat
-_No messages yet_
-
-### 💬 Lunafreya Latest Chat
-_No messages yet_
-
 ## 🚨 Requires Action
 None
 
@@ -462,9 +458,6 @@ None
 None
 
 ## 🛠️ Generated Skills
-None
-
-## ⏸️ On Standby
 None
 EOF
 
@@ -661,6 +654,66 @@ if [ "$SETUP_ONLY" = false ]; then
     log_success "✅ Started in ${MODE_NAME} mode (${AGENT_COUNT} agents deployed with native agent definitions)"
     echo ""
 fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STEP 6.5: Start Desktop Web App
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Read web port from config/settings.yaml (default: 13000)
+WEB_PORT=13000
+if [ -f "./config/settings.yaml" ]; then
+    _port=$(grep -A2 '^web:' ./config/settings.yaml 2>/dev/null | grep 'port:' | awk '{print $2}' | tr -d '[:space:]')
+    if [[ "$_port" =~ ^[0-9]+$ ]]; then
+        WEB_PORT="$_port"
+    fi
+fi
+
+log_info "🌐 Starting Desktop Web App (port: $WEB_PORT)..."
+mkdir -p runtime/logs
+
+# If port is already occupied by a non-ff15 process, skip launch
+if lsof -Pi :"$WEB_PORT" -sTCP:LISTEN -t &>/dev/null; then
+    EXISTING_CMD=$(lsof -Pi :"$WEB_PORT" -sTCP:LISTEN -Fc 2>/dev/null | grep '^c' | head -1 | sed 's/^c//')
+    if echo "$EXISTING_CMD" | grep -qi "react-router\|node"; then
+        log_info "  └─ ff15 web server already running on port $WEB_PORT, reusing."
+    else
+        log_warn "  └─ Port $WEB_PORT is occupied by '$EXISTING_CMD'. Skipping web server launch."
+        log_info "  └─ Change 'web.port' in config/settings.yaml to use a different port."
+    fi
+else
+    PORT=$WEB_PORT nohup npm run desktop:web:serve > runtime/logs/web.log 2>&1 &
+    WEB_PID=$!
+    log_info "  └─ Server started (PID: $WEB_PID, log: runtime/logs/web.log)"
+    log_info "  └─ Waiting for server to be ready..."
+    sleep 3
+fi
+
+BROWSER_OPENED=false
+URL="http://localhost:$WEB_PORT"
+
+# WSL: use Windows-side browser
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    if command -v wslview &>/dev/null; then
+        wslview "$URL" 2>/dev/null && BROWSER_OPENED=true
+    fi
+    if [ "$BROWSER_OPENED" = false ] && command -v powershell.exe &>/dev/null; then
+        powershell.exe -NoProfile -Command "Start-Process '$URL'" 2>/dev/null && BROWSER_OPENED=true
+    fi
+    if [ "$BROWSER_OPENED" = false ] && command -v cmd.exe &>/dev/null; then
+        cmd.exe /c start "$URL" 2>/dev/null && BROWSER_OPENED=true
+    fi
+else
+    # Native Linux
+    xdg-open "$URL" 2>/dev/null && BROWSER_OPENED=true
+fi
+
+if [ "$BROWSER_OPENED" = true ]; then
+    log_success "  └─ Browser opened: $URL"
+else
+    log_info "  └─ Could not open browser automatically"
+    log_info "  └─ Please open $URL manually"
+fi
+echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 7: Environment check and completion message

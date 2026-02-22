@@ -18,25 +18,67 @@ FROM="$2"
 MSG_TYPE="$3"
 MSG_CONTENT="$4"
 
+# Crystal is not an agent — she communicates via chat, not inbox
+if [[ "$AGENT" == "crystal" ]]; then
+  echo "ERROR: Cannot write to crystal's inbox. Crystal communicates via chat directly. Reply in the chat instead." >&2
+  exit 2
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INBOX_DIR="${REPO_ROOT}/queue/inbox"
 INBOX_FILE="${INBOX_DIR}/${AGENT}.yaml"
 LOCK_FILE="${INBOX_FILE}.lock"
 TMP_FILE="${INBOX_FILE}.tmp"
+AGENT_MSG_LOG="${REPO_ROOT}/runtime/logs/inbox-log.jsonl"
+AGENT_MSG_LOCK="${AGENT_MSG_LOG}.lock"
 
 MAX_RETRIES=3
 LOCK_TIMEOUT=5
 BACKOFF_DELAYS=(0.5 1 2)
 
 MSG_ID="msg_$(date '+%Y%m%d_%H%M%S')_$(head -c 4 /dev/urandom | xxd -p)"
-TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
+TIMESTAMP=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
 
 log_error() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] inbox_write ERROR: $1" >&2
 }
 
 mkdir -p "$INBOX_DIR" 2>/dev/null
+
+# Append a JSON record to agent-messages.jsonl for chat display
+do_log_agent_message() {
+  mkdir -p "$(dirname "$AGENT_MSG_LOG")" 2>/dev/null
+  python3 - "$AGENT_MSG_LOG" "$AGENT_MSG_LOCK" "$MSG_ID" "$TIMESTAMP" "$FROM" "$AGENT" "$MSG_TYPE" "$MSG_CONTENT" << 'LOGEOF'
+import sys, json, fcntl, os
+
+log_file   = sys.argv[1]
+lock_file  = sys.argv[2]
+msg_id     = sys.argv[3]
+ts         = sys.argv[4]
+from_agent = sys.argv[5]
+to_agent   = sys.argv[6]
+msg_type   = sys.argv[7]
+content    = sys.argv[8]
+
+record = json.dumps({
+    "id":      msg_id,
+    "ts":      ts,
+    "from":    from_agent,
+    "to":      to_agent,
+    "type":    msg_type,
+    "content": content,
+}, ensure_ascii=False)
+
+with open(lock_file, 'a') as lf:
+    fcntl.flock(lf, fcntl.LOCK_EX)
+    try:
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(record + '\n')
+    finally:
+        fcntl.flock(lf, fcntl.LOCK_UN)
+LOGEOF
+}
 
 do_append() {
   python3 - "$INBOX_FILE" "$TMP_FILE" "$MSG_ID" "$FROM" "$TIMESTAMP" "$MSG_TYPE" "$MSG_CONTENT" << 'PYEOF'
@@ -120,6 +162,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
   exit_code=$?
 
   if [[ $exit_code -eq 0 ]]; then
+    do_log_agent_message || true   # non-fatal: chat log failure must not break inbox write
     echo "✅ Message ${MSG_ID} → ${AGENT} inbox"
     exit 0
   elif [[ $exit_code -eq 1 ]]; then

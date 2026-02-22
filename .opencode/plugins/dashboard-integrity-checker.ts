@@ -22,13 +22,11 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
 
   // Expected mandatory headers in order
   const REQUIRED_HEADERS = [
-    "## 👑 Latest Report to Crystal",
     "## 🚨 Requires Action",
     "## 🔄 In Progress",
     "## ✅ Today's Results",
     "## 🎯 Skill Candidates",
-    "## 🛠️ Generated Skills",
-    "## ⏸️ On Standby"
+    "## 🛠️ Generated Skills"
   ];
 
   // Debounce mechanism to prevent duplicate alerts
@@ -70,6 +68,17 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
       for (const found of foundHeaders) {
         if (!REQUIRED_HEADERS.includes(found)) {
           issues.push(`Unauthorized header: "${found}"`);
+        }
+      }
+
+      // Check for duplicate headers
+      const headerCounts = new Map<string, number>();
+      for (const h of foundHeaders) {
+        headerCounts.set(h, (headerCounts.get(h) ?? 0) + 1);
+      }
+      for (const [header, count] of headerCounts) {
+        if (count > 1) {
+          issues.push(`Duplicate header (${count}x): "${header}"`);
         }
       }
 

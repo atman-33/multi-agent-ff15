@@ -247,6 +247,36 @@ else
 fi
 
 # ============================================================
+# STEP 4.5: Desktop Web App setup (install + build)
+# ============================================================
+log_step "STEP 4.5: Desktop Web App setup"
+
+if command -v npm &> /dev/null; then
+    log_info "Installing desktop dependencies..."
+    if npm run desktop:install; then
+        log_success "Desktop dependencies installed"
+        RESULTS+=("Desktop install: OK")
+
+        log_info "Building desktop web app..."
+        if npm run desktop:web:build; then
+            log_success "Desktop web app built"
+            RESULTS+=("Desktop build: OK")
+        else
+            log_error "Desktop build failed"
+            RESULTS+=("Desktop build: Failed")
+            HAS_ERROR=true
+        fi
+    else
+        log_error "Desktop install failed"
+        RESULTS+=("Desktop install: Failed")
+        HAS_ERROR=true
+    fi
+else
+    log_warn "npm not found, skipping desktop setup"
+    RESULTS+=("Desktop setup: Skipped (npm not found)")
+fi
+
+# ============================================================
 # STEP 5: OpenCode CLI check (native version)
 # Note: npm version is officially deprecated. Use native version.
 #       Node.js is still required for MCP servers (via npx).
@@ -432,6 +462,12 @@ shell: bash
 skill:
   # Skill storage location (project-specific - must save here)
   path: "$SCRIPT_DIR/.opencode/skills/"
+
+# Web app settings
+web:
+  # Port for the desktop web app (react-router-serve)
+  # Change this if the default port is already in use by another application.
+  port: 13000
 
 # Logging settings
 logging:

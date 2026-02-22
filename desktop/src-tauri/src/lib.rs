@@ -1,0 +1,536 @@
+use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
+use std::process::Command;
+
+// ---------------------------------------------------------------------------
+// Project root resolution
+// ---------------------------------------------------------------------------
+
+fn get_project_root() -> Result<PathBuf, String> {
+    // 1. Environment variable override
+    if let Ok(root) = std::env::var("MULTI_AGENT_FF15_ROOT") {
+        let path = PathBuf::from(root);
+        if path.join("scripts").exists() {
+            return Ok(path);
+        }
+    }
+
+    // 2. Compile-time: src-tauri/ -> desktop/ -> project root
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    if let Some(root) = manifest_dir.parent().and_then(|p| p.parent()) {
+        let root = root.to_path_buf();
+        if root.join("scripts").exists() {
+            return Ok(root);
+        }
+    }
+
+    // 3. CWD fallback
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            if ancestor.join("scripts").exists() && ancestor.join("queue").exists() {
+                return Ok(ancestor.to_path_buf());
+            }
+        }
+    }
+
+    Err("Could not determine project root. Set MULTI_AGENT_FF15_ROOT env var.".into())
+}
+
+// ---------------------------------------------------------------------------
+// Data types
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct InboxMessage {
+    id: String,
+    from: String,
+    #[serde(rename = "type")]
+    msg_type: String,
+    timestamp: String,
+    content: String,
+    read: bool,
+}
+
+#[derive(Deserialize, Debug)]
+struct InboxFile {
+    messages: Vec<InboxMessage>,
+}
+
+#[derive(Serialize, Debug)]
+struct HealthResult {
+    wsl_detected: bool,
+    wsl_distro: String,
+    tmux_available: bool,
+    tmux_version: String,
+    python3_available: bool,
+    python3_version: String,
+    scripts_executable: Vec<ScriptStatus>,
+    inbox_readable: bool,
+    inbox_writable: bool,
+}
+
+#[derive(Serialize, Debug)]
+struct ScriptStatus {
+    name: String,
+    executable: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Allowed agents for validation
+// ---------------------------------------------------------------------------
+
+const ALLOWED_TARGETS: &[&str] = &["noctis", "lunafreya"];
+const ALLOWED_SENDERS: &[&str] = &[
+    "crystal", "user", "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris",
+];
+
+const MAX_MESSAGE_LENGTH: usize = 4000;
+const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
+const INBOX_LOG_PATH: &str = "runtime/logs/inbox-log.jsonl";
+
+// ---------------------------------------------------------------------------
+// Chat log types
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChatLogMeta {
+    pane: String,
+    event: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChatLogRecord {
+    id: String,
+    ts: String,
+    agent: String,
+    source: String,
+    kind: String,
+    content: String,
+    session_id: String,
+    meta: ChatLogMeta,
+}
+
+#[derive(Serialize, Debug)]
+struct ChatLogPage {
+    records: Vec<ChatLogRecord>,
+    /// Next cursor (line number after the last returned record).
+    next_cursor: usize,
+    /// Total lines in the file (including broken/skipped lines).
+    total_lines: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Inbox log types (unified: Crystal→Agent + Agent→Agent)
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct InboxLogRecord {
+    id: String,
+    ts: String,
+    from: String,
+    to: String,
+    #[serde(rename = "type")]
+    msg_type: String,
+    content: String,
+}
+
+#[derive(Serialize, Debug)]
+struct InboxLogPage {
+    records: Vec<InboxLogRecord>,
+    next_cursor: usize,
+    total_lines: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
+
+/// Read dashboard.md and return its content.
+#[tauri::command]
+fn read_dashboard() -> Result<String, String> {
+    let root = get_project_root()?;
+    let path = root.join("dashboard.md");
+    std::fs::read_to_string(&path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => "dashboard.md not found".to_string(),
+        _ => format!("Failed to read dashboard.md: {}", e),
+    })
+}
+
+/// Run `inbox_read.sh <agent> --peek` and return the unread count.
+#[tauri::command]
+fn peek_inbox(agent: String) -> Result<u32, String> {
+    if !ALLOWED_TARGETS.contains(&agent.as_str()) {
+        return Err(format!("Invalid agent: {}", agent));
+    }
+
+    let root = get_project_root()?;
+    let script = root.join("scripts/inbox_read.sh");
+
+    let output = Command::new("bash")
+        .arg(&script)
+        .arg(&agent)
+        .arg("--peek")
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Failed to execute inbox_read.sh: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Parse "N unread messages" pattern
+    let count = stdout
+        .split_whitespace()
+        .next()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(0);
+
+    Ok(count)
+}
+
+/// Parse queue/inbox/<agent>.yaml directly (read-only, no state mutation).
+#[tauri::command]
+fn list_inbox_messages(agent: String) -> Result<Vec<InboxMessage>, String> {
+    if !ALLOWED_TARGETS.contains(&agent.as_str()) {
+        return Err(format!("Invalid agent: {}", agent));
+    }
+
+    let root = get_project_root()?;
+    let path = root.join(format!("queue/inbox/{}.yaml", agent));
+
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let content =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {}", e))?;
+
+    let inbox: InboxFile =
+        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
+
+    Ok(inbox.messages)
+}
+
+/// Send a message via inbox_write.sh. Arguments passed as array (no shell expansion).
+#[tauri::command]
+fn send_message(target: String, from: String, content: String) -> Result<String, String> {
+    // Validate target
+    if !ALLOWED_TARGETS.contains(&target.as_str()) {
+        return Err(format!("Invalid target: {}. Allowed: {:?}", target, ALLOWED_TARGETS));
+    }
+
+    // Validate sender
+    if !ALLOWED_SENDERS.contains(&from.as_str()) {
+        return Err(format!("Invalid sender: {}. Allowed: {:?}", from, ALLOWED_SENDERS));
+    }
+
+    // Validate content
+    let content = content.trim().to_string();
+    if content.is_empty() {
+        return Err("Message content cannot be empty".into());
+    }
+    if content.len() > 4096 {
+        return Err("Message content exceeds maximum length (4096 chars)".into());
+    }
+
+    let root = get_project_root()?;
+    let script = root.join("scripts/inbox_write.sh");
+
+    // Execute with args array — no shell interpretation
+    let output = Command::new("bash")
+        .arg(&script)
+        .arg(&target)
+        .arg(&from)
+        .arg("message")
+        .arg(&content)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Failed to execute inbox_write.sh: {}", e))?;
+
+    if output.status.success() {
+        Ok("Message sent successfully".into())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("inbox_write.sh failed: {}", stderr))
+    }
+}
+
+/// Read agent chat JSONL logs with optional cursor-based pagination.
+/// Returns records from `cursor` line onward (0-based), up to `limit` records.
+/// If cursor is None, returns the last `limit` records from the file.
+/// Broken/unparseable lines are silently skipped (task 2.2).
+#[tauri::command]
+fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPage, String> {
+    let root = get_project_root()?;
+    let log_path = root.join(CHAT_LOG_PATH);
+
+    // If file doesn't exist yet, return empty (task 3.5).
+    if !log_path.exists() {
+        return Ok(ChatLogPage {
+            records: vec![],
+            next_cursor: 0,
+            total_lines: 0,
+        });
+    }
+
+    let file =
+        std::fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {}", e))?;
+    let reader = BufReader::new(file);
+
+    // Collect all lines (we need total count and optionally the last N).
+    let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
+    let total_lines = lines.len();
+
+    let start = match cursor {
+        Some(c) => c,
+        None => {
+            // No cursor: return last `limit` lines.
+            if total_lines > limit {
+                total_lines - limit
+            } else {
+                0
+            }
+        }
+    };
+
+    let slice = if start < total_lines {
+        &lines[start..]
+    } else {
+        &lines[0..0]
+    };
+
+    // Parse each line; skip broken lines (task 2.2).
+    let records: Vec<ChatLogRecord> = slice
+        .iter()
+        .take(limit)
+        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(line).ok())
+        .collect();
+
+    let consumed = slice.len().min(limit);
+    let next_cursor = start + consumed;
+
+    Ok(ChatLogPage {
+        records,
+        next_cursor,
+        total_lines,
+    })
+}
+
+/// Send a message from Crystal to a target agent via inbox_write.sh.
+/// target must be "noctis" or "lunafreya". Message is limited to 4000 chars.
+#[tauri::command]
+fn send_crystal_message(target: String, message: String) -> Result<String, String> {
+    // Validate target (task 2.4)
+    if !ALLOWED_TARGETS.contains(&target.as_str()) {
+        return Err(format!(
+            "Invalid target: {}. Allowed: {:?}",
+            target, ALLOWED_TARGETS
+        ));
+    }
+
+    // Validate message length (task 2.4)
+    let message = message.trim().to_string();
+    if message.is_empty() {
+        return Err("Message content cannot be empty".into());
+    }
+    if message.len() > MAX_MESSAGE_LENGTH {
+        return Err(format!(
+            "Message exceeds maximum length ({} chars)",
+            MAX_MESSAGE_LENGTH
+        ));
+    }
+
+    let root = get_project_root()?;
+    let script = root.join("scripts/inbox_write.sh");
+
+    // Execute with args array — no shell interpretation (no injection risk).
+    let output = Command::new("bash")
+        .arg(&script)
+        .arg(&target)
+        .arg("crystal")
+        .arg("message")
+        .arg(&message)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Failed to execute inbox_write.sh: {}", e))?;
+
+    if output.status.success() {
+        Ok("Message sent successfully".into())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("inbox_write.sh failed: {}", stderr))
+    }
+}
+
+/// Read unified inbox log (Crystal→Agent + Agent→Agent) with optional cursor.
+/// Returns up to 200 records from `cursor` position onward.
+/// If cursor is None, returns the last 200 records.
+#[tauri::command]
+fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
+    let root = get_project_root()?;
+    let log_path = root.join(INBOX_LOG_PATH);
+
+    if !log_path.exists() {
+        return Ok(InboxLogPage {
+            records: vec![],
+            next_cursor: 0,
+            total_lines: 0,
+        });
+    }
+
+    let file = std::fs::File::open(&log_path)
+        .map_err(|e| format!("Failed to open inbox log file: {}", e))?;
+    let reader = BufReader::new(file);
+
+    let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
+    let total_lines = lines.len();
+
+    let all_records: Vec<InboxLogRecord> = lines
+        .iter()
+        .filter_map(|line| serde_json::from_str::<InboxLogRecord>(line).ok())
+        .collect();
+
+    const LIMIT: usize = 200;
+    let start = match cursor {
+        Some(c) => c,
+        None => {
+            if all_records.len() > LIMIT {
+                all_records.len() - LIMIT
+            } else {
+                0
+            }
+        }
+    };
+
+    let slice: Vec<InboxLogRecord> = all_records
+        .into_iter()
+        .skip(start)
+        .take(LIMIT)
+        .collect();
+
+    let consumed = slice.len();
+    let next_cursor = start + consumed;
+
+    Ok(InboxLogPage {
+        records: slice,
+        next_cursor,
+        total_lines,
+    })
+}
+
+/// Run health diagnostics for WSL environment.
+#[tauri::command]
+fn health_check() -> Result<HealthResult, String> {
+    let root = get_project_root()?;
+
+    // WSL detection
+    let (wsl_detected, wsl_distro) = detect_wsl();
+
+    // tmux
+    let (tmux_available, tmux_version) = check_command("tmux", &["-V"]);
+
+    // python3
+    let (python3_available, python3_version) = check_command("python3", &["--version"]);
+
+    // Script executability
+    let required_scripts = vec![
+        "inbox_write.sh",
+        "inbox_read.sh",
+        "send_report.sh",
+        "send_task.sh",
+    ];
+    let scripts_executable: Vec<ScriptStatus> = required_scripts
+        .iter()
+        .map(|name| {
+            let path = root.join("scripts").join(name);
+            ScriptStatus {
+                name: name.to_string(),
+                executable: path.exists() && is_executable(&path),
+            }
+        })
+        .collect();
+
+    // Inbox access
+    let inbox_dir = root.join("queue/inbox");
+    let inbox_readable = inbox_dir.exists() && inbox_dir.is_dir();
+    let inbox_writable = if inbox_readable {
+        // Try to check write permission
+        let test_file = inbox_dir.join(".write_test");
+        match std::fs::write(&test_file, "") {
+            Ok(_) => {
+                let _ = std::fs::remove_file(&test_file);
+                true
+            }
+            Err(_) => false,
+        }
+    } else {
+        false
+    };
+
+    Ok(HealthResult {
+        wsl_detected,
+        wsl_distro,
+        tmux_available,
+        tmux_version,
+        python3_available,
+        python3_version,
+        scripts_executable,
+        inbox_readable,
+        inbox_writable,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn detect_wsl() -> (bool, String) {
+    if let Ok(version_info) = std::fs::read_to_string("/proc/version") {
+        let lower = version_info.to_lowercase();
+        if lower.contains("microsoft") || lower.contains("wsl") {
+            let distro = std::env::var("WSL_DISTRO_NAME").unwrap_or_default();
+            return (true, distro);
+        }
+    }
+    (false, String::new())
+}
+
+fn check_command(cmd: &str, args: &[&str]) -> (bool, String) {
+    match Command::new(cmd).args(args).output() {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            (true, stdout)
+        }
+        _ => (false, String::new()),
+    }
+}
+
+fn is_executable(path: &PathBuf) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(path) {
+            return meta.permissions().mode() & 0o111 != 0;
+        }
+    }
+    false
+}
+
+// ---------------------------------------------------------------------------
+// App entry
+// ---------------------------------------------------------------------------
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            read_dashboard,
+            peek_inbox,
+            list_inbox_messages,
+            send_message,
+            read_agent_chat_logs,
+            send_crystal_message,
+            read_inbox_log,
+            health_check,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

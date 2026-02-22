@@ -9,7 +9,7 @@ declare const process: {
  *
  * Automatically updates mechanical sections of dashboard.md based on inbox activity.
  * - Path A: Inbox file monitoring (task_assigned → In Progress / report_received → Today's Results)
- * - Path B: noctis_idle_capture in Iris inbox → handled by Iris agent (not this plugin)
+ * - Path B: agent_idle_capture in Iris inbox → handled by Iris agent (not this plugin)
  */
 const DashboardAutoUpdater: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID;
@@ -437,7 +437,7 @@ except Exception:
         }
 
         if (isIrisInbox) {
-          await log("Iris inbox changed — noctis_idle_capture will be processed by Iris agent");
+          await log("Iris inbox changed — agent_idle_capture will be processed by Iris agent");
         }
       } finally {
         setTimeout(() => { updating = false; }, 2000);
