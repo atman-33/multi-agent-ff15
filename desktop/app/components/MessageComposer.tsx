@@ -16,6 +16,13 @@ type SlashSuggestion = {
   source: "command" | "skill";
 };
 
+type AtSuggestion = {
+  label: string;
+  value: string;
+  insertText: string;
+  source: "file" | "folder";
+};
+
 interface MessageComposerProps {
   activeAgent: MainAgentId;
   isTauri: boolean;
@@ -53,6 +60,8 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [allSlashSuggestions, setAllSlashSuggestions] = useState<SlashSuggestion[]>([]);
   const [showSlashSuggestions, setShowSlashSuggestions] = useState(false);
+  const [allAtSuggestions, setAllAtSuggestions] = useState<AtSuggestion[]>([]);
+  const [showAtSuggestions, setShowAtSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -100,35 +109,48 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   const handleRetry = () => doSend(lastAgent, lastContent);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (showSlashSuggestions) {
+    const isShowingAny = showSlashSuggestions || showAtSuggestions;
+    const currentListLength = showSlashSuggestions
+      ? filteredSlashSuggestions.length
+      : showAtSuggestions
+        ? allAtSuggestions.length
+        : 0;
+
+    if (isShowingAny) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSelectedSuggestionIndex((prev) =>
-          filteredSlashSuggestions.length === 0
-            ? 0
-            : (prev + 1) % filteredSlashSuggestions.length
+          currentListLength === 0 ? 0 : (prev + 1) % currentListLength
         );
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedSuggestionIndex((prev) =>
-          filteredSlashSuggestions.length === 0
-            ? 0
-            : (prev - 1 + filteredSlashSuggestions.length) % filteredSlashSuggestions.length
+          currentListLength === 0 ? 0 : (prev - 1 + currentListLength) % currentListLength
         );
         return;
       }
       if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-        const selected = filteredSlashSuggestions[selectedSuggestionIndex];
-        if (selected) {
-          e.preventDefault();
-          applySlashSuggestion(selected.insertText ?? selected.value);
-          return;
+        if (showSlashSuggestions) {
+          const selected = filteredSlashSuggestions[selectedSuggestionIndex];
+          if (selected) {
+            e.preventDefault();
+            applySuggestion(selected.insertText ?? selected.value, "/");
+            return;
+          }
+        } else if (showAtSuggestions) {
+          const selected = allAtSuggestions[selectedSuggestionIndex];
+          if (selected) {
+            e.preventDefault();
+            applySuggestion(selected.insertText, "@");
+            return;
+          }
         }
       }
       if (e.key === "Escape") {
         setShowSlashSuggestions(false);
+        setShowAtSuggestions(false);
       }
     }
 
@@ -146,6 +168,13 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
     return slashMatch?.[1] ?? null;
   }, [content]);
 
+  const activeAtToken = useMemo(() => {
+    const cursor = textareaRef.current?.selectionStart ?? content.length;
+    const left = content.slice(0, cursor);
+    const atMatch = left.match(/(?:^|\s)@(\S*)$/);
+    return atMatch?.[1] ?? null;
+  }, [content]);
+
   const filteredSlashSuggestions = useMemo(() => {
     if (activeSlashToken === null) {
       return [];
@@ -157,25 +186,27 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
     );
   }, [activeSlashToken, allSlashSuggestions]);
 
-  const applySlashSuggestion = (nextValue: string) => {
+  const applySuggestion = (nextValue: string, trigger: "/" | "@") => {
     const textarea = textareaRef.current;
     if (!textarea) {
       setContent((prev) => `${prev} ${nextValue}`.trimStart());
-      setShowSlashSuggestions(false);
+      trigger === "/" ? setShowSlashSuggestions(false) : setShowAtSuggestions(false);
       return;
     }
 
     const cursor = textarea.selectionStart;
     const left = content.slice(0, cursor);
     const right = content.slice(cursor);
-    const replacedLeft = left.replace(/(?:^|\s)\/\S*$/, (match) => {
+    const regex = trigger === "/" ? /(?:^|\s)\/\S*$/ : /(?:^|\s)@\S*$/;
+
+    const replacedLeft = left.replace(regex, (match) => {
       const leadingSpace = match.startsWith(" ") ? " " : "";
       return `${leadingSpace}${nextValue}`;
     });
 
     const nextContent = `${replacedLeft}${right}${right.startsWith(" ") || right.length === 0 ? "" : " "}`;
     setContent(nextContent);
-    setShowSlashSuggestions(false);
+    trigger === "/" ? setShowSlashSuggestions(false) : setShowAtSuggestions(false);
 
     requestAnimationFrame(() => {
       const nextCursor = replacedLeft.length;
@@ -208,9 +239,34 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   }, []);
 
   useEffect(() => {
+    if (activeAtToken === null) {
+      setAllAtSuggestions([]);
+      setShowAtSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/at-suggestions?q=${encodeURIComponent(activeAtToken)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data?.suggestions)) {
+          setAllAtSuggestions(data.suggestions);
+          setShowAtSuggestions(data.suggestions.length > 0);
+          setSelectedSuggestionIndex(0);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [activeAtToken]);
+
+  useEffect(() => {
     const shouldShow = activeSlashToken !== null && filteredSlashSuggestions.length > 0;
     setShowSlashSuggestions(shouldShow);
-    setSelectedSuggestionIndex(0);
+    if (shouldShow) setSelectedSuggestionIndex(0);
   }, [activeSlashToken, filteredSlashSuggestions.length]);
 
   return (
@@ -277,11 +333,35 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
                   )}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    applySlashSuggestion(item.insertText ?? item.value);
+                    applySuggestion(item.insertText ?? item.value, "/");
                   }}
                 >
                   <span className="font-medium text-foreground">{item.value}</span>
                   <span className="ml-2 text-muted-foreground">({item.label})</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {showAtSuggestions && (
+            <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm z-20">
+              <div className="px-2 py-1.5 border-b border-border/40 text-[10px] font-semibold text-muted-foreground bg-muted/30">
+                FILES & FOLDERS
+              </div>
+              {allAtSuggestions.map((item, idx) => (
+                <button
+                  key={`${item.source}-${item.value}`}
+                  type="button"
+                  className={cn(
+                    "w-full px-3 py-2 text-left text-xs hover:bg-accent/70 flex flex-col gap-0.5",
+                    idx === selectedSuggestionIndex && "bg-accent"
+                  )}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applySuggestion(item.insertText, "@");
+                  }}
+                >
+                  <span className="font-medium text-foreground truncate">{item.label}</span>
+                  <span className="text-[10px] text-muted-foreground truncate">{item.value}</span>
                 </button>
               ))}
             </div>
