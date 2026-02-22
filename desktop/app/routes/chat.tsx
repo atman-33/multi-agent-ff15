@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useAgentChatLog, type AgentId, type MainAgentId } from "@/lib/useAgentChatLog";
 import { useInboxLog } from "@/lib/useInboxLog";
 import { COMRADES, type ComradeId } from "@/lib/useComradeStatus";
@@ -12,6 +13,28 @@ export default function UnifiedChatRoute() {
   const { getRecordsForAgent, lastUpdated, error, isTauri, refresh } =
     useAgentChatLog();
   const [activeAgent, setActiveAgent] = useState<MainAgentId>("noctis");
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        if (isTauri) {
+          const options = await invoke<string[]>("read_model_options");
+          if (!cancelled) setModelOptions(options);
+        } else {
+          const res = await fetch("/api/model-options");
+          if (!res.ok) return;
+          const data = (await res.json()) as { modelOptions?: string[] };
+          if (!cancelled && Array.isArray(data.modelOptions)) setModelOptions(data.modelOptions);
+        }
+      } catch (_) {
+        setModelOptions([]);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [isTauri]);
 
   // Filtered records per agent (memoised to minimise re-renders)
   const noctisRecords = useMemo(
@@ -170,6 +193,8 @@ export default function UnifiedChatRoute() {
             isWaiting={isWaitingMap[agent]}
             isActive={activeAgent === agent}
             onActivate={() => setActiveAgent(agent)}
+            modelOptions={modelOptions}
+            isTauri={isTauri}
             {...(agent === "noctis" && {
               partyView: noctisPartyView,
               onPartyViewChange: setNoctisPartyView,

@@ -8,6 +8,7 @@ import type { MainAgentId } from "@/lib/useAgentChatLog";
 const MAX_MESSAGE_LENGTH = 4000;
 
 type SendStatus = "idle" | "sending" | "sent" | "failed";
+
 type SlashSuggestion = {
   label: string;
   value: string;
@@ -80,7 +81,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
         setLastAgent(target);
       }
     },
-    [isTauri]
+    [isTauri, onSent]
   );
 
   const handleSend = () => doSend(activeAgent, content);
@@ -202,16 +203,13 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   }, [activeSlashToken, filteredSlashSuggestions.length]);
 
   return (
-    <div className="border-t border-border/40 pt-3 space-y-2">
-      {/* To: indicator (task 4.4 – always visible) */}
+    <div className="border-t border-border/40 pt-3 space-y-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span>
-          To:{" "}
-          <span className="font-semibold text-foreground">{label}</span>
+          To: <span className="font-semibold text-foreground">{label}</span>
         </span>
 
-        {/* Send status (task 4.7) */}
         {status === "sent" && (
           <span className="ml-auto flex items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3.5 w-3.5" />

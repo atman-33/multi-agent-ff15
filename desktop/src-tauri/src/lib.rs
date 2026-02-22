@@ -81,6 +81,7 @@ struct ScriptStatus {
 // ---------------------------------------------------------------------------
 
 const ALLOWED_TARGETS: &[&str] = &["noctis", "lunafreya"];
+const MODEL_SWITCH_TARGETS: &[&str] = &["noctis", "lunafreya", "ignis", "gladiolus", "prompto"];
 const ALLOWED_SENDERS: &[&str] = &[
     "crystal", "user", "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris",
 ];
@@ -88,6 +89,16 @@ const ALLOWED_SENDERS: &[&str] = &[
 const MAX_MESSAGE_LENGTH: usize = 4000;
 const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
 const INBOX_LOG_PATH: &str = "runtime/logs/inbox-log.jsonl";
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ModelOption {
+    label: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ModelSwitchConfig {
+    models: Vec<ModelOption>,
+}
 
 // ---------------------------------------------------------------------------
 // Chat log types
@@ -478,6 +489,58 @@ fn health_check() -> Result<HealthResult, String> {
     })
 }
 
+/// Returns whitelisted model options from config/model_switch_keywords.yaml.
+#[tauri::command]
+fn read_model_options() -> Result<Vec<String>, String> {
+    let root = get_project_root()?;
+    let path = root.join("config/model_switch_keywords.yaml");
+
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read model switch config: {}", e))?;
+    let parsed: ModelSwitchConfig =
+        serde_yaml::from_str(&raw).map_err(|e| format!("Invalid model switch config: {}", e))?;
+
+    Ok(parsed.models.into_iter().map(|m| m.label).collect())
+}
+
+/// Switch agent model via .opencode/skills/switch-model/scripts/switch.sh.
+#[tauri::command]
+fn switch_agent_model(agent: String, label: String) -> Result<String, String> {
+    if !MODEL_SWITCH_TARGETS.contains(&agent.as_str()) {
+        return Err(format!("Invalid agent: {}", agent));
+    }
+
+    let root = get_project_root()?;
+    let model_options = read_model_options()?;
+    if !model_options.contains(&label) {
+        return Err(format!("Invalid model label: {}", label));
+    }
+
+    let script = root.join(".opencode/skills/switch-model/scripts/switch.sh");
+    let output = Command::new("bash")
+        .arg(&script)
+        .arg(&agent)
+        .arg(&label)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Failed to execute switch.sh: {}", e))?;
+
+    if output.status.success() {
+        Ok(format!("Switched {} to {}", agent, label))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            "switch.sh failed".to_string()
+        } else {
+            format!("switch.sh failed: {}", stderr)
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -530,6 +593,8 @@ pub fn run() {
             send_crystal_message,
             read_inbox_log,
             health_check,
+            read_model_options,
+            switch_agent_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

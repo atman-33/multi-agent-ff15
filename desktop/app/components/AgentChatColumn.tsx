@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Crown, Moon } from "lucide-react";
+import { Crown, Moon, Zap } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
 import type { ChatLogRecord, AgentId } from "@/lib/useAgentChatLog";
 import type { InboxLogRecord } from "@/lib/useInboxLog";
@@ -8,6 +10,8 @@ import { COMRADES, COMRADE_CONFIG, type ComradeId } from "@/lib/useComradeStatus
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+type ModelSwitchAgent = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto";
 
 interface AgentChatColumnProps {
   agent: "noctis" | "lunafreya";
@@ -22,6 +26,8 @@ interface AgentChatColumnProps {
   partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
   partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
   busyMap?: Record<ComradeId, boolean>;
+  modelOptions?: string[];
+  isTauri?: boolean;
 }
 
 const AGENT_CONFIG = {
@@ -40,8 +46,8 @@ const AGENT_CONFIG = {
 } as const;
 
 type MergedItem =
-  | { type: "agent"; record: ChatLogRecord; ts: string }
-  | { type: "inbox"; msg: InboxLogRecord; ts: string };
+  | { type: "agent"; record: ChatLogRecord; ts: string; }
+  | { type: "inbox"; msg: InboxLogRecord; ts: string; };
 
 /** Merge agent records and inbox messages by UTC timestamp (pure sort). */
 function mergeTimeline(
@@ -55,7 +61,7 @@ function mergeTimeline(
 }
 
 /** Code block with wrap/scroll toggle button (appears on hover). */
-function CodeBlock({ children }: { children: React.ReactNode }) {
+function CodeBlock({ children }: { children: React.ReactNode; }) {
   const [wrap, setWrap] = useState(false);
   return (
     <div className="relative group my-1">
@@ -80,7 +86,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 }
 
 /** Inbox message bubble — Crystal (right-aligned purple) or agent (left-aligned amber). */
-function InboxBubble({ msg }: { msg: InboxLogRecord }) {
+function InboxBubble({ msg }: { msg: InboxLogRecord; }) {
   const ts = new Date(msg.ts);
   const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
@@ -146,7 +152,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
 }
 
 /** Typing indicator — three bouncing dots. */
-function TypingIndicator({ agentLabel }: { agentLabel: string }) {
+function TypingIndicator({ agentLabel }: { agentLabel: string; }) {
   return (
     <div className="flex flex-col items-start gap-0.5">
       <span className="text-[10px] text-muted-foreground/50">{agentLabel}</span>
@@ -163,7 +169,120 @@ function TypingIndicator({ agentLabel }: { agentLabel: string }) {
   );
 }
 
-/** Mini comrade tab shown in the Noctis column party header. */
+function ModelSwitchBar({
+  targetAgent,
+  modelOptions,
+  isTauri,
+}: {
+  targetAgent: ModelSwitchAgent;
+  modelOptions: string[];
+  isTauri: boolean;
+}) {
+  const [modelLabel, setModelLabel] = useState("");
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  // Initialize current model
+  useEffect(() => {
+    let cancelled = false;
+    const fetchModel = async () => {
+      if (isTauri) return; // Currently omitted for Tauri
+      if (modelOptions.length === 0) return;
+
+      try {
+        const res = await fetch(`/api/current-model?agent=${targetAgent}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { model?: string; };
+        if (cancelled || !data.model) return;
+
+        // Try to match the returned model name (e.g. "Claude Sonnet 4") with options (e.g. "Claude Sonnet 4.6")
+        // Check contains in both directions
+        const exactOpt = modelOptions.find(
+          (opt) =>
+            opt.toLowerCase() === data.model!.toLowerCase() ||
+            opt.toLowerCase().includes(data.model!.toLowerCase()) ||
+            data.model!.toLowerCase().includes(opt.toLowerCase())
+        );
+        setModelLabel(exactOpt ?? data.model);
+      } catch (e) {
+        // Ignored
+      }
+    };
+    fetchModel();
+    return () => { cancelled = true; };
+  }, [targetAgent, modelOptions, isTauri]);
+
+  // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
+  useEffect(() => {
+    if (!modelLabel && modelOptions.length > 0) {
+      const timer = setTimeout(() => {
+        setModelLabel((prev) => (prev ? prev : modelOptions[0]));
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [modelOptions, modelLabel]);
+
+  const applySwitch = useCallback(
+    async (newModel: string) => {
+      if (!newModel) return;
+      setIsSwitching(true);
+      const prevModel = modelLabel;
+      setModelLabel(newModel); // Optimistic UI update
+
+      try {
+        if (isTauri) {
+          await invoke("switch_agent_model", { agent: targetAgent, label: newModel });
+        } else {
+          const res = await fetch("/api/model-switch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ agent: targetAgent, label: newModel }),
+          });
+          if (!res.ok) {
+            const data = (await res.json()) as { error?: string; };
+            throw new Error(data.error ?? `HTTP ${res.status}`);
+          }
+        }
+        toast.success(`Switched ${targetAgent} to ${newModel}`);
+      } catch (e) {
+        toast.error(`Model switch failed: ${String(e)}`);
+        setModelLabel(prevModel); // Revert on failure
+      } finally {
+        setIsSwitching(false);
+      }
+    },
+    [isTauri, targetAgent, modelLabel]
+  );
+
+
+  if (modelOptions.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1 border-b border-border/20 bg-background/30">
+      <select
+        value={modelLabel}
+        onChange={(e) => applySwitch(e.target.value)}
+        disabled={isSwitching}
+        className={cn(
+          "flex-1 rounded border border-border/40 bg-background/60 px-2 py-0.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring",
+          isSwitching && "opacity-50 cursor-wait"
+        )}
+      >
+        {/* Render a custom option if current text doesn't match the known config */}
+        {modelLabel && !modelOptions.includes(modelLabel) && (
+          <option key="custom" value={modelLabel}>
+            {modelLabel}
+          </option>
+        )}
+        {modelOptions.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function ComradeTab({
   comrade,
   cfg,
@@ -172,7 +291,7 @@ function ComradeTab({
   onClick,
 }: {
   comrade: ComradeId;
-  cfg: { label: string; imageSrc: string };
+  cfg: { label: string; imageSrc: string; };
   busy: boolean;
   isSelected: boolean;
   onClick: () => void;
@@ -232,6 +351,8 @@ export default function AgentChatColumn({
   partyRecords,
   partyInboxMessages,
   busyMap,
+  modelOptions = [],
+  isTauri = false,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -386,6 +507,18 @@ export default function AgentChatColumn({
           </span>
         </button>
       )}
+
+      <ModelSwitchBar
+        targetAgent={
+          agent === "noctis"
+            ? ((partyView === "ignis" || partyView === "gladiolus" || partyView === "prompto"
+              ? partyView
+              : "noctis") as ModelSwitchAgent)
+            : "lunafreya"
+        }
+        modelOptions={modelOptions}
+        isTauri={isTauri}
+      />
 
       {/* Scrollable message list */}
       <div

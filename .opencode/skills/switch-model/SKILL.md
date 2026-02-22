@@ -9,40 +9,32 @@ metadata:
 
 # switch-model
 
-Dynamically switch an FF15 agent's LLM model using `scripts/switch.sh`.
+Dynamically switch an FF15 agent's LLM model using `scripts/switch-model.sh`.
 
 ## Usage
 
 ```bash
-.opencode/skills/switch-model/scripts/switch.sh <agent_name> <model_keyword>
+scripts/switch-model.sh <agent_name> <model_keyword>
 ```
 
 ### Examples
 
 ```bash
 # Upgrade Prompto to Opus for a complex task
-.opencode/skills/switch-model/scripts/switch.sh prompto opus
+scripts/switch-model.sh prompto opus
 
 # Downgrade Ignis to Haiku for a simple task
-.opencode/skills/switch-model/scripts/switch.sh ignis haiku
+scripts/switch-model.sh ignis haiku
 
 # Switch Gladiolus to GPT-5-mini
-.opencode/skills/switch-model/scripts/switch.sh gladiolus gpt-5-mini
+scripts/switch-model.sh gladiolus gpt-5-mini
 ```
 
 ## Model Keywords
 
-| Keyword | Model |
-|---------|-------|
-| `gpt-5-mini` | GPT-5-mini |
-| `sonnet` | Claude Sonnet 4.5 |
-| `opus` | Claude Opus 4.6 |
-| `haiku` | Claude Haiku 4.5 |
-| `gemini` | Gemini models |
-| `gpt-5.2-codex` | GPT-5.2-codex |
-| `grok-code-fast-1` | Grok Code Fast 1 |
-
-Check all available models: `opencode models`
+The available model keywords are managed dynamically. See the following sources:
+- Desktop/Web UI and valid arguments: `config/model_switch_keywords.yaml`
+- Check all available models via OpenCode CLI: `opencode models`
 
 ## Prerequisites
 
