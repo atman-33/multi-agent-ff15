@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Crown, Moon } from "lucide-react";
+import { Crown, Moon, Zap } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
 import type { ChatLogRecord, AgentId } from "@/lib/useAgentChatLog";
 import type { InboxLogRecord } from "@/lib/useInboxLog";
@@ -8,6 +10,8 @@ import { COMRADES, COMRADE_CONFIG, type ComradeId } from "@/lib/useComradeStatus
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+type ModelSwitchAgent = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto";
 
 interface AgentChatColumnProps {
   agent: "noctis" | "lunafreya";
@@ -22,6 +26,8 @@ interface AgentChatColumnProps {
   partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
   partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
   busyMap?: Record<ComradeId, boolean>;
+  modelOptions?: string[];
+  isTauri?: boolean;
 }
 
 const AGENT_CONFIG = {
@@ -163,7 +169,76 @@ function TypingIndicator({ agentLabel }: { agentLabel: string }) {
   );
 }
 
-/** Mini comrade tab shown in the Noctis column party header. */
+function ModelSwitchBar({
+  targetAgent,
+  modelOptions,
+  isTauri,
+}: {
+  targetAgent: ModelSwitchAgent;
+  modelOptions: string[];
+  isTauri: boolean;
+}) {
+  const [modelLabel, setModelLabel] = useState(modelOptions[0] ?? "");
+
+  useEffect(() => {
+    if (modelOptions.length > 0 && !modelOptions.includes(modelLabel)) {
+      setModelLabel(modelOptions[0]);
+    }
+  }, [modelOptions, modelLabel]);
+
+  const applySwitch = useCallback(async () => {
+    if (!modelLabel) {
+      toast.error("Model is required");
+      return;
+    }
+    try {
+      if (isTauri) {
+        await invoke("switch_agent_model", { agent: targetAgent, label: modelLabel });
+      } else {
+        const res = await fetch("/api/model-switch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent: targetAgent, label: modelLabel }),
+        });
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          throw new Error(data.error ?? `HTTP ${res.status}`);
+        }
+      }
+      toast.success(`Switched ${targetAgent} to ${modelLabel}`);
+    } catch (e) {
+      toast.error(`Model switch failed: ${String(e)}`);
+    }
+  }, [isTauri, modelLabel, targetAgent]);
+
+  if (modelOptions.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1 border-b border-border/20 bg-background/30">
+      <select
+        value={modelLabel}
+        onChange={(e) => setModelLabel(e.target.value)}
+        className="flex-1 rounded border border-border/40 bg-background/60 px-2 py-0.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        {modelOptions.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={applySwitch}
+        disabled={!modelLabel}
+        title={`Switch ${targetAgent} model to ${modelLabel}`}
+        className="flex items-center justify-center h-5 w-5 rounded hover:bg-white/10 disabled:opacity-40 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+      >
+        <Zap className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 function ComradeTab({
   comrade,
   cfg,
@@ -232,6 +307,8 @@ export default function AgentChatColumn({
   partyRecords,
   partyInboxMessages,
   busyMap,
+  modelOptions = [],
+  isTauri = false,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -386,6 +463,18 @@ export default function AgentChatColumn({
           </span>
         </button>
       )}
+
+      <ModelSwitchBar
+        targetAgent={
+          agent === "noctis"
+            ? ((partyView === "ignis" || partyView === "gladiolus" || partyView === "prompto"
+                ? partyView
+                : "noctis") as ModelSwitchAgent)
+            : "lunafreya"
+        }
+        modelOptions={modelOptions}
+        isTauri={isTauri}
+      />
 
       {/* Scrollable message list */}
       <div
