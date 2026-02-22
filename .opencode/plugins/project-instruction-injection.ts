@@ -1,0 +1,248 @@
+import type { Plugin } from "@opencode-ai/plugin";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+};
+
+/**
+ * Project Instruction Injection Plugin
+ *
+ * Automatically injects instruction file references from active external projects
+ * into user messages via the chat.message hook. Injects file paths only (not content)
+ * so agents read on demand.
+ *
+ * Config: config/current_projects.yaml → active project IDs
+ * Data:   projects/<id>.yaml → per-project instruction file metadata
+ * Log:    logs/project-instruction-injection.jsonl → audit trail
+ */
+
+// Marker to prevent duplicate injection
+const INJECTION_MARKER = "<project-instruction-context>";
+const INJECTION_MARKER_END = "</project-instruction-context>";
+
+interface InstructionFile {
+  type: string;
+  path: string;
+  exists: boolean;
+  sha256: string;
+  last_checked_at: string;
+}
+
+interface ProjectDefinition {
+  id: string;
+  name: string;
+  root_path: string;
+  instruction_files: InstructionFile[];
+}
+
+interface LogEntry {
+  timestamp: string;
+  session_id: string;
+  agent_id: string;
+  active_project_ids: string[];
+  resolved_files: string[];
+  result: "ok" | "skip" | "error";
+  reason?: string;
+}
+
+const ProjectInstructionInjection: Plugin = async ({ $ }) => {
+  const agentId = process.env.AGENT_ID || "unknown";
+  const sessionId = process.env.SESSION_ID || "unknown";
+
+  // --- JSONL Logging Utility (Task 5.1) ---
+  const appendLog = async (entry: LogEntry): Promise<void> => {
+    try {
+      const jsonLine = JSON.stringify(entry);
+      await $`echo ${jsonLine} >> logs/project-instruction-injection.jsonl`.quiet();
+    } catch {
+      // Logging failure should never break the plugin
+    }
+  };
+
+  // --- Load active project IDs from config (Task 4.3) ---
+  const loadActiveProjectIds = async (): Promise<string[]> => {
+    try {
+      const result = await $`python3 -c "
+import yaml, sys, json
+try:
+    with open('config/current_projects.yaml', 'r') as f:
+        data = yaml.safe_load(f) or {}
+    ids = data.get('active_project_ids', []) or []
+    print(json.dumps(ids))
+except FileNotFoundError:
+    print('[]')
+except Exception as e:
+    sys.stderr.write(str(e))
+    print('[]')
+"`.quiet();
+      return JSON.parse(result.text().trim()) as string[];
+    } catch {
+      return [];
+    }
+  };
+
+  // --- Load project definition from projects/<id>.yaml (Task 4.4) ---
+  const loadProjectDefinition = async (
+    projectId: string
+  ): Promise<ProjectDefinition | null> => {
+    try {
+      const result = await $`python3 -c "
+import yaml, sys, json
+try:
+    with open('projects/${projectId}.yaml', 'r') as f:
+        data = yaml.safe_load(f) or {}
+    print(json.dumps(data, default=str))
+except FileNotFoundError:
+    print('null')
+except Exception as e:
+    sys.stderr.write(str(e))
+    print('null')
+"`.quiet();
+      const parsed = JSON.parse(result.text().trim());
+      return parsed as ProjectDefinition | null;
+    } catch {
+      return null;
+    }
+  };
+
+  // --- Generate injection block (Task 4.5) ---
+  const generateInjectionBlock = (
+    projects: ProjectDefinition[]
+  ): { block: string; resolvedFiles: string[] } => {
+    const resolvedFiles: string[] = [];
+    let activeProjectsYaml = "";
+
+    for (const project of projects) {
+      const existingFiles = (project.instruction_files || []).filter(
+        (f) => f.exists
+      );
+      if (existingFiles.length === 0 && !project.root_path) continue;
+
+      activeProjectsYaml += `  - id: ${project.id}\n`;
+      activeProjectsYaml += `    root_path: ${project.root_path}\n`;
+
+      if (existingFiles.length > 0) {
+        activeProjectsYaml += `    instruction_files:\n`;
+        for (const file of existingFiles) {
+          activeProjectsYaml += `      - ${file.path}\n`;
+          resolvedFiles.push(file.path);
+        }
+      } else {
+        activeProjectsYaml += `    instruction_files: []\n`;
+      }
+    }
+
+    const block = `${INJECTION_MARKER}
+active_projects:
+${activeProjectsYaml}policy: Read these instruction files directly before implementation.
+${INJECTION_MARKER_END}`;
+
+    return { block, resolvedFiles };
+  };
+
+  return {
+    // --- Register chat.message hook (Task 4.2) ---
+    "chat.message": async (input, output) => {
+      try {
+        // --- Duplicate injection prevention (Task 4.7) ---
+        const existingParts = output.parts || [];
+        for (const part of existingParts) {
+          const textContent = (part as { type?: string; text?: string }).text;
+          if (textContent && textContent.includes(INJECTION_MARKER)) {
+            // Already injected, skip
+            await appendLog({
+              timestamp: new Date().toISOString(),
+              session_id: sessionId,
+              agent_id: agentId,
+              active_project_ids: [],
+              resolved_files: [],
+              result: "skip",
+              reason: "duplicate injection detected",
+            });
+            return;
+          }
+        }
+
+        // Load active projects
+        const activeIds = await loadActiveProjectIds();
+
+        // No active projects → skip (Task 5.4)
+        if (activeIds.length === 0) {
+          await appendLog({
+            timestamp: new Date().toISOString(),
+            session_id: sessionId,
+            agent_id: agentId,
+            active_project_ids: [],
+            resolved_files: [],
+            result: "skip",
+            reason: "no active projects",
+          });
+          return;
+        }
+
+        // Load all project definitions
+        const projects: ProjectDefinition[] = [];
+        for (const id of activeIds) {
+          const def = await loadProjectDefinition(id);
+          if (def) {
+            projects.push(def);
+          }
+        }
+
+        if (projects.length === 0) {
+          await appendLog({
+            timestamp: new Date().toISOString(),
+            session_id: sessionId,
+            agent_id: agentId,
+            active_project_ids: activeIds,
+            resolved_files: [],
+            result: "skip",
+            reason: "no project definitions found",
+          });
+          return;
+        }
+
+        // Generate and inject block (Task 4.6)
+        const { block, resolvedFiles } = generateInjectionBlock(projects);
+
+        // Create a synthetic TextPart for injection
+        const injectionPart = {
+          id: `injection-${Date.now()}`,
+          sessionID: input.sessionID,
+          messageID: input.messageID || "",
+          type: "text" as const,
+          text: block,
+          synthetic: true,
+        };
+        output.parts = [
+          ...existingParts,
+          injectionPart as unknown as (typeof existingParts)[0],
+        ];
+
+        // Log success (Task 5.3)
+        await appendLog({
+          timestamp: new Date().toISOString(),
+          session_id: sessionId,
+          agent_id: agentId,
+          active_project_ids: activeIds,
+          resolved_files: resolvedFiles,
+          result: "ok",
+        });
+      } catch (err) {
+        // --- Graceful failure (Task 4.8 & Task 5.5) ---
+        await appendLog({
+          timestamp: new Date().toISOString(),
+          session_id: sessionId,
+          agent_id: agentId,
+          active_project_ids: [],
+          resolved_files: [],
+          result: "error",
+          reason: err instanceof Error ? err.message : String(err),
+        });
+        // Continue without injection — do not throw
+      }
+    },
+  };
+};
+
+export default ProjectInstructionInjection;

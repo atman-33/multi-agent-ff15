@@ -40,7 +40,7 @@ Crystal (User)
 
 ```
 Layer 1: Memory MCP        — Persistent across sessions (preferences, rules)
-Layer 2: Project            — config/projects.yaml + context/{project}.md
+Layer 2: Project            — config/current_projects.yaml + projects/{id}.yaml
 Layer 3: YAML Inbox         — queue/inbox/{agent}.yaml (sole communication channel)
 Layer 4: Session (Volatile) — AGENTS.md + .opencode/agents/*.md (auto-loaded, reset by /new)
 ```
@@ -330,7 +330,7 @@ AGENTS.md + agent system prompt are auto-loaded.
    - Noctis: Read dashboard.md, check inbox for pending task reports and Luna messages
    - Comrades: Check inbox for `task_assigned` messages (found=resume, none=wait)
    - Lunafreya: Check inbox for `noctis_response` type messages
-5. Read context/{project}.md if task has project field
+5. Read projects/{project_id}.yaml if task has project field
 ```
 
 ### After Compaction

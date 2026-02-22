@@ -1,62 +1,20 @@
 # context Directory
 
-Directory for managing project-specific context.
+This directory is no longer the primary mechanism for project context management.
 
-## Purpose
-- Save knowledge and decisions for each project
-- Share information between sessions
-- Handover to new participants (Comrades)
+## Current System
 
-## File Structure
+Project context is now managed via:
+
 ```
-context/
-  README.md           ← This file
-  {project_id}.md     ← Project-specific context
-```
-
-## Usage
-
-### When Adding a New Project
-
-**STEP 1: Copy the template**
-```bash
-cp templates/context_template.md context/{project_id}.md
+scripts/project_register.sh      # Register project + detect instruction files
+scripts/projects_activate.sh     # Manage active project list
+config/current_projects.yaml     # Currently active project IDs (gitignored)
+projects/<id>.yaml               # Per-project metadata with instruction file paths (gitignored)
 ```
 
-**STEP 2: Edit the content**
-- Replace placeholders like `{project_id}`, `{name}`, `{path}` with actual values
-- Fill in required information for each section
-- Unnecessary sections can be removed (flexible operation)
+See [docs/project-management.md](../docs/project-management.md) for the full workflow.
 
-**STEP 3: Register in config/projects.yaml**
-```yaml
-projects:
-  - id: {project_id}
-    name: "{name}"
-    path: "{path}"
-    priority: high
-    status: active
-```
-
-### When Starting Work (Comrades' Procedure)
-
-**Context Loading Order**:
-1. Read Memory MCP via `memory_read_graph()` (system-wide settings)
-2. Read `context/{project_id}.md` (project-specific information)
-3. Check inbox via `scripts/inbox_read.sh {name}` (your task)
-
-### Template Structure
-
-Refer to `templates/context_template.md` for the template.
-
-Main sections:
-- **Basic Information**: project_id, official name, path, Notion URL
-- **What/Why/Who**: Project overview, purpose, organization
-- **Tech Stack**: Language, framework, database
-- **Constraints**: Limitations (deadline, budget, etc.)
-- **Current State**: Progress status, next actions, blockers
-- **Decisions**: Important decisions (table format)
-- **Notes**: Notes and memos
 
 ## Update Rules
 - Update immediately when important decisions are made

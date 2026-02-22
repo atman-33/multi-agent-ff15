@@ -44,8 +44,8 @@ context/*
 queue/*.yaml
 dashboard.md
 agent-chat-monitor.md
-config/projects.yaml
-config/settings.yaml
+config/*
+!config/models.yaml
 logs/
 
 # Project details (contains client/confidential info)
@@ -75,7 +75,7 @@ openspec/
 !.opencode/skills/luna-to-noctis
 !.opencode/skills/noctis-to-luna
 !.opencode/skills/switch-model
-!.opencode/skills/project-register
+!.opencode/skills/project-manage
 !.opencode/skills/pr-assistant
 !.opencode/skills/github-release
 !.opencode/skills/opencode-plugin-creator

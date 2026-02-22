@@ -401,6 +401,21 @@ fi
 [ -d ./queue/inbox ] || mkdir -p ./queue/inbox
 [ -d ./queue/metrics ] || mkdir -p ./queue/metrics
 
+# Ensure projects directory exists
+[ -d ./projects ] || mkdir -p ./projects
+
+# Initialize config/current_projects.yaml if not exists
+if [ ! -f ./config/current_projects.yaml ]; then
+    cat > ./config/current_projects.yaml << 'EOF'
+# Active projects configuration
+# Managed by scripts/projects_activate.sh
+active_project_ids: []
+updated_at: ""
+updated_by: ""
+EOF
+    log_info "Created config/current_projects.yaml"
+fi
+
 if [ "$CLEAN_MODE" = true ]; then
     log_info "📜 Discarding previous mission records..."
 
