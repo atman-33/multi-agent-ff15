@@ -9,26 +9,28 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { MainAgentId } from "@/lib/useAgentChatLog";
+import type { MainAgentId } from "@/lib/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 4000;
+const SLASH_TRIGGER_REGEX = /(?:^|\s)\/\S*$/;
+const AT_TRIGGER_REGEX = /(?:^|\s)@\S*$/;
 
 type SendStatus = "idle" | "sending" | "sent" | "failed";
 
-type SlashSuggestion = {
-  label: string;
-  value: string;
+interface SlashSuggestion {
   insertText?: string;
-  source: "command" | "skill";
-};
-
-type AtSuggestion = {
   label: string;
+  source: "command" | "skill";
   value: string;
+}
+
+interface AtSuggestion {
   insertText: string;
+  label: string;
   source: "file" | "folder";
-};
+  value: string;
+}
 
 interface MessageComposerProps {
   activeAgent: MainAgentId;
@@ -116,9 +118,9 @@ export default function MessageComposer({
         onSent?.(target, message.trim(), messageId);
         // Auto-clear "sent" badge after 2 s
         setTimeout(() => setStatus("idle"), 2000);
-      } catch (e) {
+      } catch (_e) {
         setStatus("failed");
-        setErrorMsg(String(e));
+        setErrorMsg(String(_e));
         setLastContent(message);
         setLastAgent(target);
       }
@@ -132,11 +134,12 @@ export default function MessageComposer({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isShowingAny = showSlashSuggestions || showAtSuggestions;
-    const currentListLength = showSlashSuggestions
-      ? filteredSlashSuggestions.length
-      : showAtSuggestions
-        ? allAtSuggestions.length
-        : 0;
+    let currentListLength = 0;
+    if (showSlashSuggestions) {
+      currentListLength = filteredSlashSuggestions.length;
+    } else if (showAtSuggestions) {
+      currentListLength = allAtSuggestions.length;
+    }
 
     if (isShowingAny) {
       if (e.key === "ArrowDown") {
@@ -193,14 +196,14 @@ export default function MessageComposer({
   const activeSlashToken = useMemo(() => {
     const cursor = textareaRef.current?.selectionStart ?? content.length;
     const left = content.slice(0, cursor);
-    const slashMatch = left.match(/(?:^|\s)\/(\S*)$/);
+    const slashMatch = left.match(SLASH_TRIGGER_REGEX);
     return slashMatch?.[1] ?? null;
   }, [content]);
 
   const activeAtToken = useMemo(() => {
     const cursor = textareaRef.current?.selectionStart ?? content.length;
     const left = content.slice(0, cursor);
-    const atMatch = left.match(/(?:^|\s)@(\S*)$/);
+    const atMatch = left.match(AT_TRIGGER_REGEX);
     return atMatch?.[1] ?? null;
   }, [content]);
 
@@ -230,7 +233,7 @@ export default function MessageComposer({
     const cursor = textarea.selectionStart;
     const left = content.slice(0, cursor);
     const right = content.slice(cursor);
-    const regex = trigger === "/" ? /(?:^|\s)\/\S*$/ : /(?:^|\s)@\S*$/;
+    const regex = trigger === "/" ? SLASH_TRIGGER_REGEX : AT_TRIGGER_REGEX;
 
     const replacedLeft = left.replace(regex, (match) => {
       const leadingSpace = match.startsWith(" ") ? " " : "";
@@ -262,7 +265,7 @@ export default function MessageComposer({
         if (mounted && Array.isArray(data?.suggestions)) {
           setAllSlashSuggestions(data.suggestions);
         }
-      } catch {
+      } catch (_e) {
         // Non-blocking helper endpoint
       }
     };
@@ -294,7 +297,7 @@ export default function MessageComposer({
           setShowAtSuggestions(data.suggestions.length > 0);
           setSelectedSuggestionIndex(0);
         }
-      } catch (e) {
+      } catch (_e) {
         // ignore
       }
     }, 200);

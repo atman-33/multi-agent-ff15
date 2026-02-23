@@ -11,9 +11,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { AgentId } from "@/lib/useAgentChatLog";
+import type { AgentId } from "@/lib/use-agent-chat-log";
 import { cn } from "@/lib/utils";
-import ModeSwitcher from "./ModeSwitcher";
+import ModeSwitcher from "./mode-switcher";
 
 export type AgentStatus = "online" | "idle" | "stale";
 
@@ -138,7 +138,7 @@ export default function StatusBar({
                         toast.error("Failed to clear sessions.")
                       );
                     }
-                  } catch (e) {
+                  } catch (_e) {
                     import("sonner").then(({ toast }) =>
                       toast.error("Error clearing sessions.")
                     );

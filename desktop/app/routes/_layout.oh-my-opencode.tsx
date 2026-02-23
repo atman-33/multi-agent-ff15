@@ -45,7 +45,7 @@ interface LoaderData {
   error?: string;
 }
 
-export async function loader() {
+export function loader() {
   let config: Config | null = null;
   let error: string | undefined;
 
@@ -54,17 +54,17 @@ export async function loader() {
       const raw = readFileSync(CONFIG_PATH, "utf-8");
       config = JSON.parse(raw);
     } catch (e) {
-      error = "Failed to parse config: " + String(e);
+      error = `Failed to parse config: ${String(e)}`;
     }
   } else {
-    error = "Configuration file not found at " + CONFIG_PATH;
+    error = `Configuration file not found at ${CONFIG_PATH}`;
   }
 
   const isInstalledPromise = async () => {
     try {
       await execAsync("oh-my-opencode --version");
       return true;
-    } catch (e) {
+    } catch (_e) {
       return false;
     }
   };
@@ -73,7 +73,7 @@ export async function loader() {
     try {
       const { stdout } = await execAsync("oh-my-opencode --version");
       return stdout.trim();
-    } catch (e) {
+    } catch (_e) {
       return "unknown";
     }
   };
@@ -91,7 +91,7 @@ export async function loader() {
             !line.includes("--") &&
             line.includes("/")
         );
-    } catch (e) {
+    } catch (_e) {
       return [];
     }
   };
@@ -110,9 +110,10 @@ export async function loader() {
 function LoadingGrid() {
   return (
     <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
-      {[...Array(6)].map((_, i) => (
+      {[...new Array(6)].map((_, i) => (
         <div
           className="flex animate-pulse items-center gap-3 rounded-md border border-border/10 bg-card/10 p-1.5 px-3"
+          // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
           key={i}
         >
           <div className="h-4 w-24 rounded bg-muted" />

@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 /**
  * GET /api/dashboard
  * Returns the content of dashboard.md as JSON: { content: string }
  */
-export async function loader() {
+export function loader() {
   try {
     const root = getProjectRoot();
     const filePath = join(root, "dashboard.md");

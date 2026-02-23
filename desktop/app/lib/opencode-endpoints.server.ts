@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getProjectRoot } from "./getProjectRoot.server";
+import { getProjectRoot } from "./get-project-root.server";
 
 export interface OpencodeEndpoint {
   baseUrl: string;
@@ -31,7 +31,7 @@ export function getOpencodeEndpoints(): OpencodeManifest | null {
 
 export function getAgentEndpoint(agentName: string): OpencodeEndpoint | null {
   const manifest = getOpencodeEndpoints();
-  if (!(manifest && manifest.agents && manifest.agents[agentName])) {
+  if (!manifest?.agents?.[agentName]) {
     return null;
   }
   return manifest.agents[agentName];

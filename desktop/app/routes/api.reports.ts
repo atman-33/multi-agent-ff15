@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 export interface ReportMeta {
   author: string;
@@ -10,8 +10,11 @@ export interface ReportMeta {
   tags: string[];
   title: string;
 }
+const FM_REGEX = /^---\r?\n([\s\S]*?)\r?\n---/;
+const FILENAME_REGEX = /^([^-]+)-([^-]+)-(.*)\.md$/;
+const DATE8_REGEX = /^\d{8}$/;
 
-export async function loader() {
+export function loader() {
   try {
     const root = getProjectRoot();
     const reportsDir = join(root, "docs", "reports");
@@ -30,7 +33,7 @@ export async function loader() {
       const meta: Partial<ReportMeta> = { filename: file, tags: [] };
 
       // Try to parse frontmatter
-      const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      const fmMatch = content.match(FM_REGEX);
       if (fmMatch) {
         try {
           const parsed = yaml.parse(fmMatch[1]);
@@ -55,7 +58,7 @@ export async function loader() {
 
       // Fallbacks from filename if not found in frontmatter
       // e.g. analysis-ignis-20260215.md
-      const nameMatch = file.match(/^([^-]+)-([^-]+)-(.*)\.md$/);
+      const nameMatch = file.match(FILENAME_REGEX);
       if (nameMatch) {
         if (!meta.author) {
           meta.author = nameMatch[2];
@@ -66,7 +69,7 @@ export async function loader() {
         if (!meta.date) {
           // try to parse timestamp from filename if it's something like 20260215
           const tsString = nameMatch[3];
-          if (/^\d{8}$/.test(tsString)) {
+          if (DATE8_REGEX.test(tsString)) {
             // Not standard ISO, but can be formatted roughly
             const y = tsString.slice(0, 4);
             const m = tsString.slice(4, 6);

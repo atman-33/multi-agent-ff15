@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
-export async function loader() {
+export function loader() {
   try {
     const root = getProjectRoot();
     const configPath = join(root, "config/models.yaml");

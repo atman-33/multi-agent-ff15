@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { ALLOWED_AGENTS } from "@/lib/agents";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
-import { getAgentEndpoint } from "@/lib/opencodeEndpoints.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getAgentEndpoint } from "@/lib/opencode-endpoints.server";
 
-export async function loader({ request }: { request: Request }) {
+export function loader({ request }: { request: Request }) {
   const url = new URL(request.url);
   const agent = url.searchParams.get("agent");
 

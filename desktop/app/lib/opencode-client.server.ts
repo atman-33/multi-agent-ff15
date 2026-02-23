@@ -1,5 +1,5 @@
 import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk";
-import { getAgentEndpoint } from "./opencodeEndpoints.server";
+import { getAgentEndpoint } from "./opencode-endpoints.server";
 
 export function getClientForAgent(agentName: string): OpencodeClient | null {
   const endpoint = getAgentEndpoint(agentName);

@@ -11,7 +11,9 @@
     "desktop:typecheck": "cd desktop && npm run typecheck && cd src-tauri && cargo check",
     "desktop:start": "MULTI_AGENT_FF15_ROOT=$(pwd) XCURSOR_SIZE=24 ./desktop/src-tauri/target/release/multi-agent-ff15-desktop",
     "desktop:start:appimage": "MULTI_AGENT_FF15_ROOT=$(pwd) XCURSOR_SIZE=24 './desktop/src-tauri/target/release/bundle/appimage/Multi Agent FF15_0.1.0_amd64.AppImage'",
-    "test": "./tests/run_all_tests.sh"
+    "test": "./tests/run_all_tests.sh",
+    "lint": "cd desktop && npm run lint",
+    "format": "cd desktop && npm run format"
   },
   "devDependencies": {
     "@types/node": "^25.2.3"

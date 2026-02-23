@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { ALLOWED_AGENTS } from "@/lib/agents";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
-import { getAgentEndpoint } from "@/lib/opencodeEndpoints.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getAgentEndpoint } from "@/lib/opencode-endpoints.server";
 
 type AllowedAgent = (typeof ALLOWED_AGENTS)[number];
 

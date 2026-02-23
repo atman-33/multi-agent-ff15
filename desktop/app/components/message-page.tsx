@@ -93,12 +93,12 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   const handleSend = async () => {
     const trimmed = sendContent.trim();
     if (!trimmed) {
-      setValidationError("メッセージを入力してください");
+      setValidationError("Please enter a message");
       return;
     }
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
       setValidationError(
-        `メッセージは${MAX_MESSAGE_LENGTH}文字以内にしてください`
+        `Message must be within ${MAX_MESSAGE_LENGTH} characters`
       );
       return;
     }
@@ -123,11 +123,11 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
           throw new Error(data.error || `HTTP ${res.status}`);
         }
       }
-      toast.success("メッセージを送信しました");
+      toast.success("Successfully sent message");
       setSendContent("");
       await fetchData();
     } catch (e) {
-      toast.error(`送信エラー: ${String(e)}`);
+      toast.error(`Send error: ${String(e)}`);
     } finally {
       setSending(false);
     }
@@ -210,9 +210,9 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
                   </Select>
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block font-medium text-muted-foreground text-xs">
+                  <span className="mb-1 block font-medium text-muted-foreground text-xs">
                     To
-                  </label>
+                  </span>
                   <div className="flex h-9 items-center rounded-md border border-input bg-muted/20 px-3 text-muted-foreground text-sm">
                     {agent}
                   </div>
@@ -236,7 +236,7 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
                       setValidationError(null);
                     }
                   }}
-                  placeholder="メッセージを入力..."
+                  placeholder="Enter message..."
                   rows={3}
                   value={sendContent}
                 />
@@ -289,7 +289,7 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
                 <MessageSquare className="h-8 w-8 opacity-30" />
-                <p className="text-sm">メッセージはありません</p>
+                <p className="text-sm">No messages yet</p>
               </div>
             ) : (
               <div className="space-y-2">

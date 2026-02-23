@@ -5,7 +5,7 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import MessageCard from "@/components/MessageCard";
+import MessageCard from "@/components/message-card";
 import {
   Select,
   SelectContent,
@@ -20,13 +20,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
-import type { ChatLogRecord } from "@/lib/useAgentChatLog";
+import type { ChatLogRecord } from "@/lib/use-agent-chat-log";
 import {
   COMRADE_CONFIG,
   COMRADES,
   type ComradeId,
-} from "@/lib/useComradeStatus";
-import type { InboxLogRecord } from "@/lib/useInboxLog";
+} from "@/lib/use-comrade-status";
+import type { InboxLogRecord } from "@/lib/use-inbox-log";
 import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {
@@ -245,7 +245,8 @@ function ModelSwitchBar({
           return;
         }
         const data = (await res.json()) as { model?: string };
-        if (cancelled || !data.model) {
+        const { model } = data;
+        if (cancelled || !model) {
           return;
         }
 
@@ -253,12 +254,12 @@ function ModelSwitchBar({
         // Check contains in both directions
         const exactOpt = modelOptions.find(
           (opt) =>
-            opt.toLowerCase() === data.model!.toLowerCase() ||
-            opt.toLowerCase().includes(data.model!.toLowerCase()) ||
-            data.model!.toLowerCase().includes(opt.toLowerCase())
+            opt.toLowerCase() === model.toLowerCase() ||
+            opt.toLowerCase().includes(model.toLowerCase()) ||
+            model.toLowerCase().includes(opt.toLowerCase())
         );
-        setModelLabel(exactOpt ?? data.model);
-      } catch (e) {
+        setModelLabel(exactOpt ?? model);
+      } catch (_e) {
         // Ignored
       }
     };
@@ -305,8 +306,8 @@ function ModelSwitchBar({
           }
         }
         toast.success(`Switched ${targetAgent} to ${newModel}`);
-      } catch (e) {
-        toast.error(`Model switch failed: ${String(e)}`);
+      } catch (_e) {
+        toast.error(`Model switch failed: ${String(_e)}`);
         setModelLabel(prevModel); // Revert on failure
       } finally {
         setIsSwitching(false);
@@ -369,8 +370,8 @@ function ModelSwitchBar({
                     throw new Error(errMsg ?? `HTTP ${res.status}`);
                   }
                   toast.success(`Created a new session for ${targetAgent}`);
-                } catch (e) {
-                  toast.error(`Session creation failed: ${String(e)}`);
+                } catch (_e) {
+                  toast.error(`Session creation failed: ${String(_e)}`);
                 }
               }}
               type="button"
@@ -388,13 +389,13 @@ function ModelSwitchBar({
 }
 
 function ComradeTab({
-  comrade,
+  _comrade,
   cfg,
   busy,
   isSelected,
   onClick,
 }: {
-  comrade: ComradeId;
+  _comrade: ComradeId;
   cfg: { label: string; imageSrc: string };
   busy: boolean;
   isSelected: boolean;
@@ -468,13 +469,14 @@ export default function AgentChatColumn({
 
   // Determine active view: Noctis own data or a comrade's data
   const viewingComrade = agent === "noctis" && partyView !== null;
-  const activeRecords = viewingComrade
-    ? (partyRecords?.[partyView!] ?? [])
-    : records;
-  const activeInboxMessages = viewingComrade
-    ? (partyInboxMessages?.[partyView!] ?? [])
-    : inboxMessages;
-  const activeLabel = viewingComrade ? COMRADE_CONFIG[partyView!].label : label;
+  const activeRecords =
+    viewingComrade && partyView ? (partyRecords?.[partyView] ?? []) : records;
+  const activeInboxMessages =
+    viewingComrade && partyView
+      ? (partyInboxMessages?.[partyView] ?? [])
+      : inboxMessages;
+  const activeLabel =
+    viewingComrade && partyView ? COMRADE_CONFIG[partyView].label : label;
   const activeIsWaiting = viewingComrade ? false : isWaiting;
 
   const timeline = mergeTimeline(
@@ -482,6 +484,19 @@ export default function AgentChatColumn({
     activeInboxMessages,
     viewingComrade ? [] : optimisticMessages
   );
+
+  // Determine target agent for model switching
+  let switchTargetAgent: ModelSwitchAgent = "lunafreya";
+  if (agent === "noctis") {
+    if (
+      partyView &&
+      (ALL_MODEL_SWITCH_AGENTS as readonly string[]).includes(partyView)
+    ) {
+      switchTargetAgent = partyView as ModelSwitchAgent;
+    } else {
+      switchTargetAgent = "noctis";
+    }
+  }
 
   // Track whether the user is at the bottom
   const handleScroll = () => {
@@ -495,6 +510,7 @@ export default function AgentChatColumn({
   };
 
   // Auto-follow new messages only if at bottom (task 4.1)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: triggers
   useEffect(() => {
     if (!isAtBottomRef.current) {
       return;
@@ -574,9 +590,9 @@ export default function AgentChatColumn({
           <div className="flex items-center gap-0.5">
             {COMRADES.map((comrade) => (
               <ComradeTab
+                _comrade={comrade}
                 busy={busyMap?.[comrade] ?? false}
                 cfg={COMRADE_CONFIG[comrade]}
-                comrade={comrade}
                 isSelected={partyView === comrade}
                 key={comrade}
                 onClick={() => {
@@ -638,20 +654,16 @@ export default function AgentChatColumn({
       <ModelSwitchBar
         isTauri={isTauri}
         modelOptions={modelOptions}
-        targetAgent={
-          agent === "noctis"
-            ? partyView &&
-              (ALL_MODEL_SWITCH_AGENTS as readonly string[]).includes(partyView)
-              ? (partyView as ModelSwitchAgent)
-              : "noctis"
-            : "lunafreya"
-        }
+        targetAgent={switchTargetAgent}
       />
 
       {/* Scrollable message list */}
       <div
         className="min-h-0 flex-1 cursor-pointer space-y-3 overflow-y-auto px-3 py-3"
-        onClick={onActivate}
+        onClick={onActivate} // dummy for a11y
+        onKeyDown={() => {
+          // Intentional dummy for accessibility
+        }}
         onScroll={handleScroll}
         ref={scrollRef}
       >

@@ -42,7 +42,7 @@ function formatPath(p: string): string {
   if (parts.length >= 3) {
     return `…/${parts.slice(-2).join("/")}`;
   }
-  return "…" + p.slice(-39);
+  return `…${p.slice(-39)}`;
 }
 
 function formatDate(iso: string): string {
@@ -135,7 +135,7 @@ export default function ProjectsPage() {
       if (!res.ok) {
         if (res.status === 409) {
           toast.error("Conflict detected", {
-            description: result.error + " Reloading latest state.",
+            description: `${result.error} Reloading latest state.`,
           });
           await fetchData();
           return;
@@ -285,6 +285,7 @@ export default function ProjectsPage() {
                         fill="none"
                         viewBox="0 0 12 12"
                       >
+                        <title>Active</title>
                         <path
                           d="M2 6l3 3 5-5"
                           stroke="currentColor"

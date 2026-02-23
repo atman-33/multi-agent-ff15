@@ -122,6 +122,7 @@ export default function ModeSwitcher() {
               disabled={isSwitching}
               key={mode.name}
               onClick={() => handleSwitch(mode.name)}
+              type="button"
             >
               <div className="flex w-full items-center gap-2">
                 <span className="font-bold text-xs capitalize">

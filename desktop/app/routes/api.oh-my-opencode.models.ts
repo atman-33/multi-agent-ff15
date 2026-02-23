@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 
-export async function loader() {
+export function loader() {
   try {
     const output = execSync("opencode models", { encoding: "utf-8" });
     const models = output

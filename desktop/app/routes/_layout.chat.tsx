@@ -1,14 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AgentChatColumn from "@/components/AgentChatColumn";
-import MessageComposer from "@/components/MessageComposer";
+import AgentChatColumn from "@/components/agent-chat-column";
+import MessageComposer from "@/components/message-composer";
 import StatusBar, {
   type AgentStatus,
   computeStatus,
-} from "@/components/StatusBar";
-import { type MainAgentId, useAgentChatLog } from "@/lib/useAgentChatLog";
-import { COMRADES, type ComradeId } from "@/lib/useComradeStatus";
-import { type InboxLogRecord, useInboxLog } from "@/lib/useInboxLog";
+} from "@/components/status-bar";
+import { type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
+import { COMRADES, type ComradeId } from "@/lib/use-comrade-status";
+import { type InboxLogRecord, useInboxLog } from "@/lib/use-inbox-log";
 
 const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 
@@ -69,7 +69,10 @@ export default function UnifiedChatRoute() {
     [getRecordsForAgent]
   );
 
-  const recordsMap = { noctis: noctisRecords, lunafreya: lunafeyaRecords };
+  const recordsMap = useMemo(
+    () => ({ noctis: noctisRecords, lunafreya: lunafeyaRecords }),
+    [noctisRecords, lunafeyaRecords]
+  );
 
   // Inbox messages (Crystal→agent + agent→agent) from runtime/logs/inbox-log.jsonl
   const { getMessagesForAgent: getInboxMessages } = useInboxLog();
@@ -120,12 +123,12 @@ export default function UnifiedChatRoute() {
     for (const c of COMRADES) {
       const records = comradeRecords[c];
       const msgs = comradeInboxMessages[c];
-      const agentLastAt =
-        records.length > 0
-          ? new Date(records[records.length - 1].ts).getTime()
-          : null;
-      const lastInboxAt =
-        msgs.length > 0 ? new Date(msgs[msgs.length - 1].ts).getTime() : null;
+      const lastRecord = records.at(-1);
+      const agentLastAt = lastRecord ? new Date(lastRecord.ts).getTime() : null;
+      const lastInboxMsg = msgs.at(-1);
+      const lastInboxAt = lastInboxMsg
+        ? new Date(lastInboxMsg.ts).getTime()
+        : null;
       result[c] =
         lastInboxAt !== null &&
         (agentLastAt === null || lastInboxAt > agentLastAt);
@@ -153,14 +156,14 @@ export default function UnifiedChatRoute() {
       const records = recordsMap[agent];
       const msgs = getInboxMessages(agent);
 
-      const agentLastAt =
-        records.length > 0
-          ? new Date(records[records.length - 1].ts).getTime()
-          : null;
+      const lastRecord = records.at(-1);
+      const agentLastAt = lastRecord ? new Date(lastRecord.ts).getTime() : null;
 
       // All incoming messages (Crystal or other agents) trigger busy state
-      const lastInboxAt =
-        msgs.length > 0 ? new Date(msgs[msgs.length - 1].ts).getTime() : null;
+      const lastInboxMsg = msgs.at(-1);
+      const lastInboxAt = lastInboxMsg
+        ? new Date(lastInboxMsg.ts).getTime()
+        : null;
 
       // Merge log-derived timestamp with optimistic value (whichever is later)
       let optimistic = optimisticSentAt[agent];
@@ -177,8 +180,7 @@ export default function UnifiedChatRoute() {
         (agentLastAt === null || effectiveSentAt > agentLastAt);
     }
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noctisRecords, lunafeyaRecords, getInboxMessages, optimisticSentAt]);
+  }, [recordsMap, getInboxMessages, optimisticSentAt]);
 
   // Optimistic messages sent by Crystal but not yet confirmed by the polling log.
   // Record<AgentId, InboxLogRecord[]>
@@ -236,13 +238,12 @@ export default function UnifiedChatRoute() {
     () =>
       AGENTS.map((agent) => {
         const records = recordsMap[agent];
-        const lastRecord = records[records.length - 1];
+        const lastRecord = records.at(-1);
         const lastResponseAt = lastRecord ? new Date(lastRecord.ts) : null;
         const status: AgentStatus = computeStatus(lastResponseAt);
         return { agent, status, lastResponseAt };
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [noctisRecords, lunafeyaRecords]
+    [recordsMap]
   );
 
   // Keyboard shortcuts: Ctrl+1 = Noctis, Ctrl+2 = Lunafreya (task 4.6)

@@ -1,8 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
 import { parse as parseYaml } from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 // Helper to get active project roots
 function getActiveProjectRoots(appRoot: string): string[] {
@@ -83,16 +83,20 @@ function searchFiles(
       results.length < MAX_RESULTS &&
       dirsExplored < MAX_DIRS_EXPLORED
     ) {
-      const [dir, depth] = queue.shift()!;
+      const item = queue.shift();
+      if (!item) {
+        continue;
+      }
+      const [dir, depth] = item;
       if (!existsSync(dir)) {
         continue;
       }
 
       dirsExplored++;
 
-      let entries;
+      let entries: Dirent[];
       try {
-        entries = readdirSync(dir, { withFileTypes: true });
+        entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
       } catch {
         continue;
       }
@@ -140,7 +144,7 @@ function searchFiles(
  * GET /api/at-suggestions?q=foo
  * Returns file/folder suggestions based on the provided query.
  */
-export async function loader({ request }: LoaderFunctionArgs) {
+export function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get("q") ?? "";

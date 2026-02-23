@@ -21,7 +21,7 @@ export function getProjectRoot(): string {
   const cwd = process.cwd();
   const parts = cwd.split("/").filter(Boolean);
   for (let i = parts.length; i >= 0; i--) {
-    const candidate = i === 0 ? "/" : "/" + parts.slice(0, i).join("/");
+    const candidate = i === 0 ? "/" : `/${parts.slice(0, i).join("/")}`;
     if (
       existsSync(join(candidate, "scripts")) &&
       existsSync(join(candidate, "queue"))

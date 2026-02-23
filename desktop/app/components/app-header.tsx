@@ -5,7 +5,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { useActiveProjects } from "@/lib/useActiveProjects";
+import { useActiveProjects } from "@/lib/use-active-projects";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
@@ -36,12 +36,14 @@ export function AppHeader() {
   const projects = projectsData?.projects ?? [];
   const projectById = Object.fromEntries(projects.map((p) => [p.id, p]));
 
-  const chipTooltip =
-    activeIds.length > 1
-      ? activeIds.map((id) => projectById[id]?.displayName ?? id).join(", ")
-      : activeIds.length === 1
-        ? (projectById[activeIds[0]]?.displayName ?? activeIds[0])
-        : undefined;
+  let chipTooltip = "";
+  if (activeIds.length > 1) {
+    chipTooltip = activeIds
+      .map((id) => projectById[id]?.displayName ?? id)
+      .join(", ");
+  } else if (activeIds.length === 1) {
+    chipTooltip = projectById[activeIds[0]]?.displayName ?? activeIds[0];
+  }
 
   return (
     <header className="z-10 flex h-11 shrink-0 items-center justify-between gap-4 border-border/50 border-b bg-background/80 px-5 backdrop-blur-sm">
@@ -71,6 +73,7 @@ export function AppHeader() {
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-sm hover:scale-[1.02] hover:border-amber-500/50 hover:bg-amber-500/20"
                   : "border-border/40 bg-muted/30 text-muted-foreground/40 italic hover:bg-muted/50 hover:text-muted-foreground"
               )}
+              title={chipTooltip}
               to="/projects"
             >
               <FolderGit2
@@ -82,11 +85,11 @@ export function AppHeader() {
                 )}
               />
               <div className="flex max-w-[280px] items-center gap-1.5 truncate">
-                {projectsData === null ? (
-                  <span>…</span>
-                ) : activeIds.length === 0 ? (
+                {projectsData === null && <span>…</span>}
+                {projectsData !== null && activeIds.length === 0 && (
                   <span>No active project</span>
-                ) : (
+                )}
+                {projectsData !== null && activeIds.length > 0 && (
                   <>
                     <span className="max-w-[140px] truncate">
                       {projectById[activeIds[0]]?.displayName ?? activeIds[0]}

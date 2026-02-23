@@ -6,8 +6,8 @@ import {
   type ModelSwitchAgent,
   AGENT_PANE_INDEX as PANE_INDEX,
 } from "@/lib/agents";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
-import { getClientForAgent } from "@/lib/opencodeClient.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getClientForAgent } from "@/lib/opencode-client.server";
 
 async function clearDirectory(dirPath: string, deleteFiles = true) {
   try {

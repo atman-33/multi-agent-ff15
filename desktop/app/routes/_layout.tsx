@@ -7,7 +7,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigation } from "react-router";
-import { AppHeader } from "@/components/AppHeader";
+import { AppHeader } from "@/components/app-header";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -74,7 +74,7 @@ export default function Layout() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-0.5 px-2 py-3" role="navigation">
+        <nav className="flex-1 space-y-0.5 px-2 py-3">
           {navItems.map((item) => (
             <NavLink
               className={({ isActive }) =>

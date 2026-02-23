@@ -2,13 +2,13 @@ import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 /**
  * GET /api/projects
  * Returns all registered projects and current active project IDs.
  */
-export async function loader() {
+export function loader() {
   try {
     const root = getProjectRoot();
 

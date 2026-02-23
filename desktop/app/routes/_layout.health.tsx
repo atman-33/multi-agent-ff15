@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { CheckCircle2, RefreshCw, Server, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   AlertCircle,
@@ -59,7 +59,7 @@ export default function HealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const fetchHealth = async () => {
+  const fetchHealth = useCallback(async () => {
     setLoading(true);
     try {
       if (isTauri) {
@@ -82,11 +82,11 @@ export default function HealthPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isTauri]);
 
   useEffect(() => {
     fetchHealth();
-  }, [isTauri]);
+  }, [fetchHealth]);
 
   return (
     <div className="flex h-full flex-col">
@@ -251,7 +251,7 @@ export default function HealthPage() {
 
         {!(health || error || loading) && (
           <div className="flex h-48 items-center justify-center text-muted-foreground text-sm">
-            ヘルスチェック待機中...
+            Waiting for health check...
           </div>
         )}
       </div>

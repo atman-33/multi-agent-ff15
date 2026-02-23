@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 const INBOX_LOG_PATH = "runtime/logs/inbox-log.jsonl";
 
@@ -20,7 +20,7 @@ export interface InboxLogRecord {
  * Filters by `to` field (messages received by the given agent).
  * Mirrors the Tauri `read_inbox_log` command.
  */
-export async function loader({ request }: LoaderFunctionArgs) {
+export function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const agent = url.searchParams.get("agent") ?? "";
@@ -55,10 +55,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
         (r): r is InboxLogRecord => r !== null && (!agent || r.to === agent)
       );
 
-    const start =
-      cursor !== null && !isTruncated
-        ? cursor
-        : Math.max(0, filtered.length - LIMIT);
+    let start = 0;
+    if (cursor !== null && !isTruncated) {
+      start = cursor;
+    } else {
+      start = Math.max(0, filtered.length - LIMIT);
+    }
     const slice = filtered.slice(start, start + LIMIT);
     const nextCursor = start + slice.length;
 

@@ -3,7 +3,7 @@ import {
   COMRADE_CONFIG,
   COMRADES,
   type ComradeId,
-} from "@/lib/useComradeStatus";
+} from "@/lib/use-comrade-status";
 import { cn } from "@/lib/utils";
 
 interface ComradeAvatarBarProps {
@@ -17,7 +17,7 @@ function ComradeAvatar({ agent, busy }: { agent: ComradeId; busy: boolean }) {
   return (
     <div
       className="flex flex-col items-center gap-1"
-      title={busy ? `${label}: 処理中...` : label}
+      title={busy ? `${label}: Processing...` : label}
     >
       <div className="relative">
         {/* Busy glow ring */}

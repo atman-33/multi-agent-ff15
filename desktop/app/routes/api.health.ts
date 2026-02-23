@@ -7,13 +7,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 /**
  * GET /api/health
  * Returns health diagnostics mirroring the Tauri `health_check` command.
  */
-export async function loader() {
+export function loader() {
   try {
     const root = getProjectRoot();
 
@@ -55,6 +55,7 @@ export async function loader() {
       if (existsSync(scriptPath)) {
         try {
           const mode = statSync(scriptPath).mode;
+          // biome-ignore lint/suspicious/noBitwiseOperators: checking file permissions mask
           executable = (mode & 0o111) !== 0;
         } catch {
           // Permission denied or other error

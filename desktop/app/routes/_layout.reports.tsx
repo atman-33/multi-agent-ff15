@@ -133,6 +133,7 @@ export default function ReportsPage() {
                 )}
                 key={r.filename}
                 onClick={() => handleSelect(r)}
+                type="button"
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="line-clamp-2 font-medium text-foreground text-sm leading-tight">

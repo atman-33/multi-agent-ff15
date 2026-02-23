@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { parse as parseYaml } from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 const ALLOWED_TARGETS = ["noctis", "lunafreya"];
 const ALLOWED_SENDERS = [
@@ -16,6 +16,9 @@ const ALLOWED_SENDERS = [
   "prompto",
   "iris",
 ];
+
+const WHITESPACE_REGEX = /\s+/;
+const MSG_ID_REGEX = /Message\s+(msg_\S+)\s+→/;
 
 interface RawInboxMessage {
   content: string;
@@ -35,8 +38,8 @@ interface RawInboxFile {
  * Returns { messages, count } where messages use `msg_type` (matching the TS interface).
  * Mirrors Tauri `peek_inbox` + `list_inbox_messages`.
  */
-export async function loader({ params }: LoaderFunctionArgs) {
-  const agent = params["agent"] ?? "";
+export function loader({ params }: LoaderFunctionArgs) {
+  const agent = params.agent ?? "";
   if (!ALLOWED_TARGETS.includes(agent)) {
     return Response.json({ error: `Invalid agent: ${agent}` }, { status: 400 });
   }
@@ -59,7 +62,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
       [join(root, "scripts/inbox_read.sh"), agent, "--peek"],
       { cwd: root, encoding: "utf-8" }
     );
-    const countStr = (peekResult.stdout ?? "").split(/\s+/)[0];
+    const countStr = (peekResult.stdout ?? "").split(WHITESPACE_REGEX)[0];
     const count = Number.parseInt(countStr, 10) || 0;
 
     return Response.json({ messages, count });
@@ -74,7 +77,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
  * Sends a message via inbox_write.sh. Mirrors Tauri `send_message`.
  */
 export async function action({ params, request }: ActionFunctionArgs) {
-  const agent = params["agent"] ?? "";
+  const agent = params.agent ?? "";
   if (!ALLOWED_TARGETS.includes(agent)) {
     return Response.json({ error: `Invalid agent: ${agent}` }, { status: 400 });
   }
@@ -130,7 +133,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
     }
 
     // Extract message ID from output (✅ Message msg_... → ... inbox)
-    const match = (result.stdout || "").match(/Message\s+(msg_\S+)\s+→/);
+    const match = (result.stdout || "").match(MSG_ID_REGEX);
     const id = match ? match[1] : undefined;
 
     return Response.json({ ok: true, id });

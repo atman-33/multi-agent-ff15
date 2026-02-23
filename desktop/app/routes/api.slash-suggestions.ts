@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 interface SlashSuggestion {
   insertText: string;
@@ -22,11 +22,9 @@ function collectDirectoryEntries(root: string, relativeDir: string): string[] {
     .sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * GET /api/slash-suggestions
- * Returns candidates from .opencode/command(.s) and .opencode/opencode skills folders.
- */
-export async function loader() {
+const MD_EXT_REGEX = /\.md$/;
+
+export function loader() {
   try {
     const root = getProjectRoot();
 
@@ -44,7 +42,7 @@ export async function loader() {
     const commandSuggestions: SlashSuggestion[] = Array.from(
       new Set(commandEntries)
     ).map((entry) => {
-      const name = entry.replace(/\.md$/, "");
+      const name = entry.replace(MD_EXT_REGEX, "");
       return {
         label: `command: ${name}`,
         value: `/${name} `,

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 /**
  * POST /api/mode-switch
@@ -30,7 +30,7 @@ export async function action({ request }: { request: Request }) {
       modes?: Record<string, any>;
     };
 
-    if (!(parsed.modes && parsed.modes[modeName])) {
+    if (!parsed.modes?.[modeName]) {
       return Response.json(
         { error: `Invalid mode: ${modeName}` },
         { status: 400 }
@@ -46,13 +46,15 @@ export async function action({ request }: { request: Request }) {
 
     for (const agent of agents) {
       const agentConfig = modeConfig[agent];
-      if (agentConfig && agentConfig.model) {
+      if (agentConfig?.model) {
         const modelId = agentConfig.model;
         // Use exact keyword from model_definitions, or fallback to simple extraction
         let label = modelDefinitions[modelId];
 
         if (!label) {
-          label = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+          label = modelId.includes("/")
+            ? modelId.split("/").at(-1) || modelId
+            : modelId;
         }
 
         const proc = spawnSync("bash", [script, agent, label], {

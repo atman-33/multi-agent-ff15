@@ -6,7 +6,7 @@ import type { ActionFunctionArgs } from "react-router";
 
 const CONFIG_PATH = join(homedir(), ".config/opencode/oh-my-opencode.json");
 
-export async function loader() {
+export function loader() {
   let isInstalled = false;
   let version = "";
   try {
@@ -14,7 +14,7 @@ export async function loader() {
       encoding: "utf-8",
     }).trim();
     isInstalled = true;
-  } catch (e) {
+  } catch (_e) {
     // Not installed
   }
 
@@ -23,7 +23,7 @@ export async function loader() {
       isInstalled,
       version,
       config: null,
-      error: "Configuration file not found at " + CONFIG_PATH,
+      error: `Configuration file not found at ${CONFIG_PATH}`,
     });
   }
 
@@ -36,7 +36,7 @@ export async function loader() {
       isInstalled,
       version,
       config: null,
-      error: "Failed to parse config: " + String(e),
+      error: `Failed to parse config: ${String(e)}`,
     });
   }
 }

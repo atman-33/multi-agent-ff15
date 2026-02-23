@@ -46,7 +46,9 @@ export function useActiveProjects() {
 
   useEffect(() => {
     fetchData();
-    const handler = () => void fetchData();
+    const handler = () => {
+      fetchData();
+    };
     window.addEventListener("active-projects-changed", handler);
     return () => window.removeEventListener("active-projects-changed", handler);
   }, [fetchData]);
