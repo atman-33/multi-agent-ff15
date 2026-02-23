@@ -6,12 +6,12 @@ import { getProjectRoot } from "@/lib/getProjectRoot.server";
 const INBOX_LOG_PATH = "runtime/logs/inbox-log.jsonl";
 
 export interface InboxLogRecord {
-  id: string;
-  ts: string;
-  from: string;
-  to: string;
-  type: string;
   content: string;
+  from: string;
+  id: string;
+  to: string;
+  ts: string;
+  type: string;
 }
 
 /**
@@ -25,7 +25,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const url = new URL(request.url);
     const agent = url.searchParams.get("agent") ?? "";
     const cursorParam = url.searchParams.get("cursor");
-    const cursor = cursorParam !== null ? parseInt(cursorParam, 10) : null;
+    const cursor =
+      cursorParam !== null ? Number.parseInt(cursorParam, 10) : null;
     const LIMIT = 200;
 
     const root = getProjectRoot();
@@ -54,11 +55,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
         (r): r is InboxLogRecord => r !== null && (!agent || r.to === agent)
       );
 
-    const start = cursor !== null && !isTruncated ? cursor : Math.max(0, filtered.length - LIMIT);
+    const start =
+      cursor !== null && !isTruncated
+        ? cursor
+        : Math.max(0, filtered.length - LIMIT);
     const slice = filtered.slice(start, start + LIMIT);
     const nextCursor = start + slice.length;
 
-    return Response.json({ records: slice, next_cursor: nextCursor, total_lines: totalLines, reset: isTruncated });
+    return Response.json({
+      records: slice,
+      next_cursor: nextCursor,
+      total_lines: totalLines,
+      reset: isTruncated,
+    });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

@@ -1,26 +1,26 @@
-import { cn } from "@/lib/utils";
 import { Circle, RefreshCw, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose,
 } from "@/components/ui/dialog";
 import type { AgentId } from "@/lib/useAgentChatLog";
-import { useState } from "react";
+import { cn } from "@/lib/utils";
 import ModeSwitcher from "./ModeSwitcher";
 
 export type AgentStatus = "online" | "idle" | "stale";
 
 interface AgentStatusInfo {
   agent: AgentId;
-  status: AgentStatus;
   lastResponseAt: Date | null;
+  status: AgentStatus;
 }
 
 interface StatusBarProps {
@@ -29,7 +29,7 @@ interface StatusBarProps {
   onRefresh: () => void;
 }
 
-const STATUS_CONFIG: Record<AgentStatus, { color: string; label: string; }> = {
+const STATUS_CONFIG: Record<AgentStatus, { color: string; label: string }> = {
   online: { color: "text-green-400", label: "online" },
   idle: { color: "text-yellow-400", label: "idle" },
   stale: { color: "text-muted-foreground", label: "stale" },
@@ -38,10 +38,16 @@ const STATUS_CONFIG: Record<AgentStatus, { color: string; label: string; }> = {
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 export function computeStatus(lastResponseAt: Date | null): AgentStatus {
-  if (!lastResponseAt) return "stale";
+  if (!lastResponseAt) {
+    return "stale";
+  }
   const elapsed = Date.now() - lastResponseAt.getTime();
-  if (elapsed < 60_000) return "online";
-  if (elapsed < STALE_THRESHOLD_MS) return "idle";
+  if (elapsed < 60_000) {
+    return "online";
+  }
+  if (elapsed < STALE_THRESHOLD_MS) {
+    return "idle";
+  }
   return "stale";
 }
 
@@ -54,25 +60,25 @@ export default function StatusBar({
   const [isClearing, setIsClearing] = useState(false);
   const updatedStr = lastUpdated
     ? lastUpdated.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
     : "Never";
 
   return (
-    <div className="flex items-center gap-4 px-3 py-1.5 rounded-md border border-border/30 bg-white/3 text-xs text-muted-foreground">
+    <div className="flex items-center gap-4 rounded-md border border-border/30 bg-white/3 px-3 py-1.5 text-muted-foreground text-xs">
       {/* Last updated */}
       <span className="shrink-0">Updated: {updatedStr}</span>
 
-      <div className="h-3 w-px bg-border/40 shrink-0" />
+      <div className="h-3 w-px shrink-0 bg-border/40" />
 
       {/* Per-agent status */}
       <div className="flex items-center gap-4">
         {agentStatuses.map(({ agent, status }) => {
           const { color, label } = STATUS_CONFIG[status];
           return (
-            <div key={agent} className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" key={agent}>
               <Circle className={cn("h-2 w-2 fill-current", color)} />
               <span className="capitalize">
                 {agent === "noctis" ? "Noctis" : "Lunafreya"}
@@ -86,16 +92,16 @@ export default function StatusBar({
       {/* Spacer + Actions */}
       <div className="ml-auto flex items-center gap-2">
         <ModeSwitcher />
-        <div className="h-4 w-px bg-border/40 shrink-0" />
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="h-4 w-px shrink-0 bg-border/40" />
+        <Dialog onOpenChange={setIsDialogOpen} open={isDialogOpen}>
           <DialogTrigger asChild>
             <Button
-              variant="outline"
+              className="h-6 border-red-500/30 text-red-400 text-xs hover:bg-red-500/10 hover:text-red-300"
               size="sm"
-              className="h-6 text-xs text-red-400 hover:text-red-300 border-red-500/30 hover:bg-red-500/10"
               title="Clear all queues and restart sessions"
+              variant="outline"
             >
-              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              <RotateCcw className="mr-1 h-3.5 w-3.5" />
               Clear All
             </Button>
           </DialogTrigger>
@@ -103,46 +109,57 @@ export default function StatusBar({
             <DialogHeader>
               <DialogTitle>Clear All Sessions</DialogTitle>
               <DialogDescription>
-                Are you sure you want to clear all agent interactions and start new sessions? This action cannot be undone.
+                Are you sure you want to clear all agent interactions and start
+                new sessions? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <DialogClose asChild>
-                <Button variant="outline" disabled={isClearing}>Cancel</Button>
+                <Button disabled={isClearing} variant="outline">
+                  Cancel
+                </Button>
               </DialogClose>
               <Button
-                variant="destructive"
                 disabled={isClearing}
                 onClick={async () => {
                   setIsClearing(true);
                   try {
-                    const res = await fetch("/api/session-clear-all", { method: "POST" });
+                    const res = await fetch("/api/session-clear-all", {
+                      method: "POST",
+                    });
                     if (res.ok) {
-                      import("sonner").then(({ toast }) => toast.success("All chats and queues cleared!"));
+                      import("sonner").then(({ toast }) =>
+                        toast.success("All chats and queues cleared!")
+                      );
                       setIsDialogOpen(false);
                       onRefresh();
                     } else {
-                      import("sonner").then(({ toast }) => toast.error("Failed to clear sessions."));
+                      import("sonner").then(({ toast }) =>
+                        toast.error("Failed to clear sessions.")
+                      );
                     }
                   } catch (e) {
-                    import("sonner").then(({ toast }) => toast.error("Error clearing sessions."));
+                    import("sonner").then(({ toast }) =>
+                      toast.error("Error clearing sessions.")
+                    );
                   } finally {
                     setIsClearing(false);
                   }
                 }}
+                variant="destructive"
               >
                 {isClearing ? "Clearing..." : "Continue"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <div className="h-4 w-px bg-border/40 shrink-0" />
+        <div className="h-4 w-px shrink-0 bg-border/40" />
         <Button
-          variant="ghost"
-          size="icon"
           className="h-5 w-5 text-muted-foreground hover:text-foreground"
           onClick={onRefresh}
+          size="icon"
           title="Refresh"
+          variant="ghost"
         >
           <RefreshCw className="h-3 w-3" />
         </Button>

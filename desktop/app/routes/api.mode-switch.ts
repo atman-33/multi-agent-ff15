@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
@@ -8,9 +8,9 @@ import { getProjectRoot } from "@/lib/getProjectRoot.server";
  * POST /api/mode-switch
  * Body: { mode: string }
  */
-export async function action({ request }: { request: Request; }) {
+export async function action({ request }: { request: Request }) {
   try {
-    const body = (await request.json()) as { mode?: string; };
+    const body = (await request.json()) as { mode?: string };
     const modeName = body.mode?.trim();
 
     if (!modeName) {
@@ -26,12 +26,15 @@ export async function action({ request }: { request: Request; }) {
 
     const raw = readFileSync(configPath, "utf-8");
     const parsed = parseYaml(raw) as {
-      model_definitions?: Record<string, string>,
+      model_definitions?: Record<string, string>;
       modes?: Record<string, any>;
     };
 
-    if (!parsed.modes || !parsed.modes[modeName]) {
-      return Response.json({ error: `Invalid mode: ${modeName}` }, { status: 400 });
+    if (!(parsed.modes && parsed.modes[modeName])) {
+      return Response.json(
+        { error: `Invalid mode: ${modeName}` },
+        { status: 400 }
+      );
     }
 
     const modelDefinitions = parsed.model_definitions || {};
@@ -39,7 +42,7 @@ export async function action({ request }: { request: Request; }) {
     const script = join(root, "scripts/switch-model.sh");
 
     const results: any[] = [];
-    const agents = Object.keys(modeConfig).filter(k => k !== "_description");
+    const agents = Object.keys(modeConfig).filter((k) => k !== "_description");
 
     for (const agent of agents) {
       const agentConfig = modeConfig[agent];
@@ -69,9 +72,12 @@ export async function action({ request }: { request: Request; }) {
       }
     }
 
-    const success = results.every(r => r.status === 0);
+    const success = results.every((r) => r.status === 0);
     if (!success) {
-      return Response.json({ error: "Some agents failed to switch", details: results }, { status: 500 });
+      return Response.json(
+        { error: "Some agents failed to switch", details: results },
+        { status: 500 }
+      );
     }
 
     return Response.json({ ok: true, mode: modeName, results });

@@ -1,11 +1,14 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useAgentChatLog, type AgentId, type MainAgentId } from "@/lib/useAgentChatLog";
-import { useInboxLog, type InboxLogRecord } from "@/lib/useInboxLog";
-import { COMRADES, type ComradeId } from "@/lib/useComradeStatus";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/AgentChatColumn";
 import MessageComposer from "@/components/MessageComposer";
-import StatusBar, { computeStatus, type AgentStatus } from "@/components/StatusBar";
+import StatusBar, {
+  type AgentStatus,
+  computeStatus,
+} from "@/components/StatusBar";
+import { type MainAgentId, useAgentChatLog } from "@/lib/useAgentChatLog";
+import { COMRADES, type ComradeId } from "@/lib/useComradeStatus";
+import { type InboxLogRecord, useInboxLog } from "@/lib/useInboxLog";
 
 const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 
@@ -15,7 +18,9 @@ export default function UnifiedChatRoute() {
   const [activeAgent, setActiveAgent] = useState<MainAgentId>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("chat_active_agent");
-      if (saved === "noctis" || saved === "lunafreya") return saved;
+      if (saved === "noctis" || saved === "lunafreya") {
+        return saved;
+      }
     }
     return "noctis";
   });
@@ -31,19 +36,27 @@ export default function UnifiedChatRoute() {
       try {
         if (isTauri) {
           const options = await invoke<string[]>("read_model_options");
-          if (!cancelled) setModelOptions(options);
+          if (!cancelled) {
+            setModelOptions(options);
+          }
         } else {
           const res = await fetch("/api/model-options");
-          if (!res.ok) return;
-          const data = (await res.json()) as { modelOptions?: string[]; };
-          if (!cancelled && Array.isArray(data.modelOptions)) setModelOptions(data.modelOptions);
+          if (!res.ok) {
+            return;
+          }
+          const data = (await res.json()) as { modelOptions?: string[] };
+          if (!cancelled && Array.isArray(data.modelOptions)) {
+            setModelOptions(data.modelOptions);
+          }
         }
       } catch (_) {
         setModelOptions([]);
       }
     };
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isTauri]);
 
   // Filtered records per agent (memoised to minimise re-renders)
@@ -62,13 +75,17 @@ export default function UnifiedChatRoute() {
   const { getMessagesForAgent: getInboxMessages } = useInboxLog();
 
   // Party view: which comrade (or null = Noctis itself) is shown in the Noctis column
-  const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("chat_noctis_party_view");
-      if (saved) return saved as ComradeId;
+  const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(
+    () => {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("chat_noctis_party_view");
+        if (saved) {
+          return saved as ComradeId;
+        }
+      }
+      return null;
     }
-    return null;
-  });
+  );
 
   useEffect(() => {
     if (noctisPartyView) {
@@ -104,17 +121,23 @@ export default function UnifiedChatRoute() {
       const records = comradeRecords[c];
       const msgs = comradeInboxMessages[c];
       const agentLastAt =
-        records.length > 0 ? new Date(records[records.length - 1].ts).getTime() : null;
+        records.length > 0
+          ? new Date(records[records.length - 1].ts).getTime()
+          : null;
       const lastInboxAt =
         msgs.length > 0 ? new Date(msgs[msgs.length - 1].ts).getTime() : null;
-      result[c] = lastInboxAt !== null && (agentLastAt === null || lastInboxAt > agentLastAt);
+      result[c] =
+        lastInboxAt !== null &&
+        (agentLastAt === null || lastInboxAt > agentLastAt);
     }
     return result;
   }, [comradeRecords, comradeInboxMessages]);
 
   // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
   // until inbox-log.jsonl catches up with the Crystal message.
-  const [optimisticSentAt, setOptimisticSentAt] = useState<Record<MainAgentId, number | null>>({
+  const [optimisticSentAt, setOptimisticSentAt] = useState<
+    Record<MainAgentId, number | null>
+  >({
     noctis: null,
     lunafreya: null,
   });
@@ -122,23 +145,26 @@ export default function UnifiedChatRoute() {
   // Derive isWaiting: Crystal's most recent message is newer than Agent's last response.
   // Page-transition-safe because the source of truth is log data, not ephemeral local state.
   const isWaitingMap = useMemo(() => {
-    const result: Record<MainAgentId, boolean> = { noctis: false, lunafreya: false };
+    const result: Record<MainAgentId, boolean> = {
+      noctis: false,
+      lunafreya: false,
+    };
     for (const agent of AGENTS) {
       const records = recordsMap[agent];
       const msgs = getInboxMessages(agent);
 
       const agentLastAt =
-        records.length > 0 ? new Date(records[records.length - 1].ts).getTime() : null;
+        records.length > 0
+          ? new Date(records[records.length - 1].ts).getTime()
+          : null;
 
       // All incoming messages (Crystal or other agents) trigger busy state
       const lastInboxAt =
-        msgs.length > 0
-          ? new Date(msgs[msgs.length - 1].ts).getTime()
-          : null;
+        msgs.length > 0 ? new Date(msgs[msgs.length - 1].ts).getTime() : null;
 
       // Merge log-derived timestamp with optimistic value (whichever is later)
       let optimistic = optimisticSentAt[agent];
-      if (optimistic !== null && Date.now() - optimistic > 10000) {
+      if (optimistic !== null && Date.now() - optimistic > 10_000) {
         optimistic = null; // Expire optimistic state after 10s to prevent stuck busy indicators
       }
       const effectiveSentAt =
@@ -156,7 +182,9 @@ export default function UnifiedChatRoute() {
 
   // Optimistic messages sent by Crystal but not yet confirmed by the polling log.
   // Record<AgentId, InboxLogRecord[]>
-  const [optimisticMessages, setOptimisticMessages] = useState<Record<MainAgentId, InboxLogRecord[]>>({
+  const [optimisticMessages, setOptimisticMessages] = useState<
+    Record<MainAgentId, InboxLogRecord[]>
+  >({
     noctis: [],
     lunafreya: [],
   });
@@ -220,7 +248,9 @@ export default function UnifiedChatRoute() {
   // Keyboard shortcuts: Ctrl+1 = Noctis, Ctrl+2 = Lunafreya (task 4.6)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+      if (!(e.ctrlKey || e.metaKey)) {
+        return;
+      }
       if (e.key === "1") {
         e.preventDefault();
         setActiveAgent("noctis");
@@ -234,7 +264,7 @@ export default function UnifiedChatRoute() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full gap-3 p-4 overflow-hidden">
+    <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       {/* Status bar */}
       <StatusBar
         agentStatuses={agentStatuses}
@@ -244,25 +274,25 @@ export default function UnifiedChatRoute() {
 
       {/* Error banner */}
       {error && (
-        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-red-400 text-xs">
           Error: {error}
         </div>
       )}
 
       {/* 2-column chat area */}
-      <div className="flex-1 grid grid-cols-2 gap-3 min-h-0">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
         {AGENTS.map((agent) => (
           <AgentChatColumn
-            key={agent}
             agent={agent}
-            records={recordsMap[agent]}
             inboxMessages={getInboxMessages(agent)}
-            optimisticMessages={optimisticMessages[agent]}
-            isWaiting={isWaitingMap[agent]}
             isActive={activeAgent === agent}
-            onActivate={() => setActiveAgent(agent)}
-            modelOptions={modelOptions}
             isTauri={isTauri}
+            isWaiting={isWaitingMap[agent]}
+            key={agent}
+            modelOptions={modelOptions}
+            onActivate={() => setActiveAgent(agent)}
+            optimisticMessages={optimisticMessages[agent]}
+            records={recordsMap[agent]}
             {...(agent === "noctis" && {
               partyView: noctisPartyView,
               onPartyViewChange: setNoctisPartyView,
@@ -275,7 +305,11 @@ export default function UnifiedChatRoute() {
       </div>
 
       {/* Message composer */}
-      <MessageComposer activeAgent={activeAgent} isTauri={isTauri} onSent={handleCrystalSent} />
+      <MessageComposer
+        activeAgent={activeAgent}
+        isTauri={isTauri}
+        onSent={handleCrystalSent}
+      />
     </div>
   );
 }

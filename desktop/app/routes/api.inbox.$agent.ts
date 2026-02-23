@@ -1,8 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { parse as parseYaml } from "yaml";
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 
 const ALLOWED_TARGETS = ["noctis", "lunafreya"];
@@ -18,12 +18,12 @@ const ALLOWED_SENDERS = [
 ];
 
 interface RawInboxMessage {
-  id: string;
-  from: string;
-  type: string;
-  timestamp: string;
   content: string;
+  from: string;
+  id: string;
   read?: boolean;
+  timestamp: string;
+  type: string;
 }
 
 interface RawInboxFile {
@@ -60,7 +60,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
       { cwd: root, encoding: "utf-8" }
     );
     const countStr = (peekResult.stdout ?? "").split(/\s+/)[0];
-    const count = parseInt(countStr, 10) || 0;
+    const count = Number.parseInt(countStr, 10) || 0;
 
     return Response.json({ messages, count });
   } catch (e) {
@@ -82,7 +82,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  let body: { from?: unknown; content?: unknown; };
+  let body: { from?: unknown; content?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -94,7 +94,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
   if (!ALLOWED_SENDERS.includes(from)) {
     return Response.json(
-      { error: `Invalid sender: ${from}. Allowed: ${ALLOWED_SENDERS.join(", ")}` },
+      {
+        error: `Invalid sender: ${from}. Allowed: ${ALLOWED_SENDERS.join(", ")}`,
+      },
       { status: 400 }
     );
   }
@@ -111,10 +113,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
   try {
     const root = getProjectRoot();
     const script = join(root, "scripts/inbox_write.sh");
-    const result = spawnSync("bash", [script, agent, from, "message", content], {
-      cwd: root,
-      encoding: "utf-8",
-    });
+    const result = spawnSync(
+      "bash",
+      [script, agent, from, "message", content],
+      {
+        cwd: root,
+        encoding: "utf-8",
+      }
+    );
 
     if (result.status !== 0) {
       return Response.json(

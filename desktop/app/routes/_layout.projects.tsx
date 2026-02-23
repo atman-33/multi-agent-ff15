@@ -1,28 +1,25 @@
-import { useState, useEffect, useCallback } from "react";
 import {
-  Save,
-  RotateCcw,
   FolderGit2,
-  RefreshCw,
   FolderOpen,
+  RefreshCw,
+  RotateCcw,
+  Save,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
 import {
   Alert,
+  AlertCircle,
   AlertDescription,
   AlertTitle,
-  AlertCircle,
 } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface ProjectEntry {
-  id: string;
   displayName: string;
+  id: string;
   path: string;
   updatedAt: string;
 }
@@ -30,20 +27,28 @@ interface ProjectEntry {
 interface ProjectsApiData {
   activeProjectIds: string[];
   configUpdatedAt: string;
-  projects: ProjectEntry[];
   error?: string;
+  projects: ProjectEntry[];
 }
 
 function formatPath(p: string): string {
-  if (!p) return "—";
-  if (p.length <= 42) return p;
+  if (!p) {
+    return "—";
+  }
+  if (p.length <= 42) {
+    return p;
+  }
   const parts = p.split("/");
-  if (parts.length >= 3) return `…/${parts.slice(-2).join("/")}`;
+  if (parts.length >= 3) {
+    return `…/${parts.slice(-2).join("/")}`;
+  }
   return "…" + p.slice(-39);
 }
 
 function formatDate(iso: string): string {
-  if (!iso) return "—";
+  if (!iso) {
+    return "—";
+  }
   try {
     return new Date(iso).toLocaleString("ja-JP", {
       month: "2-digit",
@@ -69,9 +74,13 @@ export default function ProjectsPage() {
     setFetchError(null);
     try {
       const res = await fetch("/api/projects");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data: ProjectsApiData = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        throw new Error(data.error);
+      }
       setServerData(data);
       setPendingIds(new Set(data.activeProjectIds));
       setIsDirty(false);
@@ -100,13 +109,17 @@ export default function ProjectsPage() {
   };
 
   const handleReset = () => {
-    if (!serverData) return;
+    if (!serverData) {
+      return;
+    }
     setPendingIds(new Set(serverData.activeProjectIds));
     setIsDirty(false);
   };
 
   const handleSave = async () => {
-    if (!serverData) return;
+    if (!serverData) {
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/projects/active", {
@@ -149,45 +162,41 @@ export default function ProjectsPage() {
 
   if (loading && !serverData) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[300px]">
+      <div className="flex min-h-[300px] items-center justify-center p-6">
         <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-3xl">
+    <div className="max-w-3xl space-y-5 p-6">
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
+          <h1 className="flex items-center gap-2 font-semibold text-xl">
             <FolderGit2 className="h-5 w-5 text-primary" />
             Project Settings
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="mt-1 text-muted-foreground text-sm">
             Toggle which projects are injected into agent context on the next
             run.
           </p>
         </div>
 
         {/* Action buttons — always visible */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            onClick={handleReset}
             disabled={!isDirty || saving}
+            onClick={handleReset}
+            size="sm"
             title="Discard unsaved changes"
+            variant="outline"
           >
-            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
             Reset
           </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={!isDirty || saving}
-          >
-            <Save className="h-3.5 w-3.5 mr-1.5" />
+          <Button disabled={!isDirty || saving} onClick={handleSave} size="sm">
+            <Save className="mr-1.5 h-3.5 w-3.5" />
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -195,11 +204,11 @@ export default function ProjectsPage() {
 
       {/* Unsaved-changes banner */}
       {isDirty && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400 flex items-center gap-2.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+        <div className="flex items-center gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-amber-400 text-sm">
+          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400" />
           <span>
-            Unsaved changes &mdash; this will affect all agent context injections
-            on the next run.
+            Unsaved changes &mdash; this will affect all agent context
+            injections on the next run.
           </span>
         </div>
       )}
@@ -209,16 +218,16 @@ export default function ProjectsPage() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Failed to load projects</AlertTitle>
-          <AlertDescription className="flex items-center gap-3 mt-1">
+          <AlertDescription className="mt-1 flex items-center gap-3">
             <span className="flex-1">{fetchError}</span>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchData}
               disabled={loading}
+              onClick={fetchData}
+              size="sm"
+              variant="outline"
             >
               <RefreshCw
-                className={cn("h-3 w-3 mr-1", loading && "animate-spin")}
+                className={cn("mr-1 h-3 w-3", loading && "animate-spin")}
               />
               Retry
             </Button>
@@ -229,15 +238,15 @@ export default function ProjectsPage() {
       {/* Empty state */}
       {serverData && serverData.projects.length === 0 && (
         <Card>
-          <CardContent className="py-10 text-center space-y-3">
-            <FolderGit2 className="h-9 w-9 text-muted-foreground/30 mx-auto" />
-            <p className="text-sm font-medium text-muted-foreground">
+          <CardContent className="space-y-3 py-10 text-center">
+            <FolderGit2 className="mx-auto h-9 w-9 text-muted-foreground/30" />
+            <p className="font-medium text-muted-foreground text-sm">
               No registered projects found.
             </p>
-            <p className="text-xs text-muted-foreground/60">
+            <p className="text-muted-foreground/60 text-xs">
               Register a project via CLI:
             </p>
-            <code className="text-xs font-mono bg-muted px-3 py-1.5 rounded block w-fit mx-auto">
+            <code className="mx-auto block w-fit rounded bg-muted px-3 py-1.5 font-mono text-xs">
               scripts/project_register.sh --id &lt;id&gt; ...
             </code>
           </CardContent>
@@ -251,20 +260,20 @@ export default function ProjectsPage() {
             const isActive = pendingIds.has(project.id);
             return (
               <Card
-                key={project.id}
                 className={cn(
                   "cursor-pointer select-none transition-all duration-150",
                   isActive
                     ? "border-primary/40 bg-primary/5"
                     : "hover:border-border/80 hover:bg-white/[0.025]"
                 )}
+                key={project.id}
                 onClick={() => toggleProject(project.id)}
               >
-                <CardContent className="py-3.5 px-4 flex items-center gap-4">
+                <CardContent className="flex items-center gap-4 px-4 py-3.5">
                   {/* Checkbox indicator */}
                   <div
                     className={cn(
-                      "h-[18px] w-[18px] rounded border-2 flex items-center justify-center shrink-0 transition-all",
+                      "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 transition-all",
                       isActive
                         ? "border-primary bg-primary"
                         : "border-muted-foreground/40 bg-transparent"
@@ -273,35 +282,32 @@ export default function ProjectsPage() {
                     {isActive && (
                       <svg
                         className="h-2.5 w-2.5 text-primary-foreground"
-                        viewBox="0 0 12 12"
                         fill="none"
+                        viewBox="0 0 12 12"
                       >
                         <path
                           d="M2 6l3 3 5-5"
                           stroke="currentColor"
-                          strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
+                          strokeWidth="2"
                         />
                       </svg>
                     )}
                   </div>
 
                   {/* Project info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-medium truncate">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <span className="truncate font-medium text-sm">
                         {project.displayName}
                       </span>
-                      <code className="text-[11px] text-muted-foreground font-mono bg-muted/60 px-1.5 py-0.5 rounded shrink-0">
+                      <code className="shrink-0 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                         {project.id}
                       </code>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs text-muted-foreground/70">
-                      <span
-                        className="font-mono truncate"
-                        title={project.path}
-                      >
+                    <div className="flex items-center gap-2.5 text-muted-foreground/70 text-xs">
+                      <span className="truncate font-mono" title={project.path}>
                         {formatPath(project.path)}
                       </span>
                       {project.updatedAt && (
@@ -316,11 +322,9 @@ export default function ProjectsPage() {
                   </div>
 
                   {/* Action buttons */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary z-10"
+                      className="z-10 h-8 w-8 text-muted-foreground hover:text-primary"
                       onClick={(e) => {
                         e.stopPropagation();
                         fetch("/api/open-folder", {
@@ -329,14 +333,16 @@ export default function ProjectsPage() {
                           body: JSON.stringify({ path: project.path }),
                         }).catch(console.error);
                       }}
+                      size="icon"
                       title="Open in Explorer"
+                      variant="ghost"
                     >
                       <FolderOpen className="h-4 w-4" />
                     </Button>
 
                     {/* Active badge */}
                     {isActive && (
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">
+                      <span className="font-bold text-[10px] text-primary/80 uppercase tracking-widest">
                         Active
                       </span>
                     )}
@@ -350,7 +356,7 @@ export default function ProjectsPage() {
 
       {/* Active count summary */}
       {serverData && serverData.projects.length > 0 && (
-        <p className="text-xs text-muted-foreground/50 text-right">
+        <p className="text-right text-muted-foreground/50 text-xs">
           {pendingIds.size} / {serverData.projects.length} active
           {isDirty && " (unsaved)"}
         </p>

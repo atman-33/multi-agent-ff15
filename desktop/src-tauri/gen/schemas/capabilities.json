@@ -1,1 +1,9 @@
-{"default":{"identifier":"default","description":"Default capability for the desktop application","local":true,"windows":["main"],"permissions":["core:default"]}}
+{
+  "default": {
+    "identifier": "default",
+    "description": "Default capability for the desktop application",
+    "local": true,
+    "windows": ["main"],
+    "permissions": ["core:default"]
+  }
+}

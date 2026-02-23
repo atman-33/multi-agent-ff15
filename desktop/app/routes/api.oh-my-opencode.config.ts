@@ -1,8 +1,8 @@
-import { ActionFunctionArgs } from "react-router";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { execSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { ActionFunctionArgs } from "react-router";
 
 const CONFIG_PATH = join(homedir(), ".config/opencode/oh-my-opencode.json");
 
@@ -10,7 +10,9 @@ export async function loader() {
   let isInstalled = false;
   let version = "";
   try {
-    version = execSync("oh-my-opencode --version", { encoding: "utf-8" }).trim();
+    version = execSync("oh-my-opencode --version", {
+      encoding: "utf-8",
+    }).trim();
     isInstalled = true;
   } catch (e) {
     // Not installed
@@ -60,7 +62,10 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     if (!config) {
-      return Response.json({ error: "Missing config in request body" }, { status: 400 });
+      return Response.json(
+        { error: "Missing config in request body" },
+        { status: 400 }
+      );
     }
 
     writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");

@@ -15,4 +15,3 @@ export const COMRADE_CONFIG: Record<
   prompto: { label: "Prompto", imageSrc: "/images/prompto.png" },
   iris: { label: "Iris", imageSrc: "/images/iris.png" },
 };
-

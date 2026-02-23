@@ -1,12 +1,12 @@
+import { ChevronRight, FolderGit2, Layers } from "lucide-react";
 import { NavLink, useLocation } from "react-router";
-import { FolderGit2, ChevronRight, Layers } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useActiveProjects } from "@/lib/useActiveProjects";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { useActiveProjects } from "@/lib/useActiveProjects";
+import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
   "/chat": "Chat",
@@ -44,14 +44,14 @@ export function AppHeader() {
         : undefined;
 
   return (
-    <header className="z-10 flex items-center justify-between gap-4 h-11 px-5 shrink-0 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+    <header className="z-10 flex h-11 shrink-0 items-center justify-between gap-4 border-border/50 border-b bg-background/80 px-5 backdrop-blur-sm">
       {/* Left: page breadcrumb */}
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
-        <span className="text-muted-foreground/50 text-xs font-mono">FF15</span>
+      <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-sm">
+        <span className="font-mono text-muted-foreground/50 text-xs">FF15</span>
         {pageLabel && (
           <>
             <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/30" />
-            <span className="font-medium text-foreground/80 truncate">
+            <span className="truncate font-medium text-foreground/80">
               {pageLabel}
             </span>
           </>
@@ -59,43 +59,45 @@ export function AppHeader() {
       </div>
 
       {/* Right: slots — Active Project chip */}
-      <div className="flex items-center gap-2 shrink-0">
-        <HoverCard openDelay={200} closeDelay={150}>
+      <div className="flex shrink-0 items-center gap-2">
+        <HoverCard closeDelay={150} openDelay={200}>
           <HoverCardTrigger asChild>
             <NavLink
-              to="/projects"
               className={cn(
-                "flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold tracking-tight",
-                "border transition-all duration-200 transform-gpu cursor-pointer",
+                "flex items-center gap-2 rounded-full px-3 py-1 font-semibold text-xs tracking-tight",
+                "transform-gpu cursor-pointer border transition-all duration-200",
                 "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 activeIds.length > 0
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-sm hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-[1.02]"
-                  : "border-border/40 bg-muted/30 text-muted-foreground/40 hover:bg-muted/50 hover:text-muted-foreground italic"
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-sm hover:scale-[1.02] hover:border-amber-500/50 hover:bg-amber-500/20"
+                  : "border-border/40 bg-muted/30 text-muted-foreground/40 italic hover:bg-muted/50 hover:text-muted-foreground"
               )}
+              to="/projects"
             >
               <FolderGit2
                 className={cn(
                   "h-3.5 w-3.5 shrink-0",
-                  activeIds.length > 0 ? "text-amber-500" : "text-muted-foreground/40"
+                  activeIds.length > 0
+                    ? "text-amber-500"
+                    : "text-muted-foreground/40"
                 )}
               />
-              <div className="flex items-center gap-1.5 truncate max-w-[280px]">
+              <div className="flex max-w-[280px] items-center gap-1.5 truncate">
                 {projectsData === null ? (
                   <span>…</span>
                 ) : activeIds.length === 0 ? (
                   <span>No active project</span>
                 ) : (
                   <>
-                    <span className="truncate max-w-[140px]">
+                    <span className="max-w-[140px] truncate">
                       {projectById[activeIds[0]]?.displayName ?? activeIds[0]}
                     </span>
                     {projectById[activeIds[0]]?.branchName && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[10px] font-mono font-bold uppercase tracking-widest text-amber-500/80">
+                      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-bold font-mono text-[10px] text-amber-500/80 uppercase tracking-widest">
                         {projectById[activeIds[0]].branchName}
                       </span>
                     )}
                     {activeIds.length > 1 && (
-                      <div className="flex items-center gap-1 ml-0.5 px-1.5 py-0.5 rounded-full bg-amber-500 text-amber-950 text-[9px] font-black shadow-inner">
+                      <div className="ml-0.5 flex items-center gap-1 rounded-full bg-amber-500 px-1.5 py-0.5 font-black text-[9px] text-amber-950 shadow-inner">
                         <Layers className="h-2 w-2" />
                         <span>+{activeIds.length - 1}</span>
                       </div>
@@ -106,9 +108,12 @@ export function AppHeader() {
             </NavLink>
           </HoverCardTrigger>
           {activeIds.length > 0 && (
-            <HoverCardContent align="end" className="w-80 p-0 overflow-hidden border-amber-500/20 bg-card/95 backdrop-blur-md">
-              <div className="px-4 py-3 border-b border-border/50 bg-amber-500/5">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-amber-500/80 flex items-center gap-2">
+            <HoverCardContent
+              align="end"
+              className="w-80 overflow-hidden border-amber-500/20 bg-card/95 p-0 backdrop-blur-md"
+            >
+              <div className="border-border/50 border-b bg-amber-500/5 px-4 py-3">
+                <h4 className="flex items-center gap-2 font-bold text-amber-500/80 text-xs uppercase tracking-widest">
                   <FolderGit2 className="h-3 w-3" />
                   Active Projects
                 </h4>
@@ -117,18 +122,21 @@ export function AppHeader() {
                 {activeIds.map((id) => {
                   const p = projectById[id];
                   return (
-                    <div key={id} className="px-4 py-2 hover:bg-amber-500/10 transition-colors flex flex-col gap-0.5 group">
+                    <div
+                      className="group flex flex-col gap-0.5 px-4 py-2 transition-colors hover:bg-amber-500/10"
+                      key={id}
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-foreground/90 truncate group-hover:text-amber-500 transition-colors">
+                        <span className="truncate font-semibold text-foreground/90 text-sm transition-colors group-hover:text-amber-500">
                           {p?.displayName ?? id}
                         </span>
                         {p?.branchName && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-[9px] font-mono font-bold text-amber-500/70 border border-amber-500/20">
+                          <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-bold font-mono text-[9px] text-amber-500/70">
                             {p.branchName}
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground truncate font-mono opacity-50">
+                      <span className="truncate font-mono text-[10px] text-muted-foreground opacity-50">
                         {p?.path ?? "Unknown path"}
                       </span>
                     </div>
@@ -136,7 +144,7 @@ export function AppHeader() {
                 })}
               </div>
               {activeIds.length > 1 && (
-                <div className="px-4 py-2 border-t border-border/50 bg-muted/30">
+                <div className="border-border/50 border-t bg-muted/30 px-4 py-2">
                   <p className="text-[10px] text-muted-foreground italic">
                     {activeIds.length} projects are currently active.
                   </p>

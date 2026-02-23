@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentId } from "@/lib/useAgentChatLog";
 
 // ---------------------------------------------------------------------------
@@ -7,22 +7,22 @@ import type { AgentId } from "@/lib/useAgentChatLog";
 // ---------------------------------------------------------------------------
 
 export interface InboxLogRecord {
-  id: string;
-  ts: string;
-  from: string;
-  to: string;
-  type: string;
   content: string;
+  from: string;
+  id: string;
+  to: string;
+  ts: string;
+  type: string;
 }
 
 interface InboxLogPage {
-  records: InboxLogRecord[];
   next_cursor: number;
-  total_lines: number;
+  records: InboxLogRecord[];
   reset?: boolean;
+  total_lines: number;
 }
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 3000;
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -52,7 +52,7 @@ export function useInboxLog() {
         let page: InboxLogPage;
         if (isTauri) {
           page = await invoke<InboxLogPage>("read_inbox_log", {
-            cursor: isInitial ? null : cursorRef.current ?? null,
+            cursor: isInitial ? null : (cursorRef.current ?? null),
           });
         } else {
           const params = new URLSearchParams();
@@ -60,7 +60,9 @@ export function useInboxLog() {
             params.set("cursor", String(cursorRef.current));
           }
           const res = await fetch(`/api/inbox-log?${params}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
           page = (await res.json()) as InboxLogPage;
         }
 
@@ -68,7 +70,9 @@ export function useInboxLog() {
 
         const isReset = (page as any).reset === true;
 
-        if (page.records.length === 0 && !isReset) return;
+        if (page.records.length === 0 && !isReset) {
+          return;
+        }
 
         if (isInitial || isReset) {
           setAllRecords(page.records);

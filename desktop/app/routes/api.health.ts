@@ -1,12 +1,12 @@
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   readFileSync,
   statSync,
-  writeFileSync,
   unlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 
 /**

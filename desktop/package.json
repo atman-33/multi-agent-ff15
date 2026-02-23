@@ -11,7 +11,9 @@
     "tauri:build": "tauri build",
     "web": "react-router dev",
     "web:preview": "react-router build && react-router serve",
-    "web:serve": "react-router-serve ./build/server/index.js"
+    "web:serve": "react-router-serve ./build/server/index.js",
+    "lint": "ultracite check",
+    "format": "ultracite fix"
   },
   "dependencies": {
     "@opencode-ai/sdk": "^1.2.10",
@@ -49,6 +51,8 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "ultracite": "7.2.3",
+    "@biomejs/biome": "2.4.0"
   }
 }

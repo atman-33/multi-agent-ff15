@@ -1,20 +1,20 @@
-import { ActionFunctionArgs, useLoaderData, useFetcher, Await } from "react-router";
-import { useState, useEffect, Suspense } from "react";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import { exec } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import {
-  Cpu,
-  Save,
   AlertTriangle,
-  Search,
+  Cpu,
   LayoutGrid,
-  UserCircle2,
   Loader2,
+  Save,
+  Search,
+  UserCircle2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Suspense, useEffect, useState } from "react";
+import { Await, useFetcher, useLoaderData } from "react-router";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,32 +23,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
 
 const execAsync = promisify(exec);
 
 const CONFIG_PATH = join(homedir(), ".config/opencode/oh-my-opencode.json");
 
 interface Config {
-  agents?: Record<string, { model: string; variant?: string; }>;
-  categories?: Record<string, { model: string; variant?: string; }>;
+  agents?: Record<string, { model: string; variant?: string }>;
+  categories?: Record<string, { model: string; variant?: string }>;
 }
 
 interface DeferredData {
   isInstalled: Promise<boolean>;
-  version: Promise<string>;
   models: Promise<string[]>;
+  version: Promise<string>;
 }
 
 interface LoaderData {
   config: Config | null;
-  error?: string;
   deferred: DeferredData;
+  error?: string;
 }
 
 export async function loader() {
   let config: Config | null = null;
-  let error: string | undefined = undefined;
+  let error: string | undefined;
 
   if (existsSync(CONFIG_PATH)) {
     try {
@@ -85,7 +84,13 @@ export async function loader() {
       return stdout
         .split("\n")
         .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("opencode") && !line.includes("--") && line.includes("/"));
+        .filter(
+          (line) =>
+            line &&
+            !line.startsWith("opencode") &&
+            !line.includes("--") &&
+            line.includes("/")
+        );
     } catch (e) {
       return [];
     }
@@ -104,15 +109,15 @@ export async function loader() {
 
 function LoadingGrid() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-1.5">
+    <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
       {[...Array(6)].map((_, i) => (
         <div
+          className="flex animate-pulse items-center gap-3 rounded-md border border-border/10 bg-card/10 p-1.5 px-3"
           key={i}
-          className="flex items-center gap-3 p-1.5 px-3 rounded-md bg-card/10 border border-border/10 animate-pulse"
         >
-          <div className="h-4 bg-muted rounded w-24" />
+          <div className="h-4 w-24 rounded bg-muted" />
           <div className="flex-1" />
-          <div className="h-7 bg-muted rounded w-[220px] sm:w-[280px] 2xl:w-[320px]" />
+          <div className="h-7 w-[220px] rounded bg-muted sm:w-[280px] 2xl:w-[320px]" />
         </div>
       ))}
     </div>
@@ -133,23 +138,32 @@ export default function OhMyOpenCodeSettings() {
 
   <Suspense fallback={null}>
     <Await resolve={data.deferred.isInstalled}>
-      {(isInstalled) => !isInstalled && (
-        <div className="flex flex-col items-center justify-center h-[60vh] p-8 text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AlertTriangle className="w-8 h-8 text-destructive" />
+      {(isInstalled) =>
+        !isInstalled && (
+          <div className="flex h-[60vh] flex-col items-center justify-center space-y-4 p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-8 w-8 text-destructive" />
+            </div>
+            <div className="max-w-md">
+              <h2 className="mb-2 font-bold text-xl">
+                oh-my-opencode Not Found
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                It seems `oh-my-opencode` is not installed or not in your PATH.
+                Version check failed. Please install it to use this
+                configuration page.
+              </p>
+            </div>
+            <Button
+              onClick={() => window.location.reload()}
+              size="sm"
+              variant="outline"
+            >
+              Retry Check
+            </Button>
           </div>
-          <div className="max-w-md">
-            <h2 className="text-xl font-bold mb-2">oh-my-opencode Not Found</h2>
-            <p className="text-muted-foreground text-sm">
-              It seems `oh-my-opencode` is not installed or not in your PATH.
-              Version check failed. Please install it to use this configuration page.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-            Retry Check
-          </Button>
-        </div>
-      )}
+        )
+      }
     </Await>
   </Suspense>;
 
@@ -189,160 +203,196 @@ export default function OhMyOpenCodeSettings() {
     key.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredCategories = Object.entries(config.categories || {}).filter(([key]) =>
-    key.toLowerCase().includes(search.toLowerCase())
+  const filteredCategories = Object.entries(config.categories || {}).filter(
+    ([key]) => key.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="max-w-[1600px] mx-auto p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Suspense fallback={
-        <div className="space-y-4 opacity-50 pointer-events-none">
-          <div className="flex items-center justify-between pb-2 border-b border-border/50">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Loader2 className="w-5 h-5 text-primary animate-spin" />
-              </div>
-              <h1 className="text-lg font-bold tracking-tight text-muted-foreground italic">Syncing models...</h1>
-            </div>
-          </div>
-          <LoadingGrid />
-        </div>
-      }>
-        <Await resolve={Promise.all([data.deferred.isInstalled, data.deferred.version, data.deferred.models])}>
-          {([isInstalled, version, models]) => isInstalled ? (
-            <>
-              <div className="flex items-center justify-between pb-2 border-b border-border/50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Cpu className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold tracking-tight">oh-my-opencode Models</h1>
-                    <p className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">
-                      Configuration v{version}
-                    </p>
-                  </div>
+    <div className="fade-in slide-in-from-bottom-4 mx-auto max-w-[1600px] animate-in space-y-4 p-4 duration-500">
+      <Suspense
+        fallback={
+          <div className="pointer-events-none space-y-4 opacity-50">
+            <div className="flex items-center justify-between border-border/50 border-b pb-2">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-primary/10 p-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 </div>
-                <Button
-                  onClick={handleSave}
-                  disabled={fetcher.state === "submitting"}
-                  size="sm"
-                  className="shadow-md h-8 text-[11px] px-4"
-                >
-                  {fetcher.state === "submitting" ? (
-                    "Saving..."
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5 mr-1.5" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
+                <h1 className="font-bold text-lg text-muted-foreground italic tracking-tight">
+                  Syncing models...
+                </h1>
               </div>
-
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 group-focus-within:text-primary transition-colors" />
-                <input
-                  placeholder="Filter agents or categories..."
-                  className="w-full pl-10 h-9 rounded-lg bg-muted/20 border-border/50 ring-1 ring-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 text-sm px-3 placeholder:text-muted-foreground/50 transition-all"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-4">
-                {/* Agents Section */}
-                <section className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">
-                      <UserCircle2 className="w-3.5 h-3.5 text-primary/70" />
-                      Agents
+            </div>
+            <LoadingGrid />
+          </div>
+        }
+      >
+        <Await
+          resolve={Promise.all([
+            data.deferred.isInstalled,
+            data.deferred.version,
+            data.deferred.models,
+          ])}
+        >
+          {([isInstalled, version, models]) =>
+            isInstalled ? (
+              <>
+                <div className="flex items-center justify-between border-border/50 border-b pb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-primary/10 p-2">
+                      <Cpu className="h-5 w-5 text-primary" />
                     </div>
-                    <span className="text-[10px] font-mono text-muted-foreground/60">{filteredAgents.length} items</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-1.5">
-                    {filteredAgents.map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="group flex items-center gap-3 p-1.5 px-3 rounded-md bg-card/30 border border-border/30 hover:border-primary/30 hover:bg-card/50 transition-all duration-150"
-                      >
-                        <div className="font-medium text-[12px] text-foreground/80 truncate flex-1 min-w-0" title={key}>
-                          {key}
-                        </div>
-                        <div className="shrink-0 flex items-center">
-                          <Select
-                            value={value.model}
-                            onValueChange={(val) => handleModelChange("agents", key, val)}
-                          >
-                            <SelectTrigger className="w-[220px] sm:w-[280px] 2xl:w-[320px] h-7 bg-background/40 text-[11px] border-border/50">
-                              <SelectValue placeholder="Model" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {models.map((m) => (
-                                <SelectItem key={m} value={m} className="text-[11px] py-1">
-                                  {m}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredAgents.length === 0 && (
-                      <div className="col-span-full flex flex-col items-center justify-center p-4 border border-dashed rounded-lg bg-muted/5 opacity-40 text-[11px] italic">
-                        No agents matching search
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                {/* Categories Section */}
-                <section className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">
-                      <LayoutGrid className="w-3.5 h-3.5 text-primary/70" />
-                      Categories
+                    <div>
+                      <h1 className="font-bold text-lg tracking-tight">
+                        oh-my-opencode Models
+                      </h1>
+                      <p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
+                        Configuration v{version}
+                      </p>
                     </div>
-                    <span className="text-[10px] font-mono text-muted-foreground/60">{filteredCategories.length} items</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-1.5">
-                    {filteredCategories.map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="group flex items-center gap-3 p-1.5 px-3 rounded-md bg-card/30 border border-border/30 hover:border-primary/30 hover:bg-card/50 transition-all duration-150"
-                      >
-                        <div className="font-medium text-[12px] text-foreground/80 truncate flex-1 min-w-0" title={key}>
-                          {key}
-                        </div>
-                        <div className="shrink-0 flex items-center">
-                          <Select
-                            value={value.model}
-                            onValueChange={(val) => handleModelChange("categories", key, val)}
-                          >
-                            <SelectTrigger className="w-[220px] sm:w-[280px] 2xl:w-[320px] h-7 bg-background/40 text-[11px] border-border/50">
-                              <SelectValue placeholder="Model" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {models.map((m) => (
-                                <SelectItem key={m} value={m} className="text-[11px] py-1">
-                                  {m}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredCategories.length === 0 && (
-                      <div className="col-span-full flex flex-col items-center justify-center p-4 border border-dashed rounded-lg bg-muted/5 opacity-40 text-[11px] italic">
-                        No categories matching search
-                      </div>
+                  <Button
+                    className="h-8 px-4 text-[11px] shadow-md"
+                    disabled={fetcher.state === "submitting"}
+                    onClick={handleSave}
+                    size="sm"
+                  >
+                    {fetcher.state === "submitting" ? (
+                      "Saving..."
+                    ) : (
+                      <>
+                        <Save className="mr-1.5 h-3.5 w-3.5" />
+                        Save Changes
+                      </>
                     )}
-                  </div>
-                </section>
-              </div>
-            </>
-          ) : null}
+                  </Button>
+                </div>
+
+                <div className="group relative">
+                  <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
+                  <input
+                    className="h-9 w-full rounded-lg border-border/50 bg-muted/20 px-3 pl-10 text-sm ring-1 ring-border/50 transition-all placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Filter agents or categories..."
+                    value={search}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-x-8 gap-y-4 xl:grid-cols-2">
+                  {/* Agents Section */}
+                  <section className="space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2 pl-1 font-bold text-[10px] text-muted-foreground uppercase tracking-widest">
+                        <UserCircle2 className="h-3.5 w-3.5 text-primary/70" />
+                        Agents
+                      </div>
+                      <span className="font-mono text-[10px] text-muted-foreground/60">
+                        {filteredAgents.length} items
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                      {filteredAgents.map(([key, value]) => (
+                        <div
+                          className="group flex items-center gap-3 rounded-md border border-border/30 bg-card/30 p-1.5 px-3 transition-all duration-150 hover:border-primary/30 hover:bg-card/50"
+                          key={key}
+                        >
+                          <div
+                            className="min-w-0 flex-1 truncate font-medium text-[12px] text-foreground/80"
+                            title={key}
+                          >
+                            {key}
+                          </div>
+                          <div className="flex shrink-0 items-center">
+                            <Select
+                              onValueChange={(val) =>
+                                handleModelChange("agents", key, val)
+                              }
+                              value={value.model}
+                            >
+                              <SelectTrigger className="h-7 w-[220px] border-border/50 bg-background/40 text-[11px] sm:w-[280px] 2xl:w-[320px]">
+                                <SelectValue placeholder="Model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {models.map((m) => (
+                                  <SelectItem
+                                    className="py-1 text-[11px]"
+                                    key={m}
+                                    value={m}
+                                  >
+                                    {m}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                      {filteredAgents.length === 0 && (
+                        <div className="col-span-full flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/5 p-4 text-[11px] italic opacity-40">
+                          No agents matching search
+                        </div>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* Categories Section */}
+                  <section className="space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2 pl-1 font-bold text-[10px] text-muted-foreground uppercase tracking-widest">
+                        <LayoutGrid className="h-3.5 w-3.5 text-primary/70" />
+                        Categories
+                      </div>
+                      <span className="font-mono text-[10px] text-muted-foreground/60">
+                        {filteredCategories.length} items
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                      {filteredCategories.map(([key, value]) => (
+                        <div
+                          className="group flex items-center gap-3 rounded-md border border-border/30 bg-card/30 p-1.5 px-3 transition-all duration-150 hover:border-primary/30 hover:bg-card/50"
+                          key={key}
+                        >
+                          <div
+                            className="min-w-0 flex-1 truncate font-medium text-[12px] text-foreground/80"
+                            title={key}
+                          >
+                            {key}
+                          </div>
+                          <div className="flex shrink-0 items-center">
+                            <Select
+                              onValueChange={(val) =>
+                                handleModelChange("categories", key, val)
+                              }
+                              value={value.model}
+                            >
+                              <SelectTrigger className="h-7 w-[220px] border-border/50 bg-background/40 text-[11px] sm:w-[280px] 2xl:w-[320px]">
+                                <SelectValue placeholder="Model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {models.map((m) => (
+                                  <SelectItem
+                                    className="py-1 text-[11px]"
+                                    key={m}
+                                    value={m}
+                                  >
+                                    {m}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                      {filteredCategories.length === 0 && (
+                        <div className="col-span-full flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/5 p-4 text-[11px] italic opacity-40">
+                          No categories matching search
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </>
+            ) : null
+          }
         </Await>
       </Suspense>
     </div>

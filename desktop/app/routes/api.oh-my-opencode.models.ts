@@ -6,7 +6,9 @@ export async function loader() {
     const models = output
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("opencode") && !line.includes("--"));
+      .filter(
+        (line) => line && !line.startsWith("opencode") && !line.includes("--")
+      );
 
     return Response.json({ models });
   } catch (e) {

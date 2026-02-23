@@ -3,7 +3,5 @@
   "identifier": "default",
   "description": "Default capability for the desktop application",
   "windows": ["main"],
-  "permissions": [
-    "core:default"
-  ]
+  "permissions": ["core:default"]
 }

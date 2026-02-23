@@ -17,7 +17,9 @@ export async function loader() {
     }
 
     const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as { model_definitions?: Record<string, string>; };
+    const parsed = parseYaml(raw) as {
+      model_definitions?: Record<string, string>;
+    };
 
     const modelOptions: string[] = parsed.model_definitions
       ? Object.values(parsed.model_definitions)

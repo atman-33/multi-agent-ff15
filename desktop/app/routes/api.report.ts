@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 
-export async function loader({ request }: { request: Request; }) {
+export async function loader({ request }: { request: Request }) {
   try {
     const url = new URL(request.url);
     const filename = url.searchParams.get("file");
@@ -12,12 +12,15 @@ export async function loader({ request }: { request: Request; }) {
     }
 
     // prevent path traversal
-    const safeFilename = filename.replace(/[^a-zA-Z0-9_.\-]/g, "");
+    const safeFilename = filename.replace(/[^a-zA-Z0-9_.-]/g, "");
     const root = getProjectRoot();
     const filePath = join(root, "docs", "reports", safeFilename);
 
     if (!existsSync(filePath)) {
-      return Response.json({ error: `File not found: ${safeFilename}` }, { status: 404 });
+      return Response.json(
+        { error: `File not found: ${safeFilename}` },
+        { status: 404 }
+      );
     }
 
     const content = readFileSync(filePath, "utf-8");

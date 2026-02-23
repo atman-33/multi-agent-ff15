@@ -5,11 +5,19 @@
 export const MAIN_AGENTS = ["noctis", "lunafreya"] as const;
 export type MainAgentId = (typeof MAIN_AGENTS)[number];
 
-export const COMRADE_AGENTS = ["ignis", "gladiolus", "prompto", "iris"] as const;
+export const COMRADE_AGENTS = [
+  "ignis",
+  "gladiolus",
+  "prompto",
+  "iris",
+] as const;
 export type ComradeId = (typeof COMRADE_AGENTS)[number];
 
 /** All agents that support model switching. */
-export const ALL_MODEL_SWITCH_AGENTS = [...MAIN_AGENTS, ...COMRADE_AGENTS] as const;
+export const ALL_MODEL_SWITCH_AGENTS = [
+  ...MAIN_AGENTS,
+  ...COMRADE_AGENTS,
+] as const;
 export type ModelSwitchAgent = (typeof ALL_MODEL_SWITCH_AGENTS)[number];
 
 /** Tmux pane index mapping (0-indexed). */

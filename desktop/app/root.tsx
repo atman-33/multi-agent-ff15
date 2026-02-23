@@ -1,13 +1,13 @@
 import {
+  isRouteErrorResponse,
   Links,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
-  isRouteErrorResponse,
 } from "react-router";
-import type { Route } from "./+types/root";
 import { Toaster } from "sonner";
+import type { Route } from "./+types/root";
 import "./app.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -15,22 +15,37 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="ja">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
         <title>Multi-Agent FF15</title>
-        <meta name="description" content="Multi-agent parallel development framework powered by OpenCode + tmux, inspired by FINAL FANTASY XV." />
-        <meta name="theme-color" content="#0f172a" />
-        <link rel="icon" type="image/x-icon" href="/favicons/favicon.ico" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-touch-icon.png" />
-        <link rel="manifest" href="/favicons/site.webmanifest" />
+        <meta
+          content="Multi-agent parallel development framework powered by OpenCode + tmux, inspired by FINAL FANTASY XV."
+          name="description"
+        />
+        <meta content="#0f172a" name="theme-color" />
+        <link href="/favicons/favicon.ico" rel="icon" type="image/x-icon" />
+        <link
+          href="/favicons/favicon-16x16.png"
+          rel="icon"
+          sizes="16x16"
+          type="image/png"
+        />
+        <link
+          href="/favicons/favicon-32x32.png"
+          rel="icon"
+          sizes="32x32"
+          type="image/png"
+        />
+        <link
+          href="/favicons/apple-touch-icon.png"
+          rel="apple-touch-icon"
+          sizes="180x180"
+        />
+        <link href="/favicons/site.webmanifest" rel="manifest" />
         <Meta />
         <Links />
       </head>
-      <body className="flex flex-col h-screen overflow-hidden">
-        <div className="flex-1 overflow-hidden">
-          {children}
-        </div>
+      <body className="flex h-screen flex-col overflow-hidden">
+        <div className="flex-1 overflow-hidden">{children}</div>
         <Toaster
           position="bottom-right"
           richColors
@@ -67,14 +82,11 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center p-8">
-        <h1 className="text-2xl font-bold text-destructive mb-2">{message}</h1>
-        {details && (
-          <p className="text-muted-foreground">{details}</p>
-        )}
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="p-8 text-center">
+        <h1 className="mb-2 font-bold text-2xl text-destructive">{message}</h1>
+        {details && <p className="text-muted-foreground">{details}</p>}
       </div>
     </div>
   );
 }
-

@@ -6,14 +6,14 @@ import { getProjectRoot } from "@/lib/getProjectRoot.server";
 const CHAT_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
 interface ChatLogRecord {
-  id: string;
-  ts: string;
   agent: string;
-  source: string;
-  kind: string;
   content: string;
+  id: string;
+  kind: string;
+  meta: { pane: string; event: string };
   session_id: string;
-  meta: { pane: string; event: string; };
+  source: string;
+  ts: string;
 }
 
 /**
@@ -24,9 +24,10 @@ interface ChatLogRecord {
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
-    const limit = parseInt(url.searchParams.get("limit") ?? "100", 10);
+    const limit = Number.parseInt(url.searchParams.get("limit") ?? "100", 10);
     const cursorParam = url.searchParams.get("cursor");
-    const cursor = cursorParam !== null ? parseInt(cursorParam, 10) : null;
+    const cursor =
+      cursorParam !== null ? Number.parseInt(cursorParam, 10) : null;
 
     const root = getProjectRoot();
     const logPath = join(root, CHAT_LOG_PATH);

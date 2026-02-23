@@ -11,7 +11,10 @@ export async function loader() {
     const root = getProjectRoot();
     const filePath = join(root, "dashboard.md");
     if (!existsSync(filePath)) {
-      return Response.json({ error: "dashboard.md not found" }, { status: 404 });
+      return Response.json(
+        { error: "dashboard.md not found" },
+        { status: 404 }
+      );
     }
     const content = readFileSync(filePath, "utf-8");
     return Response.json({ content });

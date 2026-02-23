@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
@@ -13,7 +13,7 @@ export async function loader() {
     }
 
     const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as { modes?: Record<string, any>; };
+    const parsed = parseYaml(raw) as { modes?: Record<string, any> };
 
     if (!parsed.modes) {
       return Response.json({ modes: [] });

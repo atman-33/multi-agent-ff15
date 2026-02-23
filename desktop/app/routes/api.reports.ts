@@ -1,14 +1,14 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import yaml from "yaml";
+import { getProjectRoot } from "@/lib/getProjectRoot.server";
 
 export interface ReportMeta {
-  filename: string;
-  title: string;
   author: string;
   date: string;
+  filename: string;
   tags: string[];
+  title: string;
 }
 
 export async function loader() {
@@ -20,14 +20,14 @@ export async function loader() {
       return Response.json({ reports: [] });
     }
 
-    const files = readdirSync(reportsDir).filter(f => f.endsWith(".md"));
+    const files = readdirSync(reportsDir).filter((f) => f.endsWith(".md"));
     const reports: ReportMeta[] = [];
 
     for (const file of files) {
       const filePath = join(reportsDir, file);
       const content = readFileSync(filePath, "utf-8");
 
-      let meta: Partial<ReportMeta> = { filename: file, tags: [] };
+      const meta: Partial<ReportMeta> = { filename: file, tags: [] };
 
       // Try to parse frontmatter
       const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -35,10 +35,18 @@ export async function loader() {
         try {
           const parsed = yaml.parse(fmMatch[1]);
           if (parsed && typeof parsed === "object") {
-            if (parsed.title) meta.title = parsed.title;
-            if (parsed.author) meta.author = parsed.author;
-            if (parsed.date) meta.date = parsed.date;
-            if (Array.isArray(parsed.tags)) meta.tags = parsed.tags;
+            if (parsed.title) {
+              meta.title = parsed.title;
+            }
+            if (parsed.author) {
+              meta.author = parsed.author;
+            }
+            if (parsed.date) {
+              meta.date = parsed.date;
+            }
+            if (Array.isArray(parsed.tags)) {
+              meta.tags = parsed.tags;
+            }
           }
         } catch (e) {
           console.warn(`Failed to parse frontmatter in ${file}`, e);
@@ -49,8 +57,12 @@ export async function loader() {
       // e.g. analysis-ignis-20260215.md
       const nameMatch = file.match(/^([^-]+)-([^-]+)-(.*)\.md$/);
       if (nameMatch) {
-        if (!meta.author) meta.author = nameMatch[2];
-        if (!meta.title) meta.title = `${nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)} Report (${nameMatch[2]})`;
+        if (!meta.author) {
+          meta.author = nameMatch[2];
+        }
+        if (!meta.title) {
+          meta.title = `${nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)} Report (${nameMatch[2]})`;
+        }
         if (!meta.date) {
           // try to parse timestamp from filename if it's something like 20260215
           const tsString = nameMatch[3];
@@ -64,8 +76,12 @@ export async function loader() {
         }
       }
 
-      if (!meta.title) meta.title = file.replace(".md", "");
-      if (!meta.author) meta.author = "Unknown";
+      if (!meta.title) {
+        meta.title = file.replace(".md", "");
+      }
+      if (!meta.author) {
+        meta.author = "Unknown";
+      }
 
       if (!meta.date) {
         const stats = statSync(filePath);
@@ -76,7 +92,9 @@ export async function loader() {
     }
 
     // Sort descending by date (newest first)
-    reports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    reports.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
 
     return Response.json({ reports });
   } catch (e) {

@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 
 interface SlashSuggestion {
-  label: string;
-  value: string;
   insertText: string;
+  label: string;
   source: "command" | "skill";
+  value: string;
 }
 
 function collectDirectoryEntries(root: string, relativeDir: string): string[] {
@@ -30,13 +30,20 @@ export async function loader() {
   try {
     const root = getProjectRoot();
 
-    const commandEntries = [".opencode/command", ".opencode/commands", "opencode/command", "opencode/commands"]
-      .flatMap((path) => collectDirectoryEntries(root, path));
+    const commandEntries = [
+      ".opencode/command",
+      ".opencode/commands",
+      "opencode/command",
+      "opencode/commands",
+    ].flatMap((path) => collectDirectoryEntries(root, path));
 
-    const skillEntries = [".opencode/skills", "opencode/skills"]
-      .flatMap((path) => collectDirectoryEntries(root, path));
+    const skillEntries = [".opencode/skills", "opencode/skills"].flatMap(
+      (path) => collectDirectoryEntries(root, path)
+    );
 
-    const commandSuggestions: SlashSuggestion[] = Array.from(new Set(commandEntries)).map((entry) => {
+    const commandSuggestions: SlashSuggestion[] = Array.from(
+      new Set(commandEntries)
+    ).map((entry) => {
       const name = entry.replace(/\.md$/, "");
       return {
         label: `command: ${name}`,
@@ -46,7 +53,9 @@ export async function loader() {
       };
     });
 
-    const skillSuggestions: SlashSuggestion[] = Array.from(new Set(skillEntries)).map((entry) => ({
+    const skillSuggestions: SlashSuggestion[] = Array.from(
+      new Set(skillEntries)
+    ).map((entry) => ({
       label: `skill: ${entry}`,
       value: `/${entry} `,
       insertText: `Please use the ${entry} skill. `,
@@ -60,4 +69,3 @@ export async function loader() {
     return Response.json({ error: String(e) }, { status: 500 });
   }
 }
-

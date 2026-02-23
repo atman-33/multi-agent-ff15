@@ -1,12 +1,15 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  ALLOWED_AGENTS,
+  type ModelSwitchAgent,
+  AGENT_PANE_INDEX as PANE_INDEX,
+} from "@/lib/agents";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import { getClientForAgent } from "@/lib/opencodeClient.server";
 
-import { ALLOWED_AGENTS, AGENT_PANE_INDEX as PANE_INDEX, type ModelSwitchAgent } from "@/lib/agents";
-
-async function clearDirectory(dirPath: string, deleteFiles: boolean = true) {
+async function clearDirectory(dirPath: string, deleteFiles = true) {
   try {
     const files = await fs.readdir(dirPath);
     for (const file of files) {
@@ -20,13 +23,13 @@ async function clearDirectory(dirPath: string, deleteFiles: boolean = true) {
       }
     }
   } catch (e: any) {
-    if (e.code !== 'ENOENT') {
+    if (e.code !== "ENOENT") {
       console.error(`Error clearing directory ${dirPath}:`, e);
     }
   }
 }
 
-export async function action({ request }: { request: Request; }) {
+export async function action({ request }: { request: Request }) {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
@@ -66,13 +69,15 @@ export async function action({ request }: { request: Request; }) {
     const queuesToDelete = [
       "lunafreya_to_noctis.yaml",
       "noctis_to_lunafreya.yaml",
-      "noctis_to_ignis.yaml"
+      "noctis_to_ignis.yaml",
     ];
     for (const q of queuesToDelete) {
       try {
         await fs.unlink(path.join(root, "queue", q));
       } catch (e: any) {
-        if (e.code !== 'ENOENT') console.error(`Error deleting ${q}:`, e);
+        if (e.code !== "ENOENT") {
+          console.error(`Error deleting ${q}:`, e);
+        }
       }
     }
 
@@ -92,7 +97,10 @@ export async function action({ request }: { request: Request; }) {
 
     // 3. Reset dashboard.md
     try {
-      const timestamp = new Date().toLocaleString("sv").replace("T", " ").substring(0, 16);
+      const timestamp = new Date()
+        .toLocaleString("sv")
+        .replace("T", " ")
+        .substring(0, 16);
       const dashboardContent = `# 📊 Mission Status
 Last Updated: ${timestamp}
 
@@ -112,7 +120,11 @@ None
 ## 🛠️ Generated Skills
 None
 `;
-      await fs.writeFile(path.join(root, "dashboard.md"), dashboardContent, "utf-8");
+      await fs.writeFile(
+        path.join(root, "dashboard.md"),
+        dashboardContent,
+        "utf-8"
+      );
     } catch (e) {
       console.error("Error resetting dashboard:", e);
     }
@@ -126,7 +138,7 @@ None
         try {
           const res = await client.session.create({
             query: { directory: root },
-            body: { title: sessionId }
+            body: { title: sessionId },
           });
 
           if (!res.error) {
@@ -134,10 +146,16 @@ None
             const pane = PANE_INDEX[agent as ModelSwitchAgent];
             if (pane !== undefined) {
               const target = `ff15:main.${pane}`;
-              await new Promise(resolve => setTimeout(resolve, 300));
-              spawnSync("tmux", ["send-keys", "-t", target, sessionId], { encoding: "utf-8", timeout: 2000 });
-              await new Promise(resolve => setTimeout(resolve, 100));
-              spawnSync("tmux", ["send-keys", "-t", target, "Enter"], { encoding: "utf-8", timeout: 2000 });
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              spawnSync("tmux", ["send-keys", "-t", target, sessionId], {
+                encoding: "utf-8",
+                timeout: 2000,
+              });
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              spawnSync("tmux", ["send-keys", "-t", target, "Enter"], {
+                encoding: "utf-8",
+                timeout: 2000,
+              });
             }
           }
         } catch (e) {
@@ -146,7 +164,7 @@ None
       }
     }
 
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     return Response.json({ ok: true });
   } catch (e) {

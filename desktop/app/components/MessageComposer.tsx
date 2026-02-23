@@ -1,9 +1,16 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { cn } from "@/lib/utils";
-import { Send, RotateCcw, Crown, Moon, CheckCircle2, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Crown,
+  Moon,
+  RotateCcw,
+  Send,
+  XCircle,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { MainAgentId } from "@/lib/useAgentChatLog";
+import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 4000;
 
@@ -29,7 +36,10 @@ interface MessageComposerProps {
   onSent?: (agent: MainAgentId, content: string, id?: string) => void;
 }
 
-const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType; placeholder: string; }> = {
+const AGENT_CONFIG: Record<
+  MainAgentId,
+  { label: string; Icon: React.ElementType; placeholder: string }
+> = {
   noctis: {
     label: "Noctis",
     Icon: Crown,
@@ -42,7 +52,11 @@ const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType
   },
 };
 
-export default function MessageComposer({ activeAgent, isTauri, onSent }: MessageComposerProps) {
+export default function MessageComposer({
+  activeAgent,
+  isTauri,
+  onSent,
+}: MessageComposerProps) {
   const [content, setContent] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("chat_draft_content") || "";
@@ -58,7 +72,9 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   const [lastContent, setLastContent] = useState("");
   const [lastAgent, setLastAgent] = useState<MainAgentId>(activeAgent);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [allSlashSuggestions, setAllSlashSuggestions] = useState<SlashSuggestion[]>([]);
+  const [allSlashSuggestions, setAllSlashSuggestions] = useState<
+    SlashSuggestion[]
+  >([]);
   const [showSlashSuggestions, setShowSlashSuggestions] = useState(false);
   const [allAtSuggestions, setAllAtSuggestions] = useState<AtSuggestion[]>([]);
   const [showAtSuggestions, setShowAtSuggestions] = useState(false);
@@ -78,7 +94,10 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
       try {
         let messageId: string | undefined;
         if (isTauri) {
-          messageId = await invoke<string>("send_crystal_message", { target, message: message.trim() });
+          messageId = await invoke<string>("send_crystal_message", {
+            target,
+            message: message.trim(),
+          });
         } else {
           const res = await fetch(`/api/inbox/${target}`, {
             method: "POST",
@@ -96,7 +115,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
         setContent("");
         onSent?.(target, message.trim(), messageId);
         // Auto-clear "sent" badge after 2 s
-        setTimeout(() => setStatus("idle"), 2_000);
+        setTimeout(() => setStatus("idle"), 2000);
       } catch (e) {
         setStatus("failed");
         setErrorMsg(String(e));
@@ -130,11 +149,18 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedSuggestionIndex((prev) =>
-          currentListLength === 0 ? 0 : (prev - 1 + currentListLength) % currentListLength
+          currentListLength === 0
+            ? 0
+            : (prev - 1 + currentListLength) % currentListLength
         );
         return;
       }
-      if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      if (
+        (e.key === "Enter" || e.key === "Tab") &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
         if (showSlashSuggestions) {
           const selected = filteredSlashSuggestions[selectedSuggestionIndex];
           if (selected) {
@@ -185,7 +211,9 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
 
     const keyword = activeSlashToken.toLowerCase();
     return allSlashSuggestions.filter(
-      (item) => item.label.toLowerCase().includes(keyword) || item.value.toLowerCase().includes(keyword)
+      (item) =>
+        item.label.toLowerCase().includes(keyword) ||
+        item.value.toLowerCase().includes(keyword)
     );
   }, [activeSlashToken, allSlashSuggestions]);
 
@@ -193,7 +221,9 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
     const textarea = textareaRef.current;
     if (!textarea) {
       setContent((prev) => `${prev} ${nextValue}`.trimStart());
-      trigger === "/" ? setShowSlashSuggestions(false) : setShowAtSuggestions(false);
+      trigger === "/"
+        ? setShowSlashSuggestions(false)
+        : setShowAtSuggestions(false);
       return;
     }
 
@@ -209,7 +239,9 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
 
     const nextContent = `${replacedLeft}${right}${right.startsWith(" ") || right.length === 0 ? "" : " "}`;
     setContent(nextContent);
-    trigger === "/" ? setShowSlashSuggestions(false) : setShowAtSuggestions(false);
+    trigger === "/"
+      ? setShowSlashSuggestions(false)
+      : setShowAtSuggestions(false);
 
     requestAnimationFrame(() => {
       const nextCursor = replacedLeft.length;
@@ -250,8 +282,12 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/at-suggestions?q=${encodeURIComponent(activeAtToken)}`);
-        if (!res.ok) return;
+        const res = await fetch(
+          `/api/at-suggestions?q=${encodeURIComponent(activeAtToken)}`
+        );
+        if (!res.ok) {
+          return;
+        }
         const data = await res.json();
         if (Array.isArray(data?.suggestions)) {
           setAllAtSuggestions(data.suggestions);
@@ -267,14 +303,17 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
   }, [activeAtToken]);
 
   useEffect(() => {
-    const shouldShow = activeSlashToken !== null && filteredSlashSuggestions.length > 0;
+    const shouldShow =
+      activeSlashToken !== null && filteredSlashSuggestions.length > 0;
     setShowSlashSuggestions(shouldShow);
-    if (shouldShow) setSelectedSuggestionIndex(0);
+    if (shouldShow) {
+      setSelectedSuggestionIndex(0);
+    }
   }, [activeSlashToken, filteredSlashSuggestions.length]);
 
   return (
-    <div className="border-t border-border/40 pt-3 space-y-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+    <div className="space-y-3 border-border/40 border-t pt-3">
+      <div className="flex items-center gap-2 px-1 text-muted-foreground text-xs">
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span>
           To: <span className="font-semibold text-foreground">{label}</span>
@@ -287,7 +326,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
           </span>
         )}
         {status === "failed" && (
-          <span className="ml-auto flex items-center gap-1 text-red-400 text-[11px]">
+          <span className="ml-auto flex items-center gap-1 text-[11px] text-red-400">
             <XCircle className="h-3.5 w-3.5 shrink-0" />
             Send failed: {errorMsg}
           </span>
@@ -297,10 +336,10 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
       {/* Retry button (task 4.7) */}
       {status === "failed" && (
         <Button
-          variant="ghost"
-          size="sm"
+          className="h-7 gap-1 text-red-400 text-xs hover:bg-red-500/10 hover:text-red-300"
           onClick={handleRetry}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 text-xs gap-1"
+          size="sm"
+          variant="ghost"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           Retry
@@ -311,60 +350,68 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
       <div className="flex gap-2">
         <div className="relative flex-1">
           <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            rows={7}
             className={cn(
               "w-full resize-none rounded-md border bg-background/60 px-3 py-2 text-sm",
               "focus:outline-none focus:ring-1 focus:ring-ring",
               "placeholder:text-muted-foreground/50",
               isOverLimit ? "border-red-500/60" : "border-border/50"
             )}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            ref={textareaRef}
+            rows={7}
+            value={content}
           />
           {showSlashSuggestions && (
-            <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] max-h-40 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm z-20">
+            <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-40 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
               {filteredSlashSuggestions.map((item, idx) => (
                 <button
-                  key={`${item.source}-${item.value}`}
-                  type="button"
                   className={cn(
                     "w-full px-3 py-2 text-left text-xs hover:bg-accent/70",
                     idx === selectedSuggestionIndex && "bg-accent"
                   )}
+                  key={`${item.source}-${item.value}`}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     applySuggestion(item.insertText ?? item.value, "/");
                   }}
+                  type="button"
                 >
-                  <span className="font-medium text-foreground">{item.value}</span>
-                  <span className="ml-2 text-muted-foreground">({item.label})</span>
+                  <span className="font-medium text-foreground">
+                    {item.value}
+                  </span>
+                  <span className="ml-2 text-muted-foreground">
+                    ({item.label})
+                  </span>
                 </button>
               ))}
             </div>
           )}
           {showAtSuggestions && (
-            <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm z-20">
-              <div className="px-2 py-1.5 border-b border-border/40 text-[10px] font-semibold text-muted-foreground bg-muted/30">
+            <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
+              <div className="border-border/40 border-b bg-muted/30 px-2 py-1.5 font-semibold text-[10px] text-muted-foreground">
                 FILES & FOLDERS
               </div>
               {allAtSuggestions.map((item, idx) => (
                 <button
-                  key={`${item.source}-${item.value}`}
-                  type="button"
                   className={cn(
-                    "w-full px-3 py-2 text-left text-xs hover:bg-accent/70 flex flex-col gap-0.5",
+                    "flex w-full flex-col gap-0.5 px-3 py-2 text-left text-xs hover:bg-accent/70",
                     idx === selectedSuggestionIndex && "bg-accent"
                   )}
+                  key={`${item.source}-${item.value}`}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     applySuggestion(item.insertText, "@");
                   }}
+                  type="button"
                 >
-                  <span className="font-medium text-foreground truncate">{item.label}</span>
-                  <span className="text-[10px] text-muted-foreground truncate">{item.value}</span>
+                  <span className="truncate font-medium text-foreground">
+                    {item.label}
+                  </span>
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {item.value}
+                  </span>
                 </button>
               ))}
             </div>
@@ -372,7 +419,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
           {/* Character count */}
           <span
             className={cn(
-              "absolute bottom-2 right-2 text-[10px]",
+              "absolute right-2 bottom-2 text-[10px]",
               isOverLimit ? "text-red-400" : "text-muted-foreground/40"
             )}
           >
@@ -381,10 +428,10 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
         </div>
 
         <Button
-          onClick={handleSend}
+          className="h-9 w-9 shrink-0 self-end"
           disabled={!canSend}
+          onClick={handleSend}
           size="icon"
-          className="self-end h-9 w-9 shrink-0"
           title={`Send (Ctrl+Enter) → ${label}`}
         >
           <Send className="h-4 w-4" />

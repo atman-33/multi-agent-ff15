@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export interface ProjectEntry {
-  id: string;
+  branchName?: string;
   displayName: string;
+  id: string;
   path: string;
   updatedAt: string;
-  branchName?: string;
 }
 
 export interface ActiveProjectsData {
@@ -28,9 +28,13 @@ export function useActiveProjects() {
     setLoading(true);
     try {
       const res = await fetch("/api/projects");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      if (json.error) {
+        throw new Error(json.error);
+      }
       setData(json as ActiveProjectsData);
       setError(null);
     } catch (e) {

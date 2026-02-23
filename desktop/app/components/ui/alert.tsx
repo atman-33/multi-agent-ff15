@@ -1,20 +1,18 @@
-import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import * as React from "react";
 import { cn } from "@/lib/utils";
-import { AlertCircle, CheckCircle2, Info, AlertTriangle } from "lucide-react";
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  "relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:top-4 [&>svg]:left-4 [&>svg]:text-foreground [&>svg~*]:pl-7",
   {
     variants: {
       variant: {
         default: "bg-background text-foreground",
         destructive:
           "border-destructive/50 text-destructive [&>svg]:text-destructive",
-        success:
-          "border-green-500/50 text-green-700 [&>svg]:text-green-500",
-        warning:
-          "border-yellow-500/50 text-yellow-700 [&>svg]:text-yellow-500",
+        success: "border-green-500/50 text-green-700 [&>svg]:text-green-500",
+        warning: "border-yellow-500/50 text-yellow-700 [&>svg]:text-yellow-500",
       },
     },
     defaultVariants: {
@@ -28,9 +26,9 @@ const Alert = React.forwardRef<
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
 >(({ className, variant, ...props }, ref) => (
   <div
+    className={cn(alertVariants({ variant }), className)}
     ref={ref}
     role="alert"
-    className={cn(alertVariants({ variant }), className)}
     {...props}
   />
 ));
@@ -41,8 +39,8 @@ const AlertTitle = React.forwardRef<
   React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
   <h5
-    ref={ref}
     className={cn("mb-1 font-medium leading-none tracking-tight", className)}
+    ref={ref}
     {...props}
   />
 ));
@@ -53,11 +51,19 @@ const AlertDescription = React.forwardRef<
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
   <div
-    ref={ref}
     className={cn("text-sm [&_p]:leading-relaxed", className)}
+    ref={ref}
     {...props}
   />
 ));
 AlertDescription.displayName = "AlertDescription";
 
-export { Alert, AlertTitle, AlertDescription, AlertCircle, CheckCircle2, Info, AlertTriangle };
+export {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  AlertTriangle,
+};
