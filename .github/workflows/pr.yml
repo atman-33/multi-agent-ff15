@@ -1,4 +1,4 @@
-name: Test Suite
+name: PR Checks
 
 on:
   pull_request:
@@ -21,6 +21,13 @@ jobs:
         
     - name: Install npm dependencies
       run: npm install
+
+    - name: Install desktop npm dependencies
+      run: npm install
+      working-directory: desktop
         
     - name: Run Tests
       run: npm test
+
+    - name: Run Lint
+      run: npm run lint
