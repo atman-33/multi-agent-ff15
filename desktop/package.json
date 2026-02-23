@@ -14,7 +14,9 @@
     "web:serve": "react-router-serve ./build/server/index.js"
   },
   "dependencies": {
+    "@opencode-ai/sdk": "^1.2.10",
     "@radix-ui/react-slot": "^1.1.1",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "@react-router/node": "^7.13.0",
     "@tauri-apps/api": "^2.2.0",
     "class-variance-authority": "^0.7.1",
