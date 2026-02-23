@@ -13,6 +13,7 @@ export default function MonitorPage() {
   const isTauri =
     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [panes, setPanes] = useState<TmuxPane[]>([]);
+  const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,19 +37,34 @@ export default function MonitorPage() {
     }
   }, [isTauri]);
 
+  const fetchStatuses = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agent-statuses");
+      if (res.ok) {
+        const data = await res.json();
+        setStatuses(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch agent statuses:", e);
+    }
+  }, []);
+
   // Initial fetch
   useEffect(() => {
     setLoading(true);
-    fetchPanes().finally(() => setLoading(false));
-  }, [fetchPanes]);
+    Promise.all([fetchPanes(), fetchStatuses()]).finally(() =>
+      setLoading(false)
+    );
+  }, [fetchPanes, fetchStatuses]);
 
   // Polling
   useEffect(() => {
     const interval = setInterval(() => {
       fetchPanes();
+      fetchStatuses();
     }, 2000);
     return () => clearInterval(interval);
-  }, [fetchPanes]);
+  }, [fetchPanes, fetchStatuses]);
 
   return (
     <div className="flex h-full flex-col bg-zinc-950/20">
@@ -99,6 +115,7 @@ export default function MonitorPage() {
                 content={pane.content}
                 key={pane.name}
                 name={pane.name}
+                status={statuses[pane.name]}
               />
             ))}
           </div>
