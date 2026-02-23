@@ -8,6 +8,7 @@ interface TmuxTerminalProps {
 // Basic ANSI stripper for now.
 // Future improvement: use a library or more complex regex to support colors.
 const ansiRegex =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences are intentional here
   /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 
 export const TmuxTerminal = ({ content, name }: TmuxTerminalProps) => {

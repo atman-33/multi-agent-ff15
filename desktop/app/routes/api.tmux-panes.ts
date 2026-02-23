@@ -14,7 +14,7 @@ export function loader() {
       "prompto",
       "iris",
     ];
-    const panes = [];
+    const panes: { name: string; content: string }[] = [];
 
     for (let i = 0; i < agents.length; i++) {
       const agent = agents[i];
