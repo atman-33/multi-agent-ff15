@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import type { AgentId } from "@/lib/useAgentChatLog";
 import { useState } from "react";
+import ModeSwitcher from "./ModeSwitcher";
 
 export type AgentStatus = "online" | "idle" | "stale";
 
@@ -84,6 +85,8 @@ export default function StatusBar({
 
       {/* Spacer + Actions */}
       <div className="ml-auto flex items-center gap-2">
+        <ModeSwitcher />
+        <div className="h-4 w-px bg-border/40 shrink-0" />
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button

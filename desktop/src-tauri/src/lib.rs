@@ -96,8 +96,8 @@ struct ModelOption {
 }
 
 #[derive(Deserialize, Debug)]
-struct ModelSwitchConfig {
-    models: Vec<ModelOption>,
+struct ModelsYaml {
+    model_definitions: std::collections::HashMap<String, String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -489,22 +489,24 @@ fn health_check() -> Result<HealthResult, String> {
     })
 }
 
-/// Returns whitelisted model options from config/model_switch_keywords.yaml.
+/// Returns whitelisted model options from config/models.yaml.
 #[tauri::command]
 fn read_model_options() -> Result<Vec<String>, String> {
     let root = get_project_root()?;
-    let path = root.join("config/model_switch_keywords.yaml");
+    let path = root.join("config/models.yaml");
 
     if !path.exists() {
         return Ok(vec![]);
     }
 
     let raw = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read model switch config: {}", e))?;
-    let parsed: ModelSwitchConfig =
-        serde_yaml::from_str(&raw).map_err(|e| format!("Invalid model switch config: {}", e))?;
+        .map_err(|e| format!("Failed to read models.yaml: {}", e))?;
+    let parsed: ModelsYaml =
+        serde_yaml::from_str(&raw).map_err(|e| format!("Invalid models.yaml: {}", e))?;
 
-    Ok(parsed.models.into_iter().map(|m| m.label).collect())
+    let mut options: Vec<String> = parsed.model_definitions.into_values().collect();
+    options.sort();
+    Ok(options)
 }
 
 /// Switch agent model via .opencode/skills/switch-model/scripts/switch.sh.

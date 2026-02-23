@@ -10,26 +10,15 @@ const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto"] 
 type AllowedAgent = (typeof ALLOWED_AGENTS)[number];
 
 function readModelOptions(root: string): string[] {
-  const configPath = join(root, "config/model_switch_keywords.yaml");
+  const configPath = join(root, "config/models.yaml");
   if (!existsSync(configPath)) return [];
 
   const raw = readFileSync(configPath, "utf-8");
-  const parsed = parseYaml(raw) as { models?: unknown; };
+  const parsed = parseYaml(raw) as { model_definitions?: Record<string, string>; };
 
-  if (!Array.isArray(parsed?.models)) return [];
+  if (!parsed.model_definitions) return [];
 
-  return parsed.models
-    .map((item) => {
-      if (
-        item &&
-        typeof item === "object" &&
-        typeof (item as Record<string, unknown>).label === "string"
-      ) {
-        return (item as Record<string, string>).label;
-      }
-      return null;
-    })
-    .filter((item): item is string => item !== null);
+  return Object.values(parsed.model_definitions);
 }
 
 /**

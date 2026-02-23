@@ -10,28 +10,17 @@ import { getProjectRoot } from "@/lib/getProjectRoot.server";
 export async function loader() {
   try {
     const root = getProjectRoot();
-    const configPath = join(root, "config/model_switch_keywords.yaml");
+    const configPath = join(root, "config/models.yaml");
 
     if (!existsSync(configPath)) {
       return Response.json({ modelOptions: [] satisfies string[] });
     }
 
     const raw = readFileSync(configPath, "utf-8");
-    const parsed = parseYaml(raw) as { models?: unknown };
+    const parsed = parseYaml(raw) as { model_definitions?: Record<string, string>; };
 
-    const modelOptions: string[] = Array.isArray(parsed?.models)
-      ? parsed.models
-          .map((item) => {
-            if (
-              item &&
-              typeof item === "object" &&
-              typeof (item as Record<string, unknown>).label === "string"
-            ) {
-              return (item as Record<string, string>).label;
-            }
-            return null;
-          })
-          .filter((item): item is string => item !== null)
+    const modelOptions: string[] = parsed.model_definitions
+      ? Object.values(parsed.model_definitions)
       : [];
 
     return Response.json({ modelOptions });
