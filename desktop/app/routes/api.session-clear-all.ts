@@ -137,8 +137,8 @@ None
         const sessionId = `Session ${agent} ${timestampMs}`;
         try {
           const res = await client.session.create({
-            query: { directory: root },
-            body: { title: sessionId },
+            directory: root,
+            title: sessionId,
           });
 
           if (!res.error) {

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Crown, MessageSquarePlus, Moon } from "lucide-react";
+import { Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
@@ -227,6 +227,7 @@ function ModelSwitchBar({
 }) {
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
+  const [isAborting, setIsAborting] = useState(false);
 
   // Initialize current model
   useEffect(() => {
@@ -316,6 +317,37 @@ function ModelSwitchBar({
     [isTauri, targetAgent, modelLabel]
   );
 
+  const handleAbort = useCallback(async () => {
+    setIsAborting(true);
+    try {
+      if (isTauri) {
+        toast.info("Abort is currently not implemented in Tauri");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("agent", targetAgent);
+      // We could also pass sessionID here if we had it easily accessible,
+      // but the backend will handle identifying the active session.
+
+      const res = await fetch("/api/session-abort", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+
+      toast.success(`Sent abort request for ${targetAgent}`);
+    } catch (e) {
+      toast.error(`Abort failed: ${String(e)}`);
+    } finally {
+      setIsAborting(false);
+    }
+  }, [isTauri, targetAgent]);
+
   if (modelOptions.length === 0) {
     return null;
   }
@@ -381,6 +413,27 @@ function ModelSwitchBar({
           </TooltipTrigger>
           <TooltipContent className="px-2 py-1 text-[11px]" side="bottom">
             New Session
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <TooltipProvider>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              className={cn(
+                "rounded border border-red-500/30 bg-red-500/10 p-1 text-red-500 transition-colors hover:bg-red-500/20",
+                isAborting && "animate-pulse opacity-50"
+              )}
+              disabled={isAborting}
+              onClick={handleAbort}
+              type="button"
+            >
+              <Square className="h-3.5 w-3.5 fill-red-500/20" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="px-2 py-1 text-[11px]" side="bottom">
+            Abort Session
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

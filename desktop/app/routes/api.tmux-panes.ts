@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { getProjectRoot } from "@/lib/get-project-root.server";
 
 /**
  * GET /api/tmux-panes
@@ -20,7 +19,11 @@ export function loader() {
     for (let i = 0; i < agents.length; i++) {
       const agent = agents[i];
       const target = `ff15:main.${i}`;
-      const result = spawnSync("tmux", ["capture-pane", "-t", target, "-p", "-e"], { encoding: "utf-8" });
+      const result = spawnSync(
+        "tmux",
+        ["capture-pane", "-t", target, "-p", "-e"],
+        { encoding: "utf-8" }
+      );
 
       if (result.status === 0) {
         panes.push({

@@ -32,8 +32,8 @@ export async function action({ request }: { request: Request }) {
     const sessionId = `Session ${agent} ${timestamp}`;
 
     const res = await client.session.create({
-      query: { directory: root },
-      body: { title: sessionId },
+      directory: root,
+      title: sessionId,
     });
 
     if (res.error) {

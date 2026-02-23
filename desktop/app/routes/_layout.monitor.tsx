@@ -5,8 +5,8 @@ import { TmuxTerminal } from "@/components/tmux-terminal";
 import { Button } from "@/components/ui/button";
 
 interface TmuxPane {
-  name: string;
   content: string;
+  name: string;
 }
 
 export default function MonitorPage() {
@@ -23,7 +23,9 @@ export default function MonitorPage() {
         result = await invoke<TmuxPane[]>("get_tmux_panes");
       } else {
         const res = await fetch("/api/tmux-panes");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         result = await res.json();
       }
       setPanes(result);
@@ -56,7 +58,7 @@ export default function MonitorPage() {
           <Monitor className="h-4 w-4 text-primary" />
           <h2 className="font-semibold text-sm">Agent Monitor</h2>
           {panes.length > 0 && (
-            <span className="ml-2 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-mono leading-none">
+            <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary leading-none">
               {panes.length} PANES ACTIVE
             </span>
           )}
@@ -81,17 +83,17 @@ export default function MonitorPage() {
       {/* Scrollable grid */}
       <div className="flex-1 overflow-auto p-4 lg:p-6">
         {error ? (
-          <div className="flex flex-col items-center justify-center h-64 text-destructive space-y-2">
+          <div className="flex h-64 flex-col items-center justify-center space-y-2 text-destructive">
             <span className="font-bold">Error connecting to tmux</span>
             <span className="text-xs opacity-70">{error}</span>
           </div>
         ) : panes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground animate-pulse">
-            <RefreshCw className="h-8 w-8 mb-4 animate-spin opacity-20" />
+          <div className="flex h-64 animate-pulse flex-col items-center justify-center text-muted-foreground">
+            <RefreshCw className="mb-4 h-8 w-8 animate-spin opacity-20" />
             <span className="text-sm">Initializing monitor...</span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 h-full auto-rows-fr">
+          <div className="grid h-full auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {panes.map((pane) => (
               <TmuxTerminal
                 content={pane.content}
