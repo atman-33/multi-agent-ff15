@@ -229,10 +229,7 @@ export default function UnifiedChatRoute() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       {/* Status bar */}
-      <StatusBar
-        lastUpdated={lastUpdated}
-        onRefresh={refresh}
-      />
+      <StatusBar lastUpdated={lastUpdated} onRefresh={refresh} />
 
       {/* Error banner */}
       {error && (

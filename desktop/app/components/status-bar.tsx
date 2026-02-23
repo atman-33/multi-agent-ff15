@@ -36,10 +36,7 @@ export function computeStatus(lastResponseAt: Date | null): AgentStatus {
   return "stale";
 }
 
-export default function StatusBar({
-  lastUpdated,
-  onRefresh,
-}: StatusBarProps) {
+export default function StatusBar({ lastUpdated, onRefresh }: StatusBarProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const updatedStr = lastUpdated
