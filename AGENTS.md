@@ -156,6 +156,19 @@ When agents generate detailed reports, supplementary reports, analysis documents
 
 **Output to: `docs/reports/`**
 
+### Mandatory YAML Frontmatter
+
+**ALL files created in `docs/reports/` MUST include YAML Frontmatter at the very top of the file.** This metadata is used by the desktop app to display the report list.
+
+```yaml
+---
+title: "Clear, English title of the report"
+author: "agent_name"
+date: "2026-02-23T18:00:00Z"  # ISO 8601 format
+tags: ["research", "design", "etc"]
+---
+```
+
 ### Rules
 
 | Output Type | Location | Example |

@@ -4,6 +4,7 @@ import {
   Activity,
   MessagesSquare,
   FolderGit2,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/AppHeader";
@@ -23,6 +24,11 @@ const navItems = [
     label: "Projects",
     to: "/projects",
     icon: FolderGit2,
+  },
+  {
+    label: "Reports",
+    to: "/reports",
+    icon: FileText,
   },
   {
     label: "Health",

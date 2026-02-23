@@ -17,6 +17,8 @@ export default [
   route("api/session-create", "routes/api.session-create.ts"),
   route("api/session-clear-all", "routes/api.session-clear-all.ts"),
   route("api/open-folder", "routes/api.open-folder.ts"),
+  route("api/reports", "routes/api.reports.ts"),
+  route("api/report", "routes/api.report.ts"),
   // UI routes
   layout("routes/_layout.tsx", [
     index("routes/index.tsx"),
@@ -26,5 +28,6 @@ export default [
     route("chat", "routes/chat.tsx"),
     route("health", "routes/health.tsx"),
     route("projects", "routes/projects.tsx"),
+    route("reports", "routes/reports.tsx"),
   ]),
 ] satisfies RouteConfig;
