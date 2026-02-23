@@ -76,6 +76,12 @@ struct ScriptStatus {
     executable: bool,
 }
 
+#[derive(Serialize, Debug)]
+struct TmuxPane {
+    name: String,
+    content: String,
+}
+
 // ---------------------------------------------------------------------------
 // Allowed agents for validation
 // ---------------------------------------------------------------------------
@@ -96,8 +102,8 @@ struct ModelOption {
 }
 
 #[derive(Deserialize, Debug)]
-struct ModelSwitchConfig {
-    models: Vec<ModelOption>,
+struct ModelsYaml {
+    model_definitions: std::collections::HashMap<String, String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +135,8 @@ struct ChatLogPage {
     next_cursor: usize,
     /// Total lines in the file (including broken/skipped lines).
     total_lines: usize,
+    /// Whether the file was truncated/reset since the last read.
+    reset: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +159,7 @@ struct InboxLogPage {
     records: Vec<InboxLogRecord>,
     next_cursor: usize,
     total_lines: usize,
+    reset: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +288,7 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
             records: vec![],
             next_cursor: 0,
             total_lines: 0,
+            reset: cursor.is_some() && cursor.unwrap() > 0,
         });
     }
 
@@ -290,10 +300,11 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
     let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
     let total_lines = lines.len();
 
+    let is_truncated = cursor.is_some() && cursor.unwrap() > total_lines;
     let start = match cursor {
-        Some(c) => c,
-        None => {
-            // No cursor: return last `limit` lines.
+        Some(c) if !is_truncated => c,
+        _ => {
+            // No cursor or truncated: return last `limit` lines.
             if total_lines > limit {
                 total_lines - limit
             } else {
@@ -322,6 +333,7 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
         records,
         next_cursor,
         total_lines,
+        reset: is_truncated,
     })
 }
 
@@ -364,7 +376,14 @@ fn send_crystal_message(target: String, message: String) -> Result<String, Strin
         .map_err(|e| format!("Failed to execute inbox_write.sh: {}", e))?;
 
     if output.status.success() {
-        Ok("Message sent successfully".into())
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Extract message ID: "✅ Message msg_... → agent inbox"
+        let msg_id = stdout
+            .split_whitespace()
+            .find(|s| s.starts_with("msg_"))
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "sent".to_string());
+        Ok(msg_id)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(format!("inbox_write.sh failed: {}", stderr))
@@ -384,6 +403,7 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
             records: vec![],
             next_cursor: 0,
             total_lines: 0,
+            reset: cursor.is_some() && cursor.unwrap() > 0,
         });
     }
 
@@ -400,9 +420,10 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
         .collect();
 
     const LIMIT: usize = 200;
+    let is_truncated = cursor.is_some() && cursor.unwrap() > total_lines;
     let start = match cursor {
-        Some(c) => c,
-        None => {
+        Some(c) if !is_truncated => c,
+        _ => {
             if all_records.len() > LIMIT {
                 all_records.len() - LIMIT
             } else {
@@ -424,6 +445,7 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
         records: slice,
         next_cursor,
         total_lines,
+        reset: is_truncated,
     })
 }
 
@@ -489,22 +511,24 @@ fn health_check() -> Result<HealthResult, String> {
     })
 }
 
-/// Returns whitelisted model options from config/model_switch_keywords.yaml.
+/// Returns whitelisted model options from config/models.yaml.
 #[tauri::command]
 fn read_model_options() -> Result<Vec<String>, String> {
     let root = get_project_root()?;
-    let path = root.join("config/model_switch_keywords.yaml");
+    let path = root.join("config/models.yaml");
 
     if !path.exists() {
         return Ok(vec![]);
     }
 
     let raw = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read model switch config: {}", e))?;
-    let parsed: ModelSwitchConfig =
-        serde_yaml::from_str(&raw).map_err(|e| format!("Invalid model switch config: {}", e))?;
+        .map_err(|e| format!("Failed to read models.yaml: {}", e))?;
+    let parsed: ModelsYaml =
+        serde_yaml::from_str(&raw).map_err(|e| format!("Invalid models.yaml: {}", e))?;
 
-    Ok(parsed.models.into_iter().map(|m| m.label).collect())
+    let mut options: Vec<String> = parsed.model_definitions.into_values().collect();
+    options.sort();
+    Ok(options)
 }
 
 /// Switch agent model via .opencode/skills/switch-model/scripts/switch.sh.
@@ -539,6 +563,46 @@ fn switch_agent_model(agent: String, label: String) -> Result<String, String> {
             format!("switch.sh failed: {}", stderr)
         })
     }
+}
+
+/// Capture tmux panes for all agents.
+#[tauri::command]
+fn get_tmux_panes() -> Result<Vec<TmuxPane>, String> {
+    let agents = vec![
+        "noctis",
+        "lunafreya",
+        "ignis",
+        "gladiolus",
+        "prompto",
+        "iris",
+    ];
+    let mut panes = Vec::new();
+
+    for (i, agent) in agents.iter().enumerate() {
+        let target = format!("ff15:main.{}", i);
+        let output = Command::new("tmux")
+            .args(&["capture-pane", "-t", &target, "-p", "-e"])
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let content = String::from_utf8_lossy(&out.stdout).to_string();
+                panes.push(TmuxPane {
+                    name: agent.to_string(),
+                    content,
+                });
+            }
+            _ => {
+                // If a pane is not found or fails, return a placeholder or skip
+                panes.push(TmuxPane {
+                    name: agent.to_string(),
+                    content: "ERROR: Pane not found or tmux not running.".to_string(),
+                });
+            }
+        }
+    }
+
+    Ok(panes)
 }
 
 // ---------------------------------------------------------------------------
@@ -595,6 +659,7 @@ pub fn run() {
             health_check,
             read_model_options,
             switch_agent_model,
+            get_tmux_panes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

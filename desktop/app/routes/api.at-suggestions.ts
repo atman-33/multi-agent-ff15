@@ -1,8 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { parse as parseYaml } from "yaml";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import type { LoaderFunctionArgs } from "react-router";
+import { parse as parseYaml } from "yaml";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 // Helper to get active project roots
 function getActiveProjectRoots(appRoot: string): string[] {
@@ -49,40 +49,68 @@ function getActiveProjectRoots(appRoot: string): string[] {
 function searchFiles(
   roots: string[],
   query: string
-): { label: string; value: string; insertText: string; source: "file" | "folder"; }[] {
+): {
+  label: string;
+  value: string;
+  insertText: string;
+  source: "file" | "folder";
+}[] {
   const IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".tmp"];
   const MAX_RESULTS = 50;
   const MAX_DIRS_EXPLORED = 1000;
   const MAX_DEPTH = 10;
 
-  const results: { label: string; value: string; insertText: string; source: "file" | "folder"; }[] = [];
+  const results: {
+    label: string;
+    value: string;
+    insertText: string;
+    source: "file" | "folder";
+  }[] = [];
   const qStr = query.toLowerCase();
 
   for (const root of roots) {
-    if (results.length >= MAX_RESULTS) break;
+    if (results.length >= MAX_RESULTS) {
+      break;
+    }
 
     let dirsExplored = 0;
 
     // BFS queue: [directoryPath, depth]
     const queue: [string, number][] = [[root, 0]];
 
-    while (queue.length > 0 && results.length < MAX_RESULTS && dirsExplored < MAX_DIRS_EXPLORED) {
-      const [dir, depth] = queue.shift()!;
-      if (!existsSync(dir)) continue;
+    while (
+      queue.length > 0 &&
+      results.length < MAX_RESULTS &&
+      dirsExplored < MAX_DIRS_EXPLORED
+    ) {
+      const item = queue.shift();
+      if (!item) {
+        continue;
+      }
+      const [dir, depth] = item;
+      if (!existsSync(dir)) {
+        continue;
+      }
 
       dirsExplored++;
 
-      let entries;
+      let entries: Dirent[];
       try {
-        entries = readdirSync(dir, { withFileTypes: true });
+        entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
       } catch {
         continue;
       }
 
       for (const entry of entries) {
-        if (results.length >= MAX_RESULTS) break;
-        if (IGNORE_DIRS.includes(entry.name)) continue;
-        if (entry.name.startsWith(".") && entry.name !== ".opencode") continue;
+        if (results.length >= MAX_RESULTS) {
+          break;
+        }
+        if (IGNORE_DIRS.includes(entry.name)) {
+          continue;
+        }
+        if (entry.name.startsWith(".") && entry.name !== ".opencode") {
+          continue;
+        }
 
         const fullPath = join(dir, entry.name);
         const isDir = entry.isDirectory();
@@ -95,7 +123,7 @@ function searchFiles(
             label: relPath, // relative path shown in UI
             value: fullPath,
             insertText: fullPath, // inserted
-            source: isDir ? "folder" : "file"
+            source: isDir ? "folder" : "file",
           });
         }
 
@@ -116,7 +144,7 @@ function searchFiles(
  * GET /api/at-suggestions?q=foo
  * Returns file/folder suggestions based on the provided query.
  */
-export async function loader({ request }: LoaderFunctionArgs) {
+export function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get("q") ?? "";

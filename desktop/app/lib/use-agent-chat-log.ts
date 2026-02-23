@@ -1,38 +1,44 @@
-import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ChatLogMeta {
-  pane: string;
   event: string;
+  pane: string;
 }
 
 export interface ChatLogRecord {
-  id: string;
-  ts: string;
   agent: string;
-  source: string;
-  kind: "answer" | "status" | "error";
   content: string;
-  session_id: string;
+  id: string;
+  kind: "answer" | "status" | "error";
   meta: ChatLogMeta;
+  session_id: string;
+  source: string;
+  ts: string;
 }
 
 interface ChatLogPage {
-  records: ChatLogRecord[];
   next_cursor: number;
-  total_lines: number;
+  records: ChatLogRecord[];
   reset?: boolean;
+  total_lines: number;
 }
 
-export type AgentId = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto" | "iris";
+export type AgentId =
+  | "noctis"
+  | "lunafreya"
+  | "ignis"
+  | "gladiolus"
+  | "prompto"
+  | "iris";
 /** Agents that have their own dedicated chat column. */
 export type MainAgentId = "noctis" | "lunafreya";
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 3000;
 const INITIAL_LIMIT = 100;
 const BUFFER_DELAY_MS = 100; // task 3.4: debounce frequent updates
 
@@ -71,7 +77,9 @@ export function useAgentChatLog() {
 
   /** Flush pending records into state (task 3.4) */
   const flushBuffer = useCallback(() => {
-    if (pendingRef.current.length === 0) return;
+    if (pendingRef.current.length === 0) {
+      return;
+    }
     const toAdd = pendingRef.current;
     pendingRef.current = [];
     setAllRecords((prev) => {
@@ -84,7 +92,9 @@ export function useAgentChatLog() {
   }, []);
 
   const scheduleFlush = useCallback(() => {
-    if (bufferTimerRef.current) return;
+    if (bufferTimerRef.current) {
+      return;
+    }
     bufferTimerRef.current = setTimeout(() => {
       bufferTimerRef.current = null;
       flushBuffer();
@@ -99,7 +109,7 @@ export function useAgentChatLog() {
         if (isTauri) {
           page = await invoke<ChatLogPage>("read_agent_chat_logs", {
             limit: INITIAL_LIMIT,
-            cursor: isInitial ? null : cursorRef.current ?? null,
+            cursor: isInitial ? null : (cursorRef.current ?? null),
           });
         } else {
           const params = new URLSearchParams({
@@ -109,25 +119,29 @@ export function useAgentChatLog() {
             params.set("cursor", String(cursorRef.current));
           }
           const res = await fetch(`/api/chat-logs?${params}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
           page = await res.json();
-          if ((page as unknown as { error?: string; }).error) {
-            throw new Error((page as unknown as { error: string; }).error);
+          if ((page as unknown as { error?: string }).error) {
+            throw new Error((page as unknown as { error: string }).error);
           }
         }
 
         // Update cursor
         cursorRef.current = page.next_cursor;
+        setLastUpdated(new Date());
 
         const isReset = (page as any).reset === true;
 
-        if (page.records.length === 0 && !isReset) return;
+        if (page.records.length === 0 && !isReset) {
+          return;
+        }
 
         if (isInitial || isReset) {
           // Replace full state on initial load or if file was truncated
           allRecordsRef.current = page.records;
           setAllRecords(page.records);
-          setLastUpdated(new Date());
           pendingRef.current = [];
         } else {
           // Sync the ref immediately (before the 100 ms buffer delay)
@@ -168,7 +182,9 @@ export function useAgentChatLog() {
   // Cleanup buffer timer on unmount
   useEffect(() => {
     return () => {
-      if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+      if (bufferTimerRef.current) {
+        clearTimeout(bufferTimerRef.current);
+      }
     };
   }, []);
 

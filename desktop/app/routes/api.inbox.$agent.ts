@@ -1,9 +1,9 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { parse as parseYaml } from "yaml";
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 const ALLOWED_TARGETS = ["noctis", "lunafreya"];
 const ALLOWED_SENDERS = [
@@ -17,13 +17,16 @@ const ALLOWED_SENDERS = [
   "iris",
 ];
 
+const WHITESPACE_REGEX = /\s+/;
+const MSG_ID_REGEX = /Message\s+(msg_\S+)\s+→/;
+
 interface RawInboxMessage {
-  id: string;
-  from: string;
-  type: string;
-  timestamp: string;
   content: string;
+  from: string;
+  id: string;
   read?: boolean;
+  timestamp: string;
+  type: string;
 }
 
 interface RawInboxFile {
@@ -35,8 +38,8 @@ interface RawInboxFile {
  * Returns { messages, count } where messages use `msg_type` (matching the TS interface).
  * Mirrors Tauri `peek_inbox` + `list_inbox_messages`.
  */
-export async function loader({ params }: LoaderFunctionArgs) {
-  const agent = params["agent"] ?? "";
+export function loader({ params }: LoaderFunctionArgs) {
+  const agent = params.agent ?? "";
   if (!ALLOWED_TARGETS.includes(agent)) {
     return Response.json({ error: `Invalid agent: ${agent}` }, { status: 400 });
   }
@@ -59,8 +62,8 @@ export async function loader({ params }: LoaderFunctionArgs) {
       [join(root, "scripts/inbox_read.sh"), agent, "--peek"],
       { cwd: root, encoding: "utf-8" }
     );
-    const countStr = (peekResult.stdout ?? "").split(/\s+/)[0];
-    const count = parseInt(countStr, 10) || 0;
+    const countStr = (peekResult.stdout ?? "").split(WHITESPACE_REGEX)[0];
+    const count = Number.parseInt(countStr, 10) || 0;
 
     return Response.json({ messages, count });
   } catch (e) {
@@ -74,7 +77,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
  * Sends a message via inbox_write.sh. Mirrors Tauri `send_message`.
  */
 export async function action({ params, request }: ActionFunctionArgs) {
-  const agent = params["agent"] ?? "";
+  const agent = params.agent ?? "";
   if (!ALLOWED_TARGETS.includes(agent)) {
     return Response.json({ error: `Invalid agent: ${agent}` }, { status: 400 });
   }
@@ -94,7 +97,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
   if (!ALLOWED_SENDERS.includes(from)) {
     return Response.json(
-      { error: `Invalid sender: ${from}. Allowed: ${ALLOWED_SENDERS.join(", ")}` },
+      {
+        error: `Invalid sender: ${from}. Allowed: ${ALLOWED_SENDERS.join(", ")}`,
+      },
       { status: 400 }
     );
   }
@@ -111,10 +116,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
   try {
     const root = getProjectRoot();
     const script = join(root, "scripts/inbox_write.sh");
-    const result = spawnSync("bash", [script, agent, from, "message", content], {
-      cwd: root,
-      encoding: "utf-8",
-    });
+    const result = spawnSync(
+      "bash",
+      [script, agent, from, "message", content],
+      {
+        cwd: root,
+        encoding: "utf-8",
+      }
+    );
 
     if (result.status !== 0) {
       return Response.json(
@@ -122,7 +131,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
         { status: 500 }
       );
     }
-    return Response.json({ ok: true });
+
+    // Extract message ID from output (✅ Message msg_... → ... inbox)
+    const match = (result.stdout || "").match(MSG_ID_REGEX);
+    const id = match ? match[1] : undefined;
+
+    return Response.json({ ok: true, id });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

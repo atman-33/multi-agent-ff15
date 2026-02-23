@@ -43,7 +43,6 @@ dashboard.md
 agent-chat-monitor.md
 config/*
 !config/models.yaml
-!config/model_switch_keywords.yaml
 logs/
 
 # Project details (contains client/confidential info)
@@ -83,7 +82,7 @@ openspec/
 !.opencode/skills/typescript-check
 
 # Docs (private/internal use only)
-docs/private/
+docs/reports/
 
 # Runtime logs (generated at runtime, not committed)
 runtime/logs/

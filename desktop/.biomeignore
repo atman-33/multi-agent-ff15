@@ -1,0 +1,7 @@
+# Biome ignore file
+node_modules/
+build/
+.react-router/
+public/
+dist/
+src-tauri/target/

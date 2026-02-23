@@ -1,8 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { spawnSync } from "node:child_process";
-import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 /**
  * PUT /api/projects/active
@@ -111,7 +111,11 @@ export async function action({ request }: { request: Request }) {
       })
     );
 
-    return Response.json({ success: true, activeProjectIds: newIds, updatedAt: now });
+    return Response.json({
+      success: true,
+      activeProjectIds: newIds,
+      updatedAt: now,
+    });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

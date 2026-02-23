@@ -56,7 +56,7 @@ multi-agent-ff15/
 │   └── inbox/{agent}.yaml         # Per-agent inbox (sole communication channel)
 ├── projects/                      # Per-project metadata
 ├── memory/                        # Memory MCP storage
-├── docs/private/                  # Supplementary report output (補足ドキュメント出力先)
+├── docs/reports/                  # Supplementary report output
 ├── dashboard.md                   # Status board
 └── standby.sh                     # Deployment script
 ```
@@ -154,30 +154,43 @@ report:
 
 When agents generate detailed reports, supplementary reports, analysis documents, or any large output files that are not the main task deliverable:
 
-**Output to: `docs/private/`**
+**Output to: `docs/reports/`**
+
+### Mandatory YAML Frontmatter
+
+**ALL files created in `docs/reports/` MUST include YAML Frontmatter at the very top of the file.** This metadata is used by the desktop app to display the report list.
+
+```yaml
+---
+title: "Clear, English title of the report"
+author: "agent_name"
+date: "2026-02-23T18:00:00Z"  # ISO 8601 format
+tags: ["research", "design", "etc"]
+---
+```
 
 ### Rules
 
 | Output Type | Location | Example |
 |-------------|----------|---------|
-| Detailed analysis reports | `docs/private/` | Research findings, comparison tables |
-| Supplementary documents | `docs/private/` | Supporting materials, references |
-| Large output files | `docs/private/` | Generated articles, code samples |
+| Detailed analysis reports | `docs/reports/` | Research findings, comparison tables |
+| Supplementary documents | `docs/reports/` | Supporting materials, references |
+| Large output files | `docs/reports/` | Generated articles, code samples |
 | Main deliverables | As specified by user | Usually project root or specific path |
 | YAML reports | `queue/inbox/` | Use `send_report.sh` exclusively |
 
 ### File Naming Convention
 
 ```
-docs/private/{task_type}-{agent_name}-{timestamp}.md
+docs/reports/{task_type}-{agent_name}-{timestamp}.md
 ```
 
 Examples:
-- `docs/private/analysis-ignis-20260215.md`
-- `docs/private/article-gladiolus-v2.md`
-- `docs/private/research-prompto-frameworks.md`
+- `docs/reports/analysis-ignis-20260215.md`
+- `docs/reports/article-gladiolus-v2.md`
+- `docs/reports/research-prompto-frameworks.md`
 
-**Never clutter the root directory with supplementary files.** Use `docs/private/` for all non-essential outputs.
+**Never clutter the root directory with supplementary files.** Use `docs/reports/` for all non-essential outputs.
 
 ## Forbidden Actions
 

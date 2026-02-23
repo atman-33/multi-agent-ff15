@@ -1,9 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Loader2, Mail, MessageSquare, RefreshCw, Send } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Mail, Send, Loader2, MessageSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  Alert,
+  AlertCircle,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,15 +17,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle, AlertCircle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface InboxMessage {
-  id: string;
-  from: string;
-  msg_type: string;
-  timestamp: string;
   content: string;
+  from: string;
+  id: string;
+  msg_type: string;
   read: boolean;
+  timestamp: string;
 }
 
 const ALLOWED_SENDERS = ["crystal", "user"];
@@ -31,7 +43,8 @@ interface MessagePageProps {
 }
 
 export default function MessagePage({ agent, title }: MessagePageProps) {
-  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const isTauri =
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -55,9 +68,13 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
         setMessages(msgs);
       } else {
         const res = await fetch(`/api/inbox/${agent}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (data.error) {
+          throw new Error(data.error);
+        }
         setUnreadCount(data.count);
         setMessages(data.messages);
       }
@@ -76,11 +93,13 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
   const handleSend = async () => {
     const trimmed = sendContent.trim();
     if (!trimmed) {
-      setValidationError("メッセージを入力してください");
+      setValidationError("Please enter a message");
       return;
     }
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      setValidationError(`メッセージは${MAX_MESSAGE_LENGTH}文字以内にしてください`);
+      setValidationError(
+        `Message must be within ${MAX_MESSAGE_LENGTH} characters`
+      );
       return;
     }
     setValidationError(null);
@@ -104,45 +123,47 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
           throw new Error(data.error || `HTTP ${res.status}`);
         }
       }
-      toast.success("メッセージを送信しました");
+      toast.success("Successfully sent message");
       setSendContent("");
       await fetchData();
     } catch (e) {
-      toast.error(`送信エラー: ${String(e)}`);
+      toast.error(`Send error: ${String(e)}`);
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Sticky toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 bg-card/40 backdrop-blur-sm shrink-0">
+      <div className="flex shrink-0 items-center justify-between border-border/50 border-b bg-card/40 px-5 py-3 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2 className="font-semibold text-sm">{title}</h2>
           {unreadCount > 0 && (
             <Badge
+              className="h-5 min-w-[20px] justify-center px-1.5 py-0 text-[10px]"
               variant="default"
-              className="h-5 text-[10px] px-1.5 py-0 min-w-[20px] justify-center"
             >
               {unreadCount}
             </Badge>
           )}
         </div>
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={fetchData}
-          disabled={loading}
           aria-label="Refresh messages"
+          className="h-7 w-7"
+          disabled={loading}
+          onClick={fetchData}
+          size="icon"
+          variant="ghost"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+          />
         </Button>
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
+      <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -154,7 +175,7 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
         {/* Send Message Form */}
         <Card className="border-border/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
               <Send className="h-3.5 w-3.5 text-primary" />
               Send Message
             </CardTitle>
@@ -167,29 +188,32 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label
+                    className="mb-1 block font-medium text-muted-foreground text-xs"
                     htmlFor="send-from"
-                    className="block text-xs font-medium text-muted-foreground mb-1"
                   >
                     From
                   </label>
-                  <select
-                    id="send-from"
+                  <Select
+                    onValueChange={(val) => setSendFrom(val)}
                     value={sendFrom}
-                    onChange={(e) => setSendFrom(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-muted/40 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
                   >
-                    {ALLOWED_SENDERS.map((sender) => (
-                      <option key={sender} value={sender}>
-                        {sender}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-9 w-full border-input bg-muted/40 text-foreground">
+                      <SelectValue placeholder="Select sender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ALLOWED_SENDERS.map((sender) => (
+                        <SelectItem key={sender} value={sender}>
+                          {sender}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  <span className="mb-1 block font-medium text-muted-foreground text-xs">
                     To
-                  </label>
-                  <div className="h-9 rounded-md border border-input bg-muted/20 px-3 flex items-center text-sm text-muted-foreground">
+                  </span>
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/20 px-3 text-muted-foreground text-sm">
                     {agent}
                   </div>
                 </div>
@@ -197,47 +221,51 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
 
               <div>
                 <label
+                  className="mb-1 block font-medium text-muted-foreground text-xs"
                   htmlFor="send-content"
-                  className="block text-xs font-medium text-muted-foreground mb-1"
                 >
                   Message
                 </label>
                 <textarea
+                  className="min-h-[72px] w-full resize-y rounded-md border border-input bg-muted/40 px-3 py-2 text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                   id="send-content"
-                  value={sendContent}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   onChange={(e) => {
                     setSendContent(e.target.value);
-                    if (validationError) setValidationError(null);
+                    if (validationError) {
+                      setValidationError(null);
+                    }
                   }}
-                  placeholder="メッセージを入力..."
+                  placeholder="Enter message..."
                   rows={3}
-                  maxLength={MAX_MESSAGE_LENGTH}
-                  className="w-full rounded-md border border-input bg-muted/40 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-y min-h-[72px] text-foreground placeholder:text-muted-foreground/50"
+                  value={sendContent}
                 />
-                <div className="flex justify-between mt-1">
+                <div className="mt-1 flex justify-between">
                   {validationError && (
-                    <p className="text-xs text-destructive">{validationError}</p>
+                    <p className="text-destructive text-xs">
+                      {validationError}
+                    </p>
                   )}
-                  <span className="text-[10px] text-muted-foreground/60 ml-auto">
+                  <span className="ml-auto text-[10px] text-muted-foreground/60">
                     {sendContent.length}/{MAX_MESSAGE_LENGTH}
                   </span>
                 </div>
               </div>
 
               <Button
-                onClick={handleSend}
-                disabled={sending || !sendContent.trim()}
-                size="sm"
                 className="w-full"
+                disabled={sending || !sendContent.trim()}
+                onClick={handleSend}
+                size="sm"
               >
                 {sending ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                     Sending...
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 mr-2" />
+                    <Send className="mr-2 h-3.5 w-3.5" />
                     Send
                   </>
                 )}
@@ -249,7 +277,7 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
         {/* Message List */}
         <Card className="border-border/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
               <Mail className="h-3.5 w-3.5 text-primary" />
               Inbox
             </CardTitle>
@@ -259,41 +287,44 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
           </CardHeader>
           <CardContent>
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+              <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
                 <MessageSquare className="h-8 w-8 opacity-30" />
-                <p className="text-sm">メッセージはありません</p>
+                <p className="text-sm">No messages yet</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {messages.map((msg) => (
                   <div
-                    key={msg.id}
                     className={`rounded-lg border px-4 py-3 transition-colors ${
                       msg.read
                         ? "border-border/40 bg-muted/10"
                         : "border-primary/25 bg-primary/5"
                     }`}
+                    key={msg.id}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {!msg.read && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block shrink-0" />
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                         )}
-                        <span className="text-xs font-medium text-foreground">
+                        <span className="font-medium text-foreground text-xs">
                           {msg.from}
                         </span>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                        <Badge
+                          className="h-4 px-1.5 py-0 text-[10px]"
+                          variant="outline"
+                        >
                           {msg.msg_type}
                         </Badge>
                       </div>
-                      <span className="text-[10px] text-muted-foreground/70 shrink-0">
+                      <span className="shrink-0 text-[10px] text-muted-foreground/70">
                         {msg.timestamp}
                       </span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed">
+                    <p className="whitespace-pre-wrap text-foreground/90 text-sm leading-relaxed">
                       {msg.content}
                     </p>
-                    <div className="mt-1.5 text-[10px] text-muted-foreground/50 font-mono">
+                    <div className="mt-1.5 font-mono text-[10px] text-muted-foreground/50">
                       {msg.id}
                     </div>
                   </div>

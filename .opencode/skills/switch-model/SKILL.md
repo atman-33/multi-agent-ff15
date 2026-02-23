@@ -21,19 +21,19 @@ scripts/switch-model.sh <agent_name> <model_keyword>
 
 ```bash
 # Upgrade Prompto to Opus for a complex task
-scripts/switch-model.sh prompto opus
+scripts/switch-model.sh prompto "Claude Opus 4.6"
 
 # Downgrade Ignis to Haiku for a simple task
-scripts/switch-model.sh ignis haiku
+scripts/switch-model.sh ignis "Claude Haiku 4.5"
 
 # Switch Gladiolus to GPT-5-mini
-scripts/switch-model.sh gladiolus gpt-5-mini
+scripts/switch-model.sh gladiolus "GPT-5-mini"
 ```
 
 ## Model Keywords
 
 The available model keywords are managed dynamically. See the following sources:
-- Desktop/Web UI and valid arguments: `config/model_switch_keywords.yaml`
+- Desktop/Web UI and valid arguments: `config/models.yaml` (see `model_definitions`)
 - Check all available models via OpenCode CLI: `opencode models`
 
 ## Prerequisites

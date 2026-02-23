@@ -39,29 +39,22 @@
     @apply border-border;
   }
 
-  html, body, #root {
-    height: 100%;
+  html,
+  body,
+  #root {
     width: 100%;
-    margin: 0;
+    height: 100%;
     padding: 0;
+    margin: 0;
     overflow: hidden;
   }
 
   body {
-    @apply bg-background text-foreground;
     font-family:
-      "Noto Sans CJK JP",
-      "Noto Sans JP",
-      "Hiragino Kaku Gothic ProN",
-      "Hiragino Sans",
-      "Yu Gothic UI",
-      "Meiryo UI",
-      system-ui,
-      -apple-system,
-      sans-serif,
-      "Noto Color Emoji",
-      "Apple Color Emoji",
-      "Segoe UI Emoji";
+      "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+      "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system,
+      sans-serif, "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
+    @apply bg-background text-foreground;
   }
 
   /* Custom scrollbar */
