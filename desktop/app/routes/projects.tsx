@@ -4,6 +4,7 @@ import {
   RotateCcw,
   FolderGit2,
   RefreshCw,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -314,12 +315,32 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  {/* Active badge */}
-                  {isActive && (
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 shrink-0">
-                      Active
-                    </span>
-                  )}
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary z-10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fetch("/api/open-folder", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ path: project.path }),
+                        }).catch(console.error);
+                      }}
+                      title="Open in Explorer"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+
+                    {/* Active badge */}
+                    {isActive && (
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">
+                        Active
+                      </span>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
