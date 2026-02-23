@@ -29,6 +29,7 @@ interface AgentChatColumnProps {
   busyMap?: Record<ComradeId, boolean>;
   modelOptions?: string[];
   isTauri?: boolean;
+  optimisticMessages?: InboxLogRecord[];
 }
 
 const AGENT_CONFIG = {
@@ -50,14 +51,19 @@ type MergedItem =
   | { type: "agent"; record: ChatLogRecord; ts: string; }
   | { type: "inbox"; msg: InboxLogRecord; ts: string; };
 
-/** Merge agent records and inbox messages by UTC timestamp (pure sort). */
+/** Merge agent records and inbox messages by UTC timestamp (pure sort) with optimistic deduplication. */
 function mergeTimeline(
   records: ChatLogRecord[],
-  inboxMessages: InboxLogRecord[]
+  inboxMessages: InboxLogRecord[],
+  optimisticMessages: InboxLogRecord[] = []
 ): MergedItem[] {
+  const realIds = new Set(inboxMessages.map((m) => m.id));
+  const filteredOptimistic = optimisticMessages.filter((m) => !realIds.has(m.id));
+
   return [
     ...records.map((r) => ({ type: "agent" as const, record: r, ts: r.ts })),
     ...inboxMessages.map((m) => ({ type: "inbox" as const, msg: m, ts: m.ts })),
+    ...filteredOptimistic.map((m) => ({ type: "inbox" as const, msg: m, ts: m.ts })),
   ].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
 }
 
@@ -390,6 +396,7 @@ export default function AgentChatColumn({
   busyMap,
   modelOptions = [],
   isTauri = false,
+  optimisticMessages = [],
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -403,7 +410,7 @@ export default function AgentChatColumn({
   const activeLabel = viewingComrade ? COMRADE_CONFIG[partyView!].label : label;
   const activeIsWaiting = viewingComrade ? false : isWaiting;
 
-  const timeline = mergeTimeline(activeRecords, activeInboxMessages);
+  const timeline = mergeTimeline(activeRecords, activeInboxMessages, viewingComrade ? [] : optimisticMessages);
 
   // Track whether the user is at the bottom
   const handleScroll = () => {

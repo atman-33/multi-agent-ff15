@@ -364,7 +364,14 @@ fn send_crystal_message(target: String, message: String) -> Result<String, Strin
         .map_err(|e| format!("Failed to execute inbox_write.sh: {}", e))?;
 
     if output.status.success() {
-        Ok("Message sent successfully".into())
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Extract message ID: "✅ Message msg_... → agent inbox"
+        let msg_id = stdout
+            .split_whitespace()
+            .find(|s| s.starts_with("msg_"))
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "sent".to_string());
+        Ok(msg_id)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(format!("inbox_write.sh failed: {}", stderr))

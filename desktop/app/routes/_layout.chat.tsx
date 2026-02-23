@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAgentChatLog, type AgentId, type MainAgentId } from "@/lib/useAgentChatLog";
-import { useInboxLog } from "@/lib/useInboxLog";
+import { useInboxLog, type InboxLogRecord } from "@/lib/useInboxLog";
 import { COMRADES, type ComradeId } from "@/lib/useComradeStatus";
 import AgentChatColumn from "@/components/AgentChatColumn";
 import MessageComposer from "@/components/MessageComposer";
@@ -154,8 +154,48 @@ export default function UnifiedChatRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noctisRecords, lunafeyaRecords, getInboxMessages, optimisticSentAt]);
 
+  // Optimistic messages sent by Crystal but not yet confirmed by the polling log.
+  // Record<AgentId, InboxLogRecord[]>
+  const [optimisticMessages, setOptimisticMessages] = useState<Record<MainAgentId, InboxLogRecord[]>>({
+    noctis: [],
+    lunafreya: [],
+  });
+
+  // Prune optimistic messages once they appear in the real inbox logs.
+  useEffect(() => {
+    setOptimisticMessages((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const agent of AGENTS) {
+        const realIds = new Set(getInboxMessages(agent).map((m) => m.id));
+        const filtered = prev[agent].filter((m) => !realIds.has(m.id));
+        if (filtered.length !== prev[agent].length) {
+          next[agent] = filtered;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [getInboxMessages]);
+
   const handleCrystalSent = useCallback(
-    async (agent: MainAgentId, _content: string) => {
+    async (agent: MainAgentId, content: string, id?: string) => {
+      // Create optimistic record if we have an ID
+      if (id) {
+        const optRecord: InboxLogRecord = {
+          id,
+          ts: new Date().toISOString(),
+          from: "crystal",
+          to: agent,
+          type: "message",
+          content,
+        };
+        setOptimisticMessages((prev) => ({
+          ...prev,
+          [agent]: [...prev[agent], optRecord],
+        }));
+      }
+
       // Optimistic update: show typing indicator immediately before log catches up
       setOptimisticSentAt((prev) => ({ ...prev, [agent]: Date.now() }));
       await refresh();
@@ -217,6 +257,7 @@ export default function UnifiedChatRoute() {
             agent={agent}
             records={recordsMap[agent]}
             inboxMessages={getInboxMessages(agent)}
+            optimisticMessages={optimisticMessages[agent]}
             isWaiting={isWaitingMap[agent]}
             isActive={activeAgent === agent}
             onActivate={() => setActiveAgent(agent)}

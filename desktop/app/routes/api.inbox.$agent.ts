@@ -82,7 +82,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  let body: { from?: unknown; content?: unknown };
+  let body: { from?: unknown; content?: unknown; };
   try {
     body = await request.json();
   } catch {
@@ -122,7 +122,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
         { status: 500 }
       );
     }
-    return Response.json({ ok: true });
+
+    // Extract message ID from output (✅ Message msg_... → ... inbox)
+    const match = (result.stdout || "").match(/Message\s+(msg_\S+)\s+→/);
+    const id = match ? match[1] : undefined;
+
+    return Response.json({ ok: true, id });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

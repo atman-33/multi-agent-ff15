@@ -26,7 +26,7 @@ type AtSuggestion = {
 interface MessageComposerProps {
   activeAgent: MainAgentId;
   isTauri: boolean;
-  onSent?: (agent: MainAgentId, content: string) => void;
+  onSent?: (agent: MainAgentId, content: string, id?: string) => void;
 }
 
 const AGENT_CONFIG: Record<MainAgentId, { label: string; Icon: React.ElementType; placeholder: string; }> = {
@@ -76,8 +76,9 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
       setStatus("sending");
       setErrorMsg(null);
       try {
+        let messageId: string | undefined;
         if (isTauri) {
-          await invoke("send_crystal_message", { target, message: message.trim() });
+          messageId = await invoke<string>("send_crystal_message", { target, message: message.trim() });
         } else {
           const res = await fetch(`/api/inbox/${target}`, {
             method: "POST",
@@ -88,10 +89,12 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
             const data = await res.json();
             throw new Error(data.error || `HTTP ${res.status}`);
           }
+          const data = await res.json();
+          messageId = data.id;
         }
         setStatus("sent");
         setContent("");
-        onSent?.(target, message.trim());
+        onSent?.(target, message.trim(), messageId);
         // Auto-clear "sent" badge after 2 s
         setTimeout(() => setStatus("idle"), 2_000);
       } catch (e) {
