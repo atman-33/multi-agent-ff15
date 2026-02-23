@@ -76,6 +76,12 @@ struct ScriptStatus {
     executable: bool,
 }
 
+#[derive(Serialize, Debug)]
+struct TmuxPane {
+    name: String,
+    content: String,
+}
+
 // ---------------------------------------------------------------------------
 // Allowed agents for validation
 // ---------------------------------------------------------------------------
@@ -550,6 +556,46 @@ fn switch_agent_model(agent: String, label: String) -> Result<String, String> {
     }
 }
 
+/// Capture tmux panes for all agents.
+#[tauri::command]
+fn get_tmux_panes() -> Result<Vec<TmuxPane>, String> {
+    let agents = vec![
+        "noctis",
+        "lunafreya",
+        "ignis",
+        "gladiolus",
+        "prompto",
+        "iris",
+    ];
+    let mut panes = Vec::new();
+
+    for (i, agent) in agents.iter().enumerate() {
+        let target = format!("ff15:main.{}", i);
+        let output = Command::new("tmux")
+            .args(&["capture-pane", "-t", &target, "-p", "-e"])
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => {
+                let content = String::from_utf8_lossy(&out.stdout).to_string();
+                panes.push(TmuxPane {
+                    name: agent.to_string(),
+                    content,
+                });
+            }
+            _ => {
+                // If a pane is not found or fails, return a placeholder or skip
+                panes.push(TmuxPane {
+                    name: agent.to_string(),
+                    content: "ERROR: Pane not found or tmux not running.".to_string(),
+                });
+            }
+        }
+    }
+
+    Ok(panes)
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -604,6 +650,7 @@ pub fn run() {
             health_check,
             read_model_options,
             switch_agent_model,
+            get_tmux_panes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

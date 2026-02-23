@@ -4,6 +4,7 @@ import {
   FolderGit2,
   LayoutDashboard,
   MessagesSquare,
+  Monitor,
   Settings2,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigation } from "react-router";
@@ -35,6 +36,11 @@ const navItems = [
     label: "Models",
     to: "/oh-my-opencode",
     icon: Settings2,
+  },
+  {
+    label: "Monitor",
+    to: "/monitor",
+    icon: Monitor,
   },
   {
     label: "Health",
