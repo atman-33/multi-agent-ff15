@@ -20,6 +20,7 @@ declare -A PANE_INDEX=(
   [ignis]=2
   [gladiolus]=3
   [prompto]=4
+  [iris]=5
 )
 
 # --- Argument validation ---

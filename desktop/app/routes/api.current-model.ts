@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import { getAgentEndpoint } from "@/lib/opencodeEndpoints.server";
 
-const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto"] as const;
+import { ALLOWED_AGENTS } from "@/lib/agents";
 
 export async function loader({ request }: { request: Request; }) {
   const url = new URL(request.url);

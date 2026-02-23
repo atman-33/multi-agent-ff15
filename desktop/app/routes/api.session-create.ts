@@ -2,15 +2,7 @@ import { spawnSync } from "node:child_process";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import { getClientForAgent } from "@/lib/opencodeClient.server";
 
-const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto"] as const;
-
-const PANE_INDEX: Record<string, number> = {
-  noctis: 0,
-  lunafreya: 1,
-  ignis: 2,
-  gladiolus: 3,
-  prompto: 4,
-};
+import { ALLOWED_AGENTS, AGENT_PANE_INDEX as PANE_INDEX, type ModelSwitchAgent } from "@/lib/agents";
 
 export async function action({ request }: { request: Request; }) {
   try {
@@ -41,7 +33,7 @@ export async function action({ request }: { request: Request; }) {
 
     await client.tui.openSessions();
 
-    const pane = PANE_INDEX[agent];
+    const pane = PANE_INDEX[agent as ModelSwitchAgent];
     if (pane !== undefined) {
       const target = `ff15:main.${pane}`;
       // wait a bit for UI to appear

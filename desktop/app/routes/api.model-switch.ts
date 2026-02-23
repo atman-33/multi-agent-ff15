@@ -5,7 +5,7 @@ import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import { getAgentEndpoint } from "@/lib/opencodeEndpoints.server";
 
-const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto"] as const;
+import { ALLOWED_AGENTS } from "@/lib/agents";
 
 type AllowedAgent = (typeof ALLOWED_AGENTS)[number];
 

@@ -12,7 +12,7 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type ModelSwitchAgent = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto";
+import { type ModelSwitchAgent, ALL_MODEL_SWITCH_AGENTS } from "@/lib/agents";
 
 interface AgentChatColumnProps {
   agent: "noctis" | "lunafreya";
@@ -555,9 +555,9 @@ export default function AgentChatColumn({
       <ModelSwitchBar
         targetAgent={
           agent === "noctis"
-            ? ((partyView === "ignis" || partyView === "gladiolus" || partyView === "prompto"
-              ? partyView
-              : "noctis") as ModelSwitchAgent)
+            ? (partyView && (ALL_MODEL_SWITCH_AGENTS as readonly string[]).includes(partyView)
+              ? (partyView as ModelSwitchAgent)
+              : "noctis")
             : "lunafreya"
         }
         modelOptions={modelOptions}

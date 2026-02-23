@@ -4,16 +4,7 @@ import path from "node:path";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
 import { getClientForAgent } from "@/lib/opencodeClient.server";
 
-const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris"] as const;
-
-const PANE_INDEX: Record<string, number> = {
-  noctis: 0,
-  lunafreya: 1,
-  ignis: 2,
-  gladiolus: 3,
-  prompto: 4,
-  iris: 5,
-};
+import { ALLOWED_AGENTS, AGENT_PANE_INDEX as PANE_INDEX, type ModelSwitchAgent } from "@/lib/agents";
 
 async function clearDirectory(dirPath: string, deleteFiles: boolean = true) {
   try {
@@ -140,7 +131,7 @@ None
 
           if (!res.error) {
             await client.tui.openSessions();
-            const pane = PANE_INDEX[agent];
+            const pane = PANE_INDEX[agent as ModelSwitchAgent];
             if (pane !== undefined) {
               const target = `ff15:main.${pane}`;
               await new Promise(resolve => setTimeout(resolve, 300));
