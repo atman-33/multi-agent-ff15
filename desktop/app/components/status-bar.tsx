@@ -1,4 +1,4 @@
-import { Circle, RefreshCw, RotateCcw } from "lucide-react";
+import { RefreshCw, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,29 +11,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { AgentId } from "@/lib/use-agent-chat-log";
-import { cn } from "@/lib/utils";
 import ModeSwitcher from "./mode-switcher";
 
 export type AgentStatus = "online" | "idle" | "stale";
 
-interface AgentStatusInfo {
-  agent: AgentId;
-  lastResponseAt: Date | null;
-  status: AgentStatus;
-}
-
 interface StatusBarProps {
-  agentStatuses: AgentStatusInfo[];
   lastUpdated: Date | null;
   onRefresh: () => void;
 }
-
-const STATUS_CONFIG: Record<AgentStatus, { color: string; label: string }> = {
-  online: { color: "text-green-400", label: "online" },
-  idle: { color: "text-yellow-400", label: "idle" },
-  stale: { color: "text-muted-foreground", label: "stale" },
-};
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -52,7 +37,6 @@ export function computeStatus(lastResponseAt: Date | null): AgentStatus {
 }
 
 export default function StatusBar({
-  agentStatuses,
   lastUpdated,
   onRefresh,
 }: StatusBarProps) {
@@ -72,22 +56,6 @@ export default function StatusBar({
       <span className="shrink-0">Updated: {updatedStr}</span>
 
       <div className="h-3 w-px shrink-0 bg-border/40" />
-
-      {/* Per-agent status */}
-      <div className="flex items-center gap-4">
-        {agentStatuses.map(({ agent, status }) => {
-          const { color, label } = STATUS_CONFIG[status];
-          return (
-            <div className="flex items-center gap-1.5" key={agent}>
-              <Circle className={cn("h-2 w-2 fill-current", color)} />
-              <span className="capitalize">
-                {agent === "noctis" ? "Noctis" : "Lunafreya"}
-              </span>
-              <span className={cn("text-[10px]", color)}>{label}</span>
-            </div>
-          );
-        })}
-      </div>
 
       {/* Spacer + Actions */}
       <div className="ml-auto flex items-center gap-2">

@@ -2,10 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/agent-chat-column";
 import MessageComposer from "@/components/message-composer";
-import StatusBar, {
-  type AgentStatus,
-  computeStatus,
-} from "@/components/status-bar";
+import StatusBar from "@/components/status-bar";
 import { type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
 import { COMRADES, type ComradeId } from "@/lib/use-comrade-status";
 import { type InboxLogRecord, useInboxLog } from "@/lib/use-inbox-log";
@@ -211,19 +208,6 @@ export default function UnifiedChatRoute() {
     [refresh]
   );
 
-  // Derive stale/idle/online status per agent (task 4.3)
-  const agentStatuses = useMemo(
-    () =>
-      AGENTS.map((agent) => {
-        const records = recordsMap[agent];
-        const lastRecord = records.at(-1);
-        const lastResponseAt = lastRecord ? new Date(lastRecord.ts) : null;
-        const status: AgentStatus = computeStatus(lastResponseAt);
-        return { agent, status, lastResponseAt };
-      }),
-    [recordsMap]
-  );
-
   // Keyboard shortcuts: Ctrl+1 = Noctis, Ctrl+2 = Lunafreya (task 4.6)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -246,7 +230,6 @@ export default function UnifiedChatRoute() {
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       {/* Status bar */}
       <StatusBar
-        agentStatuses={agentStatuses}
         lastUpdated={lastUpdated}
         onRefresh={refresh}
       />
