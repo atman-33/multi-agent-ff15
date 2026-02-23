@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **gpt5mini formation** - New `--gpt5mini` mode for all agents
 - **Mobile access documentation** - Guide for accessing the system from mobile devices
 - **MCP integration documentation** - Model Context Protocol setup and configuration guide
-- **Supplementary reports output location** - `docs/private/` as the designated path for large output files
+- **Supplementary reports output location** - `docs/reports/` as the designated path for large output files
 
 ### Changed
 - Migrated agent communication from direct tmux `send-keys` to inbox-based YAML messaging (`inbox_write.sh`)
