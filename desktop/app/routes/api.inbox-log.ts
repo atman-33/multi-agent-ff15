@@ -40,6 +40,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .filter((l) => l.trim() !== "");
     const totalLines = allLines.length;
 
+    const isTruncated = cursor !== null && cursor > totalLines;
+
     const filtered = allLines
       .map((line) => {
         try {
@@ -52,11 +54,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
         (r): r is InboxLogRecord => r !== null && (!agent || r.to === agent)
       );
 
-    const start = cursor !== null ? cursor : Math.max(0, filtered.length - LIMIT);
+    const start = cursor !== null && !isTruncated ? cursor : Math.max(0, filtered.length - LIMIT);
     const slice = filtered.slice(start, start + LIMIT);
     const nextCursor = start + slice.length;
 
-    return Response.json({ records: slice, next_cursor: nextCursor, total_lines: totalLines });
+    return Response.json({ records: slice, next_cursor: nextCursor, total_lines: totalLines, reset: isTruncated });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

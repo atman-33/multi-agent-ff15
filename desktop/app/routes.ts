@@ -15,6 +15,7 @@ export default [
   route("api/model-switch", "routes/api.model-switch.ts"),
   route("api/current-model", "routes/api.current-model.ts"),
   route("api/session-create", "routes/api.session-create.ts"),
+  route("api/session-clear-all", "routes/api.session-clear-all.ts"),
   // UI routes
   layout("routes/_layout.tsx", [
     index("routes/index.tsx"),

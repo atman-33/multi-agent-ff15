@@ -137,7 +137,10 @@ export default function UnifiedChatRoute() {
           : null;
 
       // Merge log-derived timestamp with optimistic value (whichever is later)
-      const optimistic = optimisticSentAt[agent];
+      let optimistic = optimisticSentAt[agent];
+      if (optimistic !== null && Date.now() - optimistic > 10000) {
+        optimistic = null; // Expire optimistic state after 10s to prevent stuck busy indicators
+      }
       const effectiveSentAt =
         lastInboxAt !== null || optimistic !== null
           ? Math.max(lastInboxAt ?? 0, optimistic ?? 0)

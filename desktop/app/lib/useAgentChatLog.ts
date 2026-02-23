@@ -25,6 +25,7 @@ interface ChatLogPage {
   records: ChatLogRecord[];
   next_cursor: number;
   total_lines: number;
+  reset?: boolean;
 }
 
 export type AgentId = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto" | "iris";
@@ -110,21 +111,24 @@ export function useAgentChatLog() {
           const res = await fetch(`/api/chat-logs?${params}`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           page = await res.json();
-          if ((page as unknown as { error?: string }).error) {
-            throw new Error((page as unknown as { error: string }).error);
+          if ((page as unknown as { error?: string; }).error) {
+            throw new Error((page as unknown as { error: string; }).error);
           }
         }
 
         // Update cursor
         cursorRef.current = page.next_cursor;
 
-        if (page.records.length === 0) return;
+        const isReset = (page as any).reset === true;
 
-        if (isInitial) {
-          // Replace full state on initial load
+        if (page.records.length === 0 && !isReset) return;
+
+        if (isInitial || isReset) {
+          // Replace full state on initial load or if file was truncated
           allRecordsRef.current = page.records;
           setAllRecords(page.records);
           setLastUpdated(new Date());
+          pendingRef.current = [];
         } else {
           // Sync the ref immediately (before the 100 ms buffer delay)
           const existingIds = new Set(allRecordsRef.current.map((r) => r.id));
