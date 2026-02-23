@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Crown, Moon, Zap } from "lucide-react";
+import { Crown, Moon, Zap, MessageSquarePlus } from "lucide-react";
 import MessageCard from "@/components/MessageCard";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import type { ChatLogRecord, AgentId } from "@/lib/useAgentChatLog";
 import type { InboxLogRecord } from "@/lib/useInboxLog";
 import { COMRADES, COMRADE_CONFIG, type ComradeId } from "@/lib/useComradeStatus";
@@ -68,7 +69,7 @@ function CodeBlock({ children }: { children: React.ReactNode; }) {
       <button
         type="button"
         onClick={() => setWrap((v) => !v)}
-        title={wrap ? "スクロールモードに切り替え" : "折り返しモードに切り替え"}
+        title={wrap ? "Switch to scroll mode" : "Switch to wrap mode"}
         className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 rounded px-1.5 py-0.5 text-[9px] text-muted-foreground/70 hover:text-foreground/80 leading-none"
       >
         {wrap ? "→ scroll" : "↵ wrap"}
@@ -279,6 +280,42 @@ function ModelSwitchBar({
           </option>
         ))}
       </select>
+      <TooltipProvider>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  if (isTauri) {
+                    toast.info("Session creation is currently not implemented in Tauri");
+                    return;
+                  }
+                  const res = await fetch("/api/session-create", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ agent: targetAgent }),
+                  });
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    const errMsg = typeof data.error === "object" ? data.error?.message : data.error;
+                    throw new Error(errMsg ?? `HTTP ${res.status}`);
+                  }
+                  toast.success(`Created a new session for ${targetAgent}`);
+                } catch (e) {
+                  toast.error(`Session creation failed: ${String(e)}`);
+                }
+              }}
+              className="p-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+            >
+              <MessageSquarePlus className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-[11px] px-2 py-1">
+            New Session
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }
@@ -301,7 +338,7 @@ function ComradeTab({
     <button
       type="button"
       onClick={onClick}
-      title={busy ? `${cfg.label}: 処理中...` : cfg.label}
+      title={busy ? `${cfg.label}: Processing...` : cfg.label}
       className={cn(
         "relative flex flex-col items-center gap-0.5 px-1.5 py-0.5 rounded transition-all duration-150",
         isSelected

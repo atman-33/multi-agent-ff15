@@ -86,3 +86,4 @@ docs/private/
 
 # Runtime logs (generated at runtime, not committed)
 runtime/logs/
+runtime/opencode-endpoints.json

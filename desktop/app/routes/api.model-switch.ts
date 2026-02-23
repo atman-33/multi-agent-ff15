@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getAgentEndpoint } from "@/lib/opencodeEndpoints.server";
 
 const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto"] as const;
 
@@ -50,6 +51,8 @@ export async function action({ request }: { request: Request; }) {
 
     const root = getProjectRoot();
     const modelOptions = readModelOptions(root);
+    // Ignore validation if the label represents just a direct command like a model name that isn't mapped, 
+    // although existing logic enforces modelOptions.includes. We keep current logic.
     if (!modelOptions.includes(label)) {
       return Response.json({ error: `Invalid model label: ${label}` }, { status: 400 });
     }
@@ -71,7 +74,15 @@ export async function action({ request }: { request: Request; }) {
 
     if (result.status !== 0) {
       const errorMessage = (result.stderr || result.stdout || "switch-model failed").trim();
-      return Response.json({ error: errorMessage }, { status: 500 });
+      const endpoint = getAgentEndpoint(agent);
+      return Response.json({
+        error: {
+          code: "OPENCODE_UNREACHABLE",
+          message: errorMessage || "Agent endpoint is not reachable",
+          agent,
+          baseUrl: endpoint?.baseUrl
+        }
+      }, { status: 500 });
     }
 
     // Verify model has changed by checking for up to 5 seconds

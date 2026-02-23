@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
+import { getAgentEndpoint } from "@/lib/opencodeEndpoints.server";
 
 const ALLOWED_AGENTS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto"] as const;
 
@@ -11,6 +12,7 @@ export async function loader({ request }: { request: Request; }) {
   if (!agent || !ALLOWED_AGENTS.includes(agent as any)) {
     return Response.json({ error: "Invalid agent" }, { status: 400 });
   }
+
 
   const root = getProjectRoot();
   const getModelScript = join(root, "scripts/get-current-model.sh");
@@ -26,5 +28,14 @@ export async function loader({ request }: { request: Request; }) {
   }
 
   const errorMessage = (result.stderr || result.stdout || "get-current-model failed").trim();
-  return Response.json({ error: errorMessage }, { status: 500 });
+  const endpoint = getAgentEndpoint(agent);
+
+  return Response.json({
+    error: {
+      code: "OPENCODE_UNREACHABLE",
+      message: errorMessage || "Agent endpoint is not reachable",
+      agent,
+      baseUrl: endpoint?.baseUrl
+    }
+  }, { status: 500 });
 }

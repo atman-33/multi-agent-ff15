@@ -630,6 +630,77 @@ log_success "  └─ ff15 session (5 main panes + Iris) built"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# STEP 5.5: Allocate Agent Endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+log_war "👑 Executing Endpoint Allocation..."
+
+OPENCODE_PORT_RANGE_START=4401
+OPENCODE_PORT_RANGE_END=4499
+
+declare -A REQUESTED_PORTS=(
+    ["noctis"]=4401
+    ["lunafreya"]=4402
+    ["ignis"]=4403
+    ["gladiolus"]=4404
+    ["prompto"]=4405
+    ["iris"]=4406
+)
+
+declare -A ASSIGNED_PORTS
+declare -A PORT_SOURCES
+declare -A USED_PORTS
+
+allocate_port() {
+    local agent="$1"
+    local requested="${REQUESTED_PORTS[$agent]}"
+    
+    # Check if requested port is available
+    if ! ss -tln | grep -q ":${requested} " && [ -z "${USED_PORTS[$requested]}" ]; then
+        ASSIGNED_PORTS[$agent]="$requested"
+        PORT_SOURCES[$agent]="fixed"
+        USED_PORTS[$requested]=1
+        return 0
+    fi
+    
+    # If not, find available port in range
+    local p
+    for p in $(seq $OPENCODE_PORT_RANGE_START $OPENCODE_PORT_RANGE_END); do
+        if ! ss -tln | grep -q ":${p} " && [ -z "${USED_PORTS[$p]}" ]; then
+            ASSIGNED_PORTS[$agent]="$p"
+            PORT_SOURCES[$agent]="auto_range"
+            USED_PORTS[$p]=1
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+mkdir -p runtime
+ENDPOINTS_MANIFEST="runtime/opencode-endpoints.json"
+echo "{" > "$ENDPOINTS_MANIFEST"
+echo "  \"generatedAt\": \"$(date -Iseconds)\"," >> "$ENDPOINTS_MANIFEST"
+echo "  \"agents\": {" >> "$ENDPOINTS_MANIFEST"
+
+AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto" "iris")
+for i in "${!AGENT_NAMES[@]}"; do
+    agent="${AGENT_NAMES[$i]}"
+    if allocate_port "$agent"; then
+        port="${ASSIGNED_PORTS[$agent]}"
+        src="${PORT_SOURCES[$agent]}"
+        echo "    \"$agent\": { \"hostname\": \"127.0.0.1\", \"port\": $port, \"baseUrl\": \"http://127.0.0.1:$port\", \"portSource\": \"$src\" }$( [[ $i -lt $(( ${#AGENT_NAMES[@]} - 1 )) ]] && echo ',' || echo '' )" >> "$ENDPOINTS_MANIFEST"
+    else
+        echo "Error: Failed to allocate port for $agent (Range exhausted)"
+        exit 1
+    fi
+done
+
+echo "  }" >> "$ENDPOINTS_MANIFEST"
+echo "}" >> "$ENDPOINTS_MANIFEST"
+log_success "  └─ Endpoints allocated and written to $ENDPOINTS_MANIFEST"
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # STEP 6: Launch OpenCode (skip if -s / --setup-only)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$SETUP_ONLY" = false ]; then
@@ -645,7 +716,6 @@ if [ "$SETUP_ONLY" = false ]; then
 
     # All 6 agents in main window
     # Pane numbers: 0=Noctis, 1=Lunafreya, 2=Ignis, 3=Gladiolus, 4=Prompto, 5=Iris
-    AGENT_NAMES=("noctis" "lunafreya" "ignis" "gladiolus" "prompto" "iris")
     AGENT_MODELS=("${NOCTIS_MODEL}" "${LUNAFREYA_MODEL}" "${IGNIS_MODEL}" "${GLADIOLUS_MODEL}" "${PROMPTO_MODEL}" "${IRIS_MODEL}")
     AGENT_TARGETS=()
     for i in {0..5}; do
@@ -657,10 +727,11 @@ if [ "$SETUP_ONLY" = false ]; then
         name="${AGENT_NAMES[$i]}"
         model="${AGENT_MODELS[$i]}"
         target="${AGENT_TARGETS[$i]}"
+        port="${ASSIGNED_PORTS[$name]}"
 
-        tmux send-keys -t "${target}" "export AGENT_ID=${name} && export OPENCODE_EXPERIMENTAL_FILEWATCHER=true && opencode --agent ${name} --model ${model}"
+        tmux send-keys -t "${target}" "export AGENT_ID=${name} && export OPENCODE_EXPERIMENTAL_FILEWATCHER=true && opencode --agent ${name} --model ${model} --hostname 127.0.0.1 --port ${port}"
         tmux send-keys -t "${target}" Enter
-        log_info "  └─ ${name} launched (--agent ${name}, target: ${target})"
+        log_info "  └─ ${name} launched (--agent ${name}, target: ${target}, port: ${port})"
 
         # Wait for stability
         sleep 1
