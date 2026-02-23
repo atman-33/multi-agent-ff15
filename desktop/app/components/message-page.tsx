@@ -12,6 +12,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle, AlertCircle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 interface InboxMessage {
   id: string;
@@ -172,18 +180,21 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
                   >
                     From
                   </label>
-                  <select
-                    id="send-from"
+                  <Select
                     value={sendFrom}
-                    onChange={(e) => setSendFrom(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-muted/40 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+                    onValueChange={(val) => setSendFrom(val)}
                   >
-                    {ALLOWED_SENDERS.map((sender) => (
-                      <option key={sender} value={sender}>
-                        {sender}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full h-9 bg-muted/40 border-input text-foreground">
+                      <SelectValue placeholder="Select sender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ALLOWED_SENDERS.map((sender) => (
+                        <SelectItem key={sender} value={sender}>
+                          {sender}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-muted-foreground mb-1">
@@ -268,11 +279,10 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`rounded-lg border px-4 py-3 transition-colors ${
-                      msg.read
+                    className={`rounded-lg border px-4 py-3 transition-colors ${msg.read
                         ? "border-border/40 bg-muted/10"
                         : "border-primary/25 bg-primary/5"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5 flex-wrap">

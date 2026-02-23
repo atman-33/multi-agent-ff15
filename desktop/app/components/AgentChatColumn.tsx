@@ -13,6 +13,13 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { type ModelSwitchAgent, ALL_MODEL_SWITCH_AGENTS } from "@/lib/agents";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AgentChatColumnProps {
   agent: "noctis" | "lunafreya";
@@ -265,27 +272,27 @@ function ModelSwitchBar({
 
   return (
     <div className="flex items-center gap-1.5 px-3 py-1 border-b border-border/20 bg-background/30">
-      <select
+      <Select
         value={modelLabel}
-        onChange={(e) => applySwitch(e.target.value)}
+        onValueChange={(val) => applySwitch(val)}
         disabled={isSwitching}
-        className={cn(
-          "flex-1 rounded border border-border/40 bg-background/60 px-2 py-0.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring",
-          isSwitching && "opacity-50 cursor-wait"
-        )}
       >
-        {/* Render a custom option if current text doesn't match the known config */}
-        {modelLabel && !modelOptions.includes(modelLabel) && (
-          <option key="custom" value={modelLabel}>
-            {modelLabel}
-          </option>
-        )}
-        {modelOptions.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="flex-1 h-7 bg-background/60 text-[11px] border-border/40">
+          <SelectValue placeholder="Select model" />
+        </SelectTrigger>
+        <SelectContent>
+          {modelLabel && !modelOptions.includes(modelLabel) && (
+            <SelectItem key="custom" value={modelLabel}>
+              {modelLabel}
+            </SelectItem>
+          )}
+          {modelOptions.map((opt) => (
+            <SelectItem key={opt} value={opt}>
+              {opt}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <TooltipProvider>
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>

@@ -1,10 +1,11 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useNavigation } from "react-router";
 import {
   LayoutDashboard,
   Activity,
   MessagesSquare,
   FolderGit2,
   FileText,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/AppHeader";
@@ -31,6 +32,11 @@ const navItems = [
     icon: FileText,
   },
   {
+    label: "Models",
+    to: "/oh-my-opencode",
+    icon: Settings2,
+  },
+  {
     label: "Health",
     to: "/health",
     icon: Activity,
@@ -38,6 +44,9 @@ const navItems = [
 ];
 
 export default function Layout() {
+  const navigation = useNavigation();
+  const isLoading = navigation.state !== "idle";
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
@@ -104,7 +113,13 @@ export default function Layout() {
       </aside>
 
       {/* Main content: header + page */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden relative">
+        {/* Progress bar */}
+        {isLoading && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/20 z-50 overflow-hidden">
+            <div className="h-full bg-primary animate-progress-indeterminate w-1/3" />
+          </div>
+        )}
         <AppHeader />
         <main className="flex-1 overflow-auto">
           <Outlet />

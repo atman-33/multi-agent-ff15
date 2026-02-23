@@ -6,6 +6,13 @@ import { RefreshCw, Clock, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle, AlertCircle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const INTERVAL_OPTIONS = [
   { label: "5s", value: 5 },
@@ -78,18 +85,21 @@ export default function DashboardPage() {
             </span>
           )}
 
-          <select
-            value={interval}
-            onChange={(e) => setInterval_(Number(e.target.value))}
-            className="h-7 rounded border border-input bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            aria-label="Auto-refresh interval"
+          <Select
+            value={String(interval)}
+            onValueChange={(val) => setInterval_(Number(val))}
           >
-            {INTERVAL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="h-7 w-[70px] bg-background text-xs text-muted-foreground border-input">
+              <SelectValue placeholder="Select interval" />
+            </SelectTrigger>
+            <SelectContent>
+              {INTERVAL_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <Button
             variant={autoRefresh ? "default" : "ghost"}
