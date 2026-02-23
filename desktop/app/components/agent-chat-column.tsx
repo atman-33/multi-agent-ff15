@@ -229,7 +229,11 @@ function ModelSwitchBar({
   const [isSwitching, setIsSwitching] = useState(false);
   const [isAborting, setIsAborting] = useState(false);
 
-  // Initialize current model
+  const sortedModelOptions = useMemo(
+    () => [...modelOptions].sort((a, b) => a.localeCompare(b)),
+    [modelOptions]
+  );
+
   useEffect(() => {
     let cancelled = false;
     const fetchModel = async () => {
@@ -363,12 +367,12 @@ function ModelSwitchBar({
           <SelectValue placeholder="Select model" />
         </SelectTrigger>
         <SelectContent>
-          {modelLabel && !modelOptions.includes(modelLabel) && (
+          {modelLabel && !sortedModelOptions.includes(modelLabel) && (
             <SelectItem key="custom" value={modelLabel}>
               {modelLabel}
             </SelectItem>
           )}
-          {modelOptions.map((opt) => (
+          {sortedModelOptions.map((opt) => (
             <SelectItem key={opt} value={opt}>
               {opt}
             </SelectItem>
