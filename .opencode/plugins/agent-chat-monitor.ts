@@ -203,6 +203,8 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
+  let lastProcessedSessionId: string | null = null;
+
   /**
    * C案: in-memory cursor.
    * Tracks how many assistant messages have already been written to JSONL for
@@ -283,6 +285,13 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
           return;
         }
 
+        // If the session changed dynamically (e.g. via TUI or API without triggering our session.created capture)
+        if (sessionId !== lastProcessedSessionId) {
+          await diagLog(`Session changed dynamically to ${sessionId}, resetting cursor.`);
+          lastProcessedSessionId = sessionId;
+          lastLoggedAssistantCount = 0;
+        }
+
         const messagesResult = await client.session.messages({
           path: { id: sessionId },
         });
@@ -320,7 +329,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         const pane = PANE_MAP[agentId] ?? "0";
 
         // Build assistant item list from ALL messages (no sliding-window cap)
-        const allAssistantItems: { content: string }[] = [];
+        const allAssistantItems: { content: string; }[] = [];
         for (const msg of messagesResult.data) {
           const msgAny = msg as any;
           const role = msgAny.info?.role || "unknown";
