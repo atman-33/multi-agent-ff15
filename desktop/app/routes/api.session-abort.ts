@@ -1,4 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
+import fs from "node:fs";
+import { join } from "node:path";
+import { AGENT_PANE_INDEX, type ModelSwitchAgent } from "@/lib/agents";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -64,6 +68,32 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     await client.session.abort({ sessionID });
+
+    // 3. Append a status record to the chat log to clear the "busy" state in the UI
+    try {
+      const root = getProjectRoot();
+      const logPath = join(root, "runtime/logs/agent-chat-monitor.jsonl");
+      const pane = AGENT_PANE_INDEX[agent as ModelSwitchAgent];
+
+      const abortRecord = {
+        agent,
+        content: "Session aborted.",
+        id: `abort-${Date.now()}`,
+        kind: "status",
+        meta: {
+          pane: pane !== undefined ? String(pane) : "0",
+          event: "abort",
+        },
+        session_id: sessionID,
+        source: "system",
+        ts: new Date().toISOString(),
+      };
+
+      fs.appendFileSync(logPath, `${JSON.stringify(abortRecord)}\n`, "utf-8");
+      console.log(`[Abort] Appended abort status record for ${agent}`);
+    } catch (logError) {
+      console.error("[Abort] Failed to append abort status record:", logError);
+    }
 
     return Response.json({ success: true, agent, sessionID });
   } catch (e) {
