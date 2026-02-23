@@ -28,27 +28,14 @@ export function AppHeader() {
 
   // Active project chip
   const activeIds = projectsData?.activeProjectIds ?? [];
-  const nameById = Object.fromEntries(
-    (projectsData?.projects ?? []).map((p) => [p.id, p.displayName])
-  );
-
-  let chipLabel: string;
-  if (projectsData === null) {
-    chipLabel = "…";
-  } else if (activeIds.length === 0) {
-    chipLabel = "No active project";
-  } else if (activeIds.length === 1) {
-    chipLabel = nameById[activeIds[0]] ?? activeIds[0];
-  } else {
-    const first = nameById[activeIds[0]] ?? activeIds[0];
-    chipLabel = `${first} +${activeIds.length - 1}`;
-  }
+  const projects = projectsData?.projects ?? [];
+  const projectById = Object.fromEntries(projects.map((p) => [p.id, p]));
 
   const chipTooltip =
     activeIds.length > 1
-      ? activeIds.map((id) => nameById[id] ?? id).join(", ")
+      ? activeIds.map((id) => projectById[id]?.displayName ?? id).join(", ")
       : activeIds.length === 1
-        ? (nameById[activeIds[0]] ?? activeIds[0])
+        ? (projectById[activeIds[0]]?.displayName ?? activeIds[0])
         : undefined;
 
   return (
@@ -66,28 +53,49 @@ export function AppHeader() {
         )}
       </div>
 
-      {/* Right: slots — add more items here as needed */}
+      {/* Right: slots — Active Project chip */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Active Project chip */}
         <NavLink
           to="/projects"
           title={chipTooltip}
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-            "border transition-colors duration-150",
+            "flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold tracking-tight",
+            "border transition-all duration-200 transform-gpu",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             activeIds.length > 0
-              ? "border-primary/25 bg-primary/8 text-primary/80 hover:bg-primary/15 hover:border-primary/40 hover:text-primary"
-              : "border-border/50 bg-muted/40 text-muted-foreground/50 hover:bg-muted/70 hover:text-muted-foreground italic"
+              ? "border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-sm hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-[1.02]"
+              : "border-border/40 bg-muted/30 text-muted-foreground/40 hover:bg-muted/50 hover:text-muted-foreground italic"
           )}
         >
           <FolderGit2
             className={cn(
-              "h-3 w-3 shrink-0",
-              activeIds.length > 0 ? "text-primary/70" : "text-muted-foreground/40"
+              "h-3.5 w-3.5 shrink-0",
+              activeIds.length > 0 ? "text-amber-500" : "text-muted-foreground/40"
             )}
           />
-          <span className="max-w-[180px] truncate">{chipLabel}</span>
+          <div className="flex items-center gap-1.5 truncate max-w-[280px]">
+            {projectsData === null ? (
+              <span>…</span>
+            ) : activeIds.length === 0 ? (
+              <span>No active project</span>
+            ) : (
+              <>
+                <span className="truncate max-w-[120px]">
+                  {projectById[activeIds[0]]?.displayName ?? activeIds[0]}
+                </span>
+                {projectById[activeIds[0]]?.branchName && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[10px] font-mono font-bold uppercase tracking-widest text-amber-500/80">
+                    {projectById[activeIds[0]].branchName}
+                  </span>
+                )}
+                {activeIds.length > 1 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-amber-500 text-amber-950 text-[9px] font-black shadow-inner">
+                    +{activeIds.length - 1}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
         </NavLink>
       </div>
     </header>

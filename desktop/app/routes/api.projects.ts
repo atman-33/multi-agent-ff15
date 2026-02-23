@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/getProjectRoot.server";
@@ -32,6 +33,7 @@ export async function loader() {
       displayName: string;
       path: string;
       updatedAt: string;
+      branchName?: string;
     }> = [];
 
     if (existsSync(projectsDir)) {
@@ -43,11 +45,25 @@ export async function loader() {
           const raw = readFileSync(join(projectsDir, file), "utf-8");
           const parsed = parseYaml(raw);
           if (parsed?.id) {
+            let branchName = "";
+            if (parsed.root_path && existsSync(parsed.root_path)) {
+              try {
+                branchName = execSync("git branch --show-current", {
+                  cwd: parsed.root_path,
+                  encoding: "utf-8",
+                  stdio: ["ignore", "pipe", "ignore"],
+                }).trim();
+              } catch {
+                // Not a git repo or git not installed
+              }
+            }
+
             projects.push({
               id: parsed.id,
               displayName: parsed.name ?? parsed.id,
               path: parsed.root_path ?? "",
               updatedAt: parsed.updated_at ?? "",
+              branchName: branchName || undefined,
             });
           }
         } catch {

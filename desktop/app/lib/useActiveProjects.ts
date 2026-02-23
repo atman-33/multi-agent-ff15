@@ -5,6 +5,7 @@ export interface ProjectEntry {
   displayName: string;
   path: string;
   updatedAt: string;
+  branchName?: string;
 }
 
 export interface ActiveProjectsData {
