@@ -13,8 +13,8 @@ import type { MainAgentId } from "@/lib/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 4000;
-const SLASH_TRIGGER_REGEX = /(?:^|\s)\/\S*$/;
-const AT_TRIGGER_REGEX = /(?:^|\s)@\S*$/;
+const SLASH_TRIGGER_REGEX = /(?:^|\s)\/(\S*)$/;
+const AT_TRIGGER_REGEX = /(?:^|\s)@(\S*)$/;
 
 type SendStatus = "idle" | "sending" | "sent" | "failed";
 
