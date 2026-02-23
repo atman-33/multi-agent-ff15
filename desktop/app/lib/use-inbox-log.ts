@@ -105,5 +105,9 @@ export function useInboxLog() {
     [allRecords]
   );
 
-  return { allRecords, getMessagesForAgent };
+  return {
+    allRecords,
+    getMessagesForAgent,
+    refresh: () => fetchRecords(false),
+  };
 }

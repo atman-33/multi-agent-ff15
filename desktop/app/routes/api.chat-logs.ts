@@ -33,7 +33,12 @@ export function loader({ request }: LoaderFunctionArgs) {
     const logPath = join(root, CHAT_LOG_PATH);
 
     if (!existsSync(logPath)) {
-      return Response.json({ records: [], next_cursor: 0, total_lines: 0 });
+      return Response.json({
+        records: [],
+        next_cursor: 0,
+        total_lines: 0,
+        reset: cursor !== null && cursor > 0,
+      });
     }
 
     const lines = readFileSync(logPath, "utf-8")

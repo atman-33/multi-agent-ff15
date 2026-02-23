@@ -10,8 +10,13 @@ import { type InboxLogRecord, useInboxLog } from "@/lib/use-inbox-log";
 const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 
 export default function UnifiedChatRoute() {
-  const { getRecordsForAgent, lastUpdated, error, isTauri, refresh } =
-    useAgentChatLog();
+  const {
+    getRecordsForAgent,
+    lastUpdated,
+    error,
+    isTauri,
+    refresh: refreshChat,
+  } = useAgentChatLog();
   const [activeAgent, setActiveAgent] = useState<MainAgentId>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("chat_active_agent");
@@ -72,7 +77,12 @@ export default function UnifiedChatRoute() {
   );
 
   // Inbox messages (Crystal→agent + agent→agent) from runtime/logs/inbox-log.jsonl
-  const { getMessagesForAgent: getInboxMessages } = useInboxLog();
+  const { getMessagesForAgent: getInboxMessages, refresh: refreshInbox } =
+    useInboxLog();
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refreshChat(), refreshInbox()]);
+  }, [refreshChat, refreshInbox]);
 
   // Party view: which comrade (or null = Noctis itself) is shown in the Noctis column
   const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(
@@ -203,9 +213,9 @@ export default function UnifiedChatRoute() {
 
       // Optimistic update: show typing indicator immediately before log catches up
       setOptimisticSentAt((prev) => ({ ...prev, [agent]: Date.now() }));
-      await refresh();
+      await handleRefresh();
     },
-    [refresh]
+    [handleRefresh]
   );
 
   // Keyboard shortcuts: Ctrl+1 = Noctis, Ctrl+2 = Lunafreya (task 4.6)
@@ -229,7 +239,7 @@ export default function UnifiedChatRoute() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       {/* Status bar */}
-      <StatusBar lastUpdated={lastUpdated} onRefresh={refresh} />
+      <StatusBar lastUpdated={lastUpdated} onRefresh={handleRefresh} />
 
       {/* Error banner */}
       {error && (

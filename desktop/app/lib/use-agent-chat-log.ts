@@ -130,6 +130,7 @@ export function useAgentChatLog() {
 
         // Update cursor
         cursorRef.current = page.next_cursor;
+        setLastUpdated(new Date());
 
         const isReset = (page as any).reset === true;
 
@@ -141,7 +142,6 @@ export function useAgentChatLog() {
           // Replace full state on initial load or if file was truncated
           allRecordsRef.current = page.records;
           setAllRecords(page.records);
-          setLastUpdated(new Date());
           pendingRef.current = [];
         } else {
           // Sync the ref immediately (before the 100 ms buffer delay)

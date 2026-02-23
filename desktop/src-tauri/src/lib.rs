@@ -135,6 +135,8 @@ struct ChatLogPage {
     next_cursor: usize,
     /// Total lines in the file (including broken/skipped lines).
     total_lines: usize,
+    /// Whether the file was truncated/reset since the last read.
+    reset: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +159,7 @@ struct InboxLogPage {
     records: Vec<InboxLogRecord>,
     next_cursor: usize,
     total_lines: usize,
+    reset: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -285,6 +288,7 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
             records: vec![],
             next_cursor: 0,
             total_lines: 0,
+            reset: cursor.is_some() && cursor.unwrap() > 0,
         });
     }
 
@@ -296,10 +300,11 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
     let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
     let total_lines = lines.len();
 
+    let is_truncated = cursor.is_some() && cursor.unwrap() > total_lines;
     let start = match cursor {
-        Some(c) => c,
-        None => {
-            // No cursor: return last `limit` lines.
+        Some(c) if !is_truncated => c,
+        _ => {
+            // No cursor or truncated: return last `limit` lines.
             if total_lines > limit {
                 total_lines - limit
             } else {
@@ -328,6 +333,7 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
         records,
         next_cursor,
         total_lines,
+        reset: is_truncated,
     })
 }
 
@@ -397,6 +403,7 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
             records: vec![],
             next_cursor: 0,
             total_lines: 0,
+            reset: cursor.is_some() && cursor.unwrap() > 0,
         });
     }
 
@@ -413,9 +420,10 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
         .collect();
 
     const LIMIT: usize = 200;
+    let is_truncated = cursor.is_some() && cursor.unwrap() > total_lines;
     let start = match cursor {
-        Some(c) => c,
-        None => {
+        Some(c) if !is_truncated => c,
+        _ => {
             if all_records.len() > LIMIT {
                 all_records.len() - LIMIT
             } else {
@@ -437,6 +445,7 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
         records: slice,
         next_cursor,
         total_lines,
+        reset: is_truncated,
     })
 }
 
