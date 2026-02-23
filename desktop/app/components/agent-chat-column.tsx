@@ -31,11 +31,10 @@ import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {
   agent: "noctis" | "lunafreya";
-  busyMap?: Record<ComradeId, boolean>;
+  busyMap?: Record<ComradeId, string>;
   inboxMessages: InboxLogRecord[];
   isActive: boolean;
   isTauri?: boolean;
-  isWaiting: boolean;
   modelOptions?: string[];
   onActivate: () => void;
   onPartyViewChange?: (view: ComradeId | null) => void;
@@ -45,6 +44,7 @@ interface AgentChatColumnProps {
   /** Party props — only used when agent === "noctis" */
   partyView?: ComradeId | null;
   records: ChatLogRecord[];
+  status?: string;
 }
 
 const AGENT_CONFIG = {
@@ -444,17 +444,20 @@ function ModelSwitchBar({
 function ComradeTab({
   _comrade,
   cfg,
-  busy,
+  status,
   isSelected,
   onClick,
 }: {
   _comrade: ComradeId;
   cfg: { label: string; imageSrc: string };
-  busy: boolean;
+  status?: string;
   isSelected: boolean;
   onClick: () => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
+  const isIdle = status === "idle";
+  const isProcessing = status && !isIdle && status !== "offline";
+
   return (
     <button
       className={cn(
@@ -464,16 +467,18 @@ function ComradeTab({
           : "text-muted-foreground/50 hover:bg-white/5 hover:text-foreground"
       )}
       onClick={onClick}
-      title={busy ? `${cfg.label}: Processing...` : cfg.label}
+      title={
+        isProcessing ? `${cfg.label}: ${status.toUpperCase()}...` : cfg.label
+      }
       type="button"
     >
-      {busy && (
+      {isProcessing && (
         <span className="pointer-events-none absolute inset-0 animate-ping rounded bg-amber-400/10" />
       )}
       <div
         className={cn(
           "h-5 w-5 overflow-hidden rounded-full border transition-all duration-300",
-          busy
+          isProcessing
             ? "animate-bounce border-amber-400/70 shadow-[0_0_6px_rgba(251,191,36,0.4)]"
             : "border-border/30 opacity-60 grayscale",
           isSelected && "border-amber-400/80 opacity-100 grayscale-0"
@@ -503,7 +508,7 @@ export default function AgentChatColumn({
   agent,
   records,
   inboxMessages,
-  isWaiting,
+  status,
   isActive,
   onActivate,
   partyView = null,
@@ -530,7 +535,11 @@ export default function AgentChatColumn({
       : inboxMessages;
   const activeLabel =
     viewingComrade && partyView ? COMRADE_CONFIG[partyView].label : label;
-  const activeIsWaiting = viewingComrade ? false : isWaiting;
+  const activeIsProcessing = viewingComrade
+    ? busyMap?.[partyView as ComradeId] !== "idle" &&
+      busyMap?.[partyView as ComradeId] !== "offline" &&
+      !!busyMap?.[partyView as ComradeId]
+    : status !== "idle" && status !== "offline" && !!status;
 
   const timeline = mergeTimeline(
     activeRecords,
@@ -572,7 +581,7 @@ export default function AgentChatColumn({
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [timeline.length, activeIsWaiting]);
+  }, [timeline.length, activeIsProcessing]);
 
   const totalCount = activeRecords.length + activeInboxMessages.length;
 
@@ -609,7 +618,7 @@ export default function AgentChatColumn({
             type="button"
           >
             <div className="relative shrink-0">
-              {isWaiting && (
+              {activeIsProcessing && (
                 <span className="absolute inset-0 animate-ping rounded-full bg-amber-400/30" />
               )}
               {imgError ? (
@@ -617,7 +626,7 @@ export default function AgentChatColumn({
                   className={cn(
                     "h-4 w-4",
                     viewingComrade ? "text-muted-foreground" : "text-primary",
-                    isWaiting && "animate-bounce text-amber-400"
+                    activeIsProcessing && "animate-bounce text-amber-400"
                   )}
                 />
               ) : (
@@ -625,7 +634,7 @@ export default function AgentChatColumn({
                   alt={label}
                   className={cn(
                     "h-6 w-auto object-contain transition-all duration-300",
-                    isWaiting &&
+                    activeIsProcessing &&
                       "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
                   )}
                   onError={() => setImgError(true)}
@@ -644,7 +653,6 @@ export default function AgentChatColumn({
             {COMRADES.map((comrade) => (
               <ComradeTab
                 _comrade={comrade}
-                busy={busyMap?.[comrade] ?? false}
                 cfg={COMRADE_CONFIG[comrade]}
                 isSelected={partyView === comrade}
                 key={comrade}
@@ -652,6 +660,7 @@ export default function AgentChatColumn({
                   onActivate();
                   onPartyViewChange?.(comrade);
                 }}
+                status={busyMap?.[comrade]}
               />
             ))}
           </div>
@@ -673,7 +682,7 @@ export default function AgentChatColumn({
           type="button"
         >
           <div className="relative shrink-0">
-            {isWaiting && (
+            {activeIsProcessing && (
               <span className="absolute inset-0 animate-ping rounded-full bg-amber-400/30" />
             )}
             {imgError ? (
@@ -681,7 +690,7 @@ export default function AgentChatColumn({
                 className={cn(
                   "h-4 w-4",
                   isActive ? "text-primary" : "text-muted-foreground",
-                  isWaiting && "animate-bounce text-amber-400"
+                  activeIsProcessing && "animate-bounce text-amber-400"
                 )}
               />
             ) : (
@@ -689,7 +698,7 @@ export default function AgentChatColumn({
                 alt={label}
                 className={cn(
                   "h-7 w-auto object-contain transition-all duration-300",
-                  isWaiting &&
+                  activeIsProcessing &&
                     "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
                 )}
                 onError={() => setImgError(true)}
@@ -720,7 +729,7 @@ export default function AgentChatColumn({
         onScroll={handleScroll}
         ref={scrollRef}
       >
-        {timeline.length === 0 && !activeIsWaiting ? (
+        {timeline.length === 0 && !activeIsProcessing ? (
           <div className="flex h-full items-center justify-center text-muted-foreground/60 text-sm">
             No messages yet
           </div>
@@ -745,7 +754,7 @@ export default function AgentChatColumn({
               )
             )}
             {/* Typing indicator */}
-            {activeIsWaiting && <TypingIndicator agentLabel={activeLabel} />}
+            {activeIsProcessing && <TypingIndicator agentLabel={activeLabel} />}
           </>
         )}
       </div>

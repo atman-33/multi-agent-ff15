@@ -116,25 +116,26 @@ export default function UnifiedChatRoute() {
     [getInboxMessages]
   );
 
-  // Unified busy state for Comrades: same logic as isWaitingMap (Noctis/Lunafreya).
-  // busy = last inbox-log message to agent > last agent-chat-monitor answer from agent.
-  const busyMap = useMemo(() => {
-    const result = {} as Record<ComradeId, boolean>;
-    for (const c of COMRADES) {
-      const records = comradeRecords[c];
-      const msgs = comradeInboxMessages[c];
-      const lastRecord = records.at(-1);
-      const agentLastAt = lastRecord ? new Date(lastRecord.ts).getTime() : null;
-      const lastInboxMsg = msgs.at(-1);
-      const lastInboxAt = lastInboxMsg
-        ? new Date(lastInboxMsg.ts).getTime()
-        : null;
-      result[c] =
-        lastInboxAt !== null &&
-        (agentLastAt === null || lastInboxAt > agentLastAt);
+  const [statuses, setStatuses] = useState<Record<string, string>>({});
+
+  const fetchStatuses = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agent-statuses");
+      if (res.ok) {
+        const data = await res.json();
+        setStatuses(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch agent statuses:", e);
     }
-    return result;
-  }, [comradeRecords, comradeInboxMessages]);
+  }, []);
+
+  // Polling for statuses
+  useEffect(() => {
+    fetchStatuses();
+    const interval = setInterval(fetchStatuses, 2000);
+    return () => clearInterval(interval);
+  }, [fetchStatuses]);
 
   // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
   // until inbox-log.jsonl catches up with the Crystal message.
@@ -145,42 +146,19 @@ export default function UnifiedChatRoute() {
     lunafreya: null,
   });
 
-  // Derive isWaiting: Crystal's most recent message is newer than Agent's last response.
-  // Page-transition-safe because the source of truth is log data, not ephemeral local state.
-  const isWaitingMap = useMemo(() => {
-    const result: Record<MainAgentId, boolean> = {
-      noctis: false,
-      lunafreya: false,
-    };
+  // Derive status with optimistic override:
+  // After sending a message, force the status to "busy" until the next poll.
+  const effectiveStatuses = useMemo(() => {
+    const result = { ...statuses };
     for (const agent of AGENTS) {
-      const records = recordsMap[agent];
-      const msgs = getInboxMessages(agent);
-
-      const lastRecord = records.at(-1);
-      const agentLastAt = lastRecord ? new Date(lastRecord.ts).getTime() : null;
-
-      // All incoming messages (Crystal or other agents) trigger busy state
-      const lastInboxMsg = msgs.at(-1);
-      const lastInboxAt = lastInboxMsg
-        ? new Date(lastInboxMsg.ts).getTime()
-        : null;
-
-      // Merge log-derived timestamp with optimistic value (whichever is later)
-      let optimistic = optimisticSentAt[agent];
-      if (optimistic !== null && Date.now() - optimistic > 10_000) {
-        optimistic = null; // Expire optimistic state after 10s to prevent stuck busy indicators
+      const opt = optimisticSentAt[agent];
+      if (opt && Date.now() - opt < 8000 && result[agent] !== "busy") {
+        // Force busy for 8s or until next real busy poll
+        result[agent] = "busy";
       }
-      const effectiveSentAt =
-        lastInboxAt !== null || optimistic !== null
-          ? Math.max(lastInboxAt ?? 0, optimistic ?? 0)
-          : null;
-
-      result[agent] =
-        effectiveSentAt !== null &&
-        (agentLastAt === null || effectiveSentAt > agentLastAt);
     }
     return result;
-  }, [recordsMap, getInboxMessages, optimisticSentAt]);
+  }, [statuses, optimisticSentAt]);
 
   // Optimistic messages sent by Crystal but not yet confirmed by the polling log.
   // Record<AgentId, InboxLogRecord[]>
@@ -288,18 +266,18 @@ export default function UnifiedChatRoute() {
             inboxMessages={getInboxMessages(agent)}
             isActive={activeAgent === agent}
             isTauri={isTauri}
-            isWaiting={isWaitingMap[agent]}
             key={agent}
             modelOptions={modelOptions}
             onActivate={() => setActiveAgent(agent)}
             optimisticMessages={optimisticMessages[agent]}
             records={recordsMap[agent]}
+            status={effectiveStatuses[agent]}
             {...(agent === "noctis" && {
               partyView: noctisPartyView,
               onPartyViewChange: setNoctisPartyView,
               partyRecords: comradeRecords,
               partyInboxMessages: comradeInboxMessages,
-              busyMap,
+              busyMap: effectiveStatuses as any,
             })}
           />
         ))}
