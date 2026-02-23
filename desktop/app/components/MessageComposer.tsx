@@ -131,7 +131,7 @@ export default function MessageComposer({ activeAgent, isTauri, onSent }: Messag
         );
         return;
       }
-      if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         if (showSlashSuggestions) {
           const selected = filteredSlashSuggestions[selectedSuggestionIndex];
           if (selected) {
