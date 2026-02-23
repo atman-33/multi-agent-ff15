@@ -65,6 +65,7 @@ openspec/
 .github/*
 !.github/workflows
 .opencode/command/*
+!.opencode/command/create-feature-branch.md
 .opencode/skills/*
 !.opencode/skills/skill-creator
 !.opencode/skills/send-message

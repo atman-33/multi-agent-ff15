@@ -13,7 +13,7 @@ interface ChatLogRecord {
   kind: string;
   content: string;
   session_id: string;
-  meta: { pane: string; event: string };
+  meta: { pane: string; event: string; };
 }
 
 /**
@@ -40,8 +40,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .filter((l) => l.trim() !== "");
     const totalLines = lines.length;
 
+    const isTruncated = cursor !== null && cursor > totalLines;
     const start =
-      cursor !== null
+      cursor !== null && !isTruncated
         ? cursor
         : totalLines > limit
           ? totalLines - limit
@@ -63,6 +64,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       records,
       next_cursor: start + slice.length,
       total_lines: totalLines,
+      reset: isTruncated,
     });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });

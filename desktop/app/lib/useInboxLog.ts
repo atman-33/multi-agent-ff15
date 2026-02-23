@@ -19,6 +19,7 @@ interface InboxLogPage {
   records: InboxLogRecord[];
   next_cursor: number;
   total_lines: number;
+  reset?: boolean;
 }
 
 const POLL_INTERVAL_MS = 3_000;
@@ -65,9 +66,11 @@ export function useInboxLog() {
 
         cursorRef.current = page.next_cursor;
 
-        if (page.records.length === 0) return;
+        const isReset = (page as any).reset === true;
 
-        if (isInitial) {
+        if (page.records.length === 0 && !isReset) return;
+
+        if (isInitial || isReset) {
           setAllRecords(page.records);
         } else {
           setAllRecords((prev) => {
