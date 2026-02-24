@@ -320,6 +320,7 @@ function ModelSwitchBar({
     [modelOptions]
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
   useEffect(() => {
     let cancelled = false;
     const fetchModel = async () => {
@@ -358,6 +359,7 @@ function ModelSwitchBar({
     return () => {
       cancelled = true;
     };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
   }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger]);
 
   // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
@@ -700,10 +702,9 @@ function AgentChatColumn({
     >
       {/* Column header */}
       {agent === "noctis" ? (
-        /* Party tab bar: Noctis + Comrades */
         <div
           className={cn(
-            "flex select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
+            "flex min-h-[52px] select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
             theme.headerBorder,
             theme.headerBg
           )}
@@ -776,7 +777,7 @@ function AgentChatColumn({
         /* Standard header (Lunafreya) */
         <div
           className={cn(
-            "flex select-none items-center gap-2 rounded-t-lg border-b px-3 py-2",
+            "flex min-h-[52px] select-none items-center gap-2 rounded-t-lg border-b px-3 py-2",
             theme.headerBorder,
             theme.headerBg
           )}
@@ -797,7 +798,7 @@ function AgentChatColumn({
               <img
                 alt={label}
                 className={cn(
-                  "h-7 w-auto object-contain transition-all duration-300",
+                  "h-6 w-auto object-contain transition-all duration-300",
                   activeIsProcessing &&
                     "animate-bounce drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]"
                 )}
@@ -806,7 +807,7 @@ function AgentChatColumn({
               />
             )}
           </div>
-          <span className={cn("font-medium text-sm", theme.text)}>{label}</span>
+          <span className={cn("font-medium text-xs", theme.text)}>{label}</span>
           <span className="ml-auto text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>
@@ -865,7 +866,7 @@ function AgentChatColumn({
 
       <div
         className={cn(
-          "flex justify-center border-t border-border/20 py-1",
+          "flex justify-center border-border/20 border-t py-1",
           theme.separator
         )}
       >
