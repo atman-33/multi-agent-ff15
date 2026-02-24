@@ -7,6 +7,7 @@ model_definitions:
   github-copilot/claude-opus-4.6: "Claude Opus 4.6"
   github-copilot/claude-haiku-4.5: "Claude Haiku 4.5"
   opencode/minimax-m2.5-free: "MiniMax M2.5 Free"
+  opencode/trinity-large-preview-free: "Trinity Large Preview"
 
 # Model configuration by mode
 # Each agent has: model (OpenCode model ID), agent (optional, for future use)

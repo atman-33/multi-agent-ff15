@@ -12,7 +12,7 @@
 [![Shell](https://img.shields.io/badge/Shell%2FBash-Core-green)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-Plugins-blue)]()
 
-[English](README.md) | [日本語](README_ja.md)
+[English](README.md) | [日本語](https://zdoc.app/ja/atman-33/multi-agent-ff15)
 
 </div>
 
