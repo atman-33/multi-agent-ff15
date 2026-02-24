@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/agent-chat-column";
 import MessageComposer from "@/components/message-composer";
 import StatusBar from "@/components/status-bar";
+import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
 import { type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
 import { COMRADES, type ComradeId } from "@/lib/use-comrade-status";
 import { type InboxLogRecord, useInboxLog } from "@/lib/use-inbox-log";
@@ -124,6 +125,7 @@ export default function UnifiedChatRoute() {
   );
 
   const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [contextUsage, setContextUsage] = useState<Record<string, number | null>>({});
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -137,12 +139,28 @@ export default function UnifiedChatRoute() {
     }
   }, []);
 
-  // Polling for statuses
+  const fetchContextUsage = useCallback(async () => {
+    try {
+      const res = await fetch("/api/context-usage");
+      if (res.ok) {
+        const data = await res.json();
+        setContextUsage(data);
+      }
+    } catch (_e) {
+      setContextUsage({});
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatuses();
-    const interval = setInterval(fetchStatuses, 2000);
-    return () => clearInterval(interval);
-  }, [fetchStatuses]);
+    fetchContextUsage();
+    const statusInterval = setInterval(fetchStatuses, 2000);
+    const contextInterval = setInterval(fetchContextUsage, 3000);
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(contextInterval);
+    };
+  }, [fetchStatuses, fetchContextUsage]);
 
   // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
   // until inbox-log.jsonl catches up with the Crystal message.
@@ -239,7 +257,11 @@ export default function UnifiedChatRoute() {
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       {/* Status bar */}
-      <StatusBar lastUpdated={lastUpdated} onRefresh={handleRefresh} />
+      <StatusBar
+        contextUsage={contextUsage}
+        lastUpdated={lastUpdated}
+        onRefresh={handleRefresh}
+      />
 
       {/* Error banner */}
       {error && (
@@ -253,6 +275,7 @@ export default function UnifiedChatRoute() {
         {AGENTS.map((agent) => (
           <AgentChatColumn
             agent={agent}
+            contextPercent={contextUsage[agent] ?? null}
             inboxMessages={getInboxMessages(agent)}
             isActive={activeAgent === agent}
             isTauri={isTauri}

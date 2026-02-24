@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 interface AgentChatColumnProps {
   agent: "noctis" | "lunafreya";
   busyMap?: Record<ComradeId, string>;
+  contextPercent?: number | null;
   inboxMessages: InboxLogRecord[];
   isActive: boolean;
   isTauri?: boolean;
@@ -216,14 +217,48 @@ function TypingIndicator({ agentLabel }: { agentLabel: string }) {
   );
 }
 
+function ContextBadge({ value }: { value: number | null }) {
+  const display = value === null ? "-" : `${value}`;
+  const colorClass =
+    value === null
+      ? "text-muted-foreground/50 border-border/30 bg-white/5"
+      : value >= 80
+        ? "text-red-400 border-red-500/30 bg-red-500/10"
+        : value >= 50
+          ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
+          : "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
+
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] leading-none tabular-nums",
+              colorClass
+            )}
+          >
+            {display}%
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="px-2 py-1 text-[11px]" side="bottom">
+          Context usage
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function ModelSwitchBar({
   targetAgent,
   modelOptions,
   isTauri,
+  contextPercent,
 }: {
   targetAgent: ModelSwitchAgent;
   modelOptions: string[];
   isTauri: boolean;
+  contextPercent?: number | null;
 }) {
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
@@ -441,6 +476,8 @@ function ModelSwitchBar({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+
+      <ContextBadge value={contextPercent ?? null} />
     </div>
   );
 }
@@ -523,6 +560,7 @@ export default function AgentChatColumn({
   modelOptions = [],
   isTauri = false,
   optimisticMessages = [],
+  contextPercent,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -718,6 +756,7 @@ export default function AgentChatColumn({
       )}
 
       <ModelSwitchBar
+        contextPercent={contextPercent}
         isTauri={isTauri}
         modelOptions={modelOptions}
         targetAgent={switchTargetAgent}
