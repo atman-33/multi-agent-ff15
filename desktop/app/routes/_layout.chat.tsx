@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/agent-chat-column";
 import MessageComposer from "@/components/message-composer";
 import StatusBar from "@/components/status-bar";
-import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
 import { type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
 import { COMRADES, type ComradeId } from "@/lib/use-comrade-status";
 import { type InboxLogRecord, useInboxLog } from "@/lib/use-inbox-log";
@@ -272,28 +271,32 @@ export default function UnifiedChatRoute() {
 
       {/* 2-column chat area */}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
-        {AGENTS.map((agent) => (
-          <AgentChatColumn
-            agent={agent}
-            contextPercent={contextUsage[agent] ?? null}
-            inboxMessages={getInboxMessages(agent)}
-            isActive={activeAgent === agent}
-            isTauri={isTauri}
-            key={agent}
-            modelOptions={modelOptions}
-            onActivate={() => setActiveAgent(agent)}
-            optimisticMessages={optimisticMessages[agent]}
-            records={recordsMap[agent]}
-            status={effectiveStatuses[agent]}
-            {...(agent === "noctis" && {
-              partyView: noctisPartyView,
-              onPartyViewChange: setNoctisPartyView,
-              partyRecords: comradeRecords,
-              partyInboxMessages: comradeInboxMessages,
-              busyMap: effectiveStatuses as any,
-            })}
-          />
-        ))}
+        {AGENTS.map((agent) => {
+          const effectiveContextAgent =
+            agent === "noctis" && noctisPartyView ? noctisPartyView : agent;
+          return (
+            <AgentChatColumn
+              agent={agent}
+              contextPercent={contextUsage[effectiveContextAgent] ?? null}
+              inboxMessages={getInboxMessages(agent)}
+              isActive={activeAgent === agent}
+              isTauri={isTauri}
+              key={agent}
+              modelOptions={modelOptions}
+              onActivate={() => setActiveAgent(agent)}
+              optimisticMessages={optimisticMessages[agent]}
+              records={recordsMap[agent]}
+              status={effectiveStatuses[agent]}
+              {...(agent === "noctis" && {
+                partyView: noctisPartyView,
+                onPartyViewChange: setNoctisPartyView,
+                partyRecords: comradeRecords,
+                partyInboxMessages: comradeInboxMessages,
+                busyMap: effectiveStatuses as any,
+              })}
+            />
+          );
+        })}
       </div>
 
       {/* Message composer */}

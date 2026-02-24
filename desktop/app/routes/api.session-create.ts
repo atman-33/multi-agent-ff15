@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import { join } from "node:path";
 import {
   ALLOWED_AGENTS,
-  type ModelSwitchAgent,
   AGENT_PANE_INDEX as PANE_INDEX,
+  type ModelSwitchAgent,
 } from "@/lib/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
@@ -60,6 +62,35 @@ export async function action({ request }: { request: Request }) {
 
     // fallback delay for the session list UI animation to complete before it starts loading
     await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Append a status record to the chat log so the UI shows "New session started."
+    try {
+      const logPath = join(root, "runtime/logs/agent-chat-monitor.jsonl");
+      const pane = PANE_INDEX[agent as ModelSwitchAgent];
+
+      const newSessionRecord = {
+        agent,
+        content: "New session started.",
+        id: `new-session-${Date.now()}`,
+        kind: "status",
+        meta: {
+          pane: pane !== undefined ? String(pane) : "0",
+          event: "new_session",
+        },
+        session_id: res.data?.id ?? sessionId,
+        source: "system",
+        ts: new Date().toISOString(),
+      };
+
+      fs.appendFileSync(
+        logPath,
+        `${JSON.stringify(newSessionRecord)}\n`,
+        "utf-8"
+      );
+      console.log(`[NewSession] Appended new session status record for ${agent}`);
+    } catch (logError) {
+      console.error("[NewSession] Failed to append new session status record:", logError);
+    }
 
     return Response.json({ ok: true, session: res.data });
   } catch (e) {
