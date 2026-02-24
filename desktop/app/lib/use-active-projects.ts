@@ -46,11 +46,17 @@ export function useActiveProjects() {
 
   useEffect(() => {
     fetchData();
+
+    const intervalId = setInterval(fetchData, 5000);
+
     const handler = () => {
       fetchData();
     };
     window.addEventListener("active-projects-changed", handler);
-    return () => window.removeEventListener("active-projects-changed", handler);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("active-projects-changed", handler);
+    };
   }, [fetchData]);
 
   return { data, loading, error, refresh: fetchData };
