@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [0.4.0] - 2026-02-24
+
+### Added
+- **Desktop app** - New Tauri-based desktop application with full multi-agent monitoring UI
+- **Agent monitor page** - Real-time tmux pane output display via Tauri command and API endpoint
+- **Context usage tracking** - Display agent model and context usage in Noctis column
+- **Session abort functionality** - Abort active sessions and append abort status to chat log
+- **OpenCode SDK v2 integration** - Session creation via OpenCode SDK with new API endpoints and UI button
+- **`@` file/folder suggestions** - At-mention suggestions in the message composer for file and folder paths
+- **Reports page** - Dedicated UI page for listing and fetching supplementary reports with API endpoints
+- **Project management UI** - Project registration and management interface
+- **Agent mode switching UI** - UI and API routes for switching agent modes; models centralized in `models.yaml`
+- **Clear All Sessions** - Functionality to clear all sessions with confirmation dialog and API endpoint
+- **Tab key submission** - Tab key triggers message submission or suggestion selection in the message composer
+- **Persistent message composer** - Draft, active agent, and Noctis party view persisted to local storage
+- **`/` slash suggestions with insertText** - Descriptive insertion text for slash commands and skill suggestions
+- **New session status record** - Append new session status to chat log
+- **Agent report reminder plugin** - Plugin to prompt agents for missing task reports
+- **Log truncation detection** - Unified refresh for chat and inbox logs when truncation is detected
+- **`create-feature-branch` command** - New slash command for creating feature branches
+- **Model configuration page** - Oh-my-opencode model configuration page with API endpoints
+- **Hover card for active projects** - Display detailed project information on hover in AppHeader
+- **Git branch display** - Show current Git branch name for active projects in the header
+- **Iris agent** - Centralized agent definitions with Iris (Guardian) as a recognized agent
+- **Optimistic UI for Crystal messages** - Unique message IDs for optimistic update tracking
+- **`dotenv` support** - Load environment variables from `.env` file
+- **Biome linter** - Added Biome for code style and lint enforcement
+- **`clean` mode for standby script** - Restart web server cleanly with `--clean` flag
+
+### Changed
+- **Agent status polling** - Replaced boolean busy/waiting states with polled agent status strings and optimistic updates
+- **Model switch UX** - Moved model switch to chat column header; direct dropdown switching with optimistic updates
+- **File-system based routing** - Migrated to `@react-router/fs-routes` replacing manual route definitions
+- **Async data loading** - Oh-my-opencode status and models use React Router's `defer`, `Await`, and `Suspense`
+- **Model switch script** - Relocated to `scripts/switch-model.sh`; model keywords updated in `config/model_switch_keywords.yaml`
+- **Supplementary reports directory** - Renamed from `docs/private/` to `docs/reports/` across all references
+- **Command suggestions formatting** - Updated formatting in API response
+
+### Fixed
+- **ModelSwitchBar target agent** - Remount when party view changes to reset target agent correctly
+- **Noctis processing state** - Corrected update logic for Noctis agent processing state
+- **Memory leak** - Clear polling interval on component unmount
+- **Model and context display** - Show active party member's model and context usage correctly
+- **Slash/at trigger regexes** - Added capturing groups to prevent match failures
+- **React performance** - Reduced chat input lag via `React.memo` and polling hook extraction; optimized components with memoization
+
 ## [0.3.0] - 2026-02-21
 
 ### Added
@@ -69,4 +116,5 @@ Initial release.
 [0.2.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atman-33/multi-agent-ff15/releases/tag/v0.1.0
 
+[0.4.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.2.0...v0.3.0

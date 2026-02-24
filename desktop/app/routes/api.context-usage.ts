@@ -1,9 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { AGENT_PANE_INDEX, ALL_MODEL_SWITCH_AGENTS } from "@/lib/agents";
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences require control characters
-const ANSI_REGEX =
-  /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+const ESC = "\x1b";
+const CSI = "\x9b";
+const ANSI_REGEX = new RegExp(
+  `[${ESC}${CSI}][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]`,
+  "g"
+);
 
 const CONTEXT_LINE_REGEX = /\d+%.*\(\$/;
 const PERCENT_REGEX = /(\d+)%/;
