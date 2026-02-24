@@ -5,7 +5,14 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 
-const ALLOWED_TARGETS = ["noctis", "lunafreya"];
+const ALLOWED_TARGETS = [
+  "noctis",
+  "lunafreya",
+  "ignis",
+  "gladiolus",
+  "prompto",
+  "iris",
+];
 const ALLOWED_SENDERS = [
   "crystal",
   "user",

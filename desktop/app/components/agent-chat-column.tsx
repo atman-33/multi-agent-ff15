@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import MessageCard from "@/components/message-card";
+import MessageComposer from "@/components/message-composer";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
 import { useAgentActivity } from "@/lib/use-agent-activity";
-import type { ChatLogRecord } from "@/lib/use-agent-chat-log";
+import type { AgentId, ChatLogRecord } from "@/lib/use-agent-chat-log";
 import {
   COMRADE_CONFIG,
   COMRADES,
@@ -41,6 +42,7 @@ interface AgentChatColumnProps {
   modeSwitchTrigger?: number;
   onActivate: () => void;
   onPartyViewChange?: (view: ComradeId | null) => void;
+  onSent?: (agent: AgentId, content: string, id?: string) => void;
   optimisticMessages?: InboxLogRecord[];
   partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
   partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
@@ -599,6 +601,7 @@ function AgentChatColumn({
   isTauri = false,
   optimisticMessages = [],
   contextPercent,
+  onSent,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -856,6 +859,13 @@ function AgentChatColumn({
           </>
         )}
       </div>
+
+      <MessageComposer
+        compact
+        isTauri={isTauri}
+        onSent={onSent}
+        targetAgent={viewingComrade && partyView ? partyView : agent}
+      />
     </div>
   );
 }

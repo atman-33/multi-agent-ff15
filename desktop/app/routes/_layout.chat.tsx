@@ -1,9 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/agent-chat-column";
-import MessageComposer from "@/components/message-composer";
 import StatusBar from "@/components/status-bar";
-import { type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
+import { type AgentId, type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
 import { useAgentStatuses } from "@/lib/use-agent-statuses";
 import { COMRADES, type ComradeId } from "@/lib/use-comrade-status";
 import { useContextUsage } from "@/lib/use-context-usage";
@@ -191,9 +190,8 @@ export default function UnifiedChatRoute() {
   }, [getInboxMessages]);
 
   const handleCrystalSent = useCallback(
-    async (agent: MainAgentId, content: string, id?: string) => {
-      // Create optimistic record if we have an ID
-      if (id) {
+    async (agent: AgentId, content: string, id?: string) => {
+      if (id && (agent === "noctis" || agent === "lunafreya")) {
         const optRecord: InboxLogRecord = {
           id,
           ts: new Date().toISOString(),
@@ -208,8 +206,9 @@ export default function UnifiedChatRoute() {
         }));
       }
 
-      // Optimistic update: show typing indicator immediately before log catches up
-      setOptimisticSentAt((prev) => ({ ...prev, [agent]: Date.now() }));
+      if (agent === "noctis" || agent === "lunafreya") {
+        setOptimisticSentAt((prev) => ({ ...prev, [agent]: Date.now() }));
+      }
       await handleRefresh();
     },
     [handleRefresh]
@@ -265,6 +264,7 @@ export default function UnifiedChatRoute() {
               modelOptions={modelOptions}
               modeSwitchTrigger={modeSwitchTrigger}
               onActivate={() => setActiveAgent(agent)}
+              onSent={handleCrystalSent}
               optimisticMessages={optimisticMessages[agent]}
               records={recordsMap[agent]}
               status={effectiveStatuses[agent]}
@@ -279,13 +279,6 @@ export default function UnifiedChatRoute() {
           );
         })}
       </div>
-
-      {/* Message composer */}
-      <MessageComposer
-        activeAgent={activeAgent}
-        isTauri={isTauri}
-        onSent={handleCrystalSent}
-      />
     </div>
   );
 }
