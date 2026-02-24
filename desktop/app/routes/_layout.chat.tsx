@@ -128,6 +128,19 @@ export default function UnifiedChatRoute() {
   const statuses = useAgentStatuses();
   const contextUsage = useContextUsage();
 
+  // Trigger to refresh model display when mode is switched
+  const [modeSwitchTrigger, setModeSwitchTrigger] = useState(0);
+
+  // Listen for mode switch events and trigger model refresh
+  useEffect(() => {
+    const handleModeSwitch = () => {
+      setModeSwitchTrigger((prev) => prev + 1);
+    };
+
+    window.addEventListener("mode-switched", handleModeSwitch);
+    return () => window.removeEventListener("mode-switched", handleModeSwitch);
+  }, []);
+
   // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
   // until inbox-log.jsonl catches up with the Crystal message.
   const [optimisticSentAt, setOptimisticSentAt] = useState<
@@ -250,6 +263,7 @@ export default function UnifiedChatRoute() {
               isTauri={isTauri}
               key={agent}
               modelOptions={modelOptions}
+              modeSwitchTrigger={modeSwitchTrigger}
               onActivate={() => setActiveAgent(agent)}
               optimisticMessages={optimisticMessages[agent]}
               records={recordsMap[agent]}

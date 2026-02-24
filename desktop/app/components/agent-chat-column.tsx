@@ -38,6 +38,7 @@ interface AgentChatColumnProps {
   isActive: boolean;
   isTauri?: boolean;
   modelOptions?: string[];
+  modeSwitchTrigger?: number;
   onActivate: () => void;
   onPartyViewChange?: (view: ComradeId | null) => void;
   optimisticMessages?: InboxLogRecord[];
@@ -272,11 +273,13 @@ function ModelSwitchBar({
   modelOptions,
   isTauri,
   contextPercent,
+  modeSwitchTrigger,
 }: {
   targetAgent: ModelSwitchAgent;
   modelOptions: string[];
   isTauri: boolean;
   contextPercent?: number | null;
+  modeSwitchTrigger?: number;
 }) {
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
@@ -325,7 +328,7 @@ function ModelSwitchBar({
     return () => {
       cancelled = true;
     };
-  }, [targetAgent, modelOptions, isTauri]);
+  }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger]);
 
   // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
   useEffect(() => {
@@ -578,6 +581,7 @@ function AgentChatColumn({
   partyInboxMessages,
   busyMap,
   modelOptions = [],
+  modeSwitchTrigger,
   isTauri = false,
   optimisticMessages = [],
   contextPercent,
@@ -790,6 +794,7 @@ function AgentChatColumn({
         isTauri={isTauri}
         key={switchTargetAgent}
         modelOptions={modelOptions}
+        modeSwitchTrigger={modeSwitchTrigger}
         targetAgent={switchTargetAgent}
       />
 
