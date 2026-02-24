@@ -1,6 +1,5 @@
 import { RefreshCw, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 import ModeSwitcher from "./mode-switcher";
 
@@ -94,11 +94,14 @@ function ContextMeter({
             <span className="font-mono text-[9px] leading-none">{label}</span>
             <div className="h-1 w-8 overflow-hidden rounded-full bg-white/10">
               <div
-                className={cn("h-full rounded-full transition-all duration-500", barColor)}
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  barColor
+                )}
                 style={{ width: `${barWidth}%` }}
               />
             </div>
-            <span className="font-mono text-[9px] leading-none tabular-nums">
+            <span className="font-mono text-[9px] tabular-nums leading-none">
               {value === null ? "-" : `${value}%`}
             </span>
           </div>
