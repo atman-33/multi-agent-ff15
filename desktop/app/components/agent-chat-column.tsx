@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
+import { ArrowUp, Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
@@ -36,11 +36,9 @@ interface AgentChatColumnProps {
   busyMap?: Record<ComradeId, string>;
   contextPercent?: number | null;
   inboxMessages: InboxLogRecord[];
-  isActive: boolean;
   isTauri?: boolean;
   modelOptions?: string[];
   modeSwitchTrigger?: number;
-  onActivate: () => void;
   onPartyViewChange?: (view: ComradeId | null) => void;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
   optimisticMessages?: InboxLogRecord[];
@@ -58,12 +56,28 @@ const AGENT_CONFIG = {
     Icon: Crown,
     shortcut: "Ctrl+1",
     imageSrc: "/images/noctis.png",
+    theme: {
+      border: "border-amber-500/40",
+      bg: "bg-amber-500/5",
+      headerBorder: "border-amber-500/30",
+      headerBg: "bg-amber-500/10",
+      text: "text-amber-400",
+      separator: "text-amber-500/30",
+    },
   },
   lunafreya: {
     label: "Lunafreya",
     Icon: Moon,
     shortcut: "Ctrl+2",
     imageSrc: "/images/lunafreya.png",
+    theme: {
+      border: "border-violet-500/40",
+      bg: "bg-violet-500/5",
+      headerBorder: "border-violet-500/30",
+      headerBg: "bg-violet-500/10",
+      text: "text-violet-400",
+      separator: "text-violet-500/30",
+    },
   },
 } as const;
 
@@ -589,8 +603,6 @@ function AgentChatColumn({
   records,
   inboxMessages,
   status,
-  isActive,
-  onActivate,
   partyView = null,
   onPartyViewChange,
   partyRecords,
@@ -603,7 +615,7 @@ function AgentChatColumn({
   contextPercent,
   onSent,
 }: AgentChatColumnProps) {
-  const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
+  const { label, Icon, imageSrc, theme } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [imgError, setImgError] = useState(false);
@@ -682,9 +694,8 @@ function AgentChatColumn({
     <div
       className={cn(
         "flex h-full flex-col overflow-hidden rounded-lg border transition-all duration-150",
-        isActive
-          ? "border-primary/60 bg-primary/5 shadow-sm"
-          : "border-border/40 bg-white/3"
+        theme.border,
+        theme.bg
       )}
     >
       {/* Column header */}
@@ -693,7 +704,8 @@ function AgentChatColumn({
         <div
           className={cn(
             "flex select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
-            isActive ? "border-primary/40 bg-primary/10" : "border-border/30"
+            theme.headerBorder,
+            theme.headerBg
           )}
         >
           {/* Noctis tab */}
@@ -702,10 +714,9 @@ function AgentChatColumn({
               "flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors",
               viewingComrade
                 ? "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                : "bg-primary/20 text-primary"
+                : cn("bg-amber-500/20", theme.text)
             )}
             onClick={() => {
-              onActivate();
               onPartyViewChange?.(null);
             }}
             type="button"
@@ -718,7 +729,7 @@ function AgentChatColumn({
                 <Icon
                   className={cn(
                     "h-4 w-4",
-                    viewingComrade ? "text-muted-foreground" : "text-primary",
+                    viewingComrade ? "text-muted-foreground" : theme.text,
                     noctisIsProcessing && "animate-bounce text-amber-400"
                   )}
                 />
@@ -750,7 +761,6 @@ function AgentChatColumn({
                 isSelected={partyView === comrade}
                 key={comrade}
                 onClick={() => {
-                  onActivate();
                   onPartyViewChange?.(comrade);
                 }}
                 status={busyMap?.[comrade]}
@@ -764,26 +774,23 @@ function AgentChatColumn({
         </div>
       ) : (
         /* Standard header (Lunafreya) */
-        <button
+        <div
           className={cn(
-            "flex cursor-pointer select-none items-center gap-2 rounded-t-lg border-b px-3 py-2 transition-colors",
-            isActive
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border/30 text-muted-foreground hover:bg-white/5 hover:text-foreground"
+            "flex select-none items-center gap-2 rounded-t-lg border-b px-3 py-2",
+            theme.headerBorder,
+            theme.headerBg
           )}
-          onClick={onActivate}
-          type="button"
         >
           <div className="relative shrink-0">
             {activeIsProcessing && (
-              <span className="absolute inset-0 animate-ping rounded-full bg-amber-400/30" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-violet-400/30" />
             )}
             {imgError ? (
               <Icon
                 className={cn(
                   "h-4 w-4",
-                  isActive ? "text-primary" : "text-muted-foreground",
-                  activeIsProcessing && "animate-bounce text-amber-400"
+                  theme.text,
+                  activeIsProcessing && "animate-bounce"
                 )}
               />
             ) : (
@@ -792,18 +799,18 @@ function AgentChatColumn({
                 className={cn(
                   "h-7 w-auto object-contain transition-all duration-300",
                   activeIsProcessing &&
-                    "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+                    "animate-bounce drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]"
                 )}
                 onError={() => setImgError(true)}
                 src={imageSrc}
               />
             )}
           </div>
-          <span className="font-medium text-sm">{label}</span>
+          <span className={cn("font-medium text-sm", theme.text)}>{label}</span>
           <span className="ml-auto text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>
-        </button>
+        </div>
       )}
 
       <ModelSwitchBar
@@ -817,11 +824,7 @@ function AgentChatColumn({
 
       {/* Scrollable message list */}
       <div
-        className="min-h-0 flex-1 cursor-pointer space-y-3 overflow-y-auto px-3 py-3"
-        onClick={onActivate} // dummy for a11y
-        onKeyDown={() => {
-          // Intentional dummy for accessibility
-        }}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3"
         onScroll={handleScroll}
         ref={scrollRef}
       >
@@ -858,6 +861,15 @@ function AgentChatColumn({
             )}
           </>
         )}
+      </div>
+
+      <div
+        className={cn(
+          "flex justify-center border-t border-border/20 py-1",
+          theme.separator
+        )}
+      >
+        <ArrowUp className="h-3 w-3 animate-bounce" />
       </div>
 
       <MessageComposer

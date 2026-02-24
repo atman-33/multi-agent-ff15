@@ -18,19 +18,6 @@ export default function UnifiedChatRoute() {
     isTauri,
     refresh: refreshChat,
   } = useAgentChatLog();
-  const [activeAgent, setActiveAgent] = useState<MainAgentId>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("chat_active_agent");
-      if (saved === "noctis" || saved === "lunafreya") {
-        return saved;
-      }
-    }
-    return "noctis";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("chat_active_agent", activeAgent);
-  }, [activeAgent]);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
 
   useEffect(() => {
@@ -62,7 +49,6 @@ export default function UnifiedChatRoute() {
     };
   }, [isTauri]);
 
-  // Filtered records per agent (memoised to minimise re-renders)
   const noctisRecords = useMemo(
     () => getRecordsForAgent("noctis"),
     [getRecordsForAgent]
@@ -77,7 +63,6 @@ export default function UnifiedChatRoute() {
     [noctisRecords, lunafeyaRecords]
   );
 
-  // Inbox messages (Crystal→agent + agent→agent) from runtime/logs/inbox-log.jsonl
   const { getMessagesForAgent: getInboxMessages, refresh: refreshInbox } =
     useInboxLog();
 
@@ -85,7 +70,6 @@ export default function UnifiedChatRoute() {
     await Promise.all([refreshChat(), refreshInbox()]);
   }, [refreshChat, refreshInbox]);
 
-  // Party view: which comrade (or null = Noctis itself) is shown in the Noctis column
   const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(
     () => {
       if (typeof window !== "undefined") {
@@ -106,7 +90,6 @@ export default function UnifiedChatRoute() {
     }
   }, [noctisPartyView]);
 
-  // Comrade chat records from agent-chat-monitor.jsonl
   const comradeRecords = useMemo(
     () =>
       Object.fromEntries(
@@ -115,7 +98,6 @@ export default function UnifiedChatRoute() {
     [getRecordsForAgent]
   );
 
-  // Comrade inbox messages from inbox-log.jsonl
   const comradeInboxMessages = useMemo(
     () =>
       Object.fromEntries(
@@ -127,10 +109,8 @@ export default function UnifiedChatRoute() {
   const statuses = useAgentStatuses();
   const contextUsage = useContextUsage();
 
-  // Trigger to refresh model display when mode is switched
   const [modeSwitchTrigger, setModeSwitchTrigger] = useState(0);
 
-  // Listen for mode switch events and trigger model refresh
   useEffect(() => {
     const handleModeSwitch = () => {
       setModeSwitchTrigger((prev) => prev + 1);
@@ -140,8 +120,6 @@ export default function UnifiedChatRoute() {
     return () => window.removeEventListener("mode-switched", handleModeSwitch);
   }, []);
 
-  // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
-  // until inbox-log.jsonl catches up with the Crystal message.
   const [optimisticSentAt, setOptimisticSentAt] = useState<
     Record<MainAgentId, number | null>
   >({
@@ -149,22 +127,17 @@ export default function UnifiedChatRoute() {
     lunafreya: null,
   });
 
-  // Derive status with optimistic override:
-  // After sending a message, force the status to "busy" until the next poll.
   const effectiveStatuses = useMemo(() => {
     const result = { ...statuses };
     for (const agent of AGENTS) {
       const opt = optimisticSentAt[agent];
       if (opt && Date.now() - opt < 8000 && result[agent] !== "busy") {
-        // Force busy for 8s or until next real busy poll
         result[agent] = "busy";
       }
     }
     return result;
   }, [statuses, optimisticSentAt]);
 
-  // Optimistic messages sent by Crystal but not yet confirmed by the polling log.
-  // Record<AgentId, InboxLogRecord[]>
   const [optimisticMessages, setOptimisticMessages] = useState<
     Record<MainAgentId, InboxLogRecord[]>
   >({
@@ -172,7 +145,6 @@ export default function UnifiedChatRoute() {
     lunafreya: [],
   });
 
-  // Prune optimistic messages once they appear in the real inbox logs.
   useEffect(() => {
     setOptimisticMessages((prev) => {
       const next = { ...prev };
@@ -214,41 +186,20 @@ export default function UnifiedChatRoute() {
     [handleRefresh]
   );
 
-  // Keyboard shortcuts: Ctrl+1 = Noctis, Ctrl+2 = Lunafreya (task 4.6)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) {
-        return;
-      }
-      if (e.key === "1") {
-        e.preventDefault();
-        setActiveAgent("noctis");
-      } else if (e.key === "2") {
-        e.preventDefault();
-        setActiveAgent("lunafreya");
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
-      {/* Status bar */}
       <StatusBar
         contextUsage={contextUsage}
         lastUpdated={lastUpdated}
         onRefresh={handleRefresh}
       />
 
-      {/* Error banner */}
       {error && (
         <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-red-400 text-xs">
           Error: {error}
         </div>
       )}
 
-      {/* 2-column chat area */}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
         {AGENTS.map((agent) => {
           const effectiveContextAgent =
@@ -258,12 +209,10 @@ export default function UnifiedChatRoute() {
               agent={agent}
               contextPercent={contextUsage[effectiveContextAgent] ?? null}
               inboxMessages={getInboxMessages(agent)}
-              isActive={activeAgent === agent}
               isTauri={isTauri}
               key={agent}
               modelOptions={modelOptions}
               modeSwitchTrigger={modeSwitchTrigger}
-              onActivate={() => setActiveAgent(agent)}
               onSent={handleCrystalSent}
               optimisticMessages={optimisticMessages[agent]}
               records={recordsMap[agent]}
