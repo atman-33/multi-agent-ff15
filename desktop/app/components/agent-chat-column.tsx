@@ -1,11 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
+import {
+  ChevronUp,
+  Crown,
+  MessageSquarePlus,
+  Moon,
+  Square,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import MessageCard from "@/components/message-card";
+import MessageComposer from "@/components/message-composer";
 import {
   Select,
   SelectContent,
@@ -20,7 +27,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
-import type { ChatLogRecord } from "@/lib/use-agent-chat-log";
+import { useAgentActivity } from "@/lib/use-agent-activity";
+import type { AgentId, ChatLogRecord } from "@/lib/use-agent-chat-log";
 import {
   COMRADE_CONFIG,
   COMRADES,
@@ -34,11 +42,11 @@ interface AgentChatColumnProps {
   busyMap?: Record<ComradeId, string>;
   contextPercent?: number | null;
   inboxMessages: InboxLogRecord[];
-  isActive: boolean;
   isTauri?: boolean;
   modelOptions?: string[];
-  onActivate: () => void;
+  modeSwitchTrigger?: number;
   onPartyViewChange?: (view: ComradeId | null) => void;
+  onSent?: (agent: AgentId, content: string, id?: string) => void;
   optimisticMessages?: InboxLogRecord[];
   partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
   partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
@@ -54,12 +62,28 @@ const AGENT_CONFIG = {
     Icon: Crown,
     shortcut: "Ctrl+1",
     imageSrc: "/images/noctis.png",
+    theme: {
+      border: "border-amber-500/40",
+      bg: "bg-amber-500/5",
+      headerBorder: "border-amber-500/30",
+      headerBg: "bg-amber-500/10",
+      text: "text-amber-400",
+      separator: "from-amber-500/0 via-amber-500/50 to-amber-500/0",
+    },
   },
   lunafreya: {
     label: "Lunafreya",
     Icon: Moon,
     shortcut: "Ctrl+2",
     imageSrc: "/images/lunafreya.png",
+    theme: {
+      border: "border-violet-500/40",
+      bg: "bg-violet-500/5",
+      headerBorder: "border-violet-500/30",
+      headerBg: "bg-violet-500/10",
+      text: "text-violet-400",
+      separator: "from-violet-500/0 via-violet-500/50 to-violet-500/0",
+    },
   },
 } as const;
 
@@ -104,8 +128,10 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
       </button>
       <pre
         className={cn(
-          "max-w-full rounded bg-black/20 p-1.5 text-[11px]",
-          wrap ? "whitespace-pre-wrap break-words" : "overflow-x-auto"
+          "min-w-0 max-w-full rounded bg-black/20 p-1.5 text-[11px]",
+          wrap
+            ? "overflow-x-hidden [&_code]:overflow-x-hidden [&_code]:whitespace-pre-wrap [&_code]:break-words"
+            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre"
         )}
       >
         {children}
@@ -200,22 +226,49 @@ const InboxBubble = memo(function InboxBubble({
   );
 });
 
-/** Typing indicator — three bouncing dots. */
-function TypingIndicator({ agentLabel }: { agentLabel: string }) {
+/** Typing indicator — three bouncing dots with scrolling activity log (up to 5 lines). */
+function TypingIndicator({
+  activityLines,
+  agentLabel,
+}: {
+  activityLines?: string[];
+  agentLabel: string;
+}) {
+  const lines = activityLines ?? [];
   return (
     <div className="flex flex-col items-start gap-0.5">
       <span className="text-[10px] text-muted-foreground/50">{agentLabel}</span>
-      <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-border/30 bg-white/5 px-3 py-2.5">
-        {[0, 1, 2].map((i) => (
-          <span
-            className="block h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
-            key={i}
-            style={{
-              animationDelay: `${i * 0.15}s`,
-              animationDuration: "0.9s",
-            }}
-          />
-        ))}
+      <div className="flex flex-col gap-1.5 rounded-2xl rounded-tl-sm border border-border/30 bg-white/5 px-3 py-2.5">
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              className="block h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+              key={i}
+              style={{
+                animationDelay: `${i * 0.15}s`,
+                animationDuration: "0.9s",
+              }}
+            />
+          ))}
+        </div>
+        {lines.length > 0 && (
+          <div className="flex flex-col gap-0.5">
+            {lines.map((line, i) => (
+              <span
+                className={cn(
+                  "max-w-[260px] truncate font-mono text-[10px]",
+                  i === lines.length - 1
+                    ? "text-amber-400/80"
+                    : "text-muted-foreground/35"
+                )}
+                // biome-ignore lint/suspicious/noArrayIndexKey: ordered log lines
+                key={i}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -258,11 +311,13 @@ function ModelSwitchBar({
   modelOptions,
   isTauri,
   contextPercent,
+  modeSwitchTrigger,
 }: {
   targetAgent: ModelSwitchAgent;
   modelOptions: string[];
   isTauri: boolean;
   contextPercent?: number | null;
+  modeSwitchTrigger?: number;
 }) {
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
@@ -273,6 +328,7 @@ function ModelSwitchBar({
     [modelOptions]
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
   useEffect(() => {
     let cancelled = false;
     const fetchModel = async () => {
@@ -311,7 +367,7 @@ function ModelSwitchBar({
     return () => {
       cancelled = true;
     };
-  }, [targetAgent, modelOptions, isTauri]);
+  }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger]);
 
   // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
   useEffect(() => {
@@ -556,19 +612,19 @@ function AgentChatColumn({
   records,
   inboxMessages,
   status,
-  isActive,
-  onActivate,
   partyView = null,
   onPartyViewChange,
   partyRecords,
   partyInboxMessages,
   busyMap,
   modelOptions = [],
+  modeSwitchTrigger,
   isTauri = false,
   optimisticMessages = [],
   contextPercent,
+  onSent,
 }: AgentChatColumnProps) {
-  const { label, Icon, imageSrc } = AGENT_CONFIG[agent];
+  const { label, Icon, imageSrc, theme } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [imgError, setImgError] = useState(false);
@@ -590,6 +646,10 @@ function AgentChatColumn({
     : status !== "idle" && status !== "offline" && !!status;
   const noctisIsProcessing =
     status !== "idle" && status !== "offline" && !!status;
+
+  // Determine which agent to monitor for live activity
+  const activeAgentName = viewingComrade && partyView ? partyView : agent;
+  const activityLines = useAgentActivity(activeAgentName, activeIsProcessing);
 
   const timeline = useMemo(
     () =>
@@ -643,18 +703,17 @@ function AgentChatColumn({
     <div
       className={cn(
         "flex h-full flex-col overflow-hidden rounded-lg border transition-all duration-150",
-        isActive
-          ? "border-primary/60 bg-primary/5 shadow-sm"
-          : "border-border/40 bg-white/3"
+        theme.border,
+        theme.bg
       )}
     >
       {/* Column header */}
       {agent === "noctis" ? (
-        /* Party tab bar: Noctis + Comrades */
         <div
           className={cn(
-            "flex select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
-            isActive ? "border-primary/40 bg-primary/10" : "border-border/30"
+            "flex min-h-[52px] select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
+            theme.headerBorder,
+            theme.headerBg
           )}
         >
           {/* Noctis tab */}
@@ -663,10 +722,9 @@ function AgentChatColumn({
               "flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors",
               viewingComrade
                 ? "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                : "bg-primary/20 text-primary"
+                : cn("bg-amber-500/20", theme.text)
             )}
             onClick={() => {
-              onActivate();
               onPartyViewChange?.(null);
             }}
             type="button"
@@ -679,7 +737,7 @@ function AgentChatColumn({
                 <Icon
                   className={cn(
                     "h-4 w-4",
-                    viewingComrade ? "text-muted-foreground" : "text-primary",
+                    viewingComrade ? "text-muted-foreground" : theme.text,
                     noctisIsProcessing && "animate-bounce text-amber-400"
                   )}
                 />
@@ -711,7 +769,6 @@ function AgentChatColumn({
                 isSelected={partyView === comrade}
                 key={comrade}
                 onClick={() => {
-                  onActivate();
                   onPartyViewChange?.(comrade);
                 }}
                 status={busyMap?.[comrade]}
@@ -725,46 +782,43 @@ function AgentChatColumn({
         </div>
       ) : (
         /* Standard header (Lunafreya) */
-        <button
+        <div
           className={cn(
-            "flex cursor-pointer select-none items-center gap-2 rounded-t-lg border-b px-3 py-2 transition-colors",
-            isActive
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border/30 text-muted-foreground hover:bg-white/5 hover:text-foreground"
+            "flex min-h-[52px] select-none items-center gap-2 rounded-t-lg border-b px-3 py-2",
+            theme.headerBorder,
+            theme.headerBg
           )}
-          onClick={onActivate}
-          type="button"
         >
           <div className="relative shrink-0">
             {activeIsProcessing && (
-              <span className="absolute inset-0 animate-ping rounded-full bg-amber-400/30" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-violet-400/30" />
             )}
             {imgError ? (
               <Icon
                 className={cn(
                   "h-4 w-4",
-                  isActive ? "text-primary" : "text-muted-foreground",
-                  activeIsProcessing && "animate-bounce text-amber-400"
+                  theme.text,
+                  activeIsProcessing && "animate-bounce"
                 )}
               />
             ) : (
               <img
                 alt={label}
                 className={cn(
-                  "h-7 w-auto object-contain transition-all duration-300",
+                  "h-6 w-auto object-contain transition-all duration-300",
                   activeIsProcessing &&
-                    "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+                    "animate-bounce drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]"
                 )}
                 onError={() => setImgError(true)}
                 src={imageSrc}
               />
             )}
           </div>
-          <span className="font-medium text-sm">{label}</span>
+          <span className={cn("font-medium text-xs", theme.text)}>{label}</span>
           <span className="ml-auto text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>
-        </button>
+        </div>
       )}
 
       <ModelSwitchBar
@@ -772,16 +826,13 @@ function AgentChatColumn({
         isTauri={isTauri}
         key={switchTargetAgent}
         modelOptions={modelOptions}
+        modeSwitchTrigger={modeSwitchTrigger}
         targetAgent={switchTargetAgent}
       />
 
       {/* Scrollable message list */}
       <div
-        className="min-h-0 flex-1 cursor-pointer space-y-3 overflow-y-auto px-3 py-3"
-        onClick={onActivate} // dummy for a11y
-        onKeyDown={() => {
-          // Intentional dummy for accessibility
-        }}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3"
         onScroll={handleScroll}
         ref={scrollRef}
       >
@@ -810,10 +861,48 @@ function AgentChatColumn({
               )
             )}
             {/* Typing indicator */}
-            {activeIsProcessing && <TypingIndicator agentLabel={activeLabel} />}
+            {activeIsProcessing && (
+              <TypingIndicator
+                activityLines={activityLines}
+                agentLabel={activeLabel}
+              />
+            )}
           </>
         )}
       </div>
+
+      <div className="flex flex-col items-center gap-0 py-1">
+        <ChevronUp
+          className={cn("h-3 w-3 animate-bounce opacity-20", theme.text)}
+          style={{ animationDelay: "300ms" }}
+        />
+        <ChevronUp
+          className={cn(
+            "-mt-1.5 h-3 w-3 animate-bounce opacity-50",
+            theme.text
+          )}
+          style={{ animationDelay: "150ms" }}
+        />
+        <ChevronUp
+          className={cn("-mt-1.5 h-3 w-3 animate-bounce", theme.text)}
+          style={{ animationDelay: "0ms" }}
+        />
+        <div className="mt-0.5 w-24">
+          <div
+            className={cn(
+              "h-px animate-pulse rounded-full bg-gradient-to-r",
+              theme.separator
+            )}
+          />
+        </div>
+      </div>
+
+      <MessageComposer
+        compact
+        isTauri={isTauri}
+        onSent={onSent}
+        targetAgent={viewingComrade && partyView ? partyView : agent}
+      />
     </div>
   );
 }

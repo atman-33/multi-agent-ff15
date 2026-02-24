@@ -42,8 +42,10 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
       </button>
       <pre
         className={cn(
-          "max-w-full rounded bg-black/20 p-1.5 text-[11px]",
-          wrap ? "whitespace-pre-wrap break-words" : "overflow-x-auto"
+          "min-w-0 max-w-full rounded bg-black/20 p-1.5 text-[11px]",
+          wrap
+            ? "overflow-x-hidden [&_code]:overflow-x-hidden [&_code]:whitespace-pre-wrap [&_code]:break-words"
+            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre"
         )}
       >
         {children}

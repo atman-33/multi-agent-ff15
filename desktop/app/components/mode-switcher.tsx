@@ -63,6 +63,7 @@ export default function ModeSwitcher() {
       }
 
       toast.success(`Successfully switched to ${modeName} mode`);
+      window.dispatchEvent(new CustomEvent("mode-switched"));
     } catch (e) {
       toast.error(`Mode switch failed: ${String(e)}`);
       setActiveMode(prevMode);

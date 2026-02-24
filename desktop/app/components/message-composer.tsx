@@ -1,18 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import {
-  CheckCircle2,
-  Crown,
-  Moon,
-  RotateCcw,
-  Send,
-  XCircle,
-} from "lucide-react";
+import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import type { MainAgentId } from "@/lib/use-agent-chat-log";
+import type { AgentId } from "@/lib/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 4000;
+const MIN_ROWS = 2;
+const MAX_HEIGHT_PX = 160;
 const SLASH_TRIGGER_REGEX = /(?:^|\s)\/(\S*)$/;
 const AT_TRIGGER_REGEX = /(?:^|\s)@(\S*)$/;
 
@@ -32,48 +26,46 @@ interface AtSuggestion {
   value: string;
 }
 
-interface MessageComposerProps {
-  activeAgent: MainAgentId;
+export interface MessageComposerProps {
+  compact?: boolean;
   isTauri: boolean;
-  onSent?: (agent: MainAgentId, content: string, id?: string) => void;
+  onSent?: (agent: AgentId, content: string, id?: string) => void;
+  targetAgent: AgentId;
 }
 
-const AGENT_CONFIG: Record<
-  MainAgentId,
-  { label: string; Icon: React.ElementType; placeholder: string }
-> = {
-  noctis: {
-    label: "Noctis",
-    Icon: Crown,
-    placeholder: "Message to Noctis…",
-  },
-  lunafreya: {
-    label: "Lunafreya",
-    Icon: Moon,
-    placeholder: "Message to Lunafreya…",
-  },
-};
-
 function MessageComposer({
-  activeAgent,
+  targetAgent,
   isTauri,
   onSent,
+  compact = false,
 }: MessageComposerProps) {
+  const storageKey = `chat_draft_${targetAgent}`;
   const [content, setContent] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("chat_draft_content") || "";
+      return localStorage.getItem(storageKey) || "";
     }
     return "";
   });
 
-  // Save draft to local storage on content change
   useEffect(() => {
-    localStorage.setItem("chat_draft_content", content);
-  }, [content]);
+    if (typeof window !== "undefined") {
+      setContent(localStorage.getItem(storageKey) || "");
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, content);
+  }, [content, storageKey]);
+
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
-  const [lastAgent, setLastAgent] = useState<MainAgentId>(activeAgent);
+  const [lastAgent, setLastAgent] = useState<AgentId>(targetAgent);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [arrowState, setArrowState] = useState<"idle" | "flying" | "done">(
+    "idle"
+  );
+
   const [allSlashSuggestions, setAllSlashSuggestions] = useState<
     SlashSuggestion[]
   >([]);
@@ -83,15 +75,26 @@ function MessageComposer({
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const { label, Icon, placeholder } = AGENT_CONFIG[activeAgent];
   const charCount = content.length;
   const isOverLimit = charCount > MAX_MESSAGE_LENGTH;
   const canSend =
     content.trim().length > 0 && !isOverLimit && status !== "sending";
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) {
+      return;
+    }
+    el.style.height = "auto";
+    const scrollH = el.scrollHeight;
+    el.style.height = `${Math.min(scrollH, MAX_HEIGHT_PX)}px`;
+    el.style.overflowY = scrollH > MAX_HEIGHT_PX ? "auto" : "hidden";
+  });
+
   const doSend = useCallback(
-    async (target: MainAgentId, message: string) => {
+    async (target: AgentId, message: string) => {
       setStatus("sending");
+      setArrowState("flying");
       setErrorMsg(null);
       try {
         let messageId: string | undefined;
@@ -115,21 +118,23 @@ function MessageComposer({
         }
         setStatus("sent");
         setContent("");
+        localStorage.removeItem(storageKey);
         onSent?.(target, message.trim(), messageId);
-        // Auto-clear "sent" badge after 2 s
+        setTimeout(() => setArrowState("done"), 300);
+        setTimeout(() => setArrowState("idle"), 1500);
         setTimeout(() => setStatus("idle"), 2000);
       } catch (_e) {
         setStatus("failed");
+        setArrowState("idle");
         setErrorMsg(String(_e));
         setLastContent(message);
         setLastAgent(target);
       }
     },
-    [isTauri, onSent]
+    [isTauri, onSent, storageKey]
   );
 
-  const handleSend = () => doSend(activeAgent, content);
-
+  const handleSend = () => doSend(targetAgent, content);
   const handleRetry = () => doSend(lastAgent, lastContent);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -186,7 +191,6 @@ function MessageComposer({
       }
     }
 
-    // Ctrl+Enter or Cmd+Enter to send
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canSend) {
       e.preventDefault();
       handleSend();
@@ -211,7 +215,6 @@ function MessageComposer({
     if (activeSlashToken === null) {
       return [];
     }
-
     const keyword = activeSlashToken.toLowerCase();
     return allSlashSuggestions.filter(
       (item) =>
@@ -266,10 +269,9 @@ function MessageComposer({
           setAllSlashSuggestions(data.suggestions);
         }
       } catch (_e) {
-        // Non-blocking helper endpoint
+        _e;
       }
     };
-
     loadSlashSuggestions();
     return () => {
       mounted = false;
@@ -298,7 +300,7 @@ function MessageComposer({
           setSelectedSuggestionIndex(0);
         }
       } catch (_e) {
-        // ignore
+        _e;
       }
     }, 200);
 
@@ -315,130 +317,161 @@ function MessageComposer({
   }, [activeSlashToken, filteredSlashSuggestions.length]);
 
   return (
-    <div className="space-y-3 border-border/40 border-t pt-3">
-      <div className="flex items-center gap-2 px-1 text-muted-foreground text-xs">
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span>
-          To: <span className="font-semibold text-foreground">{label}</span>
-        </span>
-
+    <div
+      className={cn(
+        "border-border/30 border-t",
+        compact ? "px-2 pt-2 pb-2" : "px-3 pt-3 pb-3"
+      )}
+    >
+      <div className="mb-1 flex min-h-[16px] items-center gap-2 text-[10px]">
         {status === "sent" && (
-          <span className="ml-auto flex items-center gap-1 text-green-400">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+          <span className="flex items-center gap-1 text-green-400">
+            <CheckCircle2 className="h-3 w-3" />
             Sent
           </span>
         )}
         {status === "failed" && (
-          <span className="ml-auto flex items-center gap-1 text-[11px] text-red-400">
-            <XCircle className="h-3.5 w-3.5 shrink-0" />
-            Send failed: {errorMsg}
+          <>
+            <span className="flex items-center gap-1 text-red-400">
+              <XCircle className="h-3 w-3 shrink-0" />
+              Failed: {errorMsg}
+            </span>
+            <button
+              className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-red-400 hover:bg-red-500/10"
+              onClick={handleRetry}
+              type="button"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Retry
+            </button>
+          </>
+        )}
+        {status === "idle" && isOverLimit && (
+          <span className="text-red-400">
+            {charCount}/{MAX_MESSAGE_LENGTH}
           </span>
         )}
       </div>
 
-      {/* Retry button (task 4.7) */}
-      {status === "failed" && (
-        <Button
-          className="h-7 gap-1 text-red-400 text-xs hover:bg-red-500/10 hover:text-red-300"
-          onClick={handleRetry}
-          size="sm"
-          variant="ghost"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Retry
-        </Button>
-      )}
+      <div className="relative">
+        <textarea
+          className={cn(
+            "w-full resize-none rounded-xl border bg-background/60 py-2 pr-11 pl-3 text-xs leading-relaxed",
+            "focus:outline-none focus:ring-1 focus:ring-ring",
+            "placeholder:text-muted-foreground/40",
+            isOverLimit ? "border-red-500/60" : "border-border/40"
+          )}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Message… (Ctrl+Enter to send)"
+          ref={textareaRef}
+          rows={MIN_ROWS}
+          value={content}
+        />
 
-      {/* Input area */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <textarea
-            className={cn(
-              "w-full resize-none rounded-md border bg-background/60 px-3 py-2 text-sm",
-              "focus:outline-none focus:ring-1 focus:ring-ring",
-              "placeholder:text-muted-foreground/50",
-              isOverLimit ? "border-red-500/60" : "border-border/50"
-            )}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            ref={textareaRef}
-            rows={7}
-            value={content}
-          />
-          {showSlashSuggestions && (
-            <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-40 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
-              {filteredSlashSuggestions.map((item, idx) => (
-                <button
-                  className={cn(
-                    "w-full px-3 py-2 text-left text-xs hover:bg-accent/70",
-                    idx === selectedSuggestionIndex && "bg-accent"
-                  )}
-                  key={`${item.source}-${item.value}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    applySuggestion(item.insertText ?? item.value, "/");
-                  }}
-                  type="button"
-                >
-                  <span className="font-medium text-foreground">
-                    {item.value}
-                  </span>
-                  <span className="ml-2 text-muted-foreground">
-                    ({item.label})
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          {showAtSuggestions && (
-            <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
-              <div className="border-border/40 border-b bg-muted/30 px-2 py-1.5 font-semibold text-[10px] text-muted-foreground">
-                FILES & FOLDERS
-              </div>
-              {allAtSuggestions.map((item, idx) => (
-                <button
-                  className={cn(
-                    "flex w-full flex-col gap-0.5 px-3 py-2 text-left text-xs hover:bg-accent/70",
-                    idx === selectedSuggestionIndex && "bg-accent"
-                  )}
-                  key={`${item.source}-${item.value}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    applySuggestion(item.insertText, "@");
-                  }}
-                  type="button"
-                >
-                  <span className="truncate font-medium text-foreground">
-                    {item.label}
-                  </span>
-                  <span className="truncate text-[10px] text-muted-foreground">
-                    {item.value}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          {/* Character count */}
+        {charCount > 0 && (
           <span
             className={cn(
-              "absolute right-2 bottom-2 text-[10px]",
-              isOverLimit ? "text-red-400" : "text-muted-foreground/40"
+              "pointer-events-none absolute right-11 bottom-2 text-[9px]",
+              isOverLimit ? "text-red-400" : "text-muted-foreground/30"
             )}
           >
             {charCount}/{MAX_MESSAGE_LENGTH}
           </span>
-        </div>
+        )}
 
-        <Button
-          className="h-9 w-9 shrink-0 self-end"
+        <button
+          className={cn(
+            "absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200",
+            canSend
+              ? arrowState === "done"
+                ? "bg-green-500/80 text-white shadow-sm"
+                : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+              : "cursor-not-allowed bg-muted/40 text-muted-foreground/40"
+          )}
           disabled={!canSend}
           onClick={handleSend}
-          size="icon"
-          title={`Send (Ctrl+Enter) → ${label}`}
+          title="Send (Ctrl+Enter)"
+          type="button"
         >
-          <Send className="h-4 w-4" />
-        </Button>
+          {arrowState === "done" ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <div className="relative flex h-3.5 w-3.5 items-center justify-center overflow-hidden">
+              <ArrowUp
+                className={cn(
+                  "absolute h-3.5 w-3.5 transition-all duration-300",
+                  arrowState === "flying"
+                    ? "-translate-y-6 opacity-0"
+                    : "translate-y-0 opacity-100"
+                )}
+              />
+              <ArrowUp
+                className={cn(
+                  "absolute h-3.5 w-3.5 transition-all duration-300",
+                  arrowState === "flying"
+                    ? "-translate-y-3 opacity-100"
+                    : "translate-y-3 opacity-0"
+                )}
+              />
+            </div>
+          )}
+        </button>
+
+        {showSlashSuggestions && (
+          <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-40 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
+            {filteredSlashSuggestions.map((item, idx) => (
+              <button
+                className={cn(
+                  "w-full px-3 py-2 text-left text-xs hover:bg-accent/70",
+                  idx === selectedSuggestionIndex && "bg-accent"
+                )}
+                key={`${item.source}-${item.value}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applySuggestion(item.insertText ?? item.value, "/");
+                }}
+                type="button"
+              >
+                <span className="font-medium text-foreground">
+                  {item.value}
+                </span>
+                <span className="ml-2 text-muted-foreground">
+                  ({item.label})
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showAtSuggestions && (
+          <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
+            <div className="border-border/40 border-b bg-muted/30 px-2 py-1.5 font-semibold text-[10px] text-muted-foreground">
+              FILES & FOLDERS
+            </div>
+            {allAtSuggestions.map((item, idx) => (
+              <button
+                className={cn(
+                  "flex w-full flex-col gap-0.5 px-3 py-2 text-left text-xs hover:bg-accent/70",
+                  idx === selectedSuggestionIndex && "bg-accent"
+                )}
+                key={`${item.source}-${item.value}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applySuggestion(item.insertText, "@");
+                }}
+                type="button"
+              >
+                <span className="truncate font-medium text-foreground">
+                  {item.label}
+                </span>
+                <span className="truncate text-[10px] text-muted-foreground">
+                  {item.value}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
