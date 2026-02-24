@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowUp, Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
+import { ChevronUp, Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
@@ -62,7 +62,7 @@ const AGENT_CONFIG = {
       headerBorder: "border-amber-500/30",
       headerBg: "bg-amber-500/10",
       text: "text-amber-400",
-      separator: "text-amber-500/30",
+      separator: "from-amber-500/0 via-amber-500/50 to-amber-500/0",
     },
   },
   lunafreya: {
@@ -76,7 +76,7 @@ const AGENT_CONFIG = {
       headerBorder: "border-violet-500/30",
       headerBg: "bg-violet-500/10",
       text: "text-violet-400",
-      separator: "text-violet-500/30",
+      separator: "from-violet-500/0 via-violet-500/50 to-violet-500/0",
     },
   },
 } as const;
@@ -864,13 +864,27 @@ function AgentChatColumn({
         )}
       </div>
 
-      <div
-        className={cn(
-          "flex justify-center border-border/20 border-t py-1",
-          theme.separator
-        )}
-      >
-        <ArrowUp className="h-3 w-3 animate-bounce" />
+      <div className="flex flex-col items-center gap-0 py-1">
+        <ChevronUp
+          className={cn("h-3 w-3 animate-bounce opacity-20", theme.text)}
+          style={{ animationDelay: "300ms" }}
+        />
+        <ChevronUp
+          className={cn("-mt-1.5 h-3 w-3 animate-bounce opacity-50", theme.text)}
+          style={{ animationDelay: "150ms" }}
+        />
+        <ChevronUp
+          className={cn("-mt-1.5 h-3 w-3 animate-bounce", theme.text)}
+          style={{ animationDelay: "0ms" }}
+        />
+        <div className="mt-0.5 w-24">
+          <div
+            className={cn(
+              "h-px animate-pulse rounded-full bg-gradient-to-r",
+              theme.separator
+            )}
+          />
+        </div>
       </div>
 
       <MessageComposer
