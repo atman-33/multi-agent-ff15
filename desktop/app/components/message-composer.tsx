@@ -7,7 +7,7 @@ import {
   Send,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { MainAgentId } from "@/lib/use-agent-chat-log";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ const AGENT_CONFIG: Record<
   },
 };
 
-export default function MessageComposer({
+function MessageComposer({
   activeAgent,
   isTauri,
   onSent,
@@ -443,3 +443,5 @@ export default function MessageComposer({
     </div>
   );
 }
+
+export default memo(MessageComposer);
