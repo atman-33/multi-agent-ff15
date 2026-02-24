@@ -3,8 +3,8 @@ import fs from "node:fs";
 import { join } from "node:path";
 import {
   ALLOWED_AGENTS,
-  AGENT_PANE_INDEX as PANE_INDEX,
   type ModelSwitchAgent,
+  AGENT_PANE_INDEX as PANE_INDEX,
 } from "@/lib/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
@@ -87,9 +87,14 @@ export async function action({ request }: { request: Request }) {
         `${JSON.stringify(newSessionRecord)}\n`,
         "utf-8"
       );
-      console.log(`[NewSession] Appended new session status record for ${agent}`);
+      console.log(
+        `[NewSession] Appended new session status record for ${agent}`
+      );
     } catch (logError) {
-      console.error("[NewSession] Failed to append new session status record:", logError);
+      console.error(
+        "[NewSession] Failed to append new session status record:",
+        logError
+      );
     }
 
     return Response.json({ ok: true, session: res.data });
