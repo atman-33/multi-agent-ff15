@@ -4,7 +4,9 @@ import AgentChatColumn from "@/components/agent-chat-column";
 import MessageComposer from "@/components/message-composer";
 import StatusBar from "@/components/status-bar";
 import { type MainAgentId, useAgentChatLog } from "@/lib/use-agent-chat-log";
+import { useAgentStatuses } from "@/lib/use-agent-statuses";
 import { COMRADES, type ComradeId } from "@/lib/use-comrade-status";
+import { useContextUsage } from "@/lib/use-context-usage";
 import { type InboxLogRecord, useInboxLog } from "@/lib/use-inbox-log";
 
 const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
@@ -123,43 +125,8 @@ export default function UnifiedChatRoute() {
     [getInboxMessages]
   );
 
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
-  const [contextUsage, setContextUsage] = useState<Record<string, number | null>>({});
-
-  const fetchStatuses = useCallback(async () => {
-    try {
-      const res = await fetch("/api/agent-statuses");
-      if (res.ok) {
-        const data = await res.json();
-        setStatuses(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch agent statuses:", e);
-    }
-  }, []);
-
-  const fetchContextUsage = useCallback(async () => {
-    try {
-      const res = await fetch("/api/context-usage");
-      if (res.ok) {
-        const data = await res.json();
-        setContextUsage(data);
-      }
-    } catch (_e) {
-      setContextUsage({});
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStatuses();
-    fetchContextUsage();
-    const statusInterval = setInterval(fetchStatuses, 2000);
-    const contextInterval = setInterval(fetchContextUsage, 3000);
-    return () => {
-      clearInterval(statusInterval);
-      clearInterval(contextInterval);
-    };
-  }, [fetchStatuses, fetchContextUsage]);
+  const statuses = useAgentStatuses();
+  const contextUsage = useContextUsage();
 
   // Optimistic "just-sent" timestamp per agent — bridges the polling gap (3 s)
   // until inbox-log.jsonl catches up with the Crystal message.
