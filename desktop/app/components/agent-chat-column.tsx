@@ -758,6 +758,7 @@ export default function AgentChatColumn({
       <ModelSwitchBar
         contextPercent={contextPercent}
         isTauri={isTauri}
+        key={switchTargetAgent}
         modelOptions={modelOptions}
         targetAgent={switchTargetAgent}
       />
