@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.5.0] - 2026-02-25
+
+### Added
+- **Real-time agent activity tracking** - Enhanced real-time monitoring of agent activities
+- **Mode switch trigger and event listener** - Improved agent mode switching with event system
+- **Typing indicator with scrolling activity log** - Better visual feedback for active agents
+- **Message composer integration** - Seamless message composer integration with agent chat
+
+### Changed
+- **Agent chat UI enhancements** - Improved layout and user experience for agent chat interface
+- **Message card styling** - Enhanced visual presentation and spacing for message cards
+- **Component code formatting** - Improved code organization and formatting across components
+- **GitHub release workflow documentation** - Clarified release process and automation guidelines
+
 ## [0.4.0] - 2026-02-24
 
 ### Added
@@ -116,5 +131,6 @@ Initial release.
 [0.2.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atman-33/multi-agent-ff15/releases/tag/v0.1.0
 
+[0.5.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.2.0...v0.3.0
