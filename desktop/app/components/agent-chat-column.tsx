@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
+import { useAgentActivity } from "@/lib/use-agent-activity";
 import type { ChatLogRecord } from "@/lib/use-agent-chat-log";
 import {
   COMRADE_CONFIG,
@@ -200,22 +201,35 @@ const InboxBubble = memo(function InboxBubble({
   );
 });
 
-/** Typing indicator — three bouncing dots. */
-function TypingIndicator({ agentLabel }: { agentLabel: string }) {
+/** Typing indicator — three bouncing dots with optional live activity text. */
+function TypingIndicator({
+  agentLabel,
+  activityText,
+}: {
+  agentLabel: string;
+  activityText?: string | null;
+}) {
   return (
     <div className="flex flex-col items-start gap-0.5">
       <span className="text-[10px] text-muted-foreground/50">{agentLabel}</span>
-      <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-border/30 bg-white/5 px-3 py-2.5">
-        {[0, 1, 2].map((i) => (
-          <span
-            className="block h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
-            key={i}
-            style={{
-              animationDelay: `${i * 0.15}s`,
-              animationDuration: "0.9s",
-            }}
-          />
-        ))}
+      <div className="flex flex-col gap-1.5 rounded-2xl rounded-tl-sm border border-border/30 bg-white/5 px-3 py-2.5">
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              className="block h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+              key={i}
+              style={{
+                animationDelay: `${i * 0.15}s`,
+                animationDuration: "0.9s",
+              }}
+            />
+          ))}
+        </div>
+        {activityText && (
+          <span className="max-w-[260px] truncate font-mono text-[10px] text-amber-400/80">
+            {activityText}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -591,6 +605,10 @@ function AgentChatColumn({
   const noctisIsProcessing =
     status !== "idle" && status !== "offline" && !!status;
 
+  // Determine which agent to monitor for live activity
+  const activeAgentName = viewingComrade && partyView ? partyView : agent;
+  const activityText = useAgentActivity(activeAgentName, activeIsProcessing);
+
   const timeline = useMemo(
     () =>
       mergeTimeline(
@@ -810,7 +828,12 @@ function AgentChatColumn({
               )
             )}
             {/* Typing indicator */}
-            {activeIsProcessing && <TypingIndicator agentLabel={activeLabel} />}
+            {activeIsProcessing && (
+              <TypingIndicator
+                activityText={activityText}
+                agentLabel={activeLabel}
+              />
+            )}
           </>
         )}
       </div>
