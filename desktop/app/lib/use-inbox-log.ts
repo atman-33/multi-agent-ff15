@@ -105,9 +105,11 @@ export function useInboxLog() {
     [allRecords]
   );
 
+  const refresh = useCallback(() => fetchRecords(false), [fetchRecords]);
+
   return {
     allRecords,
     getMessagesForAgent,
-    refresh: () => fetchRecords(false),
+    refresh,
   };
 }

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Crown, MessageSquarePlus, Moon, Square } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -115,7 +115,11 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 }
 
 /** Inbox message bubble — Crystal (right-aligned purple) or agent (left-aligned amber). */
-function InboxBubble({ msg }: { msg: InboxLogRecord }) {
+const InboxBubble = memo(function InboxBubble({
+  msg,
+}: {
+  msg: InboxLogRecord;
+}) {
   const ts = new Date(msg.ts);
   const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
@@ -194,7 +198,7 @@ function InboxBubble({ msg }: { msg: InboxLogRecord }) {
       </div>
     </div>
   );
-}
+});
 
 /** Typing indicator — three bouncing dots. */
 function TypingIndicator({ agentLabel }: { agentLabel: string }) {
@@ -234,7 +238,7 @@ function ContextBadge({ value }: { value: number | null }) {
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] leading-none tabular-nums",
+              "inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] tabular-nums leading-none",
               colorClass
             )}
           >
@@ -545,7 +549,9 @@ function ComradeTab({
   );
 }
 
-export default function AgentChatColumn({
+export default memo(AgentChatColumn);
+
+function AgentChatColumn({
   agent,
   records,
   inboxMessages,
@@ -582,12 +588,17 @@ export default function AgentChatColumn({
       busyMap?.[partyView as ComradeId] !== "offline" &&
       !!busyMap?.[partyView as ComradeId]
     : status !== "idle" && status !== "offline" && !!status;
-  const noctisIsProcessing = status !== "idle" && status !== "offline" && !!status;
+  const noctisIsProcessing =
+    status !== "idle" && status !== "offline" && !!status;
 
-  const timeline = mergeTimeline(
-    activeRecords,
-    activeInboxMessages,
-    viewingComrade ? [] : optimisticMessages
+  const timeline = useMemo(
+    () =>
+      mergeTimeline(
+        activeRecords,
+        activeInboxMessages,
+        viewingComrade ? [] : optimisticMessages
+      ),
+    [activeRecords, activeInboxMessages, optimisticMessages, viewingComrade]
   );
 
   // Determine target agent for model switching

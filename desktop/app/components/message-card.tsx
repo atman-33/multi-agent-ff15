@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -57,7 +57,7 @@ interface MessageCardProps {
   record: ChatLogRecord;
 }
 
-export default function MessageCard({ record, className }: MessageCardProps) {
+function MessageCard({ record, className }: MessageCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const clean = stripAnsi(record.content);
@@ -72,7 +72,6 @@ export default function MessageCard({ record, className }: MessageCardProps) {
 
   const isError = record.kind === "error";
 
-  // Stable reference — prevents CodeBlock from unmounting on every 3s poll re-render
   const mdComponents = useMemo<Components>(
     () => ({
       img: () => null,
@@ -195,3 +194,5 @@ export default function MessageCard({ record, className }: MessageCardProps) {
     </div>
   );
 }
+
+export default memo(MessageCard);

@@ -130,7 +130,6 @@ export function useAgentChatLog() {
 
         // Update cursor
         cursorRef.current = page.next_cursor;
-        setLastUpdated(new Date());
 
         const isReset = (page as any).reset === true;
 
@@ -143,6 +142,7 @@ export function useAgentChatLog() {
           allRecordsRef.current = page.records;
           setAllRecords(page.records);
           pendingRef.current = [];
+          setLastUpdated(new Date());
         } else {
           // Sync the ref immediately (before the 100 ms buffer delay)
           const existingIds = new Set(allRecordsRef.current.map((r) => r.id));
@@ -150,7 +150,6 @@ export function useAgentChatLog() {
           if (fresh.length > 0) {
             allRecordsRef.current = [...allRecordsRef.current, ...fresh];
           }
-          // Buffer new records and flush after BUFFER_DELAY_MS
           pendingRef.current = [...pendingRef.current, ...page.records];
           scheduleFlush();
         }
@@ -198,6 +197,8 @@ export function useAgentChatLog() {
     [allRecords]
   );
 
+  const refresh = useCallback(() => fetchRecords(false), [fetchRecords]);
+
   return {
     allRecords,
     allRecordsRef,
@@ -205,7 +206,6 @@ export function useAgentChatLog() {
     lastUpdated,
     error,
     isTauri,
-    /** Force an immediate refresh (e.g., on manual refresh button). */
-    refresh: () => fetchRecords(false),
+    refresh,
   };
 }
