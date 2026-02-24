@@ -582,6 +582,7 @@ export default function AgentChatColumn({
       busyMap?.[partyView as ComradeId] !== "offline" &&
       !!busyMap?.[partyView as ComradeId]
     : status !== "idle" && status !== "offline" && !!status;
+  const noctisIsProcessing = status !== "idle" && status !== "offline" && !!status;
 
   const timeline = mergeTimeline(
     activeRecords,
@@ -660,7 +661,7 @@ export default function AgentChatColumn({
             type="button"
           >
             <div className="relative shrink-0">
-              {activeIsProcessing && (
+              {noctisIsProcessing && (
                 <span className="absolute inset-0 animate-ping rounded-full bg-amber-400/30" />
               )}
               {imgError ? (
@@ -668,7 +669,7 @@ export default function AgentChatColumn({
                   className={cn(
                     "h-4 w-4",
                     viewingComrade ? "text-muted-foreground" : "text-primary",
-                    activeIsProcessing && "animate-bounce text-amber-400"
+                    noctisIsProcessing && "animate-bounce text-amber-400"
                   )}
                 />
               ) : (
@@ -676,7 +677,7 @@ export default function AgentChatColumn({
                   alt={label}
                   className={cn(
                     "h-6 w-auto object-contain transition-all duration-300",
-                    activeIsProcessing &&
+                    noctisIsProcessing &&
                       "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
                   )}
                   onError={() => setImgError(true)}
