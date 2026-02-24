@@ -42,10 +42,10 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
       </button>
       <pre
         className={cn(
-          "max-w-full min-w-0 rounded bg-black/20 p-1.5 text-[11px]",
+          "min-w-0 max-w-full rounded bg-black/20 p-1.5 text-[11px]",
           wrap
             ? "overflow-x-hidden [&_code]:overflow-x-hidden [&_code]:whitespace-pre-wrap [&_code]:break-words"
-            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre",
+            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre"
         )}
       >
         {children}
@@ -125,7 +125,7 @@ function MessageCard({ record, className }: MessageCardProps) {
         </blockquote>
       ),
     }),
-    [],
+    []
   );
 
   return (
@@ -135,7 +135,7 @@ function MessageCard({ record, className }: MessageCardProps) {
         isError
           ? "border-red-500/40 bg-red-500/10 text-red-300"
           : "border-border/40 bg-white/5",
-        className,
+        className
       )}
     >
       {/* Header */}
@@ -145,7 +145,7 @@ function MessageCard({ record, className }: MessageCardProps) {
           <span
             className={cn(
               "rounded-sm px-1 font-medium",
-              isError ? "bg-red-500/20 text-red-400" : "bg-muted/40",
+              isError ? "bg-red-500/20 text-red-400" : "bg-muted/40"
             )}
           >
             {record.kind}
@@ -157,7 +157,7 @@ function MessageCard({ record, className }: MessageCardProps) {
       <div
         className={cn(
           "relative",
-          shouldFold && !expanded && "max-h-48 overflow-hidden",
+          shouldFold && !expanded && "max-h-48 overflow-hidden"
         )}
       >
         <ReactMarkdown

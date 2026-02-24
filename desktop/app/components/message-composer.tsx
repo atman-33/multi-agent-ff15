@@ -27,10 +27,10 @@ interface AtSuggestion {
 }
 
 export interface MessageComposerProps {
-  targetAgent: AgentId;
+  compact?: boolean;
   isTauri: boolean;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
-  compact?: boolean;
+  targetAgent: AgentId;
 }
 
 function MessageComposer({

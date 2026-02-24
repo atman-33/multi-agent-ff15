@@ -95,11 +95,11 @@ type MergedItem =
 function mergeTimeline(
   records: ChatLogRecord[],
   inboxMessages: InboxLogRecord[],
-  optimisticMessages: InboxLogRecord[] = [],
+  optimisticMessages: InboxLogRecord[] = []
 ): MergedItem[] {
   const realIds = new Set(inboxMessages.map((m) => m.id));
   const filteredOptimistic = optimisticMessages.filter(
-    (m) => !realIds.has(m.id),
+    (m) => !realIds.has(m.id)
   );
 
   return [
@@ -128,10 +128,10 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
       </button>
       <pre
         className={cn(
-          "max-w-full min-w-0 rounded bg-black/20 p-1.5 text-[11px]",
+          "min-w-0 max-w-full rounded bg-black/20 p-1.5 text-[11px]",
           wrap
             ? "overflow-x-hidden [&_code]:overflow-x-hidden [&_code]:whitespace-pre-wrap [&_code]:break-words"
-            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre",
+            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre"
         )}
       >
         {children}
@@ -178,7 +178,7 @@ const InboxBubble = memo(function InboxBubble({
       ),
       pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
     }),
-    [],
+    []
   );
 
   if (isCrystal) {
@@ -259,7 +259,7 @@ function TypingIndicator({
                   "max-w-[260px] truncate font-mono text-[10px]",
                   i === lines.length - 1
                     ? "text-amber-400/80"
-                    : "text-muted-foreground/35",
+                    : "text-muted-foreground/35"
                 )}
                 // biome-ignore lint/suspicious/noArrayIndexKey: ordered log lines
                 key={i}
@@ -292,7 +292,7 @@ function ContextBadge({ value }: { value: number | null }) {
           <span
             className={cn(
               "inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] tabular-nums leading-none",
-              colorClass,
+              colorClass
             )}
           >
             {display}%
@@ -325,7 +325,7 @@ function ModelSwitchBar({
 
   const sortedModelOptions = useMemo(
     () => [...modelOptions].sort((a, b) => a.localeCompare(b)),
-    [modelOptions],
+    [modelOptions]
   );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
@@ -356,7 +356,7 @@ function ModelSwitchBar({
           (opt) =>
             opt.toLowerCase() === model.toLowerCase() ||
             opt.toLowerCase().includes(model.toLowerCase()) ||
-            model.toLowerCase().includes(opt.toLowerCase()),
+            model.toLowerCase().includes(opt.toLowerCase())
         );
         setModelLabel(exactOpt ?? model);
       } catch (_e) {
@@ -367,7 +367,6 @@ function ModelSwitchBar({
     return () => {
       cancelled = true;
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
   }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger]);
 
   // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
@@ -414,7 +413,7 @@ function ModelSwitchBar({
         setIsSwitching(false);
       }
     },
-    [isTauri, targetAgent, modelLabel],
+    [isTauri, targetAgent, modelLabel]
   );
 
   const handleAbort = useCallback(async () => {
@@ -484,7 +483,7 @@ function ModelSwitchBar({
                 try {
                   if (isTauri) {
                     toast.info(
-                      "Session creation is currently not implemented in Tauri",
+                      "Session creation is currently not implemented in Tauri"
                     );
                     return;
                   }
@@ -523,7 +522,7 @@ function ModelSwitchBar({
             <button
               className={cn(
                 "rounded border border-red-500/30 bg-red-500/10 p-1 text-red-500 transition-colors hover:bg-red-500/20",
-                isAborting && "animate-pulse opacity-50",
+                isAborting && "animate-pulse opacity-50"
               )}
               disabled={isAborting}
               onClick={handleAbort}
@@ -566,7 +565,7 @@ function ComradeTab({
         "relative flex flex-col items-center gap-0.5 rounded px-1.5 py-0.5 transition-all duration-150",
         isSelected
           ? "bg-amber-500/20 text-amber-300"
-          : "text-muted-foreground/50 hover:bg-white/5 hover:text-foreground",
+          : "text-muted-foreground/50 hover:bg-white/5 hover:text-foreground"
       )}
       onClick={onClick}
       title={
@@ -583,7 +582,7 @@ function ComradeTab({
           isProcessing
             ? "animate-bounce border-amber-400/70 shadow-[0_0_6px_rgba(251,191,36,0.4)]"
             : "border-border/30 opacity-60 grayscale",
-          isSelected && "border-amber-400/80 opacity-100 grayscale-0",
+          isSelected && "border-amber-400/80 opacity-100 grayscale-0"
         )}
       >
         {imgErr ? (
@@ -657,9 +656,9 @@ function AgentChatColumn({
       mergeTimeline(
         activeRecords,
         activeInboxMessages,
-        viewingComrade ? [] : optimisticMessages,
+        viewingComrade ? [] : optimisticMessages
       ),
-    [activeRecords, activeInboxMessages, optimisticMessages, viewingComrade],
+    [activeRecords, activeInboxMessages, optimisticMessages, viewingComrade]
   );
 
   // Determine target agent for model switching
@@ -705,7 +704,7 @@ function AgentChatColumn({
       className={cn(
         "flex h-full flex-col overflow-hidden rounded-lg border transition-all duration-150",
         theme.border,
-        theme.bg,
+        theme.bg
       )}
     >
       {/* Column header */}
@@ -714,7 +713,7 @@ function AgentChatColumn({
           className={cn(
             "flex min-h-[52px] select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
             theme.headerBorder,
-            theme.headerBg,
+            theme.headerBg
           )}
         >
           {/* Noctis tab */}
@@ -723,7 +722,7 @@ function AgentChatColumn({
               "flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors",
               viewingComrade
                 ? "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                : cn("bg-amber-500/20", theme.text),
+                : cn("bg-amber-500/20", theme.text)
             )}
             onClick={() => {
               onPartyViewChange?.(null);
@@ -739,7 +738,7 @@ function AgentChatColumn({
                   className={cn(
                     "h-4 w-4",
                     viewingComrade ? "text-muted-foreground" : theme.text,
-                    noctisIsProcessing && "animate-bounce text-amber-400",
+                    noctisIsProcessing && "animate-bounce text-amber-400"
                   )}
                 />
               ) : (
@@ -748,7 +747,7 @@ function AgentChatColumn({
                   className={cn(
                     "h-6 w-auto object-contain transition-all duration-300",
                     noctisIsProcessing &&
-                      "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]",
+                      "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
                   )}
                   onError={() => setImgError(true)}
                   src={imageSrc}
@@ -787,7 +786,7 @@ function AgentChatColumn({
           className={cn(
             "flex min-h-[52px] select-none items-center gap-2 rounded-t-lg border-b px-3 py-2",
             theme.headerBorder,
-            theme.headerBg,
+            theme.headerBg
           )}
         >
           <div className="relative shrink-0">
@@ -799,7 +798,7 @@ function AgentChatColumn({
                 className={cn(
                   "h-4 w-4",
                   theme.text,
-                  activeIsProcessing && "animate-bounce",
+                  activeIsProcessing && "animate-bounce"
                 )}
               />
             ) : (
@@ -808,7 +807,7 @@ function AgentChatColumn({
                 className={cn(
                   "h-6 w-auto object-contain transition-all duration-300",
                   activeIsProcessing &&
-                    "animate-bounce drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]",
+                    "animate-bounce drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]"
                 )}
                 onError={() => setImgError(true)}
                 src={imageSrc}
@@ -859,7 +858,7 @@ function AgentChatColumn({
                     <MessageCard record={item.record} />
                   </div>
                 </div>
-              ),
+              )
             )}
             {/* Typing indicator */}
             {activeIsProcessing && (
@@ -880,7 +879,7 @@ function AgentChatColumn({
         <ChevronUp
           className={cn(
             "-mt-1.5 h-3 w-3 animate-bounce opacity-50",
-            theme.text,
+            theme.text
           )}
           style={{ animationDelay: "150ms" }}
         />
@@ -892,7 +891,7 @@ function AgentChatColumn({
           <div
             className={cn(
               "h-px animate-pulse rounded-full bg-gradient-to-r",
-              theme.separator,
+              theme.separator
             )}
           />
         </div>

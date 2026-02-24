@@ -1,5 +1,5 @@
-import { getClientForAgent } from "@/lib/opencode-client.server";
 import type { LoaderFunctionArgs } from "react-router";
+import { getClientForAgent } from "@/lib/opencode-client.server";
 
 /**
  * Format a tool call into a human-readable activity string.
@@ -35,7 +35,7 @@ function formatToolActivity(
  *   { type: "text", text: "Analyzing..." }
  *   { type: "idle" }
  */
-export async function loader({ request, params }: LoaderFunctionArgs) {
+export function loader({ request, params }: LoaderFunctionArgs) {
   const { agent } = params;
   const client = getClientForAgent(agent ?? "");
 
@@ -58,7 +58,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       });
 
       const enqueue = (payload: object) => {
-        if (aborted) return;
+        if (aborted) {
+          return;
+        }
         try {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
@@ -72,16 +74,37 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         const { stream: eventStream } = await client.event.subscribe();
 
         for await (const event of eventStream) {
-          if (aborted) break;
+          if (aborted) {
+            break;
+          }
 
-          // biome-ignore lint/suspicious/noExplicitAny: SDK event types
-          const e = event as any;
+          const e = event as {
+            type: string;
+            properties?: {
+              part?: {
+                type?: string;
+                text?: string;
+                tool?: string;
+                state?: {
+                  status?: string;
+                  input?: Record<string, unknown>;
+                };
+              };
+              status?: { type?: string };
+            };
+          };
 
           if (e.type === "message.part.updated") {
             const part = e.properties?.part;
-            if (!part) continue;
+            if (!part) {
+              continue;
+            }
 
-            if (part.type === "tool" && part.state?.status === "running") {
+            if (
+              part.type === "tool" &&
+              part.state?.status === "running" &&
+              part.tool
+            ) {
               const text = formatToolActivity(
                 part.tool,
                 part.state.input ?? {}
@@ -93,11 +116,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                 enqueue({ type: "text", text: snippet });
               }
             }
-          } else if (
-            e.type === "session.idle" ||
-            e.type === "session.status"
-          ) {
-            const sessionEvent = e as { type: string; properties?: { status?: { type?: string } } };
+          } else if (e.type === "session.idle" || e.type === "session.status") {
+            const sessionEvent = e as {
+              type: string;
+              properties?: { status?: { type?: string } };
+            };
             const statusType = sessionEvent.properties?.status?.type;
             if (!statusType || statusType === "idle") {
               enqueue({ type: "idle" });
