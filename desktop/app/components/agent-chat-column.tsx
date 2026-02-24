@@ -202,14 +202,15 @@ const InboxBubble = memo(function InboxBubble({
   );
 });
 
-/** Typing indicator — three bouncing dots with optional live activity text. */
+/** Typing indicator — three bouncing dots with scrolling activity log (up to 5 lines). */
 function TypingIndicator({
+  activityLines,
   agentLabel,
-  activityText,
 }: {
+  activityLines?: string[];
   agentLabel: string;
-  activityText?: string | null;
 }) {
+  const lines = activityLines ?? [];
   return (
     <div className="flex flex-col items-start gap-0.5">
       <span className="text-[10px] text-muted-foreground/50">{agentLabel}</span>
@@ -226,10 +227,23 @@ function TypingIndicator({
             />
           ))}
         </div>
-        {activityText && (
-          <span className="max-w-[260px] truncate font-mono text-[10px] text-amber-400/80">
-            {activityText}
-          </span>
+        {lines.length > 0 && (
+          <div className="flex flex-col gap-0.5">
+            {lines.map((line, i) => (
+              <span
+                className={cn(
+                  "max-w-[260px] truncate font-mono text-[10px]",
+                  i === lines.length - 1
+                    ? "text-amber-400/80"
+                    : "text-muted-foreground/35"
+                )}
+                // biome-ignore lint/suspicious/noArrayIndexKey: ordered log lines
+                key={i}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -611,7 +625,7 @@ function AgentChatColumn({
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
-  const activityText = useAgentActivity(activeAgentName, activeIsProcessing);
+  const activityLines = useAgentActivity(activeAgentName, activeIsProcessing);
 
   const timeline = useMemo(
     () =>
@@ -835,7 +849,7 @@ function AgentChatColumn({
             {/* Typing indicator */}
             {activeIsProcessing && (
               <TypingIndicator
-                activityText={activityText}
+                activityLines={activityLines}
                 agentLabel={activeLabel}
               />
             )}
