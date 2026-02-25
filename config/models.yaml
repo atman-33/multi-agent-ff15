@@ -2,7 +2,7 @@
 model_definitions:
   github-copilot/claude-sonnet-4.6: "Claude Sonnet 4.6"
   github-copilot/gpt-5.2-codex: "GPT-5.2-codex"
-  github-copilot/gemini-3-pro-preview: "Gemini 3.1 Pro Preview"
+  github-copilot/gemini-3.1-pro-preview: "Gemini 3.1 Pro Preview"
   github-copilot/gpt-5-mini: "GPT-5-mini"
   github-copilot/claude-opus-4.6: "Claude Opus 4.6"
   github-copilot/claude-haiku-4.5: "Claude Haiku 4.5"
@@ -23,7 +23,7 @@ modes:
     gladiolus:
       model: github-copilot/gpt-5.2-codex
     prompto:
-      model: github-copilot/gemini-3-pro-preview
+      model: github-copilot/gemini-3.1-pro-preview
     lunafreya:
       model: github-copilot/gpt-5-mini
     iris:
