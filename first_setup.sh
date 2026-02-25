@@ -722,59 +722,13 @@ else
 fi
 
 # ============================================================
-# STEP 11: Memory MCP Setup
+# STEP 11: Memory MCP Setup (DEPRECATED)
 # ============================================================
+# Memory MCP is now configured via project-local opencode.json
+# No global configuration needed
 log_step "STEP 11: Memory MCP Setup"
-
-if command -v opencode &> /dev/null; then
-    OPENCODE_CONFIG_DIR="$HOME/.config/opencode"
-    OPENCODE_CONFIG_FILE="$OPENCODE_CONFIG_DIR/opencode.json"
-    
-    if [ ! -d "$OPENCODE_CONFIG_DIR" ]; then
-        mkdir -p "$OPENCODE_CONFIG_DIR"
-    fi
-    
-    if [ -f "$OPENCODE_CONFIG_FILE" ] && grep -q "memory" "$OPENCODE_CONFIG_FILE" 2>/dev/null; then
-        log_info "Memory MCP is already configured"
-        RESULTS+=("Memory MCP: OK (configured)")
-    else
-        log_info "Configuring Memory MCP..."
-        if [ ! -f "$OPENCODE_CONFIG_FILE" ]; then
-            cat > "$OPENCODE_CONFIG_FILE" << EOF
-{
-  "\$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "memory": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
-      "environment": {
-        "MEMORY_FILE_PATH": "$SCRIPT_DIR/memory/noctis_memory.jsonl"
-      },
-      "enabled": true
-    }
-  }
-}
-EOF
-            log_success "Memory MCP configuration complete"
-            RESULTS+=("Memory MCP: Configuration complete")
-        else
-            log_warn "Please manually add Memory MCP to existing opencode.json"
-            echo "  Content to add:"
-            echo '  "memory": {'
-            echo '    "type": "local",'
-            echo '    "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],'
-            echo "    \"environment\": {"
-            echo "      \"MEMORY_FILE_PATH\": \"$SCRIPT_DIR/memory/noctis_memory.jsonl\""
-            echo '    },'
-            echo '    "enabled": true'
-            echo '  }'
-            RESULTS+=("Memory MCP: Manual configuration required")
-        fi
-    fi
-else
-    log_warn "opencode command not found, skipping Memory MCP setup"
-    RESULTS+=("Memory MCP: Skipped (opencode not installed)")
-fi
+log_info "Memory MCP configuration is managed by project-local opencode.json"
+RESULTS+=("Memory MCP: Configured via project opencode.json")
 
 # ============================================================
 # Results Summary

@@ -14,7 +14,11 @@ MCP servers provide OpenCode with access to external tools:
 
 ## Installing MCP Servers
 
-OpenCode manages MCP servers via config file. Add to `~/.config/opencode/opencode.json`:
+OpenCode manages MCP servers via project-local config file (`opencode.json` in project root).
+
+The project's `opencode.json` already includes Memory MCP and Playwright MCP configurations. No manual setup required.
+
+To override MCP configuration globally, edit `~/.config/opencode/opencode.json` (optional):
 
 ```json
 {
@@ -23,9 +27,6 @@ OpenCode manages MCP servers via config file. Add to `~/.config/opencode/opencod
     "memory": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
-      "environment": {
-        "MEMORY_FILE_PATH": "$PWD/memory/noctis_memory.jsonl"
-      },
       "enabled": true
     },
     "playwright": {
@@ -48,28 +49,6 @@ opencode mcp list
 ```
 
 Check MCP server status.
-
----
-
-## Memory MCP Usage
-
-Memory MCP automatically saves and loads preferences across sessions. No manual intervention needed.
-
-### What gets saved
-
-- Your preferences (e.g., "I prefer simple approaches")
-- Project-specific knowledge
-- Cross-session context
-
-### How to use
-
-Just tell Noctis your preferences once:
-
-```
-You: "I prefer simple approaches over complex ones"
-```
-
-Next session, Noctis will remember and apply this preference automatically.
 
 ---
 
