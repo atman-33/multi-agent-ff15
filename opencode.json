@@ -19,10 +19,9 @@
       "enabled": false
     },
     "cocoindex-code": {
-      "command": "bash",
-      "args": [
-        "-lc",
-        "source .venv/bin/activate && cocoindex-code"
+      "type": "local",
+      "command": [
+        "./.venv/bin/cocoindex-code"
       ],
       "enabled": true
     }

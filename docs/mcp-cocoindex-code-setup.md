@@ -56,49 +56,32 @@ This should display the path to the executable if installation succeeded.
 
 ## MCP Configuration
 
-Configure `cocoindex-code` in your MCP settings file. There are two recommended approaches:
+Configure `cocoindex-code` in your MCP settings file.
 
-### Method 1: Direct Executable Path (Recommended)
+### OpenCode Configuration
 
-This is the most stable and reliable approach. Use the absolute path to the virtual environment's executable:
+This is the most reliable approach for use with OpenCode. Configure in `opencode.json`:
 
 ```json
 {
-  "mcpServers": {
+  "mcp": {
     "cocoindex-code": {
-      "command": "/home/<your-username>/repos/multi-agent-ff15/.venv/bin/cocoindex-code",
-      "args": []
+      "type": "local",
+      "command": [
+        "./.venv/bin/cocoindex-code"
+      ],
+      "enabled": true
     }
   }
 }
 ```
-
-**Replace `<your-username>` with your actual username.**
 
 **Advantages:**
-- ✅ Most reliable and stable
-- ✅ No dependency resolution overhead after initial installation
-- ✅ Fast startup time
+- ✅ Works with OpenCode framework
+- ✅ Relative path is clean and repository-portable
+- ✅ Most stable configuration
 - ✅ No timeout issues
-- ✅ No shell dependency
-
-### Method 2: Explicit Virtual Environment Activation
-
-If you prefer to avoid absolute paths, you can explicitly activate the virtual environment in the command:
-
-```json
-{
-  "mcpServers": {
-    "cocoindex-code": {
-      "command": "bash",
-      "args": [
-        "-lc",
-        "source .venv/bin/activate && cocoindex-code"
-      ]
-    }
-  }
-}
-```
+- ✅ Recommended for this project
 
 **Disadvantages:**
 - ⚠️ Adds shell dependency
@@ -120,10 +103,11 @@ If `cocoindex-code --help` fails with "command not found":
 
 If the MCP server fails to start:
 
-1. Verify the path in `mcp.json` is absolute and correct
-2. Check that `.venv/bin/cocoindex-code` exists and is executable
-3. Try running the command directly: `/full/path/to/.venv/bin/cocoindex-code --help`
-4. Check for Python version compatibility (Python 3.9+ recommended)
+1. **For OpenCode**: Verify `opencode.json` has the correct configuration with relative path `./.venv/bin/cocoindex-code`
+2. **For VS Code**: Verify the path in your MCP configuration is absolute and correct
+3. Check that `.venv/bin/cocoindex-code` exists and is executable
+4. Try running the command directly: `/full/path/to/.venv/bin/cocoindex-code --help`
+5. Check for Python version compatibility (Python 3.9+ recommended)
 
 ### Virtual Environment Issues
 
@@ -144,6 +128,8 @@ uv pip install "cocoindex>=1.0.0a18" cocoindex-code
 
 ## Notes
 
-- The absolute path method (Method 1) is recommended for production use
+- **For this project**: Use Method 1 (OpenCode configuration in `opencode.json`) - it's the most reliable and recommended approach
+- The OpenCode approach with relative path is portable across different machines and environments
 - Ensure Python 3.9 or later is available in your environment
 - The virtual environment must be in the project directory or adjusted in the configuration path
+- If experiencing issues with VS Code or other editors, try the OpenCode approach instead
