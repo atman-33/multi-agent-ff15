@@ -44,6 +44,7 @@ interface AgentChatColumnProps {
   inboxMessages: InboxLogRecord[];
   isTauri?: boolean;
   modelOptions?: string[];
+  modelRefreshTrigger?: number;
   modeSwitchTrigger?: number;
   onPartyViewChange?: (view: ComradeId | null) => void;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
@@ -312,12 +313,14 @@ function ModelSwitchBar({
   isTauri,
   contextPercent,
   modeSwitchTrigger,
+  modelRefreshTrigger,
 }: {
   targetAgent: ModelSwitchAgent;
   modelOptions: string[];
   isTauri: boolean;
   contextPercent?: number | null;
   modeSwitchTrigger?: number;
+  modelRefreshTrigger?: number;
 }) {
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
@@ -328,7 +331,7 @@ function ModelSwitchBar({
     [modelOptions]
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger and modelRefreshTrigger are intentional triggers
   useEffect(() => {
     let cancelled = false;
     const fetchModel = async () => {
@@ -367,7 +370,7 @@ function ModelSwitchBar({
     return () => {
       cancelled = true;
     };
-  }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger]);
+  }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger, modelRefreshTrigger]);
 
   // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
   useEffect(() => {
@@ -618,6 +621,7 @@ function AgentChatColumn({
   partyInboxMessages,
   busyMap,
   modelOptions = [],
+  modelRefreshTrigger,
   modeSwitchTrigger,
   isTauri = false,
   optimisticMessages = [],
@@ -826,6 +830,7 @@ function AgentChatColumn({
         isTauri={isTauri}
         key={switchTargetAgent}
         modelOptions={modelOptions}
+        modelRefreshTrigger={modelRefreshTrigger}
         modeSwitchTrigger={modeSwitchTrigger}
         targetAgent={switchTargetAgent}
       />
