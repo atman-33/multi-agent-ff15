@@ -345,11 +345,20 @@ function ModelSwitchBar({
       try {
         const res = await fetch(`/api/current-model?agent=${targetAgent}`);
         if (!res.ok) {
+          // On error, clear any previously set label so "Unknown" placeholder is shown
+          if (!cancelled) {
+            setModelLabel("");
+          }
           return;
         }
         const data = (await res.json()) as { model?: string };
         const { model } = data;
-        if (cancelled || !model) {
+        if (cancelled) {
+          return;
+        }
+        if (!model) {
+          // model not found — show "Unknown" placeholder
+          setModelLabel("");
           return;
         }
 
@@ -363,24 +372,23 @@ function ModelSwitchBar({
         );
         setModelLabel(exactOpt ?? model);
       } catch (_e) {
-        // Ignored
+        // On unexpected error, clear label so "Unknown" placeholder is shown
+        if (!cancelled) {
+          setModelLabel("");
+        }
       }
     };
     fetchModel();
     return () => {
       cancelled = true;
     };
-  }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger, modelRefreshTrigger]);
-
-  // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
-  useEffect(() => {
-    if (!modelLabel && modelOptions.length > 0) {
-      const timer = setTimeout(() => {
-        setModelLabel((prev) => (prev ? prev : modelOptions[0]));
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [modelOptions, modelLabel]);
+  }, [
+    targetAgent,
+    modelOptions,
+    isTauri,
+    modeSwitchTrigger,
+    modelRefreshTrigger,
+  ]);
 
   const applySwitch = useCallback(
     async (newModel: string) => {
@@ -462,7 +470,7 @@ function ModelSwitchBar({
         value={modelLabel}
       >
         <SelectTrigger className="h-7 flex-1 border-border/40 bg-background/60 text-[11px]">
-          <SelectValue placeholder="Select model" />
+          <SelectValue placeholder="Unknown" />
         </SelectTrigger>
         <SelectContent>
           {modelLabel && !sortedModelOptions.includes(modelLabel) && (
