@@ -18,10 +18,16 @@
       ],
       "enabled": false
     },
-    "cocoindex-code": {
+    "serena": {
       "type": "local",
       "command": [
-        "./.venv/bin/cocoindex-code"
+        "uvx",
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide-assistant"
       ],
       "enabled": true
     }

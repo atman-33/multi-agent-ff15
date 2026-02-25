@@ -37,7 +37,6 @@ queue/reports/
 
 # Memory MCP data (local to each installation)
 memory/
-.cocoindex_code/
 
 queue/*.yaml
 dashboard.md
