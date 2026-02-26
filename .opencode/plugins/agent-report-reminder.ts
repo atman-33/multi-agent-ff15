@@ -33,7 +33,20 @@ const AgentReportReminder: Plugin = async ({ $, client }) => {
     } catch { }
   };
 
+  const checkPython = async (): Promise<void> => {
+    try {
+      await $`python3 --version`.quiet();
+    } catch (e) {
+      const timestamp = new Date().toISOString();
+      await $`mkdir -p logs`.quiet();
+      await $`printf '%s\n' ${`[${timestamp}] agent-report-reminder (${agentId}): [ERROR] python3 not available: ${e}`} >> logs/agent-report-reminder.log`.quiet();
+    }
+  };
+
   let currentSessionId: string | null = null;
+
+  await checkPython();
+  await log("agent-report-reminder started");
 
   return {
     event: async ({ event }) => {
@@ -94,68 +107,7 @@ const AgentReportReminder: Plugin = async ({ $, client }) => {
         }
 
         // Use Python for robust YAML parsing of inbox files
-        const pythonScript = `
-import yaml
-import os
-import sys
-import re
-
-agent_id = sys.argv[1]
-inbox_file = f"queue/inbox/{agent_id}.yaml"
-noctis_file = "queue/inbox/noctis.yaml"
-
-if not os.path.exists(inbox_file):
-    sys.exit(0)
-
-try:
-    with open(inbox_file, 'r') as f:
-        inbox_data = yaml.safe_load(f) or {}
-except Exception:
-    sys.exit(0)
-
-messages = inbox_data.get('messages', [])
-latest_task_id = None
-
-# Find the most recent task assigned to this agent
-for m in reversed(messages):
-    if not isinstance(m, dict): continue
-    if m.get('from') == 'noctis' and m.get('type') == 'task_assigned':
-        content = m.get('content', '')
-        # Simple regex to find task_id in the content content (usually YAML string)
-        match = re.search(r'task_id:\\s*"?([\\w-]+)"?', content)
-        if match:
-            latest_task_id = match.group(1)
-            break
-
-if not latest_task_id:
-    sys.exit(0)
-
-# Check if a report for this task exists in noctis's inbox
-if not os.path.exists(noctis_file):
-    print(f"MISSING:{latest_task_id}")
-    sys.exit(0)
-
-try:
-    with open(noctis_file, 'r') as f:
-        noctis_data = yaml.safe_load(f) or {}
-except Exception:
-    sys.exit(0)
-
-noctis_messages = noctis_data.get('messages', [])
-reported = False
-for m in noctis_messages:
-    if not isinstance(m, dict): continue
-    if m.get('from') == agent_id and m.get('type') == 'report_received':
-        m_content = m.get('content', '')
-        if latest_task_id in m_content:
-            reported = True
-            break
-
-if not reported:
-    print(f"MISSING:{latest_task_id}")
-`.trim();
-
-        const result = await $`python3 -c ${pythonScript} ${agentId}`.quiet();
+        const result = await $`python3 .opencode/lib/report_checker.py ${agentId}`.quiet();
         const output = result.text().trim();
         await log(`Report check result: "${output}"`);
 

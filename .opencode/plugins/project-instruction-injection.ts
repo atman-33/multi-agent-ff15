@@ -59,22 +59,29 @@ const ProjectInstructionInjection: Plugin = async ({ $ }) => {
     }
   };
 
+  // --- Plugin log utility ---
+  const log = async (message: string): Promise<void> => {
+    try {
+      const timestamp = new Date().toISOString();
+      await $`mkdir -p logs`.quiet();
+      await $`echo "[${timestamp}] project-instruction-injection (${agentId}): ${message}" >> logs/project-instruction-injection.log`.quiet();
+    } catch {}
+  };
+
+  const checkPython = async (): Promise<void> => {
+    try {
+      await $`python3 --version`.quiet();
+    } catch (e) {
+      const timestamp = new Date().toISOString();
+      await $`mkdir -p logs`.quiet();
+      await $`echo "[${timestamp}] project-instruction-injection (${agentId}): [ERROR] python3 not available: ${String(e)}" >> logs/project-instruction-injection.log`.quiet();
+    }
+  };
+
   // --- Load active project IDs from config (Task 4.3) ---
   const loadActiveProjectIds = async (): Promise<string[]> => {
     try {
-      const result = await $`python3 -c "
-import yaml, sys, json
-try:
-    with open('config/current_projects.yaml', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    ids = data.get('active_project_ids', []) or []
-    print(json.dumps(ids))
-except FileNotFoundError:
-    print('[]')
-except Exception as e:
-    sys.stderr.write(str(e))
-    print('[]')
-"`.quiet();
+      const result = await $`python3 .opencode/lib/project_loader.py active-ids`.quiet();
       return JSON.parse(result.text().trim()) as string[];
     } catch {
       return [];
@@ -86,18 +93,7 @@ except Exception as e:
     projectId: string
   ): Promise<ProjectDefinition | null> => {
     try {
-      const result = await $`python3 -c "
-import yaml, sys, json
-try:
-    with open('projects/${projectId}.yaml', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    print(json.dumps(data, default=str))
-except FileNotFoundError:
-    print('null')
-except Exception as e:
-    sys.stderr.write(str(e))
-    print('null')
-"`.quiet();
+      const result = await $`python3 .opencode/lib/project_loader.py project-def ${projectId}`.quiet();
       const parsed = JSON.parse(result.text().trim());
       return parsed as ProjectDefinition | null;
     } catch {
@@ -140,10 +136,14 @@ ${INJECTION_MARKER_END}`;
     return { block, resolvedFiles };
   };
 
+  await checkPython();
+  await log("project-instruction-injection started");
+
   return {
     // --- Register chat.message hook (Task 4.2) ---
     "chat.message": async (input, output) => {
       try {
+        await log("[TRIGGER] chat.message hook called");
         // --- Duplicate injection prevention (Task 4.7) ---
         const existingParts = output.parts || [];
         for (const part of existingParts) {

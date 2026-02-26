@@ -28,8 +28,6 @@ const DashboardAutoUpdater: Plugin = async ({ $ }) => {
   };
   const DASHBOARD_FILE = "dashboard.md";
   const SETTINGS_FILE = "config/settings.yaml";
-  const ENABLE_LOGGING = false;
-
   const processedReportIds = new Set<string>();
   const processedTaskIds = new Set<string>();
   const processedLunaInstructionIds = new Set<string>();
@@ -38,12 +36,20 @@ const DashboardAutoUpdater: Plugin = async ({ $ }) => {
   // ─── Helpers ───
 
   const log = async (message: string): Promise<void> => {
-    if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
       const logLine = `[${timestamp}] iris-watcher: ${message}\n`;
       await $`echo ${logLine} >> logs/iris-watcher.log`.quiet();
     } catch { }
+  };
+
+  const checkPython = async (): Promise<void> => {
+    try {
+      await $`python3 --version`.quiet();
+    } catch (e) {
+      const timestamp = new Date().toISOString();
+      await $`echo "[${timestamp}] iris-watcher: [ERROR] python3 not available: ${String(e)}" >> logs/iris-watcher.log`.quiet();
+    }
   };
 
   // Language setting removed - dashboard is now English-only
@@ -60,15 +66,7 @@ const DashboardAutoUpdater: Plugin = async ({ $ }) => {
   const writeDashboard = async (content: string): Promise<void> => {
     try {
       const tmpFile = `${DASHBOARD_FILE}.tmp`;
-      await $`python3 -c "
-import sys, os
-content = sys.argv[1]
-tmp = sys.argv[2]
-target = sys.argv[3]
-with open(tmp, 'w') as f:
-    f.write(content)
-os.rename(tmp, target)
-" ${content} ${tmpFile} ${DASHBOARD_FILE}`.quiet();
+      await $`python3 .opencode/lib/yaml_atomic_write.py ${content} ${tmpFile} ${DASHBOARD_FILE}`.quiet();
     } catch (err) {
       await log(`Failed to write dashboard: ${err}`);
     }
@@ -89,30 +87,7 @@ os.rename(tmp, target)
     Array<{ id: string; from: string; status: string; summary: string; taskId: string; }>
   > => {
     try {
-      const result = await $`python3 -c "
-import yaml
-try:
-    with open('${NOCTIS_INBOX}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    messages = data.get('messages', [])
-    for m in messages:
-        if isinstance(m, dict) and m.get('type') == 'report_received':
-            content = m.get('content', '')
-            status = 'done'
-            summary = ''
-            task_id = ''
-            for line in content.split('\\n'):
-                line = line.strip()
-                if line.startswith('status:'):
-                    status = line.split(':', 1)[1].strip()
-                elif line.startswith('summary:'):
-                    summary = line.split(':', 1)[1].strip().strip('\"')
-                elif line.startswith('task_id:'):
-                    task_id = line.split(':', 1)[1].strip().strip('\"')
-            print(f\"{m.get('id', '?')}~{m.get('from', '?')}~{status}~{summary}~{task_id}\")
-except Exception:
-    pass
-"`.quiet();
+      const result = await $`python3 .opencode/lib/inbox_reader.py ${NOCTIS_INBOX} report-fields`.quiet();
       const lines = result.text().trim().split("\n").filter(Boolean);
       return lines.map((line) => {
         const parts = line.split("~");
@@ -135,27 +110,7 @@ except Exception:
     const allTasks: Array<{ id: string; agent: string; description: string; taskId: string; }> = [];
     for (const [agent, inboxPath] of Object.entries(COMRADE_INBOXES)) {
       try {
-        const result = await $`python3 -c "
-import yaml
-try:
-    with open('${inboxPath}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    messages = data.get('messages', [])
-    for m in messages:
-        if isinstance(m, dict) and m.get('type') == 'task_assigned':
-            content = m.get('content', '')
-            description = ''
-            task_id = ''
-            for line in content.split('\\n'):
-                line = line.strip()
-                if line.startswith('description:'):
-                    description = line.split(':', 1)[1].strip().strip('\"')
-                elif line.startswith('task_id:'):
-                    task_id = line.split(':', 1)[1].strip().strip('\"')
-            print(f\"{m.get('id', '?')}~{description}~{task_id}\")
-except Exception:
-    pass
-"`.quiet();
+        const result = await $`python3 .opencode/lib/inbox_reader.py ${inboxPath} task-fields`.quiet();
         const lines = result.text().trim().split("\n").filter(Boolean);
         for (const line of lines) {
           const [msgId, description, taskId] = line.split("~");
@@ -177,19 +132,7 @@ except Exception:
     Array<{ id: string; content: string; }>
   > => {
     try {
-      const result = await $`python3 -c "
-import yaml
-try:
-    with open('${NOCTIS_INBOX}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    messages = data.get('messages', [])
-    for m in messages:
-        if isinstance(m, dict) and m.get('from') == 'lunafreya' and m.get('type') in ('message', 'luna_instruction'):
-            content = m.get('content', '')
-            print(f\"{m.get('id', '?')}~{content}\")
-except Exception:
-    pass
-"`.quiet();
+      const result = await $`python3 .opencode/lib/inbox_reader.py ${NOCTIS_INBOX} luna-fields`.quiet();
       const lines = result.text().trim().split("\n").filter(Boolean);
       return lines.map((line) => {
         const parts = line.split("~");
@@ -361,6 +304,7 @@ except Exception:
     await log(`Iris Watcher initialized. ${processedReportIds.size} reports, ${processedTaskIds.size} tasks, ${processedLunaInstructionIds.size} luna instructions tracked.`);
   };
 
+  await checkPython();
   await initProcessed();
 
   // ─── Event Handler ───
@@ -382,6 +326,8 @@ except Exception:
       const isIrisInbox = changedFile.endsWith(IRIS_INBOX);
 
       if (!isNoctisInbox && !isComradeInbox && !isIrisInbox) return;
+
+      await log(`[TRIGGER] Inbox file changed: ${changedFile}`);
 
       try {
         updating = true;

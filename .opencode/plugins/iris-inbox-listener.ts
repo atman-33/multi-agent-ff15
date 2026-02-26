@@ -28,15 +28,22 @@ const IrisInboxListener: Plugin = async ({ $ }) => {
 
   // In-memory cache for this session (will be lost on restart, that's fine for a listener)
   const processedIds = new Set<string>();
-  const ENABLE_LOGGING = false;
 
   const log = async (message: string): Promise<void> => {
-    if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
       await $`mkdir -p logs`.quiet();
       await $`echo "[${timestamp}] iris-listener: ${message}" >> logs/iris-listener.log`.quiet();
     } catch { }
+  };
+
+  const checkPython = async (): Promise<void> => {
+    try {
+      await $`python3 --version`.quiet();
+    } catch (e) {
+      const timestamp = new Date().toISOString();
+      await $`echo "[${timestamp}] iris-listener: [ERROR] python3 not available: ${String(e)}" >> logs/iris-listener.log`.quiet();
+    }
   };
 
   const forwardToIris = async (msg: { id: string; type: string; from: string; content: string; }): Promise<void> => {
@@ -53,6 +60,9 @@ const IrisInboxListener: Plugin = async ({ $ }) => {
     }
   };
 
+  await checkPython();
+  await log("iris-inbox-listener started");
+
   return {
     event: async ({ event }) => {
       // Listen for file changes
@@ -67,46 +77,10 @@ const IrisInboxListener: Plugin = async ({ $ }) => {
       const isTarget = TARGET_INBOXES.some(path => changedFile.endsWith(path));
       if (!isTarget) return;
 
-      try {
-        const pythonScript = `
-import yaml
-import sys
-import json
+      await log(`[TRIGGER] Inbox file changed: ${changedFile}`);
 
-try:
-    with open('${changedFile}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    
-    messages = data.get('messages', [])
-    result = []
-    
-    for m in messages:
-        if isinstance(m, dict):
-            msg_id = m.get('id', '?')
-            msg_type = m.get('type', 'unknown')
-            msg_from = m.get('from', '?')
-            msg_content = m.get('content', '')
-            
-            # FILTERING LOGIC
-            # INTERESTING TYPES to forward:
-            # - message (discussion)
-            # - error (problems)
-            # - luna_instruction (needs attention)
-            # - skill_candidate (needs documenting)
-            
-            if msg_type in ['message', 'error', 'luna_instruction', 'skill_candidate']:
-                result.append({
-                    'id': msg_id,
-                    'type': msg_type,
-                    'from': msg_from,
-                    'content': msg_content
-                })
-                
-    print(json.dumps(result))
-except Exception:
-    print("[]")
-`;
-        const result = await $`python3 -c "${pythonScript}"`.quiet();
+      try {
+        const result = await $`python3 .opencode/lib/inbox_reader.py ${changedFile} filter-json --types message error luna_instruction skill_candidate`.quiet();
         const messages = JSON.parse(result.text());
 
         for (const msg of messages) {

@@ -118,6 +118,8 @@ const DashboardIntegrityChecker: Plugin = async ({ $ }) => {
     }
   };
 
+  await log("dashboard-integrity-checker started");
+
   return {
     event: async ({ event }) => {
       // Listen for dashboard.md changes
