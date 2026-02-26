@@ -247,6 +247,98 @@ else
 fi
 
 # ============================================================
+# STEP 4.3: Python3 / PyYAML check
+# Note: .opencode/lib/*.py (inbox_reader, report_checker, etc.)
+#       and scripts/ rely on python3 + PyYAML.
+# ============================================================
+log_step "STEP 4.3: Python3 / PyYAML check"
+
+if command -v python3 &> /dev/null; then
+    PYTHON_VERSION=$(python3 --version 2>&1)
+    log_success "python3 is already installed ($PYTHON_VERSION)"
+    RESULTS+=("python3: OK ($PYTHON_VERSION)")
+else
+    log_warn "python3 is not installed"
+    echo ""
+
+    if command -v apt-get &> /dev/null; then
+        log_info "Installing python3..."
+        if sudo apt-get install -y python3 python3-pip 2>/dev/null; then
+            PYTHON_VERSION=$(python3 --version 2>&1)
+            log_success "python3 installation complete ($PYTHON_VERSION)"
+            RESULTS+=("python3: Installation complete ($PYTHON_VERSION)")
+        else
+            log_error "Failed to install python3"
+            echo ""
+            echo "  Please install manually:"
+            echo "    sudo apt-get install python3 python3-pip"
+            echo ""
+            RESULTS+=("python3: Installation failed")
+            HAS_ERROR=true
+        fi
+    else
+        log_error "apt-get not found. Please manually install python3"
+        echo ""
+        echo "  Installation methods:"
+        echo "    Ubuntu/Debian: sudo apt-get install python3 python3-pip"
+        echo "    macOS:         brew install python3"
+        echo ""
+        RESULTS+=("python3: Not installed (manual installation required)")
+        HAS_ERROR=true
+    fi
+fi
+
+# PyYAML check (required by .opencode/lib/*.py and scripts/)
+if command -v python3 &> /dev/null; then
+    if python3 -c "import yaml" 2>/dev/null; then
+        PYYAML_VERSION=$(python3 -c "import yaml; print(yaml.__version__)" 2>/dev/null || echo "unknown")
+        log_success "PyYAML is already installed (v$PYYAML_VERSION)"
+        RESULTS+=("PyYAML: OK (v$PYYAML_VERSION)")
+    else
+        log_warn "PyYAML is not installed"
+        log_info "Installing PyYAML..."
+
+        PYYAML_INSTALLED=false
+
+        # Try pip3 first, then python3 -m pip
+        if command -v pip3 &> /dev/null; then
+            if pip3 install pyyaml 2>/dev/null; then
+                PYYAML_INSTALLED=true
+            fi
+        fi
+
+        if [ "$PYYAML_INSTALLED" = false ]; then
+            if python3 -m pip install pyyaml 2>/dev/null; then
+                PYYAML_INSTALLED=true
+            fi
+        fi
+
+        # Last resort: apt-get
+        if [ "$PYYAML_INSTALLED" = false ] && command -v apt-get &> /dev/null; then
+            if sudo apt-get install -y python3-yaml 2>/dev/null; then
+                PYYAML_INSTALLED=true
+            fi
+        fi
+
+        if [ "$PYYAML_INSTALLED" = true ] && python3 -c "import yaml" 2>/dev/null; then
+            PYYAML_VERSION=$(python3 -c "import yaml; print(yaml.__version__)" 2>/dev/null || echo "unknown")
+            log_success "PyYAML installation complete (v$PYYAML_VERSION)"
+            RESULTS+=("PyYAML: Installation complete (v$PYYAML_VERSION)")
+        else
+            log_error "Failed to install PyYAML"
+            echo ""
+            echo "  Please install manually:"
+            echo "    pip3 install pyyaml"
+            echo "    # or"
+            echo "    sudo apt-get install python3-yaml"
+            echo ""
+            RESULTS+=("PyYAML: Installation failed")
+            HAS_ERROR=true
+        fi
+    fi
+fi
+
+# ============================================================
 # STEP 4.5: Desktop Web App setup (install + build)
 # ============================================================
 log_step "STEP 4.5: Desktop Web App setup"
