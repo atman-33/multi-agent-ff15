@@ -32,6 +32,7 @@ interface ProjectDefinition {
   id: string;
   name: string;
   root_path: string;
+  serena_project?: string;
   instruction_files: InstructionFile[];
 }
 
@@ -128,9 +129,16 @@ const ProjectInstructionInjection: Plugin = async ({ $ }) => {
       }
     }
 
+    // Serena activation: use first active project's serena_project field (or fallback hint)
+    const firstProject = projects[0];
+
     const block = `${INJECTION_MARKER}
 active_projects:
-${activeProjectsYaml}policy: Read these instruction files directly before implementation.
+${activeProjectsYaml}serena_activation:
+  project_id: ${firstProject?.id ?? "none"}
+  activate_project: ${firstProject?.serena_project ?? `not set — try in order: "${firstProject?.id}" → "${firstProject?.root_path}" → UNC path`}
+  on_success: write successful value back to projects/${firstProject?.id ?? "<id>"}.yaml as serena_project
+policy: (1) Activate Serena MCP for the first active project using serena_activation above. (2) Read instruction files on demand before implementation.
 ${INJECTION_MARKER_END}`;
 
     return { block, resolvedFiles };

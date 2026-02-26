@@ -2,10 +2,11 @@
 # project_register.sh: Register external projects with instruction file detection
 #
 # Usage:
-#   project_register.sh --id <id> --name <name> --root <path> [--force]
+#   project_register.sh --id <id> --name <name> --root <path> [--serena-project <value>] [--force]
 #
 # Detects instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) at project root.
 # Stores metadata in projects/<id>.yaml including existence, path, and SHA256 hash.
+# If --serena-project is provided, stores it in serena_project field for Serena MCP activation.
 #
 # Exit codes: 0=success, 1=error, 2=usage error
 
@@ -23,18 +24,22 @@ INSTRUCTION_FILES=("AGENTS.md" "CLAUDE.md" "GEMINI.md")
 PROJECT_ID=""
 PROJECT_NAME=""
 PROJECT_ROOT=""
+SERENA_PROJECT=""
 FORCE=false
 
 # --- Argument parsing ---
 usage() {
   cat >&2 <<EOF
-Usage: project_register.sh --id <id> --name <name> --root <path> [--force]
+Usage: project_register.sh --id <id> --name <name> --root <path> [--serena-project <value>] [--force]
 
 Options:
-  --id      Unique project identifier (required)
-  --name    Human-readable project name (required)
-  --root    Absolute or relative path to project root (required)
-  --force   Overwrite existing registration without prompting
+  --id               Unique project identifier (required)
+  --name             Human-readable project name (required)
+  --root             Absolute or relative path to project root (required)
+  --serena-project   Value confirmed by activate_project (project name or path).
+                     When provided, stored as serena_project in the YAML.
+                     When omitted, serena_project field is not written.
+  --force            Overwrite existing registration without prompting
 EOF
   exit 2
 }
@@ -51,6 +56,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --root)
       PROJECT_ROOT="$2"
+      shift 2
+      ;;
+    --serena-project)
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --serena-project requires a non-empty value" >&2
+        exit 2
+      fi
+      SERENA_PROJECT="$2"
       shift 2
       ;;
     --force)
@@ -80,6 +93,7 @@ if [[ -z "$PROJECT_ROOT" ]]; then
   echo "ERROR: --root is required" >&2
   usage
 fi
+
 
 # --- Path normalization (Task 2.5) ---
 # Check if path contains symlinks before resolving
@@ -179,10 +193,17 @@ fi
 # --- YAML output generation (Task 2.4) ---
 mkdir -p "$PROJECTS_DIR" 2>/dev/null
 
+# Build serena_project line only if value was provided
+SERENA_PROJECT_LINE=""
+if [[ -n "$SERENA_PROJECT" ]]; then
+  SERENA_PROJECT_LINE="serena_project: \"${SERENA_PROJECT}\"
+"
+fi
+
 YAML_CONTENT="id: \"${PROJECT_ID}\"
 name: \"${PROJECT_NAME}\"
 root_path: \"${NORMALIZED_ROOT}\"
-instruction_files:
+${SERENA_PROJECT_LINE}instruction_files:
 ${INSTRUCTION_ENTRIES}updated_at: \"${TIMESTAMP}\""
 
 # Write using yaml_write_flock.sh for atomic writes
@@ -194,5 +215,10 @@ fi
 echo "OK: Project '${PROJECT_ID}' registered successfully" >&2
 echo "  Name: ${PROJECT_NAME}" >&2
 echo "  Root: ${NORMALIZED_ROOT}" >&2
+if [[ -n "$SERENA_PROJECT" ]]; then
+  echo "  Serena: ${SERENA_PROJECT}" >&2
+else
+  echo "  Serena: (not set — run activate_project first, then re-register with --serena-project)" >&2
+fi
 echo "  Instruction files found: ${FILES_FOUND}/${#INSTRUCTION_FILES[@]}" >&2
 echo "  Output: ${OUTPUT_FILE}" >&2
