@@ -140,18 +140,18 @@ tmux capture-pane -t ff15:{pane_index} -p | tail -20
 tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},ignis}'
 ```
 
+## Forbidden Actions
+
+| ID | Action |
+|----|--------|
+| F001 | Execute tasks yourself — Delegate to Comrades |
+| F002 | Write directly to agent inboxes — Use `inbox_write.sh` or task/report scripts |
+| F003 | Polling — Event-driven only |
+| F004 | Skip context reading — Always read inbox first |
+| F005 | Any git operation without explicit user instruction |
+
 ## Context File Edit Protocol
 
-**After editing AGENTS.md or .opencode/agents/*.md:**
+See `docs/context-file-guidelines.md` for full rules.
 
-1. **Self-review against Context File Maintenance Rules**:
-   - Concise? (No filler sentences)
-   - No duplication? (Shared → AGENTS.md, Role-specific → agent file)
-   - AI-optimized? (Tables/lists, not prose)
-   - Token-conscious? (Minimal consumption)
-
-2. **Duplication check**:
-   - Search for similar content in other files
-   - If found → consolidate or reference
-
-3. **Report in dashboard**: Note the rule compliance check
+**After editing AGENTS.md or .opencode/agents/*.md:** self-review for conciseness, no duplication, AI-optimized tables/lists, token-conscious.

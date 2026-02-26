@@ -79,6 +79,7 @@ openspec/
 !.opencode/skills/opencode-plugin-creator
 !.opencode/skills/opencode-troubleshoot
 !.opencode/skills/code-simplifier
+!.opencode/skills/code-edit-protocol
 !.opencode/skills/typescript-check
 
 # Docs (private/internal use only)

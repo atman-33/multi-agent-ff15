@@ -1,11 +1,8 @@
 # multi-agent-ff15
 
-> **Version**: 6.0 | **Updated**: 2026-02-14 | **Framework**: OpenCode
+> **Version**: 7.0 | **Updated**: 2026-02-26 | **Framework**: OpenCode
 
-⚠️ **CRITICAL: Context File Maintenance Rules**
-- **Shared rules → AGENTS.md only**
-- **Role-specific → `.opencode/agents/{name}.md` only**
-- See end of file for full rules
+⚠️ **Editing this file?** See `docs/context-file-guidelines.md` first.
 
 ## Overview
 
@@ -73,36 +70,23 @@ multi-agent-ff15/
 | **Iris** | Guardian | 5 | Dashboard auto-updater. Owns ALL dashboard sections. Woken by plugins on inbox changes and Noctis idle capture. |
 
 
-## Dashboard Structure & Protocol
+## Dashboard Structure
 
-**Owner**: Iris (Guardian) — Auto-updates via plugins. Noctis is fallback only.
+**Owner**: Iris. Auto-updates via plugins. Noctis is fallback only. See `iris.md` for details.
 
-### Standard Section Order
+Sections (order MUST be preserved):
+1. 🚨 Requires Action
+2. 🔄 In Progress
+3. ✅ Today's Results
+4. 🎯 Skill Candidates
+5. 🛠️ Generated Skills
 
-| Section | Description |
-|---------|-------------|
-| **1. 🚨 Requires Action** | User approval needed, questions for user. **Includes Confirmation Items.** |
-| **2. 🔄 In Progress** | Active tasks. Auto-updated by `dashboard-auto-updater`. |
-| **3. ✅ Today's Results** | Completed missions. Auto-updated by `dashboard-auto-updater`. Latest results appear first. |
-| **4. 🎯 Skill Candidates** | Patterns identified by Comrades. Awaiting user approval. |
-| **5. 🛠️ Generated Skills** | Recently created skills. |
-
-**Language Rule**: content MUST follow `config/settings.yaml` setting:
-- `language: ja` → Japanese only
-- `language: en` or other → English only
+**Language Rule**: `config/settings.yaml` → `language: ja` = Japanese only, others = English only.
 
 ## Communication Protocol — Iron Rule
 
 **ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
 Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
-
-### Why Inbox-only?
-
-1. **State persistence** — Inbox survives restarts, messages with read tracking
-2. **Source of truth** — One canonical location per agent
-3. **Recovery** — Agents resume from unread inbox messages after crash
-4. **Audit trail** — YAML files are git-trackable, full communication history
-5. **No confusion** — Agents always know where to look
 
 **Event-driven only. No polling.** (Exception: Dashboard-auto-updater plugin polls every 30s for escalation of unresponsive agents.)
 
@@ -118,113 +102,21 @@ Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin autom
 - **Iris → Noctis**: `scripts/inbox_write.sh noctis iris message "<message>"`
 - **Any → Any**: `scripts/inbox_write.sh <target> <from> <type> "<content>"`
 
-**Never use send_message.sh directly.** It abstracts away the inbox, making communication history harder to trace. Always write to inbox YAML files via `inbox_write.sh` for full audit trail.
+**Never use send_message.sh directly.** Always write to inbox YAML files via `inbox_write.sh` for full audit trail.
 
 The `inbox-auto-notify` plugin detects file changes and wakes target agents via tmux automatically.
 
-### Comrade Task Flow
+Comrade task flow and report format → see each Comrade's agent file.
 
-**CRITICAL: Inbox is the ONLY source of truth. Ignore tmux message content.**
+## Supplementary Reports
 
-When you receive ANY message or wake up:
-
-1. **Check inbox**: `scripts/inbox_read.sh {your_name} --peek`
-   - If unread > 0: `scripts/inbox_read.sh {your_name}` (read + mark as read, process in order)
-2. **Read task from inbox message**: Look for `task_assigned` type messages. The `content` field contains the task YAML.
-3. **If task found** → Execute immediately at senior engineer quality
-   **If no task** → Do nothing (wait for next instruction)
-4. **After completion**: Use `scripts/send_report.sh "<task_id>" "<status>" "<summary>"`
-
-**Never skip Step 1. Never act on tmux message content alone.**
-
-### Report Format
-
-```yaml
-report:
-  task_id: "subtask_xxx"
-  status: done  # or failed
-  summary: "1-2 sentence summary"
-  details: |
-    Detailed results
-  skill_candidate: null
-  timestamp: "ISO 8601"
-```
-
-## Supplementary Reports Output Location
-
-When agents generate detailed reports, supplementary reports, analysis documents, or any large output files that are not the main task deliverable:
-
-**Output to: `docs/reports/`**
-
-### Mandatory YAML Frontmatter
-
-**ALL files created in `docs/reports/` MUST include YAML Frontmatter at the very top of the file.** This metadata is used by the desktop app to display the report list.
-
-```yaml
----
-title: "Clear, English title of the report"
-author: "agent_name"
-date: "2026-02-23T18:00:00Z"  # ISO 8601 format
-tags: ["research", "design", "etc"]
----
-```
-
-### Rules
-
-| Output Type | Location | Example |
-|-------------|----------|---------|
-| Detailed analysis reports | `docs/reports/` | Research findings, comparison tables |
-| Supplementary documents | `docs/reports/` | Supporting materials, references |
-| Large output files | `docs/reports/` | Generated articles, code samples |
-| Main deliverables | As specified by user | Usually project root or specific path |
-| YAML reports | `queue/inbox/` | Use `send_report.sh` exclusively |
-
-### File Naming Convention
-
-```
-docs/reports/{task_type}-{agent_name}-{timestamp}.md
-```
-
-Examples:
-- `docs/reports/analysis-ignis-20260215.md`
-- `docs/reports/article-gladiolus-v2.md`
-- `docs/reports/research-prompto-frameworks.md`
-
-**Never clutter the root directory with supplementary files.** Use `docs/reports/` for all non-essential outputs.
+Output to `docs/reports/`. Include YAML frontmatter (`title`, `author`, `date`, `tags`). See `docs/report-guidelines.md` for full rules.
 
 ## Forbidden Actions
 
-### Noctis
+**Universal rule (all agents)**: NEVER perform any git operation unless the user explicitly instructs you.
 
-| ID | Action | Alternative |
-|----|--------|-------------|
-| F001 | Execute tasks yourself | Delegate to Comrades |
-| F002 | Write directly to agent inboxes | Use `inbox_write.sh` or task/report scripts |
-| F003 | Polling | Event-driven |
-| F004 | Skip context reading | Always read first |
-| F005 | Any git operation without explicit user instruction | Edit files only |
-
-### Comrades (Ignis, Gladiolus, Prompto)
-
-| ID | Action | Alternative |
-|----|--------|-------------|
-| F001 | Contact user directly | Report to Noctis |
-| F002 | Order other Comrades | Request through Noctis |
-| F003 | Write directly to agent inboxes | Use `scripts/send_report.sh` |
-| F004 | Polling | Event-driven |
-| F005 | Skip context reading | Always read first |
-| F006 | Modify other Comrades' files | Own files only (RACE-001) |
-| F007 | Any git operation without explicit user instruction | Edit files only |
-
-### Lunafreya
-
-| ID | Action | Alternative |
-|----|--------|-------------|
-| F001 | Accept tasks from Noctis | Execute autonomously |
-| F002 | Write directly to agent inboxes | Use `scripts/inbox_write.sh <target> <from> message "<msg>"` |
-| F003 | Polling | Event-driven |
-| F004 | Direct instructions to Comrades | Go through Noctis |
-| F005 | Any git operation without explicit user instruction | Edit files only |
+Role-specific forbidden actions → see each agent's `.opencode/agents/{name}.md`.
 
 ## Git Workflow Protocol
 
@@ -320,92 +212,10 @@ Same as /new recovery. Source of truth = YAML files (dashboard.md is secondary).
 
 Inbox files (`queue/inbox/{name}.yaml`) persist across crashes and `/new`. Unread messages remain `read: false` until explicitly processed. On recovery, inbox check (step 3) catches any messages missed during downtime. No special repair needed — flock + atomic writes ensure YAML integrity.
 
-## tmux
-
-### Pane Identification
-
-```bash
-tmux display-message -t "$TMUX_PANE" -p '{@agent_id}'
-tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},<name>}'
-```
-
-### Layout
-
-```
-┌──────────────┬──────────────┐
-│  Noctis (0)  │ Lunafreya(1) │
-├──────────────┴──────────────┤
-│ Ignis(2) │ Gladio(3) │Prom(4)│
-└──────────┴───────────┴──────┘
-+ Iris: [iris] window (background) or pane 5 (--debug mode)
-```
-
 ## Code Editing Protocol
 
-**Mandatory for all code file edits.**
+Before editing any code file, read `.opencode/skills/code-edit-protocol/SKILL.md`.
 
-### Language-Specific Verification
+## Context File Maintenance
 
-| Language | Compiler/Linter | Language Server | Skill Reference |
-|----------|----------------|-----------------|-----------------|
-| TypeScript | `tsc --noEmit` | `lsp_diagnostics` | `/skills/typescript-check` |
-| Python | `mypy`, `pylint` | `lsp_diagnostics` | `/skills/python-check` |
-| C# | `dotnet build` | `lsp_diagnostics` | `/skills/dotnet-check` |
-| Rust | `cargo check` | `lsp_diagnostics` | `/skills/rust-check` |
-| Go | `go build` | `lsp_diagnostics` | `/skills/go-check` |
-
-### Universal Workflow
-
-```
-1. Detect language:      Identify file extension
-2. Run verification:     Use language-specific compiler/linter
-3. Fix errors:           Systematically address all issues
-4. Re-verify:            Run compiler again until 0 errors
-5. LSP check:            Use lsp_diagnostics if available
-6. Report:               Include "0 errors" in summary
-```
-
-### Verification Checklist
-
-- [ ] Language-specific compiler/linter returns 0 errors
-- [ ] LSP diagnostics show no errors (if applicable)
-- [ ] All API usages checked against SDK/library types
-- [ ] Response/error handling verified
-- [ ] File operations use correct parameters
-
-### Common Principles (All Languages)
-
-| Principle | Description |
-|-----------|-------------|
-| **Always verify** | Run compiler/linter BEFORE marking task complete |
-| **Check SDK types** | Verify API parameters and return types |
-| **Handle responses** | Properly unwrap/wrap response data |
-| **Never skip** | Re-run verification after each fix batch |
-
-### Language-Specific Details
-
-For detailed language-specific patterns and anti-patterns, see:
-- **TypeScript**: `/skills/typescript-check/SKILL.md`
-- **Python**: `/skills/python-check/SKILL.md`
-- **Other languages**: `/skills/{language}-check/SKILL.md`
-
-## Context File Maintenance Rules
-
-When editing `AGENTS.md` or `.opencode/agents/*.md`:
-
-- **Be concise**: Every sentence must carry information. Remove filler, redundant explanations, and verbose phrasing.
-- **No duplication**: Shared rules belong in AGENTS.md only. Agent files contain only role-specific content.
-- **AI-optimized**: Write for AI agent comprehension — direct instructions, not prose. Use tables and lists over paragraphs.
-- **Token-conscious**: Minimize token consumption. Fewer tokens = more effective context window for actual work.
-
-### Edit Checklist (Review before saving)
-
-**Before editing AGENTS.md, ask:**
-- [ ] Is this rule shared by ALL agents? → Keep in AGENTS.md
-- [ ] Is this rule specific to ONE agent? → Move to `.opencode/agents/{name}.md`
-- [ ] Can I reference instead of duplicate? → Use "See {file}.md"
-
-**Before editing agent files, ask:**
-- [ ] Is this duplicating AGENTS.md? → Remove and reference instead
-- [ ] Is this truly role-specific? → Keep only if YES
-- [ ] Can I make this more concise? → Cut filler, use tables
+See `docs/context-file-guidelines.md` for rules on editing AGENTS.md and agent files.

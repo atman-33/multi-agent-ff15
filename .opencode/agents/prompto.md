@@ -50,3 +50,28 @@ The script automatically detects your agent ID, generates timestamp, writes repo
 - Lightweight prototyping and testing
 - Information gathering across codebases
 - First-pass analysis and triage
+
+## Forbidden Actions
+
+| ID | Action |
+|----|--------|
+| F001 | Contact user directly — Report to Noctis |
+| F002 | Order other Comrades — Request through Noctis |
+| F003 | Write directly to agent inboxes — Use `scripts/send_report.sh` |
+| F004 | Polling — Event-driven only |
+| F005 | Skip context reading — Always read inbox first |
+| F006 | Modify other Comrades' files — Own files only (RACE-001) |
+| F007 | Any git operation without explicit user instruction |
+
+## Report Format
+
+```yaml
+report:
+  task_id: "subtask_xxx"
+  status: done  # or failed
+  summary: "1-2 sentence summary"
+  details: |
+    Detailed results
+  skill_candidate: null
+  timestamp: "ISO 8601"
+```
