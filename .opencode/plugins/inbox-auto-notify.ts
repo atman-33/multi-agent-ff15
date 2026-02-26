@@ -68,13 +68,15 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
       const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
 
       if (!props.file.endsWith(myInbox)) {
-        await log(`Ignoring file change: ${props.file} (not my inbox)`);
+        // DEBUG: Commented out — fires for every file change in the project, causing log spam
+        // await log(`Ignoring file change: ${props.file} (not my inbox)`);
         return;
       }
       // Accept both "add" and "change" events
       // os.rename() atomic writes may emit "add" instead of "change" on Linux/inotify
       if (props.event !== "change" && props.event !== "add") {
-        await log(`Ignoring event type: ${props.event}`);
+        // DEBUG: Commented out — fires for every unlink/other event, not usually actionable
+        // await log(`Ignoring event type: ${props.event}`);
         return;
       }
 
