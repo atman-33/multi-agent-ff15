@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { AGENT_PANE_INDEX, ALL_MODEL_SWITCH_AGENTS } from "@/lib/agents";
+import { AGENT_PANE_INDEX, ALL_MODEL_SWITCH_AGENTS } from "@/constants/agents";
 
 const ESC = "\x1b";
 const CSI = "\x9b";

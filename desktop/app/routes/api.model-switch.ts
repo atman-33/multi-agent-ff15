@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { ALLOWED_AGENTS } from "@/lib/agents";
+import { ALLOWED_AGENTS } from "@/constants/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getAgentEndpoint } from "@/lib/opencode-endpoints.server";
 

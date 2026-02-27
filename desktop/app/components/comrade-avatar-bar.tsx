@@ -3,7 +3,7 @@ import {
   COMRADE_CONFIG,
   COMRADES,
   type ComradeId,
-} from "@/lib/use-comrade-status";
+} from "@/constants/comrade-config";
 import { cn } from "@/lib/utils";
 
 interface ComradeAvatarBarProps {

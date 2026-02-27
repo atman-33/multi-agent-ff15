@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { join } from "node:path";
 import type { ActionFunctionArgs } from "react-router";
-import { AGENT_PANE_INDEX, type ModelSwitchAgent } from "@/lib/agents";
+import { AGENT_PANE_INDEX, type ModelSwitchAgent } from "@/constants/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
 

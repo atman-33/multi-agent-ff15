@@ -1,4 +1,4 @@
-import { ALL_MODEL_SWITCH_AGENTS } from "@/lib/agents";
+import { ALL_MODEL_SWITCH_AGENTS } from "@/constants/agents";
 import { getClientForAgent } from "@/lib/opencode-client.server";
 
 /**

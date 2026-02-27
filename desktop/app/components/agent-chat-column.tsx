@@ -26,15 +26,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/lib/agents";
-import { useAgentActivity } from "@/lib/use-agent-activity";
-import type { AgentId, ChatLogRecord } from "@/lib/use-agent-chat-log";
+import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/constants/agents";
+import { useAgentActivity } from "@/hooks/use-agent-activity";
+import type { AgentId, ChatLogRecord } from "@/hooks/use-agent-chat-log";
 import {
   COMRADE_CONFIG,
   COMRADES,
   type ComradeId,
-} from "@/lib/use-comrade-status";
-import type { InboxLogRecord } from "@/lib/use-inbox-log";
+} from "@/constants/comrade-config";
+import type { InboxLogRecord } from "@/hooks/use-inbox-log";
 import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {

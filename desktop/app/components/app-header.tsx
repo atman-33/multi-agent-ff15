@@ -5,7 +5,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { useActiveProjects } from "@/lib/use-active-projects";
+import { useActiveProjects } from "@/hooks/use-active-projects";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {

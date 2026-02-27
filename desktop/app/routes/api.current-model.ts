@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { ALLOWED_AGENTS } from "@/lib/agents";
+import { ALLOWED_AGENTS } from "@/constants/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getAgentEndpoint } from "@/lib/opencode-endpoints.server";
 
