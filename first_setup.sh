@@ -499,6 +499,8 @@ DIRECTORIES=(
     "demo_output"
     "skills"
     "memory"
+    "docs/shared"
+    "runtime"
 )
 
 CREATED_COUNT=0
@@ -599,7 +601,7 @@ RESULTS+=("Configuration files: OK")
 # ============================================================
 log_step "STEP 8: Initialize queue files"
 
-for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris crystal; do
     INBOX_FILE="$SCRIPT_DIR/queue/inbox/${AGENT_NAME}.yaml"
     if [ ! -f "$INBOX_FILE" ]; then
         echo "messages: []" > "$INBOX_FILE"

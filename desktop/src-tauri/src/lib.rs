@@ -166,14 +166,14 @@ struct InboxLogPage {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// Read dashboard.md and return its content.
+/// Read docs/shared/board.md and return its content.
 #[tauri::command]
-fn read_dashboard() -> Result<String, String> {
+fn read_board() -> Result<String, String> {
     let root = get_project_root()?;
-    let path = root.join("dashboard.md");
+    let path = root.join("docs/shared/board.md");
     std::fs::read_to_string(&path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => "dashboard.md not found".to_string(),
-        _ => format!("Failed to read dashboard.md: {}", e),
+        std::io::ErrorKind::NotFound => "board.md not found".to_string(),
+        _ => format!("Failed to read board.md: {}", e),
     })
 }
 
@@ -649,7 +649,7 @@ fn is_executable(path: &PathBuf) -> bool {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            read_dashboard,
+            read_board,
             peek_inbox,
             list_inbox_messages,
             send_message,

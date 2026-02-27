@@ -9,7 +9,7 @@ declare const process: {
  * 
  * Listens to all agent inboxes and forwards NON-STANDARD messages to Iris.
  * This ensures Iris stays in the loop for context, discussions, and manual interventions,
- * without overwhelming her with mechanical task updates (which are handled by dashboard-auto-updater).
+ * without overwhelming her with mechanical task updates (which are handled by worklog-updater).
  */
 const IrisInboxListener: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID;

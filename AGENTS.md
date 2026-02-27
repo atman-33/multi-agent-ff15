@@ -1,6 +1,6 @@
 # multi-agent-ff15
 
-> **Version**: 7.0 | **Updated**: 2026-02-26 | **Framework**: OpenCode
+> **Version**: 8.0 | **Updated**: 2026-02-27 | **Framework**: OpenCode
 
 ⚠️ **Editing this file?** See `docs/context-file-guidelines.md` first.
 
@@ -28,9 +28,9 @@ Crystal (User)
 │  (軍師)    │  (盾)    │   (銃)     │
 └────────────┴──────────┴────────────┘
 
-     IRIS (イリス) ← Dashboard Guardian (background)
-     Owns ALL dashboard.md sections. Auto-updates via dashboard-auto-updater plugin.
-     Receives Noctis terminal capture on session.idle for judgment-section updates.
+     IRIS (イリス) ← Crystal Notification Gatekeeper (background)
+     Filters events and forwards Crystal-relevant notifications to queue/inbox/crystal.yaml.
+     Receives Noctis terminal capture on session.idle for event analysis.
 ```
 
 ## Context Persistence
@@ -50,11 +50,14 @@ multi-agent-ff15/
 ├── .opencode/agents/*.md          # Agent-specific system prompts (auto-loaded)
 ├── config/                        # settings.yaml, models.yaml, projects.yaml
 ├── queue/
-│   └── inbox/{agent}.yaml         # Per-agent inbox (sole communication channel)
+│   └── inbox/{agent}.yaml         # Per-agent inbox (incl. crystal.yaml)
 ├── projects/                      # Per-project metadata
 ├── memory/                        # Memory MCP storage
-├── docs/reports/                  # Supplementary report output
-├── dashboard.md                   # Status board
+├── docs/
+│   ├── reports/                   # Supplementary report output
+│   └── shared/board.md            # Comrade knowledge sharing board
+├── runtime/worklog.json           # Task progress for desktop app
+├── dashboard.md                   # DEPRECATED — archived to logs/archive/
 └── standby.sh                     # Deployment script
 ```
 
@@ -67,19 +70,18 @@ multi-agent-ff15/
 | **Ignis** | Strategist | 2 | Analysis, strategy, complex problem solving |
 | **Gladiolus** | Shield | 3 | Robust implementation, high quality standards |
 | **Prompto** | Gun | 4 | Fast recon and investigation |
-| **Iris** | Guardian | 5 | Dashboard auto-updater. Owns ALL dashboard sections. Woken by plugins on inbox changes and Noctis idle capture. |
+| **Iris** | Gatekeeper | 5 | Crystal Notification Gatekeeper. Filters events, forwards to Crystal inbox. Woken by plugins on Noctis idle capture. |
 
 
-## Dashboard Structure
+## Information Architecture
 
-**Owner**: Iris. Auto-updates via plugins. Noctis is fallback only. See `iris.md` for details.
+| Channel | Purpose | Manager |
+|---------|---------|--------|
+| `queue/inbox/crystal.yaml` | Push notifications to Crystal (approvals, errors, skill candidates) | Iris (gatekeeper) |
+| `docs/shared/board.md` | Comrade-to-Comrade knowledge sharing | Comrades (write) + Noctis (cleanup) |
+| `runtime/worklog.json` | In Progress / Today's Results for desktop app | Plugin (auto) |
 
-Sections (order MUST be preserved):
-1. 🚨 Requires Action
-2. 🔄 In Progress
-3. ✅ Today's Results
-4. 🎯 Skill Candidates
-5. 🛠️ Generated Skills
+**Shared Board Rules**: Comrades check on task receipt, add findings before report. Noctis cleans stale entries on report processing.
 
 **Language Rule**: `config/settings.yaml` → `language: ja` = Japanese only, others = English only.
 
@@ -88,7 +90,7 @@ Sections (order MUST be preserved):
 **ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
 Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
 
-**Event-driven only. No polling.** (Exception: Dashboard-auto-updater plugin polls every 30s for escalation of unresponsive agents.)
+**Event-driven only. No polling.** (Exception: worklog-updater plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 
@@ -99,6 +101,7 @@ Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin autom
 **General Agent Communication (use inbox_write.sh directly):**
 - **Luna → Noctis**: `scripts/inbox_write.sh noctis lunafreya message "<description>"`
 - **Noctis → Luna**: `scripts/inbox_write.sh lunafreya noctis message "<description>"`
+- **Iris → Crystal**: `scripts/inbox_write.sh crystal iris message "<notification>"`
 - **Iris → Noctis**: `scripts/inbox_write.sh noctis iris message "<message>"`
 - **Any → Any**: `scripts/inbox_write.sh <target> <from> <type> "<content>"`
 
@@ -165,7 +168,7 @@ Config: `config/settings.yaml` → `language: ja|en|...`
 - **ja**: FF15-style Japanese only
 - **non-ja**: FF15-style Japanese + translation in parentheses
 
-**dashboard.md Language Rule**: dashboard.md must follow language setting in config/settings.yaml. If language=ja, use Japanese only. If language=en, use English only.
+**dashboard.md Language Rule**: dashboard.md is deprecated. Crystal inbox, shared board, and worklog follow the language setting in config/settings.yaml.
 
 ## Model Override
 
@@ -177,7 +180,7 @@ Agent must be idle. Temporary (does not update config/models.yaml).
 ## Skill Discovery
 
 1. Comrade discovers reusable pattern → documents `skill_candidate` in report YAML
-2. Noctis aggregates in dashboard.md → User approves → promoted to skill
+2. Iris forwards skill candidates to Crystal inbox → User approves → promoted to skill
 
 ```yaml
 skill_candidate:
@@ -198,15 +201,16 @@ AGENTS.md + agent system prompt are auto-loaded.
 3. Check inbox:  scripts/inbox_read.sh {name} --peek
    - If unread > 0: scripts/inbox_read.sh {name} (read + mark as read, process in order)
 4. Role-based:
-   - Noctis: Read dashboard.md, check inbox for pending task reports and Luna messages
-   - Comrades: Check inbox for `task_assigned` messages (found=resume, none=wait)
+   - Noctis: Read `docs/shared/board.md`, check inbox for pending task reports and Luna messages
+   - Comrades: Check inbox for `task_assigned` messages (found=resume, none=wait). Read `docs/shared/board.md`.
    - Lunafreya: Check inbox for `noctis_response` type messages
+   - Iris: Check inbox for `agent_idle_capture` messages, filter for Crystal notifications
 5. Read projects/{project_id}.yaml if task has project field
 ```
 
 ### After Compaction
 
-Same as /new recovery. Source of truth = YAML files (dashboard.md is secondary).
+Same as /new recovery. Source of truth = YAML files.
 
 ### Inbox Recovery
 

@@ -1,11 +1,13 @@
 import {
   Activity,
+  Bell,
+  ClipboardList,
   Cpu,
   FileText,
   FolderGit2,
-  LayoutDashboard,
   MessagesSquare,
   Monitor,
+  Newspaper,
   Settings2,
 } from "lucide-react";
 import { NavLink, Outlet, useNavigation } from "react-router";
@@ -19,9 +21,19 @@ const navItems = [
     icon: MessagesSquare,
   },
   {
-    label: "Dashboard",
-    to: "/dashboard",
-    icon: LayoutDashboard,
+    label: "Board",
+    to: "/board",
+    icon: Newspaper,
+  },
+  {
+    label: "Crystal Inbox",
+    to: "/crystal-inbox",
+    icon: Bell,
+  },
+  {
+    label: "Worklog",
+    to: "/worklog",
+    icon: ClipboardList,
   },
   {
     label: "Reports",

@@ -12,6 +12,7 @@ const ALLOWED_TARGETS = [
   "gladiolus",
   "prompto",
   "iris",
+  "crystal",
 ];
 const ALLOWED_SENDERS = [
   "crystal",

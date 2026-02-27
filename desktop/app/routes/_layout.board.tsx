@@ -25,7 +25,7 @@ const INTERVAL_OPTIONS = [
   { label: "30s", value: 30 },
 ];
 
-export default function DashboardPage() {
+export default function BoardPage() {
   const isTauri =
     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [content, setContent] = useState<string>("");
@@ -35,14 +35,14 @@ export default function DashboardPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [interval, setInterval_] = useState(5);
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchBoard = useCallback(async () => {
     setLoading(true);
     try {
       if (isTauri) {
-        const result = await invoke<string>("read_dashboard");
+        const result = await invoke<string>("read_board");
         setContent(result);
       } else {
-        const res = await fetch("/api/dashboard");
+        const res = await fetch("/api/board");
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -61,26 +61,24 @@ export default function DashboardPage() {
     }
   }, [isTauri]);
 
-  // Initial load
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    fetchBoard();
+  }, [fetchBoard]);
 
-  // Auto-refresh
   useEffect(() => {
     if (!autoRefresh) {
       return;
     }
-    const timer = window.setInterval(fetchDashboard, interval * 1000);
+    const timer = window.setInterval(fetchBoard, interval * 1000);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, interval, fetchDashboard]);
+  }, [autoRefresh, interval, fetchBoard]);
 
   return (
     <div className="flex h-full flex-col">
       {/* Sticky toolbar */}
       <div className="flex shrink-0 items-center justify-between border-border/50 border-b bg-card/40 px-5 py-3 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-sm">Dashboard</h2>
+          <h2 className="font-semibold text-sm">Shared Board</h2>
           {autoRefresh && (
             <Circle
               aria-label="Auto-refresh active"
@@ -123,10 +121,10 @@ export default function DashboardPage() {
           </Button>
 
           <Button
-            aria-label="Reload dashboard"
+            aria-label="Reload board"
             className="h-7 w-7"
             disabled={loading}
-            onClick={fetchDashboard}
+            onClick={fetchBoard}
             size="icon"
             variant="ghost"
           >
@@ -161,7 +159,7 @@ export default function DashboardPage() {
 
         {!(content || error || loading) && (
           <div className="flex h-48 flex-col items-center justify-center text-muted-foreground">
-            <p className="text-sm">dashboard.md is empty or not found.</p>
+            <p className="text-sm">board.md is empty or not found.</p>
           </div>
         )}
       </div>

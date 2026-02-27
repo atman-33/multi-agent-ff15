@@ -18,12 +18,6 @@ FROM="$2"
 MSG_TYPE="$3"
 MSG_CONTENT="$4"
 
-# Crystal is not an agent — she communicates via chat, not inbox
-if [[ "$AGENT" == "crystal" ]]; then
-  echo "ERROR: Cannot write to crystal's inbox. Crystal communicates via chat directly. Reply in the chat instead." >&2
-  exit 2
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INBOX_DIR="${REPO_ROOT}/queue/inbox"

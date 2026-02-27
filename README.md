@@ -39,7 +39,7 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 | **Architecture** | Agents with tools | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
 | **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **5 independent agents** |
 | **Coordination cost** | API calls | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
-| **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + dashboard |
+| **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + desktop app |
 | **Skill discovery** | None | None | None | **Bottom-up auto-proposal** |
 | **Setup** | CLI install | Heavy (infra required) | pip install | Shell scripts |
 
@@ -215,7 +215,7 @@ Then restart your computer and run `install.bat` again.
 | 👑 Noctis | King - receives your commands and manages tasks | 1 |
 | 🌙 Lunafreya | Oracle - operates independently & commands Noctis | 1 |
 | ⚔️ Comrades (Ignis, Gladiolus, Prompto) | Workers - execute tasks in parallel | 3 |
-| 🌸 Iris | Guardian - monitors dashboard & notifies Noctis | 1 |
+| 🌸 Iris | Gatekeeper - Crystal notifications | 1 |
 
 tmux session: `ff15` - unified session (6 panes)
 
@@ -250,16 +250,10 @@ Meanwhile, Ignis distributes tasks to Comrades and executes in parallel.
 
 ### Step 3: Check progress
 
-Open `dashboard.md` in your editor to see real-time status:
+Check the **desktop app** for real-time worklog and Crystal inbox notifications:
 
-```markdown
-## In Progress
-| Worker | Task | Status |
-|--------|------|--------|
-| Gladiolus | React research | Running |
-| Prompto | Vue research | Running |
-| Lunafreya | Angular research | Complete |
-```
+- **Worklog page**: Shows In Progress / Today's Results
+- **Crystal Inbox page**: Shows items needing your attention (pushed by Iris)
 
 ---
 
@@ -304,7 +298,7 @@ Executed process:
    - Gladiolus: Research Cursor
    - Prompto: Research OpenCode
 2. All 3 research simultaneously
-3. Results aggregated in dashboard.md
+3. Results viewable in desktop app worklog
 ```
 
 ### Example 2: PoC Preparation
@@ -317,7 +311,7 @@ Executed process:
 2. Ignis: List items to verify
 3. Gladiolus: Research technical feasibility
 4. Prompto: Create PoC plan document
-5. All results aggregated in dashboard.md, ready for meeting
+5. All results viewable in desktop app worklog, ready for meeting
 ```
 
 ---
