@@ -65,6 +65,9 @@ openspec/
 !.github/workflows
 .opencode/command/*
 !.opencode/command/create-feature-branch.md
+!.opencode/command/duo-gladiolus.md
+!.opencode/command/duo-ignis.md
+!.opencode/command/duo-prompto.md
 .opencode/skills/*
 !.opencode/skills/skill-creator
 !.opencode/skills/send-message
