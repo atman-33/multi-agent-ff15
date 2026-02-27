@@ -13,7 +13,7 @@ export interface InboxMessage {
   timestamp: string;
 }
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 5_000;
 
 interface CrystalInboxState {
   /** All messages (newest first after fetch) */
