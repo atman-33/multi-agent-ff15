@@ -9,9 +9,16 @@ import { useActiveProjects } from "@/hooks/use-active-projects";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
+  "/": "Home",
   "/chat": "Chat",
-  "/dashboard": "Dashboard",
+  "/board": "Board",
+  "/crystal-inbox": "Crystal Inbox",
+  "/worklog": "Worklog",
+  "/reports": "Reports",
   "/projects": "Projects",
+  "/mcp": "MCP",
+  "/oh-my-opencode": "Models",
+  "/monitor": "Monitor",
   "/health": "Health",
   "/messages/noctis": "Messages — Noctis",
   "/messages/lunafreya": "Messages — Lunafreya",
