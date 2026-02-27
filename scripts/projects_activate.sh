@@ -57,18 +57,7 @@ read_active_ids() {
     echo ""
     return
   fi
-  # Parse YAML list items: lines matching "  - " under active_project_ids
-  python3 -c "
-import yaml, sys
-try:
-    with open('${CONFIG_FILE}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    ids = data.get('active_project_ids', []) or []
-    for pid in ids:
-        print(pid)
-except Exception as e:
-    sys.stderr.write(f'WARNING: Failed to parse {\"${CONFIG_FILE}\"}: {e}\n')
-" 2>/dev/null
+  python3 "${SCRIPT_DIR}/lib/yaml_config_reader.py" active-ids "$CONFIG_FILE" 2>/dev/null
 }
 
 # --- Helper: write active IDs to config (Task 3.7) ---
