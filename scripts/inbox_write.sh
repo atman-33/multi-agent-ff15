@@ -113,12 +113,19 @@ try:
     }
     messages.append(new_msg)
 
+    def ts_key(m):
+        ts = m.get('timestamp', '')
+        # yaml.safe_load may parse timestamps as datetime objects; convert to str for sorting
+        if hasattr(ts, 'isoformat'):
+            return ts.isoformat()
+        return str(ts) if ts else ''
+
     unread = [m for m in messages if isinstance(m, dict) and not m.get('read', True)]
     read_msgs = [m for m in messages if isinstance(m, dict) and m.get('read', True)]
-    read_msgs.sort(key=lambda m: m.get('timestamp', ''), reverse=True)
+    read_msgs.sort(key=ts_key, reverse=True)
     pruned_read = read_msgs[:30]
     messages = unread + pruned_read
-    messages.sort(key=lambda m: m.get('timestamp', ''))
+    messages.sort(key=ts_key)
 
     data['messages'] = messages
 
