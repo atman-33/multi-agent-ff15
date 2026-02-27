@@ -21,9 +21,9 @@
                                      │
                                      ▼
                              ┌────────────┐
-                             │    IRIS    │ ← Guardian (Monitor)
-                             │  (守護者)   │   Dashboard management
-                             │            │   Context aggregator
+                             │    IRIS    │ ← Gatekeeper
+                             │  (守護者)   │   Crystal notification gatekeeper
+                             │            │   Filters events → Crystal inbox
                              └────────────┘
 
       Session: ff15 (unified session - 6 panes)
@@ -179,9 +179,15 @@ multi-agent-ff15/
 │       ├── ignis.yaml
 │       ├── gladiolus.yaml
 │       ├── prompto.yaml
-│       └── iris.yaml
+│       ├── iris.yaml
+│       └── crystal.yaml
 │
+├── docs/
+│   └── shared/
+│       └── board.md          # Comrade knowledge sharing board
+├── runtime/
+│   └── worklog.json       # In Progress / Today's Results
 ├── memory/                   # Memory MCP storage
-├── dashboard.md              # Real-time status overview
+├── dashboard.md              # Real-time status overview (deprecated)
 └── AGENTS.md                 # OpenCode project context
 ```

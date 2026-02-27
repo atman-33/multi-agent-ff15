@@ -349,7 +349,7 @@ This skill is used by Comrades under Noctis.
 
 1. Comrade (Ignis/Gladiolus/Prompto) discovers skill candidate
 2. Comrade → Reports to Noctis (`queue/reports/{comrade}_report.yaml`)
-3. Noctis → Requests approval from user (Crystal) via `dashboard.md`
+3. Iris forwards skill candidate to Crystal inbox (`queue/inbox/crystal.yaml`)
 4. User approves
 5. Noctis → Instructs Comrade to create skill (`queue/tasks/{comrade}.yaml`)
 6. **Comrade uses this skill-creator to create the skill**

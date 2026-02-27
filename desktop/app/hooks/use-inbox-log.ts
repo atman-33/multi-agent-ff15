@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentId } from "@/lib/use-agent-chat-log";
+import type { AgentId } from "@/hooks/use-agent-chat-log";
 
 // ---------------------------------------------------------------------------
 // Types

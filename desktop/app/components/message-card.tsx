@@ -3,7 +3,7 @@ import { memo, useMemo, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLogRecord } from "@/lib/use-agent-chat-log";
+import type { ChatLogRecord } from "@/hooks/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------

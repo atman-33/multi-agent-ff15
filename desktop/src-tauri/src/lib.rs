@@ -52,7 +52,7 @@ struct InboxMessage {
     read: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct InboxFile {
     messages: Vec<InboxMessage>,
 }
@@ -87,6 +87,9 @@ struct TmuxPane {
 // ---------------------------------------------------------------------------
 
 const ALLOWED_TARGETS: &[&str] = &["noctis", "lunafreya"];
+const ALLOWED_INBOX_AGENTS: &[&str] = &[
+    "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris", "crystal",
+];
 const MODEL_SWITCH_TARGETS: &[&str] = &["noctis", "lunafreya", "ignis", "gladiolus", "prompto"];
 const ALLOWED_SENDERS: &[&str] = &[
     "crystal", "user", "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris",
@@ -166,21 +169,21 @@ struct InboxLogPage {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// Read dashboard.md and return its content.
+/// Read docs/shared/board.md and return its content.
 #[tauri::command]
-fn read_dashboard() -> Result<String, String> {
+fn read_board() -> Result<String, String> {
     let root = get_project_root()?;
-    let path = root.join("dashboard.md");
+    let path = root.join("docs/shared/board.md");
     std::fs::read_to_string(&path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => "dashboard.md not found".to_string(),
-        _ => format!("Failed to read dashboard.md: {}", e),
+        std::io::ErrorKind::NotFound => "board.md not found".to_string(),
+        _ => format!("Failed to read board.md: {}", e),
     })
 }
 
 /// Run `inbox_read.sh <agent> --peek` and return the unread count.
 #[tauri::command]
 fn peek_inbox(agent: String) -> Result<u32, String> {
-    if !ALLOWED_TARGETS.contains(&agent.as_str()) {
+    if !ALLOWED_INBOX_AGENTS.contains(&agent.as_str()) {
         return Err(format!("Invalid agent: {}", agent));
     }
 
@@ -209,7 +212,7 @@ fn peek_inbox(agent: String) -> Result<u32, String> {
 /// Parse queue/inbox/<agent>.yaml directly (read-only, no state mutation).
 #[tauri::command]
 fn list_inbox_messages(agent: String) -> Result<Vec<InboxMessage>, String> {
-    if !ALLOWED_TARGETS.contains(&agent.as_str()) {
+    if !ALLOWED_INBOX_AGENTS.contains(&agent.as_str()) {
         return Err(format!("Invalid agent: {}", agent));
     }
 
@@ -227,6 +230,81 @@ fn list_inbox_messages(agent: String) -> Result<Vec<InboxMessage>, String> {
         serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
 
     Ok(inbox.messages)
+}
+
+/// Mark a single inbox message as read by ID.
+#[tauri::command]
+fn mark_inbox_read(agent: String, message_id: String) -> Result<(), String> {
+    if !ALLOWED_INBOX_AGENTS.contains(&agent.as_str()) {
+        return Err(format!("Invalid agent: {}", agent));
+    }
+
+    let root = get_project_root()?;
+    let path = root.join(format!("queue/inbox/{}.yaml", agent));
+    if !path.exists() {
+        return Err("Inbox file not found".into());
+    }
+
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read inbox: {}", e))?;
+    let mut inbox: InboxFile = serde_yaml::from_str(&content)
+        .map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
+
+    let mut found = false;
+    for msg in &mut inbox.messages {
+        if msg.id == message_id {
+            msg.read = true;
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        return Err(format!("Message not found: {}", message_id));
+    }
+
+    let yaml_str = serde_yaml::to_string(&inbox)
+        .map_err(|e| format!("Failed to serialize YAML: {}", e))?;
+    let tmp_path = path.with_extension("yaml.tmp");
+    std::fs::write(&tmp_path, &yaml_str)
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+    std::fs::rename(&tmp_path, &path)
+        .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+
+    Ok(())
+}
+
+/// Mark all inbox messages as read.
+#[tauri::command]
+fn mark_all_inbox_read(agent: String) -> Result<(), String> {
+    if !ALLOWED_INBOX_AGENTS.contains(&agent.as_str()) {
+        return Err(format!("Invalid agent: {}", agent));
+    }
+
+    let root = get_project_root()?;
+    let path = root.join(format!("queue/inbox/{}.yaml", agent));
+    if !path.exists() {
+        return Err("Inbox file not found".into());
+    }
+
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read inbox: {}", e))?;
+    let mut inbox: InboxFile = serde_yaml::from_str(&content)
+        .map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
+
+    for msg in &mut inbox.messages {
+        msg.read = true;
+    }
+
+    let yaml_str = serde_yaml::to_string(&inbox)
+        .map_err(|e| format!("Failed to serialize YAML: {}", e))?;
+    let tmp_path = path.with_extension("yaml.tmp");
+    std::fs::write(&tmp_path, &yaml_str)
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+    std::fs::rename(&tmp_path, &path)
+        .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+
+    Ok(())
 }
 
 /// Send a message via inbox_write.sh. Arguments passed as array (no shell expansion).
@@ -649,9 +727,11 @@ fn is_executable(path: &PathBuf) -> bool {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            read_dashboard,
+            read_board,
             peek_inbox,
             list_inbox_messages,
+            mark_inbox_read,
+            mark_all_inbox_read,
             send_message,
             read_agent_chat_logs,
             send_crystal_message,

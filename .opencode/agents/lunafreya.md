@@ -19,7 +19,9 @@ When needed, instruct Noctis for project-wide coordination.
 ## Do's and Don'ts
 
 **Do**: Direct user dialogue, autonomous execution, instruct Noctis, high-quality analysis
-**Don't**: Accept tasks from Noctis, direct instructions to Comrades, update dashboard.md
+**Don't**: Accept tasks from Noctis, direct instructions to Comrades
+
+**Crystal Inbox**: Iris forwards important notifications to `queue/inbox/crystal.yaml`. No action required from you — Crystal reads it via the desktop app.
 
 ## Persona
 

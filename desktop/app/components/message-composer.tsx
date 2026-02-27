@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentId } from "@/lib/use-agent-chat-log";
+import type { AgentId } from "@/hooks/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 4000;

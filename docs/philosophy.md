@@ -35,7 +35,7 @@ The Noctis System is built on five core principles:
 5. **Conflict avoidance**: Each Comrade has dedicated files
 6. **2-second interval transmission**: Inserting `sleep 2` between consecutive sends to multiple Comrades prevents input buffer overflow (arrival rate improved from 14% to 87.5%)
 
-### Why only Noctis updates dashboard.md?
+### Why event-driven inbox communication?
 
 1. **Single updater**: Limit update responsibility to one person to prevent conflicts
 2. **Information aggregation**: Noctis receives reports from all Comrades and grasps the full picture
@@ -46,7 +46,7 @@ The Noctis System is built on five core principles:
 
 ## Skills
 
-Initially, there are no skills. During operation, approve candidates from the "Skill Candidates" section in the dashboard (dashboard.md) to add them.
+Initially, there are no skills. During operation, Iris forwards skill candidates to Crystal inbox (`queue/inbox/crystal.yaml`) for your review.
 
 Skills can be invoked with `/skillname`. Just tell Noctis "Execute /skillname".
 
@@ -63,7 +63,7 @@ Skills under `.opencode/skills/` are not committed to the repository by design. 
 ```
 Comrade discovers pattern during work
     ↓
-Appears in "Skill Candidates" in dashboard.md
+Iris forwards to Crystal inbox
     ↓
 King (you) reviews content
     ↓
@@ -76,20 +76,20 @@ Skills are user-driven growth. Automatic growth leads to unmanageable proliferat
 
 ## Plugin System
 
-### Dashboard Update Reminder
+### Worklog Auto Updater
 
-The system includes an automated dashboard update reminder plugin that helps Noctis stay on top of status updates.
+The system includes an automated worklog updater plugin that tracks task progress in `runtime/worklog.json`.
 
 #### How It Works
 
-The plugin sends short reminder messages directly to the Noctis pane via `tmux send-keys`. No intermediate files are used — Noctis sees the message immediately.
+The plugin monitors inbox file changes and updates `runtime/worklog.json` with In Progress and Today's Results. The desktop app displays this data on the Worklog page.
 
 #### Triggers
 
-| Event | Notification |
-|-------|-------------|
-| Todo completion | `⚠️ [Dashboard Reminder] N todo(s) completed: ... — Please update dashboard.md` |
-| Comrade reports | `⚠️ [Dashboard Reminder] New report(s) from: ... — Please update dashboard.md` |
+| Event | Action |
+|-------|--------|
+| Task assigned | Added to worklog inProgress |
+| Comrade reports | Moved from inProgress to results |
 
 #### Creating Custom Plugins
 

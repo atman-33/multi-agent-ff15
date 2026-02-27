@@ -379,16 +379,16 @@ if [ "$CLEAN_MODE" = true ]; then
     BACKUP_DIR="./logs/backup_$(date '+%Y%m%d_%H%M%S')"
     NEED_BACKUP=false
 
-    if [ -f "./dashboard.md" ]; then
-        if grep -q "cmd_" "./dashboard.md" 2>/dev/null; then
-            NEED_BACKUP=true
-        fi
+    # Check if there are inbox files with content worth backing up
+    if [ -d "./queue/inbox" ] && [ "$(ls -A ./queue/inbox 2>/dev/null)" ]; then
+        NEED_BACKUP=true
     fi
 
     if [ "$NEED_BACKUP" = true ]; then
         mkdir -p "$BACKUP_DIR" || true
-        cp "./dashboard.md" "$BACKUP_DIR/" 2>/dev/null || true
+        cp "./docs/shared/board.md" "$BACKUP_DIR/" 2>/dev/null || true
         cp -r "./queue/inbox" "$BACKUP_DIR/" 2>/dev/null || true
+        cp "./runtime/worklog.json" "$BACKUP_DIR/" 2>/dev/null || true
         log_info "📦 Previous records backed up: $BACKUP_DIR"
     fi
 fi
@@ -403,6 +403,12 @@ fi
 
 # Ensure projects directory exists
 [ -d ./projects ] || mkdir -p ./projects
+
+# Ensure shared board directory exists
+[ -d ./docs/shared ] || mkdir -p ./docs/shared
+
+# Ensure runtime directory exists
+[ -d ./runtime ] || mkdir -p ./runtime
 
 # Initialize config/current_projects.yaml if not exists
 if [ ! -f ./config/current_projects.yaml ]; then
@@ -419,8 +425,8 @@ fi
 if [ "$CLEAN_MODE" = true ]; then
     log_info "📜 Discarding previous mission records..."
 
-    # Inbox reset (all 6 agents)
-    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+    # Inbox reset (all agents including crystal)
+    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris crystal; do
         echo "messages: []" > ./queue/inbox/${AGENT_NAME}.yaml
     done
 
@@ -441,44 +447,55 @@ if [ "$CLEAN_MODE" = true ]; then
 else
     log_info "📜 Resuming from previous state..."
     # Initialize inbox files if they don't exist (first launch without --clean)
-    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris; do
+    for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris crystal; do
         [ -f ./queue/inbox/${AGENT_NAME}.yaml ] || echo "messages: []" > ./queue/inbox/${AGENT_NAME}.yaml
     done
     log_success "✅ Queues and reports preserved"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 3: Dashboard initialization (--clean mode only)
+# STEP 3: Dashboard initialization (deprecated — dashboard.md archived)
 # ═══════════════════════════════════════════════════════════════════════════════
 if [ "$CLEAN_MODE" = true ]; then
-    log_info "📊 Initializing dashboard..."
-    TIMESTAMP=$(date "+%Y-%m-%d %H:%M")
-
-    # English-only dashboard (simplified)
-    cat > ./dashboard.md <<EOF
-# 📊 Mission Status
-Last Updated: ${TIMESTAMP}
-
-## 🚨 Requires Action
-None
-
-## 🔄 In Progress
-None
-
-## ✅ Today's Results
-| Time | Agent | Mission | Result |
-|------|-------|---------|--------|
-
-## 🎯 Skill Candidates
-None
-
-## 🛠️ Generated Skills
-None
-EOF
-
-    log_success "  └─ Dashboard initialized (shell: $SHELL_SETTING)"
+    log_info "📊 Dashboard deprecated — skipping initialization"
 else
-    log_info "📊 Preserving previous dashboard"
+    log_info "📊 Dashboard deprecated — no action needed"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STEP 3.5: Shared board + worklog initialization (--clean mode only)
+# ═══════════════════════════════════════════════════════════════════════════════
+if [ "$CLEAN_MODE" = true ]; then
+    log_info "📋 Initializing shared board..."
+    cat > ./docs/shared/board.md <<'EOF'
+# Shared Board
+
+> Knowledge sharing between Comrades.
+> Rules: Check on task receipt / Add before task report
+
+## General
+
+EOF
+    log_success "  └─ Shared board initialized"
+
+    log_info "📊 Initializing worklog..."
+    echo '{"inProgress": [], "results": []}' > ./runtime/worklog.json
+    log_success "  └─ Worklog initialized"
+else
+    # Initialize shared board if it doesn't exist (first launch without --clean)
+    if [ ! -f ./docs/shared/board.md ]; then
+        cat > ./docs/shared/board.md <<'EOF'
+# Shared Board
+
+> Knowledge sharing between Comrades.
+> Rules: Check on task receipt / Add before task report
+
+## General
+
+EOF
+    fi
+    # Initialize worklog if it doesn't exist
+    [ -f ./runtime/worklog.json ] || echo '{"inProgress": [], "results": []}' > ./runtime/worklog.json
 fi
 echo ""
 

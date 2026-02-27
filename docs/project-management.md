@@ -63,7 +63,7 @@ You: "Research top 3 solutions for [problem]"
 → Ignis: Solution A
 → Gladiolus: Solution B
 → Prompto: Solution C
-→ Results in dashboard.md
+→ Results viewable in desktop app worklog
 ```
 
 ### Multi-project management
@@ -86,7 +86,7 @@ You: "Create technical documentation for [feature]"
 → Ignis: Architecture overview
 → Gladiolus: API documentation
 → Prompto: Usage examples
-→ Merged in dashboard.md
+→ Merged and viewable in desktop app worklog
 ```
 
 ---

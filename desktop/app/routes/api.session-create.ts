@@ -5,7 +5,7 @@ import {
   ALLOWED_AGENTS,
   type ModelSwitchAgent,
   AGENT_PANE_INDEX as PANE_INDEX,
-} from "@/lib/agents";
+} from "@/constants/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
 

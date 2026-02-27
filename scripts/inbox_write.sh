@@ -18,12 +18,6 @@ FROM="$2"
 MSG_TYPE="$3"
 MSG_CONTENT="$4"
 
-# Crystal is not an agent — she communicates via chat, not inbox
-if [[ "$AGENT" == "crystal" ]]; then
-  echo "ERROR: Cannot write to crystal's inbox. Crystal communicates via chat directly. Reply in the chat instead." >&2
-  exit 2
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INBOX_DIR="${REPO_ROOT}/queue/inbox"
@@ -49,104 +43,13 @@ mkdir -p "$INBOX_DIR" 2>/dev/null
 # Append a JSON record to agent-messages.jsonl for chat display
 do_log_agent_message() {
   mkdir -p "$(dirname "$AGENT_MSG_LOG")" 2>/dev/null
-  python3 - "$AGENT_MSG_LOG" "$AGENT_MSG_LOCK" "$MSG_ID" "$TIMESTAMP" "$FROM" "$AGENT" "$MSG_TYPE" "$MSG_CONTENT" << 'LOGEOF'
-import sys, json, fcntl, os
-
-log_file   = sys.argv[1]
-lock_file  = sys.argv[2]
-msg_id     = sys.argv[3]
-ts         = sys.argv[4]
-from_agent = sys.argv[5]
-to_agent   = sys.argv[6]
-msg_type   = sys.argv[7]
-content    = sys.argv[8]
-
-record = json.dumps({
-    "id":      msg_id,
-    "ts":      ts,
-    "from":    from_agent,
-    "to":      to_agent,
-    "type":    msg_type,
-    "content": content,
-}, ensure_ascii=False)
-
-with open(lock_file, 'a') as lf:
-    fcntl.flock(lf, fcntl.LOCK_EX)
-    try:
-        with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(record + '\n')
-    finally:
-        fcntl.flock(lf, fcntl.LOCK_UN)
-LOGEOF
+  python3 "${SCRIPT_DIR}/lib/inbox_writer.py" log-message \
+    "$AGENT_MSG_LOG" "$AGENT_MSG_LOCK" "$MSG_ID" "$TIMESTAMP" "$FROM" "$AGENT" "$MSG_TYPE" "$MSG_CONTENT"
 }
 
 do_append() {
-  python3 - "$INBOX_FILE" "$TMP_FILE" "$MSG_ID" "$FROM" "$TIMESTAMP" "$MSG_TYPE" "$MSG_CONTENT" << 'PYEOF'
-import sys
-import yaml
-import os
-
-inbox_file = sys.argv[1]
-tmp_file = sys.argv[2]
-msg_id = sys.argv[3]
-from_agent = sys.argv[4]
-timestamp = sys.argv[5]
-msg_type = sys.argv[6]
-content = sys.argv[7]
-
-try:
-    if os.path.exists(inbox_file):
-        with open(inbox_file, 'r') as f:
-            data = yaml.safe_load(f) or {}
-    else:
-        data = {}
-
-    messages = data.get('messages', [])
-    if not isinstance(messages, list):
-        messages = []
-
-    for m in messages:
-        if isinstance(m, dict) and m.get('id') == msg_id:
-            sys.exit(0)
-
-    new_msg = {
-        'id': msg_id,
-        'from': from_agent,
-        'timestamp': timestamp,
-        'type': msg_type,
-        'content': content,
-        'read': False
-    }
-    messages.append(new_msg)
-
-    unread = [m for m in messages if isinstance(m, dict) and not m.get('read', True)]
-    read_msgs = [m for m in messages if isinstance(m, dict) and m.get('read', True)]
-    read_msgs.sort(key=lambda m: m.get('timestamp', ''), reverse=True)
-    pruned_read = read_msgs[:30]
-    messages = unread + pruned_read
-    messages.sort(key=lambda m: m.get('timestamp', ''))
-
-    data['messages'] = messages
-
-    with open(tmp_file, 'w') as f:
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-    os.rename(tmp_file, inbox_file)
-    # Note: os.rename triggers file watcher events (add/change).
-    # No additional os.utime needed — it caused duplicate watcher events.
-    sys.exit(0)
-
-except yaml.YAMLError as e:
-    print(f"YAML error: {e}", file=sys.stderr)
-    if os.path.exists(tmp_file):
-        os.remove(tmp_file)
-    sys.exit(2)
-except Exception as e:
-    print(f"Error: {e}", file=sys.stderr)
-    if os.path.exists(tmp_file):
-        os.remove(tmp_file)
-    sys.exit(2)
-PYEOF
+  python3 "${SCRIPT_DIR}/lib/inbox_writer.py" append-message \
+    "$INBOX_FILE" "$TMP_FILE" "$MSG_ID" "$FROM" "$TIMESTAMP" "$MSG_TYPE" "$MSG_CONTENT"
 }
 
 for attempt in $(seq 1 $MAX_RETRIES); do

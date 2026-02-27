@@ -5,7 +5,7 @@ import {
   ALLOWED_AGENTS,
   type ModelSwitchAgent,
   AGENT_PANE_INDEX as PANE_INDEX,
-} from "@/lib/agents";
+} from "@/constants/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
 
@@ -95,38 +95,35 @@ export async function action({ request }: { request: Request }) {
       console.error("Error clearing log files:", e);
     }
 
-    // 3. Reset dashboard.md
+    // 3. Reset worklog.json and board.md (dashboard.md is deprecated)
     try {
-      const timestamp = new Date()
-        .toLocaleString("sv")
-        .replace("T", " ")
-        .substring(0, 16);
-      const dashboardContent = `# 📊 Mission Status
-Last Updated: ${timestamp}
-
-## 🚨 Requires Action
-None
-
-## 🔄 In Progress
-None
-
-## ✅ Today's Results
-| Time | Agent | Mission | Result |
-|------|-------|---------|--------|
-
-## 🎯 Skill Candidates
-None
-
-## 🛠️ Generated Skills
-None
-`;
       await fs.writeFile(
-        path.join(root, "dashboard.md"),
-        dashboardContent,
+        path.join(root, "runtime/worklog.json"),
+        JSON.stringify({ inProgress: [], results: [] }, null, 2),
         "utf-8"
       );
     } catch (e) {
-      console.error("Error resetting dashboard:", e);
+      console.error("Error resetting worklog:", e);
+    }
+    try {
+      const boardContent = `# Shared Board
+
+> Knowledge sharing between Comrades.
+> Rules: Check on task receipt / Add before task report
+
+---
+
+## General
+
+(Empty)
+`;
+      await fs.writeFile(
+        path.join(root, "docs/shared/board.md"),
+        boardContent,
+        "utf-8"
+      );
+    } catch (e) {
+      console.error("Error resetting board:", e);
     }
 
     // 4. Force new sessions on all agents via tmux and opencode SDK

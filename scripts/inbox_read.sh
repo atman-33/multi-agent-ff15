@@ -45,93 +45,13 @@ fi
 
 log_message "[PROCESS] Reading inbox file: $INBOX_FILE"
 
-python3 - "$INBOX_FILE" "$LOCK_FILE" "$PEEK_ONLY" "$LOG_FILE" "$ENABLE_LOG" << 'PYEOF'
-import sys
-import yaml
-import os
-import fcntl
-import time
-from datetime import datetime
+# Determine mode based on --peek flag
+if [[ "$PEEK_ONLY" == "--peek" ]]; then
+  READER_MODE="peek"
+else
+  READER_MODE="read-and-mark"
+fi
 
-inbox_file = sys.argv[1]
-lock_file = sys.argv[2]
-peek_only = sys.argv[3] == "--peek"
-log_file = sys.argv[4]
-enable_log = sys.argv[5] == "true"
-
-def log(msg):
-    if not enable_log:
-        return
-    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    with open(log_file, 'a') as lf:
-        lf.write(f"[{timestamp}] inbox_read.py: {msg}\n")
-
-try:
-    log(f"[START] peek_only={peek_only}")
-    with open(lock_file, 'w') as lf:
-        log("[LOCK] Attempting to acquire lock...")
-        for attempt in range(3):
-            try:
-                fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                log(f"[LOCK] Acquired on attempt {attempt + 1}")
-                break
-            except BlockingIOError:
-                log(f"[LOCK] Blocked on attempt {attempt + 1}, waiting...")
-                time.sleep([0.5, 1, 2][attempt])
-        else:
-            log("[LOCK] Waiting for exclusive lock (blocking)...")
-            fcntl.flock(lf, fcntl.LOCK_EX)
-            log("[LOCK] Acquired (after blocking)")
-
-        with open(inbox_file, 'r') as f:
-            data = yaml.safe_load(f) or {}
-        log(f"[READ] Loaded inbox data, message count: {len(data.get('messages', []))}")
-
-        messages = data.get('messages', [])
-        if not isinstance(messages, list):
-            messages = []
-
-        unread = [m for m in messages if isinstance(m, dict) and not m.get('read', True)]
-        unread.sort(key=lambda m: m.get('timestamp', ''))
-        log(f"[FILTER] Unread count: {len(unread)}")
-
-        if peek_only:
-            log("[PEEK] Returning unread count without marking as read")
-            print(f"{len(unread)} unread messages")
-            sys.exit(0)
-
-        if not unread:
-            log("[RESULT] No unread messages")
-            print("0 unread messages")
-            sys.exit(0)
-
-        log(f"[DISPLAY] Showing {len(unread)} unread messages")
-
-        print(f"{len(unread)} unread message(s):")
-        print("---")
-        for msg in unread:
-            print(f"id: {msg.get('id', '?')}")
-            print(f"from: {msg.get('from', '?')}")
-            print(f"type: {msg.get('type', '?')}")
-            print(f"time: {msg.get('timestamp', '?')}")
-            print(f"content: {msg.get('content', '')}")
-            print("---")
-            msg['read'] = True
-        
-        log(f"[MARK] Marked {len(unread)} messages as read")
-
-        data['messages'] = messages
-        tmp_file = inbox_file + '.tmp'
-        with open(tmp_file, 'w') as f:
-            yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        os.rename(tmp_file, inbox_file)
-        log("[WRITE] Updated inbox file with read status")
-
-        fcntl.flock(lf, fcntl.LOCK_UN)
-        log("[LOCK] Released lock")
-
-except Exception as e:
-    log(f"[ERROR] {e}")
-    print(f"Error reading inbox: {e}", file=sys.stderr)
-    sys.exit(2)
-PYEOF
+ENABLE_INBOX_READ_LOG="$ENABLE_LOG" \
+INBOX_READ_LOG_FILE="$LOG_FILE" \
+  python3 "${SCRIPT_DIR}/lib/inbox_reader.py" "$INBOX_FILE" "$READER_MODE"

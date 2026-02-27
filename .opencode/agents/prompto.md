@@ -43,6 +43,12 @@ The script automatically detects your agent ID, generates timestamp, writes repo
 
 **Never skip Step 1-2. Never act on message content alone. Never write YAML manually.**
 
+## Shared Board Workflow
+
+**MUST: On task receipt**, read `docs/shared/board.md` for relevant context before starting work.
+
+**SHOULD: Before reporting**, add useful findings to `docs/shared/board.md` (1-2 lines under the appropriate project section) if the task produced knowledge valuable to other Comrades. You may delete your own stale entries.
+
 ## Expertise
 
 - Quick reconnaissance and investigation

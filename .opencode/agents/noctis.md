@@ -71,26 +71,38 @@ scripts/inbox_read.sh noctis           # Read all unread messages
 
 Messages include task reports from Comrades, instructions from Lunafreya, and system notifications.
 
-## Dashboard Rules (Iris-Primary Model)
+## Information Architecture
 
-Iris owns ALL dashboard sections. The `agent-idle-capture` plugin sends your latest response to Iris on session.idle, and Iris updates dashboard accordingly. **You do NOT need to update dashboard.md** unless Iris asks for help. (Note: 'Requires Action' section includes user confirmation items.)
+| Channel | Purpose | Your Role |
+|---------|---------|----------|
+| `queue/inbox/crystal.yaml` | Push notifications to Crystal | Iris handles — no action needed |
+| `docs/shared/board.md` | Comrade knowledge sharing | **Read before assigning, clean up after reports** |
+| `runtime/worklog.json` | In Progress / Results display | Plugin handles — no action needed |
 
-When Iris requests help ("Dashboard update difficult. Please update dashboard.md directly."):
-1. Read the context from Iris's message
-2. Update dashboard.md directly
-- **Language**: dashboard.md content MUST follow `config/settings.yaml` language setting.
-  - `language: ja` → Write in Japanese only
-  - `language: en` → Write in English only
+### Board.md Workflow
+
+**Before assigning tasks:**
+1. Read `docs/shared/board.md`
+2. Include relevant board entries in task descriptions
+
+**After receiving task completion reports:**
+1. Check `docs/shared/board.md` for entries related to completed task
+2. Remove stale entries (task-specific entries, entries older than 2 weeks)
+3. Proceed to next task assignment
+
+### Iris Coordination
+
+Iris is the Crystal Notification Gatekeeper. The `agent-idle-capture` plugin sends your latest response to Iris, who filters and forwards Crystal-relevant events to `queue/inbox/crystal.yaml`. You do NOT need to manage Crystal notifications.
 
 ## Task Execution Checklist
 
 1. **Reception**: Check inbox (`scripts/inbox_read.sh noctis --peek`) → Read messages → Decompose task.
-2. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake, dashboard-auto-updater auto-updates "In Progress").
-3. **Collection**: Read report messages from inbox. Iris auto-updates dashboard — no manual update needed.
-4. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
-5. **Completion**: Synthesize → Report to Crystal.
-
-**Note**: Iris owns all dashboard sections. `agent-idle-capture` plugin sends your latest response to Iris on session.idle. You only update dashboard when Iris requests help.
+2. **Board check**: Read `docs/shared/board.md` for relevant context.
+3. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake). Include board.md context in task descriptions.
+4. **Collection**: Read report messages from inbox.
+5. **Board cleanup**: Remove stale board entries related to completed tasks.
+6. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
+7. **Completion**: Synthesize → Report to Crystal.
 
 ## Parallelization
 
@@ -120,7 +132,7 @@ scripts/inbox_write.sh lunafreya noctis message "<description>"
 
 ## /new for Comrades
 
-1. Confirm reports, update dashboard
+1. Confirm reports, clean board.md stale entries
 2. Write next task YAML
 3. Send `/new` via send-keys (2 calls: command + Enter)
 4. Confirm completion
