@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.6.0] - 2026-02-27
+
+### Added
+- **Agent-specific initiation commands** - New commands for starting tasks with a single AI partner (Ignis, Gladiolus, or Prompto) to conserve AI resources.
+- **MCP Settings page** - Dedicated desktop UI page for managing MCP configurations and viewing `opencode.json` status.
+- **Ultracite Linter integration** - Integrated Ultracite for enhanced TypeScript code quality and automated checks.
+- **Tmux session stability improvements** - Enhanced reliability of model retrieval and session management via robust tmux interactions.
+
+### Changed
+- **Consolidated model configuration** - Integrated model switching keywords into `config/models.yaml`, centralizing model management.
+- **Report Reminder Plugin enhancement** - Switched from inbox-based reminders to direct tmux notifications to keep agent inboxes clean.
+- **Code quality refinements** - Addressed accessibility warnings, non-interactive element issues, and removed unused code across the desktop application.
+- **Refresh button logic** - Improved timestamp accuracy and ensured both chat and inbox logs refresh reliably after log resets.
+
+### Fixed
+- **In-app log refresh** - Fixed a bug where chat history failed to update correctly after log truncation or manual resets (e.g., via `standby.sh -c`).
+- **Accessibility issues** - Resolved various accessibility and linting errors in the React-based desktop UI components.
+
 ## [0.5.0] - 2026-02-25
 
 ### Added
@@ -131,6 +150,7 @@ Initial release.
 [0.2.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atman-33/multi-agent-ff15/releases/tag/v0.1.0
 
+[0.6.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.2.0...v0.3.0
