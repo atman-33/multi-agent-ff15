@@ -330,7 +330,7 @@ function MessageComposer({
       <div className="mb-1 flex min-h-[16px] items-center gap-2 text-[10px]">
         {targetAgentLabel && (
           <div className="flex items-center gap-1">
-            <span className="font-medium uppercase tracking-wide text-[9px] text-muted-foreground/40">
+            <span className="font-medium text-[9px] text-muted-foreground/40 uppercase tracking-wide">
               TO
             </span>
             {targetAgentImageSrc && (
@@ -340,7 +340,9 @@ function MessageComposer({
                 src={targetAgentImageSrc}
               />
             )}
-            <span className="font-medium text-muted-foreground/70">{targetAgentLabel}</span>
+            <span className="font-medium text-muted-foreground/70">
+              {targetAgentLabel}
+            </span>
           </div>
         )}
         {status === "sent" && (
