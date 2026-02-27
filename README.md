@@ -17,10 +17,10 @@
 </div>
 
 <p align="center">
-  <img src="assets/tmux_ff15_live_session.png" alt="multi-agent-ff15: 5 agents running in parallel - real session" width="800">
+  <img src="assets/web_app_chat_screen.png" alt="multi-agent-ff15: Web app dashboard" width="800">
 </p>
 
-<p align="center"><i>Noctis (King) commanding 3 Comrades (Ignis, Gladiolus, Prompto) with Lunafreya (Oracle) operating independently - actual session screenshot</i></p>
+<p align="center"><i>Web app dashboard — monitor agent worklog, Crystal inbox notifications, and real-time communication from your browser</i></p>
 
 ---
 
@@ -39,7 +39,7 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 | **Architecture** | Agents with tools | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
 | **Parallelism** | Limited | Parallel nodes (v0.2+) | Limited | **5 independent agents** |
 | **Coordination cost** | API calls | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
-| **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + desktop app |
+| **Observability** | Logs only | LangSmith integration | OpenTelemetry | **Web app dashboard** + tmux panes |
 | **Skill discovery** | None | None | None | **Bottom-up auto-proposal** |
 | **Setup** | CLI install | Heavy (infra required) | pip install | Shell scripts |
 
@@ -50,6 +50,8 @@ Most multi-agent frameworks burn API tokens on coordination. Noctis doesn't.
 **Full transparency** — Every agent runs in a visible tmux pane. Every instruction, report, and decision is a plain YAML file you can read, diff, and version-control. No black boxes.
 
 **Battle-tested hierarchy** — The Noctis → Comrades chain of command prevents conflicts by design: clear ownership, dedicated files per agent, event-driven communication, no polling. Lunafreya operates independently outside this hierarchy.
+
+**Web app dashboard** — Monitor all agent activity, Crystal inbox notifications, and worklog from a browser at `http://localhost:13000`. No tmux knowledge required to track progress.
 
 **Bottom-up skill discovery** — As Comrades execute tasks, they automatically identify reusable patterns and propose them as skill candidates. You decide what gets promoted to a permanent skill.
 
@@ -227,7 +229,13 @@ tmux session: `ff15` - unified session (6 panes)
 
 After running `standby.sh`, all agents automatically load their instructions and are ready to work.
 
-Open a new terminal and connect to the ff15 session:
+The **web app** also starts automatically — open your browser at:
+
+```
+http://localhost:13000
+```
+
+To connect to the tmux session directly (optional):
 
 ```bash
 ffa    # Alias (tmux attach-session -t ff15)
@@ -250,10 +258,13 @@ Meanwhile, Ignis distributes tasks to Comrades and executes in parallel.
 
 ### Step 3: Check progress
 
-Check the **desktop app** for real-time worklog and Crystal inbox notifications:
+Open the **web app** (`http://localhost:13000`) in your browser for real-time worklog and Crystal inbox notifications:
 
 - **Worklog page**: Shows In Progress / Today's Results
 - **Crystal Inbox page**: Shows items needing your attention (pushed by Iris)
+- **Chat page**: Real-time agent communication and interaction
+
+> **Note**: The web app starts automatically when you run `./standby.sh`. The port can be changed in `config/settings.yaml` (`web.port`).
 
 ---
 
@@ -298,7 +309,7 @@ Executed process:
    - Gladiolus: Research Cursor
    - Prompto: Research OpenCode
 2. All 3 research simultaneously
-3. Results viewable in desktop app worklog
+3. Results viewable in web app worklog (`http://localhost:13000`)
 ```
 
 ### Example 2: PoC Preparation
@@ -311,7 +322,7 @@ Executed process:
 2. Ignis: List items to verify
 3. Gladiolus: Research technical feasibility
 4. Prompto: Create PoC plan document
-5. All results viewable in desktop app worklog, ready for meeting
+5. All results viewable in web app worklog (`http://localhost:13000`), ready for meeting
 ```
 
 ---
@@ -352,6 +363,14 @@ language: en   # Japanese + English translation
 ---
 
 ## 📚 tmux Quick Reference
+
+> **Tip**: Most users won't need to interact with tmux directly — the web app (`http://localhost:13000`) provides full visibility into agent activity. The tmux session is available for advanced users who want to observe or interact with agents at the terminal level.
+
+<p align="center">
+  <img src="assets/tmux_ff15_live_session.png" alt="multi-agent-ff15: 5 agents running in parallel - real session" width="800">
+</p>
+
+<p align="center"><i>Noctis (King) commanding 3 Comrades (Ignis, Gladiolus, Prompto) with Lunafreya (Oracle) operating independently - actual tmux session</i></p>
 
 | Command | Description |
 |---------|-------------|
