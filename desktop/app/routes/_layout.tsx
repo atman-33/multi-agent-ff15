@@ -155,13 +155,13 @@ export default function Layout() {
         {/* Footer */}
         <div className="border-border/50 border-t px-4 py-3">
           <a
+            className="flex items-center gap-1.5 text-muted-foreground/60 transition-colors hover:text-foreground"
             href="https://github.com/atman-33/multi-agent-ff15"
-            target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-muted-foreground/60 hover:text-foreground transition-colors"
+            target="_blank"
           >
             <Github className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-mono">Repository</span>
+            <span className="font-mono text-[10px]">Repository</span>
           </a>
         </div>
       </aside>
