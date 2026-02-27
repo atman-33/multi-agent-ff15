@@ -44,6 +44,7 @@ interface AgentChatColumnProps {
   inboxMessages: InboxLogRecord[];
   isTauri?: boolean;
   modelOptions?: string[];
+  modelRefreshTrigger?: number;
   modeSwitchTrigger?: number;
   onPartyViewChange?: (view: ComradeId | null) => void;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
@@ -312,12 +313,14 @@ function ModelSwitchBar({
   isTauri,
   contextPercent,
   modeSwitchTrigger,
+  modelRefreshTrigger,
 }: {
   targetAgent: ModelSwitchAgent;
   modelOptions: string[];
   isTauri: boolean;
   contextPercent?: number | null;
   modeSwitchTrigger?: number;
+  modelRefreshTrigger?: number;
 }) {
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
@@ -328,7 +331,7 @@ function ModelSwitchBar({
     [modelOptions]
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger is intentional trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: modeSwitchTrigger and modelRefreshTrigger are intentional triggers
   useEffect(() => {
     let cancelled = false;
     const fetchModel = async () => {
@@ -342,11 +345,20 @@ function ModelSwitchBar({
       try {
         const res = await fetch(`/api/current-model?agent=${targetAgent}`);
         if (!res.ok) {
+          // On error, clear any previously set label so "Unknown" placeholder is shown
+          if (!cancelled) {
+            setModelLabel("");
+          }
           return;
         }
         const data = (await res.json()) as { model?: string };
         const { model } = data;
-        if (cancelled || !model) {
+        if (cancelled) {
+          return;
+        }
+        if (!model) {
+          // model not found — show "Unknown" placeholder
+          setModelLabel("");
           return;
         }
 
@@ -360,24 +372,23 @@ function ModelSwitchBar({
         );
         setModelLabel(exactOpt ?? model);
       } catch (_e) {
-        // Ignored
+        // On unexpected error, clear label so "Unknown" placeholder is shown
+        if (!cancelled) {
+          setModelLabel("");
+        }
       }
     };
     fetchModel();
     return () => {
       cancelled = true;
     };
-  }, [targetAgent, modelOptions, isTauri, modeSwitchTrigger]);
-
-  // Fallback to first option if empty and we have options, but only after a short delay so we can fetch first
-  useEffect(() => {
-    if (!modelLabel && modelOptions.length > 0) {
-      const timer = setTimeout(() => {
-        setModelLabel((prev) => (prev ? prev : modelOptions[0]));
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [modelOptions, modelLabel]);
+  }, [
+    targetAgent,
+    modelOptions,
+    isTauri,
+    modeSwitchTrigger,
+    modelRefreshTrigger,
+  ]);
 
   const applySwitch = useCallback(
     async (newModel: string) => {
@@ -459,7 +470,7 @@ function ModelSwitchBar({
         value={modelLabel}
       >
         <SelectTrigger className="h-7 flex-1 border-border/40 bg-background/60 text-[11px]">
-          <SelectValue placeholder="Select model" />
+          <SelectValue placeholder="Unknown" />
         </SelectTrigger>
         <SelectContent>
           {modelLabel && !sortedModelOptions.includes(modelLabel) && (
@@ -618,6 +629,7 @@ function AgentChatColumn({
   partyInboxMessages,
   busyMap,
   modelOptions = [],
+  modelRefreshTrigger,
   modeSwitchTrigger,
   isTauri = false,
   optimisticMessages = [],
@@ -826,6 +838,7 @@ function AgentChatColumn({
         isTauri={isTauri}
         key={switchTargetAgent}
         modelOptions={modelOptions}
+        modelRefreshTrigger={modelRefreshTrigger}
         modeSwitchTrigger={modeSwitchTrigger}
         targetAgent={switchTargetAgent}
       />
@@ -902,6 +915,16 @@ function AgentChatColumn({
         isTauri={isTauri}
         onSent={onSent}
         targetAgent={viewingComrade && partyView ? partyView : agent}
+        targetAgentImageSrc={
+          viewingComrade && partyView
+            ? COMRADE_CONFIG[partyView].imageSrc
+            : AGENT_CONFIG[agent].imageSrc
+        }
+        targetAgentLabel={
+          viewingComrade && partyView
+            ? COMRADE_CONFIG[partyView].label
+            : AGENT_CONFIG[agent].label
+        }
       />
     </div>
   );

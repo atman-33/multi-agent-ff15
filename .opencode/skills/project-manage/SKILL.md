@@ -22,26 +22,30 @@ scripts/project_register.sh \
   --id <project_id> \
   --name "<name>" \
   --root "<absolute_path>" \
+  [--serena-project "<value>"] \
   [--force]
 ```
 
 | Parameter | Required | Description |
-|-----------|----------|-------------|
+|-----------|----------|--------------|
 | `--id`    | Yes      | Unique project identifier (e.g., `my-app`) |
 | `--name`  | Yes      | Human-readable project name |
 | `--root`  | Yes      | Absolute path to project root |
+| `--serena-project` | No | Value confirmed by `activate_project` (project name or path). When provided, stored as `serena_project` in the YAML. When omitted, the field is not written. |
 | `--force` | No       | Overwrite existing registration without prompting |
 
 **Example:**
 
 ```bash
+# After confirming activation value (see Typical Workflow below)
 scripts/project_register.sh \
   --id "my-app" \
   --name "My App" \
-  --root "/home/atman/repos/my-app"
+  --root "/home/atman/repos/my-app" \
+  --serena-project "my-app"   # value confirmed by activate_project
 ```
 
-Output: `projects/my-app.yaml` with detected instruction files and SHA256 hashes.
+Output: `projects/my-app.yaml` with detected instruction files, SHA256 hashes, and `serena_project`.
 
 ---
 
@@ -86,20 +90,38 @@ scripts/projects_activate.sh remove my-app
 ## Typical Workflow
 
 ```bash
-# 1. Register the project (auto-detects AGENTS.md, CLAUDE.md, GEMINI.md)
+# 1. Try activate_project to confirm the working value (ID → Linux path → UNC path)
+#    Use whichever succeeds first as the --serena-project value.
+
+# 2. Register the project with the confirmed value
 scripts/project_register.sh \
   --id "client-x" \
   --name "Client X" \
-  --root "/home/atman/repos/client-x"
+  --root "/home/atman/repos/client-x" \
+  --serena-project "client-x"   # value confirmed in step 1
 
-# 2. Activate it
+# 3. Add to active project list
 scripts/projects_activate.sh add client-x
 
-# 3. Verify
+# 4. Verify
 scripts/projects_activate.sh list
 ```
 
 After activation, the `project-instruction-injection` plugin automatically adds a project-instruction-context block to every user message, listing instruction file paths for agents to read on demand.
+
+---
+
+## Serena Activation
+
+Before registering, **confirm which value works** for `activate_project`. Try in order, stop at first success:
+
+1. **Project ID alone** (e.g., `client-x`) — fastest if already registered in Serena
+2. **`root_path` as-is** (Linux path, e.g., `/home/atman/repos/client-x`)
+3. **UNC path** (e.g., `\\wsl$\Ubuntu\home\atman\repos\client-x`) — for WSL environments
+
+Pass the successful value as `--serena-project` when running `project_register.sh`. This ensures `serena_project` is set correctly in the YAML from the start.
+
+**If registration was done without `--serena-project`**: re-register with `--force` after confirming the activation value.
 
 ---
 
@@ -111,6 +133,7 @@ After activation, the `project-instruction-injection` plugin automatically adds 
 id: "client-x"
 name: "Client X"
 root_path: "/home/atman/repos/client-x"
+serena_project: "client-x"  # optional; set after first successful Serena activation
 instruction_files:
   - type: agents
     path: "/home/atman/repos/client-x/AGENTS.md"

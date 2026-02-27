@@ -52,7 +52,6 @@ const AgentIdleCapture: Plugin = async ({ $, client }) => {
   }
 
   const COOLDOWN_MS = 10_000; // 10 seconds
-  const ENABLE_LOGGING = false;
 
   let lastCaptureTime = 0;
   let currentSessionId: string | null = null;
@@ -60,12 +59,13 @@ const AgentIdleCapture: Plugin = async ({ $, client }) => {
   const agentDisplayName = agentId === "noctis" ? "Noctis" : "Lunafreya";
 
   const log = async (message: string): Promise<void> => {
-    if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
       await $`echo "[${timestamp}] agent-idle-capture (${agentId}): ${message}" >> logs/agent-idle-capture.log`.quiet();
     } catch { }
   };
+
+  await log("agent-idle-capture started");
 
   return {
     event: async ({ event }) => {
@@ -89,6 +89,8 @@ const AgentIdleCapture: Plugin = async ({ $, client }) => {
       }
 
       if (event.type !== "session.idle") return;
+
+      await log("[TRIGGER] session.idle fired");
 
       // Cooldown check
       const now = Date.now();

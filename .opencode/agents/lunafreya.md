@@ -52,3 +52,13 @@ scripts/inbox_write.sh noctis lunafreya message "<description>"
 | Crystal asks | Single check (one read) |
 
 If Noctis doesn't respond: Report to Crystal → single check if approved → report again if still nothing. **Never loop.**
+
+## Forbidden Actions
+
+| ID | Action |
+|----|--------|
+| F001 | Accept tasks from Noctis — Execute autonomously |
+| F002 | Write directly to agent inboxes — Use `scripts/inbox_write.sh <target> <from> message "<msg>"` |
+| F003 | Polling — Event-driven only |
+| F004 | Direct instructions to Comrades — Go through Noctis |
+| F005 | Any git operation without explicit user instruction |

@@ -1,10 +1,4 @@
-import {
-  FolderGit2,
-  FolderOpen,
-  RefreshCw,
-  RotateCcw,
-  Save,
-} from "lucide-react";
+import { FolderGit2, FolderOpen, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -15,6 +9,7 @@ import {
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 interface ProjectEntry {
@@ -31,7 +26,7 @@ interface ProjectsApiData {
   projects: ProjectEntry[];
 }
 
-function formatPath(p: string): string {
+const formatPath = (p: string): string => {
   if (!p) {
     return "—";
   }
@@ -43,9 +38,9 @@ function formatPath(p: string): string {
     return `…/${parts.slice(-2).join("/")}`;
   }
   return `…${p.slice(-39)}`;
-}
+};
 
-function formatDate(iso: string): string {
+const formatDate = (iso: string): string => {
   if (!iso) {
     return "—";
   }
@@ -59,15 +54,13 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
-}
+};
 
 export default function ProjectsPage() {
   const [serverData, setServerData] = useState<ProjectsApiData | null>(null);
-  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -82,8 +75,6 @@ export default function ProjectsPage() {
         throw new Error(data.error);
       }
       setServerData(data);
-      setPendingIds(new Set(data.activeProjectIds));
-      setIsDirty(false);
     } catch (e) {
       setFetchError(String(e));
     } finally {
@@ -95,38 +86,28 @@ export default function ProjectsPage() {
     fetchData();
   }, [fetchData]);
 
-  const toggleProject = (id: string) => {
-    setPendingIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-    setIsDirty(true);
-  };
-
-  const handleReset = () => {
+  const handleToggle = async (projectId: string, nextChecked: boolean) => {
     if (!serverData) {
       return;
     }
-    setPendingIds(new Set(serverData.activeProjectIds));
-    setIsDirty(false);
-  };
 
-  const handleSave = async () => {
-    if (!serverData) {
-      return;
-    }
-    setSaving(true);
+    // Optimistically update UI
+    const prevActiveIds = serverData.activeProjectIds;
+    const nextActiveIds = nextChecked
+      ? [...prevActiveIds, projectId]
+      : prevActiveIds.filter((id) => id !== projectId);
+
+    setServerData((prev) =>
+      prev ? { ...prev, activeProjectIds: nextActiveIds } : prev
+    );
+    setSavingIds((prev) => new Set(prev).add(projectId));
+
     try {
       const res = await fetch("/api/projects/active", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          activeProjectIds: Array.from(pendingIds),
+          activeProjectIds: nextActiveIds,
           currentUpdatedAt: serverData.configUpdatedAt,
         }),
       });
@@ -140,21 +121,39 @@ export default function ProjectsPage() {
           await fetchData();
           return;
         }
+        // Revert optimistic update
+        setServerData((prev) =>
+          prev ? { ...prev, activeProjectIds: prevActiveIds } : prev
+        );
         toast.error("Save failed", { description: result.error });
         return;
       }
 
-      // Re-fetch from server to confirm ground truth
-      await fetchData();
-      toast.success("Active projects saved", {
-        description: `${pendingIds.size} project(s) active.`,
+      // Sync configUpdatedAt from response if available
+      // Note: server returns `updatedAt`, not `configUpdatedAt`
+      if (result.updatedAt) {
+        setServerData((prev) =>
+          prev ? { ...prev, configUpdatedAt: result.updatedAt } : prev
+        );
+      }
+
+      toast.success(nextChecked ? "Project activated" : "Project deactivated", {
+        description: serverData.projects.find((p) => p.id === projectId)
+          ?.displayName,
       });
-      // Broadcast to sidebar chip and other listeners
       window.dispatchEvent(new CustomEvent("active-projects-changed"));
     } catch (e) {
+      // Revert optimistic update
+      setServerData((prev) =>
+        prev ? { ...prev, activeProjectIds: prevActiveIds } : prev
+      );
       toast.error("Save failed", { description: String(e) });
     } finally {
-      setSaving(false);
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(projectId);
+        return next;
+      });
     }
   };
 
@@ -167,6 +166,9 @@ export default function ProjectsPage() {
       </div>
     );
   }
+
+  const activeCount = serverData?.activeProjectIds.length ?? 0;
+  const totalCount = serverData?.projects.length ?? 0;
 
   return (
     <div className="max-w-3xl space-y-5 p-6">
@@ -183,35 +185,20 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        {/* Action buttons — always visible */}
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            disabled={!isDirty || saving}
-            onClick={handleReset}
-            size="sm"
-            title="Discard unsaved changes"
-            variant="outline"
-          >
-            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-            Reset
-          </Button>
-          <Button disabled={!isDirty || saving} onClick={handleSave} size="sm">
-            <Save className="mr-1.5 h-3.5 w-3.5" />
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </div>
+        {/* Refresh button */}
+        <Button
+          disabled={loading}
+          onClick={fetchData}
+          size="sm"
+          title="Refresh"
+          variant="outline"
+        >
+          <RefreshCw
+            className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")}
+          />
+          Refresh
+        </Button>
       </div>
-
-      {/* Unsaved-changes banner */}
-      {isDirty && (
-        <div className="flex items-center gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-amber-400 text-sm">
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400" />
-          <span>
-            Unsaved changes &mdash; this will affect all agent context
-            injections on the next run.
-          </span>
-        </div>
-      )}
 
       {/* Fetch error */}
       {fetchError && (
@@ -257,46 +244,19 @@ export default function ProjectsPage() {
       {serverData && serverData.projects.length > 0 && (
         <div className="space-y-2">
           {serverData.projects.map((project) => {
-            const isActive = pendingIds.has(project.id);
+            const isActive = serverData.activeProjectIds.includes(project.id);
+            const isSaving = savingIds.has(project.id);
             return (
               <Card
                 className={cn(
-                  "cursor-pointer select-none transition-all duration-150",
+                  "transition-all duration-150",
                   isActive
                     ? "border-primary/40 bg-primary/5"
-                    : "hover:border-border/80 hover:bg-white/[0.025]"
+                    : "border-border/60"
                 )}
                 key={project.id}
-                onClick={() => toggleProject(project.id)}
               >
                 <CardContent className="flex items-center gap-4 px-4 py-3.5">
-                  {/* Checkbox indicator */}
-                  <div
-                    className={cn(
-                      "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 transition-all",
-                      isActive
-                        ? "border-primary bg-primary"
-                        : "border-muted-foreground/40 bg-transparent"
-                    )}
-                  >
-                    {isActive && (
-                      <svg
-                        className="h-2.5 w-2.5 text-primary-foreground"
-                        fill="none"
-                        viewBox="0 0 12 12"
-                      >
-                        <title>Active</title>
-                        <path
-                          d="M2 6l3 3 5-5"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    )}
-                  </div>
-
                   {/* Project info */}
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-center gap-2">
@@ -322,10 +282,10 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  {/* Action buttons */}
-                  <div className="flex shrink-0 items-center gap-2">
+                  {/* Right side: open folder + switch */}
+                  <div className="flex shrink-0 items-center gap-3">
                     <Button
-                      className="z-10 h-8 w-8 text-muted-foreground hover:text-primary"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary"
                       onClick={(e) => {
                         e.stopPropagation();
                         fetch("/api/open-folder", {
@@ -341,12 +301,14 @@ export default function ProjectsPage() {
                       <FolderOpen className="h-4 w-4" />
                     </Button>
 
-                    {/* Active badge */}
-                    {isActive && (
-                      <span className="font-bold text-[10px] text-primary/80 uppercase tracking-widest">
-                        Active
-                      </span>
-                    )}
+                    <Switch
+                      aria-label={`Toggle ${project.displayName}`}
+                      checked={isActive}
+                      disabled={isSaving}
+                      onCheckedChange={(checked) =>
+                        handleToggle(project.id, checked)
+                      }
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -358,8 +320,7 @@ export default function ProjectsPage() {
       {/* Active count summary */}
       {serverData && serverData.projects.length > 0 && (
         <p className="text-right text-muted-foreground/50 text-xs">
-          {pendingIds.size} / {serverData.projects.length} active
-          {isDirty && " (unsaved)"}
+          {activeCount} / {totalCount} active
         </p>
       )}
     </div>

@@ -551,6 +551,13 @@ if ! tmux new-session -d -s ff15 -n "main" -x 200 -y 50 2>/dev/null; then
     exit 1
 fi
 
+# Use 'largest' window sizing so that when multiple clients attach, the pane
+# dimensions are based on the largest client rather than the smallest.
+# This prevents narrow-terminal reflows from wrapping OpenCode's status bar
+# and breaking model-name parsing in get-current-model.sh.
+tmux set-option -t ff15 -w window-size largest
+log_info "  └─ window-size set to 'largest' (reflow-resistant capture)"
+
 # Get pane-base-index
 PANE_BASE=$(tmux show-options -gv pane-base-index 2>/dev/null || echo 0)
 PANE_BASE=${PANE_BASE:-0}

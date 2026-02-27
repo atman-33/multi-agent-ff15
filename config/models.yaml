@@ -1,12 +1,14 @@
 # Model IDs and their corresponding OpenCode switching keywords
 model_definitions:
-  github-copilot/claude-sonnet-4.6: "Claude Sonnet 4.6"
-  github-copilot/gpt-5.2-codex: "GPT-5.2-codex"
-  github-copilot/gemini-3-pro-preview: "Gemini 3.1 Pro Preview"
-  github-copilot/gpt-5-mini: "GPT-5-mini"
-  github-copilot/claude-opus-4.6: "Claude Opus 4.6"
   github-copilot/claude-haiku-4.5: "Claude Haiku 4.5"
+  github-copilot/claude-sonnet-4.6: "Claude Sonnet 4.6"
+  github-copilot/claude-opus-4.6: "Claude Opus 4.6"
+  github-copilot/gpt-5.2-codex: "GPT-5.2-codex"
+  github-copilot/gemini-3-flash-preview: "Gemini 3 Flash"
+  github-copilot/gemini-3.1-pro-preview: "Gemini 3.1 Pro Preview"
+  github-copilot/gpt-5-mini: "GPT-5-mini"
   opencode/minimax-m2.5-free: "MiniMax M2.5 Free"
+  opencode/trinity-large-preview-free: "Trinity Large Preview"
 
 # Model configuration by mode
 # Each agent has: model (OpenCode model ID), agent (optional, for future use)
@@ -22,9 +24,9 @@ modes:
     gladiolus:
       model: github-copilot/gpt-5.2-codex
     prompto:
-      model: github-copilot/gemini-3-pro-preview
+      model: github-copilot/gemini-3.1-pro-preview
     lunafreya:
-      model: github-copilot/gpt-5-mini
+      model: github-copilot/claude-sonnet-4.6
     iris:
       model: github-copilot/gpt-5-mini
 
@@ -39,7 +41,7 @@ modes:
     prompto:
       model: github-copilot/claude-opus-4.6
     lunafreya:
-      model: github-copilot/gpt-5-mini
+      model: github-copilot/claude-sonnet-4.6
     iris:
       model: github-copilot/gpt-5-mini
 
@@ -48,13 +50,13 @@ modes:
     noctis:
       model: github-copilot/claude-haiku-4.5
     ignis:
-      model: github-copilot/gpt-5-mini
+      model: github-copilot/claude-haiku-4.5
     gladiolus:
-      model: github-copilot/gpt-5-mini
+      model: github-copilot/gemini-3-flash-preview
     prompto:
-      model: github-copilot/gpt-5-mini
+      model: github-copilot/gemini-3-flash-preview
     lunafreya:
-      model: github-copilot/gpt-5-mini
+      model: github-copilot/claude-haiku-4.5
     iris:
       model: github-copilot/gpt-5-mini
 

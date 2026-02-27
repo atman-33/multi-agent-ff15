@@ -188,7 +188,6 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
   }
 
   const COOLDOWN_MS = 300; // 300 ms — reduced to avoid missing the idle event right after response completion
-  const ENABLE_LOGGING = false;
   const JSONL_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
   const DIAG_LOG_PATH = "logs/agent-chat-monitor-diag.log";
 
@@ -214,12 +213,13 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
   let lastLoggedAssistantCount = 0;
 
   const log = async (message: string): Promise<void> => {
-    if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
       await $`echo "[${timestamp}] agent-chat-monitor (${agentId}): ${message}" >> logs/agent-chat-monitor.log`.quiet();
     } catch { }
   };
+
+  await log("agent-chat-monitor started");
 
   return {
     event: async ({ event }) => {
@@ -238,9 +238,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
         if (newSessionId) {
           currentSessionId = newSessionId;
           lastLoggedAssistantCount = 0; // reset cursor for new session
-          if (ENABLE_LOGGING) {
-            await log(`Captured session ID from session.created: ${newSessionId}`);
-          }
+          await log(`Captured session ID from session.created: ${newSessionId}`);
         }
       }
 
@@ -248,9 +246,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
 
       const now = Date.now();
       if (now - lastCaptureTime < COOLDOWN_MS) {
-        if (ENABLE_LOGGING) {
-          await log("Skipped capture (cooldown active)");
-        }
+        await log("Skipped capture (cooldown active)");
         return;
       }
       lastCaptureTime = now;
@@ -378,9 +374,7 @@ const AgentChatMonitor: Plugin = async ({ $, client }) => {
       } catch (error) {
         // Always log handler errors
         await diagLog(`ERROR in session.idle handler: ${error}`);
-        if (ENABLE_LOGGING) {
-          await log(`Error in event handler: ${error}`);
-        }
+        await log(`Error in event handler: ${error}`);
       }
     },
   };

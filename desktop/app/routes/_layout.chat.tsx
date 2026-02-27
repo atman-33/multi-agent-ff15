@@ -72,6 +72,7 @@ export default function UnifiedChatRoute() {
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([refreshChat(), refreshInbox()]);
+    setModelRefreshTrigger((prev) => prev + 1);
   }, [refreshChat, refreshInbox]);
 
   const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(
@@ -114,6 +115,7 @@ export default function UnifiedChatRoute() {
   const contextUsage = useContextUsage();
 
   const [modeSwitchTrigger, setModeSwitchTrigger] = useState(0);
+  const [modelRefreshTrigger, setModelRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const handleModeSwitch = () => {
@@ -216,6 +218,7 @@ export default function UnifiedChatRoute() {
               isTauri={isTauri}
               key={agent}
               modelOptions={modelOptions}
+              modelRefreshTrigger={modelRefreshTrigger}
               modeSwitchTrigger={modeSwitchTrigger}
               onSent={handleCrystalSent}
               optimisticMessages={optimisticMessages[agent]}

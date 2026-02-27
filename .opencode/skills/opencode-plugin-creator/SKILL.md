@@ -5,199 +5,213 @@ description: Creates custom OpenCode plugins with hook functionality. Use when y
 
 # OpenCode Plugin Creator
 
-## Overview
+## Plugin Loading
 
-This skill helps you create custom OpenCode plugins that act as "hooks" to extend or modify OpenCode's behavior. Plugins can intercept events like file operations, tool executions, session lifecycle, and more.
+Local files (auto-loaded at startup):
+- Project-level: `.opencode/plugins/` (JS or TS)
+- Global: `~/.config/opencode/plugins/`
 
-## When to Use
-
-Use this skill when you need to:
-- Intercept and modify tool execution (e.g., prevent reading .env files)
-- React to session events (e.g., send notifications on completion)
-- Inject environment variables into shell commands
-- Add custom logging or monitoring
-- Create custom tools for OpenCode
-- Modify compaction behavior
-- Hook into file watcher events
-- Protect sensitive files or operations
-
-**Trigger phrases**: "create plugin", "add hook", "intercept tool", "protect file from opencode", "custom opencode extension"
-
-## Plugin Loading Mechanisms
-
-OpenCode loads plugins from two locations:
-
-### 1. Local Files (Recommended for project-specific plugins)
-- **Project-level**: `.opencode/plugins/` (JavaScript or TypeScript files)
-- **Global**: `~/.config/opencode/plugins/`
-- Files are automatically loaded at startup
-
-### 2. npm Packages
-- Specified in `opencode.json` config file
-- Example: `{ "plugin": ["opencode-helicone-session"] }`
-- Auto-installed using Bun at startup
-- Cached in `~/.cache/opencode/node_modules/`
-
-**Load order**:
-1. Global config (`~/.config/opencode/opencode.json`)
-2. Project config (`opencode.json`)
-3. Global plugin directory
-4. Project plugin directory
+npm packages: specified in `opencode.json`.
 
 ## Plugin Structure
-
-### Basic Template (JavaScript)
-
-```javascript
-// .opencode/plugins/my-plugin.js
-export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
-  console.log("Plugin initialized!")
-  
-  return {
-    // Hook implementations go here
-  }
-}
-```
-
-### TypeScript Template (Recommended)
 
 ```typescript
 // .opencode/plugins/my-plugin.ts
 import type { Plugin } from "@opencode-ai/plugin"
 
-export const MyPlugin: Plugin = async ({ project, client, $, directory, worktree }) => {
-  return {
-    // Type-safe hook implementations
+declare const process: { env: Record<string, string | undefined> }
+
+export const MyPlugin: Plugin = async ({ $ }) => {
+  const log = async (message: string): Promise<void> => {
+    try {
+      const timestamp = new Date().toISOString()
+      await $`echo ${`[${timestamp}] my-plugin: ${message}`} >> logs/my-plugin.log`.quiet()
+    } catch {}
   }
-}
-```
 
-### Context Parameters
-
-The plugin function receives:
-- `project`: Current project information
-- `directory`: Current working directory
-- `worktree`: Git worktree path
-- `client`: OpenCode SDK client for AI interaction
-- `$`: Bun's shell API for executing commands
-
-## Available Events (Hooks)
-
-### Command Events
-- `command.executed`: After a command is executed
-
-### File Events
-- `file.edited`: After a file is edited
-- `file.watcher.updated`: When file watcher detects changes (⚠️ **Experimental**, requires `OPENCODE_EXPERIMENTAL_FILEWATCHER=true`)
-
-### Installation Events
-- `installation.updated`: When dependencies are updated
-
-### LSP Events
-- `lsp.client.diagnostics`: When LSP diagnostics are received
-- `lsp.updated`: When LSP is updated
-
-### Message Events
-- `message.part.removed`: When message part is removed
-- `message.part.updated`: When message part is updated
-- `message.removed`: When message is removed
-- `message.updated`: When message is updated
-
-### Permission Events
-- `permission.asked`: When permission is requested
-- `permission.replied`: When permission is replied to
-
-### Server Events
-- `server.connected`: When server connects
-
-### Session Events
-- `session.created`: When session is created
-- `session.compacted`: When session is compacted
-- `session.deleted`: When session is deleted
-- `session.diff`: When session diff occurs
-- `session.error`: When session error occurs
-- `session.idle`: When session becomes idle
-- `session.status`: When session status changes
-- `session.updated`: When session is updated
-
-### Todo Events
-- `todo.updated`: When todo is updated
-
-### Shell Events
-- `shell.env`: Before shell command execution (inject env vars)
-
-### Tool Events (Most Common)
-- `tool.execute.before`: Before tool execution (intercept/modify)
-- `tool.execute.after`: After tool execution (post-process)
-
-### TUI Events
-- `tui.prompt.append`: When prompt is appended in TUI
-- `tui.command.execute`: When command is executed in TUI
-- `tui.toast.show`: When toast notification is shown
-
-### Experimental Events
-- `experimental.session.compacting`: Before session compaction (inject context)
-
-## Common Use Cases & Examples
-
-### 1. File Protection (.env files)
-
-```typescript
-import type { Plugin } from "@opencode-ai/plugin"
-
-export const EnvProtection: Plugin = async ({ project, client, $, directory, worktree }) => {
-  return {
-    "tool.execute.before": async (input, output) => {
-      if (input.tool === "read" && output.args.filePath.includes(".env")) {
-        throw new Error("Do not read .env files")
-      }
-    },
+  const checkPython = async (): Promise<void> => {
+    try {
+      await $`python3 --version`.quiet()
+    } catch (e) {
+      const timestamp = new Date().toISOString()
+      await $`echo ${`[${timestamp}] my-plugin: [ERROR] python3 not available: ${String(e)}`} >> logs/my-plugin.log`.quiet()
+    }
   }
-}
-```
 
-### 2. Notification on Session Completion
+  // Python health check (required if plugin uses python3)
+  await checkPython()
 
-```javascript
-export const NotificationPlugin = async ({ project, client, $, directory, worktree }) => {
+  // Required log: plugin start
+  await log("MyPlugin started")
+
   return {
     event: async ({ event }) => {
-      if (event.type === "session.idle") {
-        await $`osascript -e 'display notification "Session completed!" with title "opencode"'`
+      if (event.type === "some.event") {
+        // Required log: trigger
+        await log("[TRIGGER] some.event fired")
+
+        try {
+          // ... logic
+        } catch (e) {
+          // Required log: error
+          await log(`[ERROR] ${e}`)
+        }
       }
     },
   }
 }
 ```
 
-### 3. Inject Environment Variables
+## Logging Convention
 
-```javascript
-export const InjectEnvPlugin = async () => {
-  return {
-    "shell.env": async (input, output) => {
-      output.env.MY_API_KEY = "secret"
-      output.env.PROJECT_ROOT = input.cwd
-    },
+**No `ENABLE_LOGGING` flag.** Logging is always enabled.
+
+Mandatory log points in every plugin:
+
+| When | Log format |
+|------|-----------|
+| Plugin initializes | `"PluginName started"` |
+| Event/trigger fires | `"[TRIGGER] event.type ..."` |
+| Error occurs | `"[ERROR] ..."` |
+
+```typescript
+// Define inline in each plugin (captures $ from outer scope)
+const log = async (message: string): Promise<void> => {
+  try {
+    const timestamp = new Date().toISOString()
+    await $`echo ${`[${timestamp}] plugin-name: ${message}`} >> logs/plugin-name.log`.quiet()
+  } catch {}
+}
+```
+
+## Python Dependency
+
+Some operations require `python3` (YAML parsing, atomic file writes). Shell alone is insufficient for these.
+
+**Policy**: Use shell for all operations first. Use `python3` only when shell is insufficient.
+
+| Use case | Tool |
+|----------|------|
+| YAML parse (`yaml.safe_load`) | python3 |
+| Atomic file write (`os.rename`) | python3 |
+| Simple text operations | shell |
+
+**Required: health check at plugin startup** for any plugin using python3:
+
+```typescript
+const checkPython = async (): Promise<void> => {
+  try {
+    await $`python3 --version`.quiet()
+  } catch (e) {
+    const timestamp = new Date().toISOString()
+    await $`echo ${`[${timestamp}] plugin-name: [ERROR] python3 not available: ${String(e)}`} >> logs/plugin-name.log`.quiet()
   }
 }
 ```
 
-### 4. Custom Tool
+Call `await checkPython()` at the top of any plugin that uses `python3`.
+
+### Python Scripts in `.opencode/lib/`
+
+**Do not embed Python logic inline (`python3 -c "..."`) in plugins.**
+Instead, place all Python scripts in `.opencode/lib/` and call them as external scripts.
+This makes each script independently testable: `python3 .opencode/lib/your_script.py <args>`.
+
+#### Provided lib scripts
+
+| Script | Purpose | Modes / Args |
+|--------|---------|-------------|
+| `inbox_reader.py` | Read inbox YAML | `<inbox_path> latest-unread-id` / `report-fields` / `task-fields` / `luna-fields` / `filter-json --types T1 T2` |
+| `yaml_atomic_write.py` | Atomic file write via `os.rename` | `<content> <tmp_path> <target_path>` |
+| `project_loader.py` | Load project config / definition | `active-ids` / `project-def <id>` |
+| `report_checker.py` | Check if agent submitted report | `<agent_id>` → prints `MISSING:<task_id>` or empty |
+
+#### Usage examples
+
+```typescript
+// Inbox: get latest unread message ID
+const result = await $`python3 .opencode/lib/inbox_reader.py ${inboxPath} latest-unread-id`.quiet()
+
+// Inbox: filter messages by type (returns JSON array)
+const result = await $`python3 .opencode/lib/inbox_reader.py ${inboxPath} filter-json --types message error`.quiet()
+const messages = JSON.parse(result.text())
+
+// Atomic write
+await $`python3 .opencode/lib/yaml_atomic_write.py ${content} ${tmpFile} ${targetFile}`.quiet()
+
+// Project loader
+const ids = JSON.parse((await $`python3 .opencode/lib/project_loader.py active-ids`.quiet()).text())
+```
+
+#### Adding a new lib script
+
+When existing lib scripts don't cover your use case, create a new `.opencode/lib/<name>.py`:
+1. Add a module docstring with `Usage:` and `Output:` documentation
+2. Accept all inputs via `sys.argv` (no stdin)
+3. Print result to stdout; errors to stderr
+4. Verify it runs standalone before integrating into the plugin
+
+## Available Events
+
+### Tool Events
+- `tool.execute.before`: Before tool execution (throw to prevent)
+- `tool.execute.after`: After tool execution
+
+### Session Events
+- `session.created`, `session.idle`, `session.compacted`, `session.deleted`
+- `session.error`, `session.status`, `session.updated`
+
+### File Events
+- `file.edited`
+- `file.watcher.updated` (Experimental: requires `OPENCODE_EXPERIMENTAL_FILEWATCHER=true`)
+
+### Shell / Other Events
+- `shell.env`: Inject env vars before shell execution
+- `message.updated`, `message.removed`, `permission.asked`, `todo.updated`
+- `lsp.client.diagnostics`, `experimental.session.compacting`
+
+## Common Patterns
+
+### Protect File from Reading
+
+```typescript
+"tool.execute.before": async (input, output) => {
+  if (input.tool === "read" && output.args.filePath.includes(".env")) {
+    throw new Error("Do not read .env files")
+  }
+}
+```
+
+### File Watcher Trigger
+
+```typescript
+event: async ({ event }) => {
+  if (event.type !== "file.watcher.updated") return
+  const props = event.properties as { file: string; event: "add" | "change" | "unlink" }
+  await log($, "my-plugin", `[TRIGGER] file.watcher.updated: ${props.file}`)
+}
+```
+
+### Inject Context on Compaction
+
+```typescript
+"experimental.session.compacting": async (input, output) => {
+  output.context.push("## Persistent State\n- current task\n- decisions")
+}
+```
+
+### Custom Tool
 
 ```typescript
 import { type Plugin, tool } from "@opencode-ai/plugin"
 
-export const CustomToolsPlugin: Plugin = async (ctx) => {
+export const MyPlugin: Plugin = async (ctx) => {
   return {
     tool: {
       mytool: tool({
-        description: "This is a custom tool",
-        args: {
-          foo: tool.schema.string(),
-        },
-        async execute(args, context) {
-          const { directory, worktree } = context
+        description: "My custom tool",
+        args: { foo: tool.schema.string() },
+        async execute(args, { directory }) {
           return `Hello ${args.foo} from ${directory}`
         },
       }),
@@ -206,173 +220,20 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
 }
 ```
 
-### 5. Structured Logging
+## External Dependencies
 
-```typescript
-export const LoggingPlugin = async ({ client }) => {
-  await client.app.log({
-    body: {
-      service: "my-plugin",
-      level: "info",
-      message: "Plugin initialized",
-      extra: { foo: "bar" },
-    },
-  })
-}
-```
+Create `.opencode/package.json` and OpenCode auto-runs `bun install` at startup:
 
-### 6. Custom Compaction Hook
-
-```typescript
-import type { Plugin } from "@opencode-ai/plugin"
-
-export const CompactionPlugin: Plugin = async (ctx) => {
-  return {
-    "experimental.session.compacting": async (input, output) => {
-      // Inject additional context
-      output.context.push(`## Custom Context
-Include state that should persist:
-- Current task status
-- Important decisions made
-- Files being actively worked on`)
-    },
-  }
-}
-```
-
-## Using External Dependencies
-
-If your plugin needs external npm packages, create a `package.json` in your config directory:
-
-**.opencode/package.json**
 ```json
-{
-  "dependencies": {
-    "shescape": "^2.1.0",
-    "axios": "^1.6.0"
-  }
-}
+{ "dependencies": { "shescape": "^2.1.0" } }
 ```
 
-OpenCode runs `bun install` at startup. Import packages normally:
+## Creation Checklist
 
-```typescript
-import { escape } from "shescape"
-import axios from "axios"
-
-export const MyPlugin = async (ctx) => {
-  return {
-    "tool.execute.before": async (input, output) => {
-      if (input.tool === "bash") {
-        output.args.command = escape(output.args.command)
-      }
-    },
-  }
-}
-```
-
-## Plugin Creation Procedure
-
-1. **Identify the Use Case**
-   - What event do you want to intercept?
-   - What behavior do you want to modify?
-   - Which hook(s) do you need?
-
-2. **Choose Plugin Location**
-   - Project-specific: `.opencode/plugins/`
-   - Global: `~/.config/opencode/plugins/`
-   - npm package: For sharing/reuse
-
-3. **Create Plugin File**
-   - Use TypeScript for type safety (`.ts`)
-   - Or JavaScript for simplicity (`.js`)
-   - Export a named function (e.g., `export const MyPlugin = ...`)
-
-4. **Implement Hook(s)**
-   - Choose event(s) from the list above
-   - Implement async handler function
-   - Access `input` (event data) and `output` (modifiable)
-
-5. **Test Plugin**
-   - Restart OpenCode to load plugin
-   - Verify hook is triggered
-   - Check logs with `client.app.log()`
-
-6. **Handle Dependencies (if needed)**
-   - Create `.opencode/package.json`
-   - Add required packages
-   - OpenCode auto-installs on next startup
-
-## Guidelines
-
-### Best Practices
-- **Use TypeScript** for type safety and better IDE support
-- **Use structured logging** (`client.app.log()`) instead of `console.log`
-- **Throw errors** in `before` hooks to prevent tool execution
-- **Keep plugins focused** on a single responsibility
-- **Document hook behavior** in comments
-- **Test with different events** to ensure correct trigger
-
-### Common Pitfalls
-- ❌ Don't mutate `input` — only modify `output`
-- ❌ Don't block event loop with sync operations
-- ❌ Don't rely on global state (plugins may reload)
-- ❌ Don't forget to handle edge cases (null, undefined)
-
-### Debugging
-- Use `client.app.log()` for structured logging
-- Check OpenCode logs for plugin load errors
-- Verify plugin file is in correct directory
-- Ensure export name matches function name
-
-## File Naming Conventions
-
-- Use kebab-case: `my-plugin.ts` (not `MyPlugin.ts`)
-- Use descriptive names: `env-protection.ts` (not `ep.ts`)
-- Avoid conflicts with existing plugins
-
-## Integration with multi-agent-ff15
-
-When creating plugins for multi-agent-ff15:
-- Save to `.opencode/plugins/` (project-level)
-- Consider Comrade-specific behaviors (Noctis, Ignis, etc.)
-- Use plugins to enforce workflow rules
-- Protect sensitive files (queue/, config/)
-- Add logging for debugging multi-agent interactions
-
-## Example: Todo Continuation Hook
-
-```typescript
-import type { Plugin } from "@opencode-ai/plugin"
-
-export const TodoContinuationHook: Plugin = async ({ client }) => {
-  return {
-    "todo.updated": async (input, output) => {
-      const todos = input.todos
-      const hasInProgress = todos.some(t => t.status === "in_progress")
-      const hasCompleted = todos.some(t => t.status === "completed")
-      
-      if (hasCompleted && !hasInProgress) {
-        await client.app.log({
-          body: {
-            service: "todo-continuation",
-            level: "info",
-            message: "All todos completed, suggesting continuation",
-          },
-        })
-      }
-    },
-  }
-}
-```
-
-## Resources
-
-- [Official Plugin Docs](https://opencode.ai/docs/plugins/)
-- [OpenCode SDK](https://opencode.ai/docs/sdk/)
-- [Community Plugins](https://opencode.ai/docs/ecosystem#plugins)
-- [Bun Shell API](https://bun.com/docs/runtime/shell)
-
-## Summary
-
-This skill provides the knowledge to create OpenCode plugins that act as hooks. Use it whenever you need to extend OpenCode's behavior by intercepting events, modifying tool execution, or adding custom functionality.
+- [ ] File in `.opencode/plugins/` with kebab-case name (`.ts` preferred)
+- [ ] No `ENABLE_LOGGING` flag — logging always on
+- [ ] Log at: plugin start, each trigger, each error
+- [ ] `checkPython()` called at startup if plugin uses python3
+- [ ] Python logic placed in `.opencode/lib/*.py`, not inlined as `python3 -c`
+- [ ] Throw in `tool.execute.before` to block execution
+- [ ] Only modify `output`, never `input`

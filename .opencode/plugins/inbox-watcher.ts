@@ -14,8 +14,6 @@ const COOLDOWN_MS = 300_000;             // 5 minutes
 // const ESCALATION_THRESHOLD_MS = 15_000; // 15 seconds
 // const COOLDOWN_MS = 30_000;             // 30 seconds
 
-const ENABLE_LOGGING = false;
-
 const PANE_MAP: Record<string, string> = {
   noctis: "ff15:main.0",
   lunafreya: "ff15:main.1",
@@ -41,7 +39,6 @@ const InboxWatcher: Plugin = async ({ $ }) => {
   let updating = false;
 
   const log = async (message: string): Promise<void> => {
-    if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
       await $`echo "[${timestamp}] inbox-watcher [${agentId}]: ${message}" >> logs/inbox-watcher-${agentId}.log`.quiet();
@@ -126,6 +123,8 @@ const InboxWatcher: Plugin = async ({ $ }) => {
         firstUnreadSeen = null;
         await log(`Wake message sent successfully`);
       }
+    } catch (err) {
+      await log(`[ERROR] Check failed: ${err}`);
     } finally {
       setTimeout(() => { updating = false; }, 2000);
     }

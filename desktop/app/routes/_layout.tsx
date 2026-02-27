@@ -1,5 +1,6 @@
 import {
   Activity,
+  Cpu,
   FileText,
   FolderGit2,
   LayoutDashboard,
@@ -23,14 +24,19 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
+    label: "Reports",
+    to: "/reports",
+    icon: FileText,
+  },
+  {
     label: "Projects",
     to: "/projects",
     icon: FolderGit2,
   },
   {
-    label: "Reports",
-    to: "/reports",
-    icon: FileText,
+    label: "MCP",
+    to: "/mcp",
+    icon: Cpu,
   },
   {
     label: "Models",

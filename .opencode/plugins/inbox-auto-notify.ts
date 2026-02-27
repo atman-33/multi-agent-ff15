@@ -19,14 +19,20 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
     return {};
   }
 
-  const ENABLE_LOGGING = false;
-
   const log = async (message: string): Promise<void> => {
-    if (!ENABLE_LOGGING) return;
     try {
       const timestamp = new Date().toISOString();
       await $`echo "[${timestamp}] inbox-auto-notify [${agentId}]: ${message}" >> logs/inbox-auto-notify-${agentId}.log`.quiet();
     } catch {}
+  };
+
+  const checkPython = async (): Promise<void> => {
+    try {
+      await $`python3 --version`.quiet();
+    } catch (e) {
+      const timestamp = new Date().toISOString();
+      await $`echo "[${timestamp}] inbox-auto-notify [${agentId}]: [ERROR] python3 not available: ${String(e)}" >> logs/inbox-auto-notify-${agentId}.log`.quiet();
+    }
   };
 
   const myInbox = `queue/inbox/${agentId}.yaml`;
@@ -44,20 +50,7 @@ const InboxAutoNotify: Plugin = async ({ $ }) => {
 
   const getLatestUnreadMessageId = async (): Promise<string | null> => {
     try {
-      const result = await $`python3 -c "
-import yaml, sys
-try:
-    with open('${myInbox}', 'r') as f:
-        data = yaml.safe_load(f) or {}
-    messages = data.get('messages', [])
-    unread = [m for m in messages if isinstance(m, dict) and not m.get('read', False)]
-    if unread:
-        unread.sort(key=lambda m: m.get('timestamp', ''), reverse=True)
-        print(unread[0].get('id', ''))
-except Exception as e:
-    sys.stderr.write(str(e))
-    sys.exit(1)
-"`.quiet();
+      const result = await $`python3 .opencode/lib/inbox_reader.py ${myInbox} latest-unread-id`.quiet();
       const msgId = result.text().trim();
       return msgId || null;
     } catch {
@@ -65,6 +58,7 @@ except Exception as e:
     }
   };
 
+  await checkPython();
   await log(`Inbox auto-notify started (monitoring own inbox: ${myInbox})`);
 
   return {
@@ -74,13 +68,15 @@ except Exception as e:
       const props = event.properties as { file: string; event: "add" | "change" | "unlink" };
 
       if (!props.file.endsWith(myInbox)) {
-        await log(`Ignoring file change: ${props.file} (not my inbox)`);
+        // DEBUG: Commented out — fires for every file change in the project, causing log spam
+        // await log(`Ignoring file change: ${props.file} (not my inbox)`);
         return;
       }
       // Accept both "add" and "change" events
       // os.rename() atomic writes may emit "add" instead of "change" on Linux/inotify
       if (props.event !== "change" && props.event !== "add") {
-        await log(`Ignoring event type: ${props.event}`);
+        // DEBUG: Commented out — fires for every unlink/other event, not usually actionable
+        // await log(`Ignoring event type: ${props.event}`);
         return;
       }
 
