@@ -169,7 +169,9 @@ async function handleMarkRead(agent: string, request: Request) {
   const action = String(body.action ?? "");
   if (action !== "mark_read" && action !== "mark_all_read") {
     return Response.json(
-      { error: `Invalid action: ${action}. Use "mark_read" or "mark_all_read"` },
+      {
+        error: `Invalid action: ${action}. Use "mark_read" or "mark_all_read"`,
+      },
       { status: 400 }
     );
   }
@@ -188,11 +190,17 @@ async function handleMarkRead(agent: string, request: Request) {
     if (action === "mark_read") {
       const id = String(body.id ?? "");
       if (!id) {
-        return Response.json({ error: "Message id is required" }, { status: 400 });
+        return Response.json(
+          { error: "Message id is required" },
+          { status: 400 }
+        );
       }
       const msg = messages.find((m) => m.id === id);
       if (!msg) {
-        return Response.json({ error: `Message not found: ${id}` }, { status: 404 });
+        return Response.json(
+          { error: `Message not found: ${id}` },
+          { status: 404 }
+        );
       }
       msg.read = true;
     } else {

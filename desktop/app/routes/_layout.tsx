@@ -140,7 +140,7 @@ export default function Layout() {
                     />
                     <span className="flex-1">{item.label}</span>
                     {badge !== null && (
-                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 font-semibold text-[10px] text-primary-foreground leading-none">
                         {badge}
                       </span>
                     )}

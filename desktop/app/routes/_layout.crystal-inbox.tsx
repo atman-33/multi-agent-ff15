@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   Bell,
   CheckCheck,
   Mail,
@@ -6,12 +7,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useEffect } from "react";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,18 +119,20 @@ export default function CrystalInboxPage() {
                     className={`w-full rounded-lg border px-4 py-3 text-left transition-all ${
                       msg.read
                         ? "border-border/40 bg-muted/10 opacity-60"
-                        : "border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10 cursor-pointer"
+                        : "cursor-pointer border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10"
                     }`}
                     key={msg.id}
                     onClick={() => {
-                      if (!msg.read) markAsRead(msg.id);
+                      if (!msg.read) {
+                        markAsRead(msg.id);
+                      }
                     }}
                     type="button"
                   >
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {!msg.read && (
-                          <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse" />
+                          <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
                         )}
                         <span
                           className={`text-xs ${msg.read ? "text-muted-foreground" : "font-medium text-foreground"}`}

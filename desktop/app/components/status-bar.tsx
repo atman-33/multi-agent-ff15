@@ -17,7 +17,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ALL_MODEL_SWITCH_AGENTS, type ModelSwitchAgent } from "@/constants/agents";
+import {
+  ALL_MODEL_SWITCH_AGENTS,
+  type ModelSwitchAgent,
+} from "@/constants/agents";
 import { cn } from "@/lib/utils";
 import ModeSwitcher from "./mode-switcher";
 

@@ -4,10 +4,10 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 
 interface WorklogEntry {
   agent: string;
-  taskId: string;
   description?: string;
-  summary?: string;
   status?: string;
+  summary?: string;
+  taskId: string;
   timestamp: string;
 }
 
@@ -26,7 +26,10 @@ export function loader() {
     const worklogPath = join(root, "runtime/worklog.json");
 
     if (!existsSync(worklogPath)) {
-      return Response.json({ inProgress: [], results: [] } satisfies WorklogData);
+      return Response.json({
+        inProgress: [],
+        results: [],
+      } satisfies WorklogData);
     }
 
     const raw = readFileSync(worklogPath, "utf-8");

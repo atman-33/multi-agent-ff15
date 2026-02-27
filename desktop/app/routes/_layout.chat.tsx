@@ -2,13 +2,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/agent-chat-column";
 import StatusBar from "@/components/status-bar";
+import { COMRADES, type ComradeId } from "@/constants/comrade-config";
 import {
   type AgentId,
   type MainAgentId,
   useAgentChatLog,
 } from "@/hooks/use-agent-chat-log";
 import { useAgentStatuses } from "@/hooks/use-agent-statuses";
-import { COMRADES, type ComradeId } from "@/constants/comrade-config";
 import { useContextUsage } from "@/hooks/use-context-usage";
 import { type InboxLogRecord, useInboxLog } from "@/hooks/use-inbox-log";
 

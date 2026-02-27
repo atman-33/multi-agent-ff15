@@ -20,10 +20,10 @@ import {
 
 interface WorklogEntry {
   agent: string;
-  taskId: string;
   description?: string;
-  summary?: string;
   status?: string;
+  summary?: string;
+  taskId: string;
   timestamp: string;
 }
 
@@ -50,9 +50,13 @@ export default function WorklogPage() {
         setData(result);
       } else {
         const res = await fetch("/api/worklog");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const json = await res.json();
-        if (json.error) throw new Error(json.error);
+        if (json.error) {
+          throw new Error(json.error);
+        }
         setData(json);
       }
       setError(null);

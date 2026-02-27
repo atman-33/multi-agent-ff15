@@ -13,30 +13,30 @@ export interface InboxMessage {
   timestamp: string;
 }
 
-const POLL_INTERVAL_MS = 5_000;
+const POLL_INTERVAL_MS = 5000;
 
 interface CrystalInboxState {
-  /** All messages (newest first after fetch) */
-  messages: InboxMessage[];
-  /** Number of unread messages — derived on every mutation for instant reactivity */
-  unreadCount: number;
-  /** Loading indicator */
-  loading: boolean;
-  /** Last error message, if any */
-  error: string | null;
-  /** Whether a "mark all" operation is in progress */
-  markingAll: boolean;
   /** Whether background polling is active */
   _pollingTimer: ReturnType<typeof setInterval> | null;
+  /** Last error message, if any */
+  error: string | null;
 
   // Actions
   fetchData: () => Promise<void>;
-  markAsRead: (messageId: string) => Promise<void>;
+  /** Loading indicator */
+  loading: boolean;
   markAllAsRead: () => Promise<void>;
+  markAsRead: (messageId: string) => Promise<void>;
+  /** Whether a "mark all" operation is in progress */
+  markingAll: boolean;
+  /** All messages (newest first after fetch) */
+  messages: InboxMessage[];
   /** Start background polling for new messages (call once from root layout) */
   startPolling: () => void;
   /** Stop background polling (cleanup) */
   stopPolling: () => void;
+  /** Number of unread messages — derived on every mutation for instant reactivity */
+  unreadCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,9 +78,13 @@ export const useCrystalInboxStore = create<CrystalInboxState>((set, get) => ({
         messages = msgs;
       } else {
         const res = await fetch("/api/inbox/crystal");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (data.error) {
+          throw new Error(data.error);
+        }
         unreadCount = data.count;
         messages = data.messages;
       }
@@ -121,7 +125,9 @@ export const useCrystalInboxStore = create<CrystalInboxState>((set, get) => ({
 
   markAllAsRead: async () => {
     const { messages } = get();
-    if (countUnread(messages) === 0) return;
+    if (countUnread(messages) === 0) {
+      return;
+    }
 
     // Optimistic update — instant UI reaction
     const updated = messages.map((m) => ({ ...m, read: true }));
@@ -147,7 +153,9 @@ export const useCrystalInboxStore = create<CrystalInboxState>((set, get) => ({
 
   startPolling: () => {
     const { _pollingTimer } = get();
-    if (_pollingTimer) return; // already running
+    if (_pollingTimer) {
+      return; // already running
+    }
 
     // Initial fetch
     get().fetchData();
