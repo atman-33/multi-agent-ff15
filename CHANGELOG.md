@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.0] - 2026-02-27
+
+### Added
+- **Crystal Inbox page** - New dedicated desktop UI page for managing user notifications and messages from the multi-agent system.
+- **Worklog page** - New UI page displaying real-time task progress (In Progress / Today's Results) with desktop app integration.
+- **Crystal Inbox Store** - Zustand state management for Crystal Inbox with reactive updates and persistence.
+- **Worklog API endpoints** - API routes for retrieving and managing task progress data.
+- **Information architecture redesign** - Consolidated Crystal Inbox (`queue/inbox/crystal.yaml`), Shared Board (`docs/shared/board.md`), and Worklog (`runtime/worklog.json`) for improved knowledge sharing and visibility.
+- **Worlog Updater plugin** - Automated daemon for managing task progress, escalation, and agent inactivity detection.
+
+### Changed
+- **Dashboard architecture** - Renamed and refactored dashboard routes to align with new information architecture (e.g., `_layout.dashboard.tsx` → `_layout.board.tsx`).
+- **Inbox system restructuring** - Enhanced Python-based inbox reader and writer utilities for better YAML handling and resource efficiency.
+- **Agent file organization** - Reorganized desktop app file structure (moved lib utilities to hooks and constants directories).
+- **Plugin infrastructure** - Replaced legacy dashboard auto-updater and integrity-checker plugins with new worklog-updater plugin.
+
+### Fixed
+- **Tmux interaction reliability** - Improved stability and robustness in session management and agent state tracking.
+- **Log refresh consistency** - Enhanced log refresh mechanisms across chat, inbox, and activity views.
+
+### Removed
+- **Legacy dashboard plugins** - Removed deprecated `dashboard-auto-updater.ts` and `dashboard-integrity-checker.ts` in favor of worklog-updater plugin.
+- **Generated Tauri schemas** - Removed auto-generated ACL and capability manifest files to reduce repository bloat.
+
 ## [0.6.0] - 2026-02-27
 
 ### Added
@@ -150,6 +175,7 @@ Initial release.
 [0.2.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/atman-33/multi-agent-ff15/releases/tag/v0.1.0
 
+[0.7.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.3.0...v0.4.0
