@@ -10,9 +10,11 @@ import {
   Newspaper,
   Settings2,
 } from "lucide-react";
+import { useEffect } from "react";
 import { NavLink, Outlet, useNavigation } from "react-router";
 import { AppHeader } from "@/components/app-header";
 import { cn } from "@/lib/utils";
+import { useCrystalInboxStore } from "@/stores/crystal-inbox-store";
 
 const navItems = [
   {
@@ -70,6 +72,15 @@ const navItems = [
 export default function Layout() {
   const navigation = useNavigation();
   const isLoading = navigation.state !== "idle";
+  const crystalUnread = useCrystalInboxStore((s) => s.unreadCount);
+  const startPolling = useCrystalInboxStore((s) => s.startPolling);
+  const stopPolling = useCrystalInboxStore((s) => s.stopPolling);
+
+  // Start background polling on mount, stop on unmount
+  useEffect(() => {
+    startPolling();
+    return () => stopPolling();
+  }, [startPolling, stopPolling]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -99,33 +110,45 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 space-y-0.5 px-2 py-3">
-          {navItems.map((item) => (
-            <NavLink
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 font-medium text-sm transition-all duration-150",
-                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  isActive
-                    ? "border border-primary/20 bg-primary/15 text-primary shadow-sm"
-                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                )
-              }
-              key={item.to}
-              to={item.to}
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground"
+          {navItems.map((item) => {
+            const badge =
+              item.to === "/crystal-inbox" && crystalUnread > 0
+                ? crystalUnread
+                : null;
+
+            return (
+              <NavLink
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 font-medium text-sm transition-all duration-150",
+                    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    isActive
+                      ? "border border-primary/20 bg-primary/15 text-primary shadow-sm"
+                      : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                  )
+                }
+                key={item.to}
+                to={item.to}
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-colors",
+                        isActive ? "text-primary" : "text-muted-foreground"
+                      )}
+                    />
+                    <span className="flex-1">{item.label}</span>
+                    {badge !== null && (
+                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                        {badge}
+                      </span>
                     )}
-                  />
-                  {item.label}
-                </>
-              )}
-            </NavLink>
-          ))}
+                  </>
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
 
         {/* Footer */}

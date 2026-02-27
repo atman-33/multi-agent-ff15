@@ -1,12 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
-import { Bell, Mail, MessageSquare, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  Bell,
+  CheckCheck,
+  Mail,
+  MessageSquare,
+  RefreshCw,
+} from "lucide-react";
+import { useEffect } from "react";
 import {
   Alert,
-  AlertCircle,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,49 +21,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useCrystalInboxStore } from "@/stores/crystal-inbox-store";
 
-interface InboxMessage {
-  content: string;
-  from: string;
-  id: string;
-  msg_type: string;
-  read: boolean;
-  timestamp: string;
+/** Replace literal \n sequences with real newlines for display */
+function formatContent(content: string): string {
+  return content.replace(/\\n/g, "\n");
 }
 
 export default function CrystalInboxPage() {
-  const isTauri =
-    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-  const [messages, setMessages] = useState<InboxMessage[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (isTauri) {
-        const [count, msgs] = await Promise.all([
-          invoke<number>("peek_inbox", { agent: "crystal" }),
-          invoke<InboxMessage[]>("list_inbox_messages", { agent: "crystal" }),
-        ]);
-        setUnreadCount(count);
-        setMessages(msgs);
-      } else {
-        const res = await fetch("/api/inbox/crystal");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        setUnreadCount(data.count);
-        setMessages(data.messages);
-      }
-      setError(null);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [isTauri]);
+  const {
+    messages,
+    unreadCount,
+    error,
+    loading,
+    markingAll,
+    fetchData,
+    markAsRead,
+    markAllAsRead,
+  } = useCrystalInboxStore();
 
   useEffect(() => {
     fetchData();
@@ -80,18 +60,33 @@ export default function CrystalInboxPage() {
             </Badge>
           )}
         </div>
-        <Button
-          aria-label="Refresh messages"
-          className="h-7 w-7"
-          disabled={loading}
-          onClick={fetchData}
-          size="icon"
-          variant="ghost"
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-          />
-        </Button>
+        <div className="flex items-center gap-1">
+          {unreadCount > 0 && (
+            <Button
+              aria-label="Mark all as read"
+              className="h-7 gap-1.5 px-2 text-xs"
+              disabled={markingAll}
+              onClick={markAllAsRead}
+              size="sm"
+              variant="ghost"
+            >
+              <CheckCheck className="h-3.5 w-3.5" />
+              Mark all read
+            </Button>
+          )}
+          <Button
+            aria-label="Refresh messages"
+            className="h-7 w-7"
+            disabled={loading}
+            onClick={fetchData}
+            size="icon"
+            variant="ghost"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
       </div>
 
       {/* Scrollable content */}
@@ -111,7 +106,8 @@ export default function CrystalInboxPage() {
               Notifications
             </CardTitle>
             <CardDescription className="text-xs">
-              Push notifications from Iris and other agents
+              Push notifications from Iris and other agents — click to mark as
+              read
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -123,20 +119,26 @@ export default function CrystalInboxPage() {
             ) : (
               <div className="space-y-2">
                 {messages.map((msg) => (
-                  <div
-                    className={`rounded-lg border px-4 py-3 transition-colors ${
+                  <button
+                    className={`w-full rounded-lg border px-4 py-3 text-left transition-all ${
                       msg.read
-                        ? "border-border/40 bg-muted/10"
-                        : "border-primary/25 bg-primary/5"
+                        ? "border-border/40 bg-muted/10 opacity-60"
+                        : "border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10 cursor-pointer"
                     }`}
                     key={msg.id}
+                    onClick={() => {
+                      if (!msg.read) markAsRead(msg.id);
+                    }}
+                    type="button"
                   >
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {!msg.read && (
-                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                          <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse" />
                         )}
-                        <span className="font-medium text-foreground text-xs">
+                        <span
+                          className={`text-xs ${msg.read ? "text-muted-foreground" : "font-medium text-foreground"}`}
+                        >
                           {msg.from}
                         </span>
                         <Badge
@@ -151,12 +153,12 @@ export default function CrystalInboxPage() {
                       </span>
                     </div>
                     <p className="whitespace-pre-wrap text-foreground/90 text-sm leading-relaxed">
-                      {msg.content}
+                      {formatContent(msg.content)}
                     </p>
                     <div className="mt-1.5 font-mono text-[10px] text-muted-foreground/50">
                       {msg.id}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
