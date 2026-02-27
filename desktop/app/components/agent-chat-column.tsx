@@ -915,6 +915,16 @@ function AgentChatColumn({
         isTauri={isTauri}
         onSent={onSent}
         targetAgent={viewingComrade && partyView ? partyView : agent}
+        targetAgentImageSrc={
+          viewingComrade && partyView
+            ? COMRADE_CONFIG[partyView].imageSrc
+            : AGENT_CONFIG[agent].imageSrc
+        }
+        targetAgentLabel={
+          viewingComrade && partyView
+            ? COMRADE_CONFIG[partyView].label
+            : AGENT_CONFIG[agent].label
+        }
       />
     </div>
   );

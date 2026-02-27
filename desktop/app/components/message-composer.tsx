@@ -31,6 +31,8 @@ export interface MessageComposerProps {
   isTauri: boolean;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
   targetAgent: AgentId;
+  targetAgentImageSrc?: string;
+  targetAgentLabel?: string;
 }
 
 function MessageComposer({
@@ -38,6 +40,8 @@ function MessageComposer({
   isTauri,
   onSent,
   compact = false,
+  targetAgentLabel,
+  targetAgentImageSrc,
 }: MessageComposerProps) {
   const storageKey = `chat_draft_${targetAgent}`;
   const [content, setContent] = useState(() => {
@@ -324,20 +328,35 @@ function MessageComposer({
       )}
     >
       <div className="mb-1 flex min-h-[16px] items-center gap-2 text-[10px]">
+        {targetAgentLabel && (
+          <div className="flex items-center gap-1">
+            <span className="font-medium uppercase tracking-wide text-[9px] text-muted-foreground/40">
+              TO
+            </span>
+            {targetAgentImageSrc && (
+              <img
+                alt={targetAgentLabel}
+                className="h-3.5 w-auto object-contain opacity-60"
+                src={targetAgentImageSrc}
+              />
+            )}
+            <span className="font-medium text-muted-foreground/70">{targetAgentLabel}</span>
+          </div>
+        )}
         {status === "sent" && (
-          <span className="flex items-center gap-1 text-green-400">
+          <span className="ml-auto flex items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3 w-3" />
             Sent
           </span>
         )}
         {status === "failed" && (
           <>
-            <span className="flex items-center gap-1 text-red-400">
+            <span className="ml-auto flex items-center gap-1 text-red-400">
               <XCircle className="h-3 w-3 shrink-0" />
               Failed: {errorMsg}
             </span>
             <button
-              className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-red-400 hover:bg-red-500/10"
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-red-400 hover:bg-red-500/10"
               onClick={handleRetry}
               type="button"
             >
@@ -347,7 +366,7 @@ function MessageComposer({
           </>
         )}
         {status === "idle" && isOverLimit && (
-          <span className="text-red-400">
+          <span className="ml-auto text-red-400">
             {charCount}/{MAX_MESSAGE_LENGTH}
           </span>
         )}
