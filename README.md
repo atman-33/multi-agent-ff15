@@ -208,6 +208,12 @@ Then restart your computer and run `install.bat` again.
 
 ---
 
+> **Optional: OpenSpec** — If you plan to use Spec-driven development with active projects, install [OpenSpec](https://github.com/Fission-AI/OpenSpec) globally and run `openspec update` inside each target project:
+> ```bash
+> npm install -g @fission-ai/openspec@latest
+> cd /path/to/your-project && openspec update
+> ```
+
 ### ✅ State after setup
 
 **6 AI agents** will auto-start:
