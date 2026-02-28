@@ -138,7 +138,10 @@ ${activeProjectsYaml}serena_activation:
   project_id: ${firstProject?.id ?? "none"}
   activate_project: ${firstProject?.serena_project ?? `not set — try in order: "${firstProject?.id}" → "${firstProject?.root_path}" → UNC path`}
   on_success: write successful value back to projects/${firstProject?.id ?? "<id>"}.yaml as serena_project
-policy: (1) Activate Serena MCP for the first active project using serena_activation above. (2) Read instruction files on demand before implementation.
+openspec_context:
+  root: ${firstProject?.root_path ?? "not set"}
+  instruction: "When running any openspec CLI command (new, status, list, instructions, archive, etc.), execute from this directory: cd ${firstProject?.root_path ?? "<root_path>"} && openspec ..."
+policy: (1) Activate Serena MCP for the first active project using serena_activation above. (2) Read instruction files on demand before implementation. (3) Use openspec_context.root for all openspec CLI commands when an active project is set.
 ${INJECTION_MARKER_END}`;
 
     return { block, resolvedFiles };
