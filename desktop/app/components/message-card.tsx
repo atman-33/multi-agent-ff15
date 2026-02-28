@@ -110,10 +110,10 @@ function MessageCard({ record, className }: MessageCardProps) {
       },
       pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
       ul: ({ children }) => (
-        <ul className="list-inside list-disc space-y-0.5 pl-2">{children}</ul>
+        <ul className="list-disc space-y-0.5 pl-4">{children}</ul>
       ),
       ol: ({ children }) => (
-        <ol className="list-inside list-decimal space-y-0.5 pl-2">
+        <ol className="list-decimal space-y-0.5 pl-4">
           {children}
         </ol>
       ),
