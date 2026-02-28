@@ -5,10 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-02-28
 
+### Added
+- **github-release skill** - Automated GitHub release workflow with version bumping, CHANGELOG generation, and GitHub Actions integration
+- **Serena integration** - Enhanced code editing workflow with LSP symbol operations and codebase awareness
+- **Enhanced skill discovery** - Improved mechanism for Comrades to propose and validate skill candidates
+- **Knowledge graph support** - Memory MCP with entity relationships for persistent cross-session knowledge
+- **Extended agent capabilities** - New OSPecX workflow for structured change management and implementation verification
 
+### Changed
+- **Release process** - Transitioned to GitHub Actions-driven release workflow with automated tagging
+- **Skill promotion pipeline** - Refined Iris notification system for skill candidate evaluation
+- **Agent coordination** - Enhanced YAML inbox protocol for more robust inter-agent communication
+- **Developer experience** - Streamlined onboarding with improved documentation and examples
 
+### Fixed
+- **CHANGELOG automation** - Improved script robustness for version management and format validation
+- **Memory persistence** - Fixed cross-session knowledge graph consistency issues
+- **Agent recovery** - Enhanced session recovery after /new with better state reconstruction
 
+### Deprecated
+- `dashboard.md` - Consolidated reporting moved to web app and Crystal Inbox
+
+### Removed
+- Legacy dashboard auto-updater plugins (replaced with worklog-updater)
+
+### Security
+- Improved YAML write atomicity with flock-based protection for concurrent file access
+- Enhanced GitHub token handling in release automation scripts
 
 ## [0.7.0] - 2026-02-27
 
@@ -171,12 +196,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-02-15
 
 Initial release.
-
-[0.2.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/atman-33/multi-agent-ff15/releases/tag/v0.1.0
-
-[0.7.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.2.0...v0.3.0
