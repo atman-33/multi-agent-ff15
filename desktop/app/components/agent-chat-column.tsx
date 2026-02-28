@@ -67,12 +67,13 @@ const AGENT_CONFIG = {
     shortcut: "Ctrl+1",
     imageSrc: "/images/noctis.png",
     theme: {
-      border: "border-amber-500/40",
-      bg: "bg-amber-500/5",
-      headerBorder: "border-amber-500/30",
-      headerBg: "bg-amber-500/10",
-      text: "text-amber-400",
-      separator: "from-amber-500/0 via-amber-500/50 to-amber-500/0",
+      // Jet black + deep indigo (blue-violet)
+      border: "border-indigo-700/40",
+      bg: "bg-indigo-950/10",
+      headerBorder: "border-indigo-700/30",
+      headerBg: "bg-indigo-950/20",
+      text: "text-indigo-300",
+      separator: "from-indigo-700/0 via-indigo-700/50 to-indigo-700/0",
     },
   },
   lunafreya: {
@@ -81,12 +82,85 @@ const AGENT_CONFIG = {
     shortcut: "Ctrl+2",
     imageSrc: "/images/lunafreya.png",
     theme: {
-      border: "border-violet-500/40",
-      bg: "bg-violet-500/5",
-      headerBorder: "border-violet-500/30",
-      headerBg: "bg-violet-500/10",
-      text: "text-violet-400",
-      separator: "from-violet-500/0 via-violet-500/50 to-violet-500/0",
+      // Pure white + pale silver
+      border: "border-slate-300/30",
+      bg: "bg-white/[0.03]",
+      headerBorder: "border-slate-300/20",
+      headerBg: "bg-white/[0.06]",
+      text: "text-slate-200",
+      separator: "from-slate-300/0 via-slate-300/40 to-slate-300/0",
+    },
+  },
+} as const;
+
+/** Per-comrade colour themes matching FF15 character motifs. */
+const COMRADE_THEME = {
+  // Ignis — calm intellect: dark navy / charcoal
+  ignis: {
+    selected: "bg-zinc-800/20 text-zinc-300",
+    ping: "bg-zinc-400/10",
+    processingBorder: "border-zinc-400/70",
+    processingGlow: "shadow-[0_0_6px_rgba(161,161,170,0.4)]",
+    columnTheme: {
+      border: "border-zinc-600/40",
+      bg: "bg-zinc-900/10",
+      headerBorder: "border-zinc-600/30",
+      headerBg: "bg-zinc-900/20",
+      text: "text-zinc-300",
+      separator: "from-zinc-600/0 via-zinc-600/50 to-zinc-600/0",
+      processingPing: "bg-zinc-400/30",
+      processingGlow: "drop-shadow-[0_0_6px_rgba(161,161,170,0.6)]",
+    },
+  },
+  // Gladiolus — guardian, earth, strength: deep green / emerald
+  gladiolus: {
+    selected: "bg-emerald-900/20 text-emerald-400",
+    ping: "bg-emerald-500/10",
+    processingBorder: "border-emerald-500/70",
+    processingGlow: "shadow-[0_0_6px_rgba(52,211,153,0.4)]",
+    columnTheme: {
+      border: "border-emerald-800/40",
+      bg: "bg-emerald-950/10",
+      headerBorder: "border-emerald-800/30",
+      headerBg: "bg-emerald-950/20",
+      text: "text-emerald-400",
+      separator: "from-emerald-800/0 via-emerald-800/50 to-emerald-800/0",
+      processingPing: "bg-emerald-400/30",
+      processingGlow: "drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]",
+    },
+  },
+  // Prompto — mood maker, light, positive energy: sun yellow / light orange
+  prompto: {
+    selected: "bg-amber-900/20 text-amber-300",
+    ping: "bg-amber-400/10",
+    processingBorder: "border-amber-400/70",
+    processingGlow: "shadow-[0_0_6px_rgba(251,191,36,0.4)]",
+    columnTheme: {
+      border: "border-amber-500/40",
+      bg: "bg-amber-950/10",
+      headerBorder: "border-amber-500/30",
+      headerBg: "bg-amber-950/20",
+      text: "text-amber-300",
+      separator: "from-amber-500/0 via-amber-500/50 to-amber-500/0",
+      processingPing: "bg-amber-300/30",
+      processingGlow: "drop-shadow-[0_0_6px_rgba(252,211,77,0.6)]",
+    },
+  },
+  // Iris — pale pink / light coral
+  iris: {
+    selected: "bg-rose-800/20 text-rose-300",
+    ping: "bg-rose-400/10",
+    processingBorder: "border-rose-400/70",
+    processingGlow: "shadow-[0_0_6px_rgba(251,113,133,0.4)]",
+    columnTheme: {
+      border: "border-rose-500/40",
+      bg: "bg-rose-950/10",
+      headerBorder: "border-rose-500/30",
+      headerBg: "bg-rose-950/20",
+      text: "text-rose-300",
+      separator: "from-rose-500/0 via-rose-500/50 to-rose-500/0",
+      processingPing: "bg-rose-300/30",
+      processingGlow: "drop-shadow-[0_0_6px_rgba(251,113,133,0.6)]",
     },
   },
 } as const;
@@ -144,7 +218,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Inbox message bubble — Crystal (right-aligned purple) or agent (left-aligned amber). */
+/** Inbox message bubble — Crystal (right-aligned primary) or agent (left-aligned neutral). */
 const InboxBubble = memo(function InboxBubble({
   msg,
 }: {
@@ -212,12 +286,12 @@ const InboxBubble = memo(function InboxBubble({
   return (
     <div className="flex flex-col items-end gap-0.5">
       <div className="flex items-center gap-1.5">
-        <span className="font-semibold text-[10px] text-amber-400/80">
+        <span className="font-semibold text-[10px] text-slate-400/80">
           {fromLabel}
         </span>
         <span className="text-[10px] text-muted-foreground/50">{timeStr}</span>
       </div>
-      <div className="max-w-[85%] rounded-2xl rounded-tr-sm border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-foreground/85 text-xs leading-relaxed shadow-sm">
+      <div className="max-w-[85%] rounded-2xl rounded-tr-sm border border-slate-500/25 bg-slate-500/10 px-3 py-2 text-foreground/85 text-xs leading-relaxed shadow-sm">
         <ReactMarkdown
           className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
           components={mdComponents}
@@ -262,7 +336,7 @@ function TypingIndicator({
                 className={cn(
                   "max-w-[260px] truncate font-mono text-[10px]",
                   i === lines.length - 1
-                    ? "text-amber-400/80"
+                    ? "text-slate-300/80"
                     : "text-muted-foreground/35"
                 )}
                 // biome-ignore lint/suspicious/noArrayIndexKey: ordered log lines
@@ -557,19 +631,20 @@ function ModelSwitchBar({
 }
 
 function ComradeTab({
-  _comrade,
+  comrade,
   cfg,
   status,
   isSelected,
   onClick,
 }: {
-  _comrade: ComradeId;
+  comrade: ComradeId;
   cfg: { label: string; imageSrc: string };
   status?: string;
   isSelected: boolean;
   onClick: () => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
+  const ct = COMRADE_THEME[comrade];
   const isIdle = status === "idle";
   const isProcessing = status && !isIdle && status !== "offline";
 
@@ -578,7 +653,7 @@ function ComradeTab({
       className={cn(
         "relative flex flex-col items-center gap-0.5 rounded px-1.5 py-0.5 transition-all duration-150",
         isSelected
-          ? "bg-amber-500/20 text-amber-300"
+          ? ct.selected
           : "text-muted-foreground/50 hover:bg-white/5 hover:text-foreground"
       )}
       onClick={onClick}
@@ -588,15 +663,20 @@ function ComradeTab({
       type="button"
     >
       {isProcessing && (
-        <span className="pointer-events-none absolute inset-0 animate-ping rounded bg-amber-400/10" />
+        <span
+          className={cn(
+            "pointer-events-none absolute inset-0 animate-ping rounded",
+            ct.ping
+          )}
+        />
       )}
       <div
         className={cn(
           "h-5 w-5 overflow-hidden rounded-full border transition-all duration-300",
           isProcessing
-            ? "animate-bounce border-amber-400/70 shadow-[0_0_6px_rgba(251,191,36,0.4)]"
+            ? cn("animate-bounce", ct.processingBorder, ct.processingGlow)
             : "border-border/30 opacity-60 grayscale",
-          isSelected && "border-amber-400/80 opacity-100 grayscale-0"
+          isSelected && cn(ct.processingBorder, "opacity-100 grayscale-0")
         )}
       >
         {imgErr ? (
@@ -662,6 +742,10 @@ function AgentChatColumn({
   const noctisIsProcessing =
     status !== "idle" && status !== "offline" && !!status;
 
+  // Active column theme: switches to comrade's theme when viewing one
+  const activeTheme =
+    viewingComrade && partyView ? COMRADE_THEME[partyView].columnTheme : theme;
+
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
   const activityLines = useAgentActivity(activeAgentName, activeIsProcessing);
@@ -718,8 +802,8 @@ function AgentChatColumn({
     <div
       className={cn(
         "flex h-full flex-col overflow-hidden rounded-lg border transition-all duration-150",
-        theme.border,
-        theme.bg
+        activeTheme.border,
+        activeTheme.bg
       )}
     >
       {/* Column header */}
@@ -727,8 +811,8 @@ function AgentChatColumn({
         <div
           className={cn(
             "flex min-h-[52px] select-none items-center gap-1 rounded-t-lg border-b px-3 py-2",
-            theme.headerBorder,
-            theme.headerBg
+            activeTheme.headerBorder,
+            activeTheme.headerBg
           )}
         >
           {/* Noctis tab */}
@@ -737,7 +821,7 @@ function AgentChatColumn({
               "flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors",
               viewingComrade
                 ? "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                : cn("bg-amber-500/20", theme.text)
+                : cn("bg-indigo-500/20", theme.text)
             )}
             onClick={() => {
               onPartyViewChange?.(null);
@@ -746,14 +830,14 @@ function AgentChatColumn({
           >
             <div className="relative shrink-0">
               {noctisIsProcessing && (
-                <span className="absolute inset-0 animate-ping rounded-full bg-amber-400/30" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-indigo-400/30" />
               )}
               {imgError ? (
                 <Icon
                   className={cn(
                     "h-4 w-4",
                     viewingComrade ? "text-muted-foreground" : theme.text,
-                    noctisIsProcessing && "animate-bounce text-amber-400"
+                    noctisIsProcessing && "animate-bounce text-indigo-300"
                   )}
                 />
               ) : (
@@ -762,7 +846,7 @@ function AgentChatColumn({
                   className={cn(
                     "h-6 w-auto object-contain transition-all duration-300",
                     noctisIsProcessing &&
-                      "animate-bounce drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]"
+                      "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]"
                   )}
                   onError={() => setImgError(true)}
                   src={imageSrc}
@@ -779,8 +863,8 @@ function AgentChatColumn({
           <div className="flex items-center gap-0.5">
             {COMRADES.map((comrade) => (
               <ComradeTab
-                _comrade={comrade}
                 cfg={COMRADE_CONFIG[comrade]}
+                comrade={comrade}
                 isSelected={partyView === comrade}
                 key={comrade}
                 onClick={() => {
@@ -800,13 +884,13 @@ function AgentChatColumn({
         <div
           className={cn(
             "flex min-h-[52px] select-none items-center gap-2 rounded-t-lg border-b px-3 py-2",
-            theme.headerBorder,
-            theme.headerBg
+            activeTheme.headerBorder,
+            activeTheme.headerBg
           )}
         >
           <div className="relative shrink-0">
             {activeIsProcessing && (
-              <span className="absolute inset-0 animate-ping rounded-full bg-violet-400/30" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-slate-200/20" />
             )}
             {imgError ? (
               <Icon
@@ -822,14 +906,16 @@ function AgentChatColumn({
                 className={cn(
                   "h-6 w-auto object-contain transition-all duration-300",
                   activeIsProcessing &&
-                    "animate-bounce drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]"
+                    "animate-bounce drop-shadow-[0_0_6px_rgba(226,232,240,0.6)]"
                 )}
                 onError={() => setImgError(true)}
                 src={imageSrc}
               />
             )}
           </div>
-          <span className={cn("font-medium text-xs", theme.text)}>{label}</span>
+          <span className={cn("font-medium text-xs", activeTheme.text)}>
+            {label}
+          </span>
           <span className="ml-auto text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>
@@ -889,25 +975,25 @@ function AgentChatColumn({
 
       <div className="flex flex-col items-center gap-0 py-1">
         <ChevronUp
-          className={cn("h-3 w-3 animate-bounce opacity-20", theme.text)}
+          className={cn("h-3 w-3 animate-bounce opacity-20", activeTheme.text)}
           style={{ animationDelay: "300ms" }}
         />
         <ChevronUp
           className={cn(
             "-mt-1.5 h-3 w-3 animate-bounce opacity-50",
-            theme.text
+            activeTheme.text
           )}
           style={{ animationDelay: "150ms" }}
         />
         <ChevronUp
-          className={cn("-mt-1.5 h-3 w-3 animate-bounce", theme.text)}
+          className={cn("-mt-1.5 h-3 w-3 animate-bounce", activeTheme.text)}
           style={{ animationDelay: "0ms" }}
         />
         <div className="mt-0.5 w-24">
           <div
             className={cn(
               "h-px animate-pulse rounded-full bg-gradient-to-r",
-              theme.separator
+              activeTheme.separator
             )}
           />
         </div>

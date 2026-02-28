@@ -486,6 +486,32 @@ if [ "$NEED_OPENCODE_INSTALL" = true ]; then
 fi
 
 # ============================================================
+# STEP 5.5: OpenSpec CLI check (optional - for Spec-driven development)
+# Required only when using OpenSpec workflow with active external projects.
+# https://github.com/Fission-AI/OpenSpec
+# ============================================================
+log_step "STEP 5.5: OpenSpec CLI check (optional)"
+
+if command -v openspec &> /dev/null; then
+    OPENSPEC_VERSION=$(openspec --version 2>&1 || echo "unknown")
+    log_success "openspec is already installed ($OPENSPEC_VERSION)"
+    RESULTS+=("openspec: OK ($OPENSPEC_VERSION)")
+else
+    log_warn "openspec not found (optional - required for Spec-driven development)"
+    echo ""
+    echo "  To use OpenSpec workflow with active projects, install manually:"
+    echo "    npm install -g @fission-ai/openspec@latest"
+    echo ""
+    echo "  Then initialize in each target project directory:"
+    echo "    cd /path/to/your-project"
+    echo "    openspec update"
+    echo ""
+    echo "  See: https://github.com/Fission-AI/OpenSpec"
+    echo ""
+    RESULTS+=("openspec: Not installed (optional - install if using Spec-driven development)")
+fi
+
+# ============================================================
 # STEP 6: Create directory structure
 # ============================================================
 log_step "STEP 6: Create directory structure"
