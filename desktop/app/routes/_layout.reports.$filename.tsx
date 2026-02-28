@@ -1,22 +1,22 @@
 import { Archive, Clock, RefreshCw, RotateCcw, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   useNavigate,
   useOutletContext,
   useParams,
   useSearchParams,
 } from "react-router";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-type ReportsOutletContext = {
+interface ReportsOutletContext {
   archiveReport: (
     filename: string,
     action: "archive" | "restore"
   ) => Promise<void>;
-};
+}
 
 export default function ReportDetail() {
   const { filename } = useParams<{ filename: string }>();
@@ -33,7 +33,9 @@ export default function ReportDetail() {
   const [archiving, setArchiving] = useState(false);
 
   const fetchContent = useCallback(async () => {
-    if (!filename) return;
+    if (!filename) {
+      return;
+    }
     setLoading(true);
     setContent("");
     try {
@@ -41,9 +43,13 @@ export default function ReportDetail() {
       const res = await fetch(
         `/api/report?file=${encodeURIComponent(filename)}${archivedParam}`
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        throw new Error(data.error);
+      }
       setContent(data.content || "");
       setTitle(data.title || filename);
       setAuthor(data.author || "");
@@ -60,7 +66,9 @@ export default function ReportDetail() {
   }, [fetchContent]);
 
   const handleArchiveAction = async () => {
-    if (!filename) return;
+    if (!filename) {
+      return;
+    }
     setArchiving(true);
     try {
       await archiveReport(filename, isArchived ? "restore" : "archive");

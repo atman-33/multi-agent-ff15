@@ -43,9 +43,15 @@ export function loader({ request }: { request: Request }) {
       try {
         const parsed = yaml.parse(fmMatch[1]);
         if (parsed && typeof parsed === "object") {
-          if (parsed.title) title = parsed.title;
-          if (parsed.author) author = parsed.author;
-          if (parsed.date) date = String(parsed.date);
+          if (parsed.title) {
+            title = parsed.title;
+          }
+          if (parsed.author) {
+            author = parsed.author;
+          }
+          if (parsed.date) {
+            date = String(parsed.date);
+          }
         }
       } catch {
         // ignore frontmatter parse errors

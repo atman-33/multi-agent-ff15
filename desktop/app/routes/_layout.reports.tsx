@@ -40,9 +40,13 @@ export default function ReportsLayout() {
           ? "/api/reports?archived=true"
           : "/api/reports";
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        throw new Error(data.error);
+      }
       setReports(data.reports || []);
       setError(null);
     } catch (e) {
@@ -79,7 +83,9 @@ export default function ReportsLayout() {
           body: JSON.stringify({ filename, action }),
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (data.error) {
+          throw new Error(data.error);
+        }
         // Refresh the current tab's list
         await fetchReports(tab);
       } catch (e) {
@@ -129,7 +135,7 @@ export default function ReportsLayout() {
             <div className="flex">
               <button
                 className={cn(
-                  "flex-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                  "flex-1 border-b-2 py-2 font-medium text-xs transition-colors",
                   tab === "active"
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -141,7 +147,7 @@ export default function ReportsLayout() {
               </button>
               <button
                 className={cn(
-                  "flex-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                  "flex-1 border-b-2 py-2 font-medium text-xs transition-colors",
                   tab === "archived"
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -198,7 +204,9 @@ export default function ReportsLayout() {
                         const action =
                           tab === "archived" ? "restore" : "archive";
                         await archiveReport(r.filename, action);
-                        if (isActive) navigate("/reports");
+                        if (isActive) {
+                          navigate("/reports");
+                        }
                       }}
                       title={tab === "archived" ? "Restore" : "Archive"}
                       type="button"
@@ -253,7 +261,13 @@ export default function ReportsLayout() {
             isDetailShowing ? "flex" : "hidden md:flex"
           )}
         >
-          <Outlet context={{ archiveReport } satisfies { archiveReport: typeof archiveReport }} />
+          <Outlet
+            context={
+              { archiveReport } satisfies {
+                archiveReport: typeof archiveReport;
+              }
+            }
+          />
         </div>
       </div>
     </div>

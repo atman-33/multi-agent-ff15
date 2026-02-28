@@ -663,7 +663,12 @@ function ComradeTab({
       type="button"
     >
       {isProcessing && (
-        <span className={cn("pointer-events-none absolute inset-0 animate-ping rounded", ct.ping)} />
+        <span
+          className={cn(
+            "pointer-events-none absolute inset-0 animate-ping rounded",
+            ct.ping
+          )}
+        />
       )}
       <div
         className={cn(
@@ -739,9 +744,7 @@ function AgentChatColumn({
 
   // Active column theme: switches to comrade's theme when viewing one
   const activeTheme =
-    viewingComrade && partyView
-      ? COMRADE_THEME[partyView].columnTheme
-      : theme;
+    viewingComrade && partyView ? COMRADE_THEME[partyView].columnTheme : theme;
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
@@ -860,8 +863,8 @@ function AgentChatColumn({
           <div className="flex items-center gap-0.5">
             {COMRADES.map((comrade) => (
               <ComradeTab
-                comrade={comrade}
                 cfg={COMRADE_CONFIG[comrade]}
+                comrade={comrade}
                 isSelected={partyView === comrade}
                 key={comrade}
                 onClick={() => {
@@ -910,7 +913,9 @@ function AgentChatColumn({
               />
             )}
           </div>
-          <span className={cn("font-medium text-xs", activeTheme.text)}>{label}</span>
+          <span className={cn("font-medium text-xs", activeTheme.text)}>
+            {label}
+          </span>
           <span className="ml-auto text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>

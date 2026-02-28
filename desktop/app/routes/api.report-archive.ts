@@ -14,10 +14,7 @@ export async function action({ request }: { request: Request }) {
       action: "archive" | "restore";
     };
 
-    if (
-      !filename ||
-      !["archive", "restore"].includes(archiveAction)
-    ) {
+    if (!(filename && ["archive", "restore"].includes(archiveAction))) {
       return Response.json({ error: "Invalid request" }, { status: 400 });
     }
 
