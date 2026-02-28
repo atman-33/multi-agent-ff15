@@ -14,10 +14,14 @@ const FM_REGEX = /^---\r?\n([\s\S]*?)\r?\n---/;
 const FILENAME_REGEX = /^([^-]+)-([^-]+)-(.*)\.md$/;
 const DATE8_REGEX = /^\d{8}$/;
 
-export function loader() {
+export function loader({ request }: { request: Request }) {
   try {
+    const url = new URL(request.url);
+    const archived = url.searchParams.get("archived") === "true";
     const root = getProjectRoot();
-    const reportsDir = join(root, "docs", "reports");
+    const reportsDir = archived
+      ? join(root, "docs", "reports", "archive")
+      : join(root, "docs", "reports");
 
     if (!existsSync(reportsDir)) {
       return Response.json({ reports: [] });
