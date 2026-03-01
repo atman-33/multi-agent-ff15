@@ -9,6 +9,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import MessageCard from "@/components/message-card";
@@ -274,7 +275,7 @@ const InboxBubble = memo(function InboxBubble({
           <ReactMarkdown
             className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             components={mdComponents}
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={[remarkGfm, remarkBreaks]}
           >
             {content}
           </ReactMarkdown>
@@ -295,7 +296,7 @@ const InboxBubble = memo(function InboxBubble({
         <ReactMarkdown
           className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
           components={mdComponents}
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkBreaks]}
         >
           {content}
         </ReactMarkdown>
