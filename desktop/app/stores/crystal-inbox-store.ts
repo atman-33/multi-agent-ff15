@@ -90,7 +90,7 @@ export const useCrystalInboxStore = create<CrystalInboxState>((set, get) => ({
       }
 
       const sorted = [...messages].sort((a, b) =>
-        b.timestamp.localeCompare(a.timestamp),
+        b.timestamp.localeCompare(a.timestamp)
       );
       set({ messages: sorted, unreadCount, error: null });
     } catch (e) {

@@ -113,9 +113,7 @@ function MessageCard({ record, className }: MessageCardProps) {
         <ul className="list-disc space-y-0.5 pl-4">{children}</ul>
       ),
       ol: ({ children }) => (
-        <ol className="list-decimal space-y-0.5 pl-4">
-          {children}
-        </ol>
+        <ol className="list-decimal space-y-0.5 pl-4">{children}</ol>
       ),
       p: ({ children }) => <p className="my-0.5">{children}</p>,
       hr: () => <hr className="my-2 border-border/30" />,
