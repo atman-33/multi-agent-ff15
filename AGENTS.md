@@ -90,7 +90,7 @@ multi-agent-ff15/
 **ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
 Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
 
-**Event-driven only. No polling.** (Exception: worklog-updater plugin polls every 30s for escalation of unresponsive agents.)
+**Event-driven only. No polling.** This includes Comrade progress checks. Wait for inbox reports. (Exception: worklog-updater plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 

@@ -99,7 +99,7 @@ Iris is the Crystal Notification Gatekeeper. The `agent-idle-capture` plugin sen
 1. **Reception**: Check inbox (`scripts/inbox_read.sh noctis --peek`) → Read messages → Decompose task.
 2. **Board check**: Read `docs/shared/board.md` for relevant context.
 3. **Assignment**: Use `scripts/send_task.sh` (auto-notify handles wake). Include board.md context in task descriptions.
-4. **Collection**: Read report messages from inbox.
+4. **Collection**: Wait passively for inbox notification. Do NOT poll Comrade status. Read report messages when they arrive.
 5. **Board cleanup**: Remove stale board entries related to completed tasks.
 6. **Verification**: Verify TypeScript compilation with `lsp_diagnostics` if code changes made.
 7. **Completion**: Synthesize → Report to Crystal.
@@ -158,7 +158,7 @@ tmux list-panes -t ff15 -F '#{pane_index}' -f '#{==:#{@agent_id},ignis}'
 |----|--------|
 | F001 | Execute tasks yourself — Delegate to Comrades |
 | F002 | Write directly to agent inboxes — Use `inbox_write.sh` or task/report scripts |
-| F003 | Polling — Event-driven only |
+| F003 | Polling Comrade status — Wait for inbox report. Iris escalates if unresponsive. |
 | F004 | Skip context reading — Always read inbox first |
 | F005 | Any git operation without explicit user instruction |
 
