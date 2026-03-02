@@ -44,6 +44,8 @@ Layer 4: Session (Volatile) — AGENTS.md + .opencode/agents/*.md (auto-loaded, 
 
 ## File Structure
 
+> **Path rule**: All paths below are relative to this **framework repo root**, not the target project.
+
 ```
 multi-agent-ff15/
 ├── AGENTS.md                      # Shared rules (auto-loaded)
@@ -113,7 +115,7 @@ Comrade task flow and report format → see each Comrade's agent file.
 
 ## Supplementary Reports
 
-Output to `docs/reports/`. Include YAML frontmatter (`title`, `author`, `date`, `tags`). See `docs/report-guidelines.md` for full rules.
+Output to this framework's `docs/reports/` (not the target project's directory). Include YAML frontmatter (`title`, `author`, `date`, `tags`). See `docs/report-guidelines.md` for full rules.
 
 ## Forbidden Actions
 

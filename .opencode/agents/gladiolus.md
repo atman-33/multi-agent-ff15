@@ -52,9 +52,9 @@ The script automatically detects your agent ID, generates timestamp, writes repo
 
 ## Shared Board Workflow
 
-**MUST: On task receipt**, read `docs/shared/board.md` for relevant context before starting work.
+**MUST: On task receipt**, read `docs/shared/board.md` (framework repo) for relevant context before starting work.
 
-**SHOULD: Before reporting**, add useful findings to `docs/shared/board.md` (1-2 lines under the appropriate project section) if the task produced knowledge valuable to other Comrades. You may delete your own stale entries.
+**SHOULD: Before reporting**, add useful findings to `docs/shared/board.md` (framework repo, 1-2 lines under the appropriate project section) if the task produced knowledge valuable to other Comrades. You may delete your own stale entries.
 
 ## Philosophy
 
