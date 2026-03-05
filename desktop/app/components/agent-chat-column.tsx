@@ -1006,7 +1006,7 @@ function AgentChatColumn({
         {!isAtBottom && (
           <button
             className={cn(
-              "absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/40 backdrop-blur-sm transition-all duration-200 hover:bg-black/60",
+              "absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/40 backdrop-blur-sm transition-all duration-200 hover:bg-black/60",
               activeTheme.text
             )}
             onClick={scrollToBottom}
