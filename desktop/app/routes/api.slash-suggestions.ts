@@ -18,7 +18,9 @@ function collectDirectoryEntriesWithPath(
 
   for (const relDir of relDirs) {
     const targetDir = join(root, relDir);
-    if (!existsSync(targetDir)) continue;
+    if (!existsSync(targetDir)) {
+      continue;
+    }
 
     const entries = readdirSync(targetDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() || entry.isFile())
