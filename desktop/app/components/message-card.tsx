@@ -60,7 +60,7 @@ interface MessageCardProps {
 }
 
 function MessageCard({ record, className }: MessageCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const clean = stripAnsi(record.content);
   const shouldFold = clean.length > FOLD_CHARS;
