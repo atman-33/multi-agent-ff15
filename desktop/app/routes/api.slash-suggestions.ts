@@ -9,17 +9,32 @@ interface SlashSuggestion {
   value: string;
 }
 
-function collectDirectoryEntries(root: string, relativeDir: string): string[] {
-  const targetDir = join(root, relativeDir);
-  if (!existsSync(targetDir)) {
-    return [];
+function collectDirectoryEntriesWithPath(
+  root: string,
+  relDirs: string[]
+): Array<{ name: string; relDir: string }> {
+  const seen = new Set<string>();
+  const result: Array<{ name: string; relDir: string }> = [];
+
+  for (const relDir of relDirs) {
+    const targetDir = join(root, relDir);
+    if (!existsSync(targetDir)) continue;
+
+    const entries = readdirSync(targetDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() || entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => !name.startsWith("."))
+      .sort((a, b) => a.localeCompare(b));
+
+    for (const name of entries) {
+      if (!seen.has(name)) {
+        seen.add(name);
+        result.push({ name, relDir });
+      }
+    }
   }
 
-  return readdirSync(targetDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() || entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => !name.startsWith("."))
-    .sort((a, b) => a.localeCompare(b));
+  return result;
 }
 
 const MD_EXT_REGEX = /\.md$/;
@@ -28,37 +43,38 @@ export function loader() {
   try {
     const root = getProjectRoot();
 
-    const commandEntries = [
+    const commandEntries = collectDirectoryEntriesWithPath(root, [
       ".opencode/command",
       ".opencode/commands",
       "opencode/command",
       "opencode/commands",
-    ].flatMap((path) => collectDirectoryEntries(root, path));
+    ]);
 
-    const skillEntries = [".opencode/skills", "opencode/skills"].flatMap(
-      (path) => collectDirectoryEntries(root, path)
+    const skillEntries = collectDirectoryEntriesWithPath(root, [
+      ".opencode/skills",
+      "opencode/skills",
+    ]);
+
+    const commandSuggestions: SlashSuggestion[] = commandEntries.map(
+      ({ name, relDir }) => {
+        const baseName = name.replace(MD_EXT_REGEX, "");
+        return {
+          label: `command: ${baseName}`,
+          value: `/${baseName} `,
+          insertText: `Follow instructions in ${relDir}/${name}. `,
+          source: "command",
+        };
+      }
     );
 
-    const commandSuggestions: SlashSuggestion[] = Array.from(
-      new Set(commandEntries)
-    ).map((entry) => {
-      const name = entry.replace(MD_EXT_REGEX, "");
-      return {
-        label: `command: ${name}`,
+    const skillSuggestions: SlashSuggestion[] = skillEntries.map(
+      ({ name, relDir }) => ({
+        label: `skill: ${name}`,
         value: `/${name} `,
-        insertText: `Please use the ${name} command. `,
-        source: "command",
-      };
-    });
-
-    const skillSuggestions: SlashSuggestion[] = Array.from(
-      new Set(skillEntries)
-    ).map((entry) => ({
-      label: `skill: ${entry}`,
-      value: `/${entry} `,
-      insertText: `Please use the ${entry} skill. `,
-      source: "skill",
-    }));
+        insertText: `Follow instructions in ${relDir}/${name}/SKILL.md. `,
+        source: "skill",
+      })
+    );
 
     return Response.json({
       suggestions: [...commandSuggestions, ...skillSuggestions],
