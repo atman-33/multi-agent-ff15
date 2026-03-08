@@ -70,6 +70,7 @@ openspec/
 !.opencode/command/duo-gladiolus.md
 !.opencode/command/duo-ignis.md
 !.opencode/command/duo-prompto.md
+!.opencode/command/solo-noctis.md
 .opencode/skills/*
 !.opencode/skills/skill-creator
 !.opencode/skills/send-message
