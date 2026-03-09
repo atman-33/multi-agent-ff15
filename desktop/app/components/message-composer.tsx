@@ -4,7 +4,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentId } from "@/hooks/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
-const MAX_MESSAGE_LENGTH = 4000;
 const MIN_ROWS = 2;
 const MAX_HEIGHT_PX = 160;
 const SLASH_TRIGGER_REGEX = /(?:^|\s)\/(\S*)$/;
@@ -79,10 +78,7 @@ function MessageComposer({
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const charCount = content.length;
-  const isOverLimit = charCount > MAX_MESSAGE_LENGTH;
-  const canSend =
-    content.trim().length > 0 && !isOverLimit && status !== "sending";
+  const canSend = content.trim().length > 0 && status !== "sending";
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -367,11 +363,6 @@ function MessageComposer({
             </button>
           </>
         )}
-        {status === "idle" && isOverLimit && (
-          <span className="ml-auto text-red-400">
-            {charCount}/{MAX_MESSAGE_LENGTH}
-          </span>
-        )}
       </div>
 
       <div className="relative">
@@ -380,7 +371,7 @@ function MessageComposer({
             "w-full resize-none rounded-xl border bg-background/60 py-2 pr-11 pl-3 text-xs leading-relaxed",
             "focus:outline-none focus:ring-1 focus:ring-ring",
             "placeholder:text-muted-foreground/40",
-            isOverLimit ? "border-red-500/60" : "border-border/40"
+            "border-border/40"
           )}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -389,17 +380,6 @@ function MessageComposer({
           rows={MIN_ROWS}
           value={content}
         />
-
-        {charCount > 0 && (
-          <span
-            className={cn(
-              "pointer-events-none absolute right-11 bottom-2 text-[9px]",
-              isOverLimit ? "text-red-400" : "text-muted-foreground/30"
-            )}
-          >
-            {charCount}/{MAX_MESSAGE_LENGTH}
-          </span>
-        )}
 
         <button
           className={cn(

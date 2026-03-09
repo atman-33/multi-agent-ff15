@@ -35,8 +35,6 @@ interface InboxMessage {
 }
 
 const ALLOWED_SENDERS = ["crystal", "user"];
-const MAX_MESSAGE_LENGTH = 4096;
-
 interface MessagePageProps {
   agent: "noctis" | "lunafreya";
   title: string;
@@ -94,12 +92,6 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
     const trimmed = sendContent.trim();
     if (!trimmed) {
       setValidationError("Please enter a message");
-      return;
-    }
-    if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      setValidationError(
-        `Message must be within ${MAX_MESSAGE_LENGTH} characters`
-      );
       return;
     }
     setValidationError(null);
@@ -229,7 +221,6 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
                 <textarea
                   className="min-h-[72px] w-full resize-y rounded-md border border-input bg-muted/40 px-3 py-2 text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                   id="send-content"
-                  maxLength={MAX_MESSAGE_LENGTH}
                   onChange={(e) => {
                     setSendContent(e.target.value);
                     if (validationError) {
@@ -246,9 +237,6 @@ export default function MessagePage({ agent, title }: MessagePageProps) {
                       {validationError}
                     </p>
                   )}
-                  <span className="ml-auto text-[10px] text-muted-foreground/60">
-                    {sendContent.length}/{MAX_MESSAGE_LENGTH}
-                  </span>
                 </div>
               </div>
 

@@ -119,12 +119,6 @@ export async function action({ params, request }: ActionFunctionArgs) {
   if (!content) {
     return Response.json({ error: "Content cannot be empty" }, { status: 400 });
   }
-  if (content.length > 4096) {
-    return Response.json(
-      { error: "Content exceeds 4096 chars" },
-      { status: 400 }
-    );
-  }
 
   try {
     const root = getProjectRoot();

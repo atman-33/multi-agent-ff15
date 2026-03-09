@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -60,7 +60,16 @@ interface MessageCardProps {
 }
 
 function MessageCard({ record, className }: MessageCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    const clean = stripAnsi(record.content);
+    navigator.clipboard.writeText(clean).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [record.content]);
 
   const clean = stripAnsi(record.content);
   const shouldFold = clean.length > FOLD_CHARS;
@@ -110,12 +119,10 @@ function MessageCard({ record, className }: MessageCardProps) {
       },
       pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
       ul: ({ children }) => (
-        <ul className="list-inside list-disc space-y-0.5 pl-2">{children}</ul>
+        <ul className="list-disc space-y-0.5 pl-4">{children}</ul>
       ),
       ol: ({ children }) => (
-        <ol className="list-inside list-decimal space-y-0.5 pl-2">
-          {children}
-        </ol>
+        <ol className="list-decimal space-y-0.5 pl-4">{children}</ol>
       ),
       p: ({ children }) => <p className="my-0.5">{children}</p>,
       hr: () => <hr className="my-2 border-border/30" />,
@@ -129,70 +136,94 @@ function MessageCard({ record, className }: MessageCardProps) {
   );
 
   return (
-    <div
-      className={cn(
-        "space-y-1 rounded-md border px-3 py-2 text-sm",
-        isError
-          ? "border-red-500/40 bg-red-500/10 text-red-300"
-          : "border-border/40 bg-white/5",
-        className
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-        <span>{timeStr}</span>
-        {record.kind !== "answer" && (
-          <span
-            className={cn(
-              "rounded-sm px-1 font-medium",
-              isError ? "bg-red-500/20 text-red-400" : "bg-muted/40"
-            )}
-          >
-            {record.kind}
-          </span>
-        )}
-      </div>
-
-      {/* Content — markdown preview with fade-clip when folded */}
+    <div className="group/card">
       <div
         className={cn(
-          "relative",
-          shouldFold && !expanded && "max-h-48 overflow-hidden"
+          "space-y-1 rounded-md border px-3 py-2 text-sm",
+          isError
+            ? "border-red-500/40 bg-red-500/10 text-red-300"
+            : "border-border/40 bg-white/5",
+          className
         )}
       >
-        <ReactMarkdown
-          className="space-y-1 text-foreground/90 text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-          components={mdComponents}
-          remarkPlugins={[remarkGfm]}
+        {/* Header */}
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span>{timeStr}</span>
+          {record.kind !== "answer" && (
+            <span
+              className={cn(
+                "rounded-sm px-1 font-medium",
+                isError ? "bg-red-500/20 text-red-400" : "bg-muted/40"
+              )}
+            >
+              {record.kind}
+            </span>
+          )}
+        </div>
+
+        {/* Content — markdown preview with fade-clip when folded */}
+        <div
+          className={cn(
+            "relative",
+            shouldFold && !expanded && "max-h-48 overflow-hidden"
+          )}
         >
-          {clean}
-        </ReactMarkdown>
-        {/* Gradient fade when folded */}
-        {shouldFold && !expanded && (
-          <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-white/5 to-transparent" />
+          <ReactMarkdown
+            className="space-y-1 text-foreground/90 text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            components={mdComponents}
+            remarkPlugins={[remarkGfm]}
+          >
+            {clean}
+          </ReactMarkdown>
+          {/* Gradient fade when folded */}
+          {shouldFold && !expanded && (
+            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-white/5 to-transparent" />
+          )}
+        </div>
+
+        {/* Fold toggle */}
+        {shouldFold && (
+          <button
+            className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => setExpanded((v) => !v)}
+            type="button"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="h-3 w-3" />
+                Collapse
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3" />
+                Show more
+              </>
+            )}
+          </button>
         )}
       </div>
 
-      {/* Fold toggle */}
-      {shouldFold && (
+      {/* Copy button — shown on card hover, outside the card border */}
+      <div className="mt-1 flex justify-start opacity-0 transition-opacity group-hover/card:opacity-100">
         <button
-          className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+          onClick={handleCopy}
+          title="Copy as markdown"
           type="button"
         >
-          {expanded ? (
+          {copied ? (
             <>
-              <ChevronUp className="h-3 w-3" />
-              Collapse
+              <Check className="h-3 w-3 text-green-400" />
+              <span className="text-green-400">Copied</span>
             </>
           ) : (
             <>
-              <ChevronDown className="h-3 w-3" />
-              Show more
+              <Copy className="h-3 w-3" />
+              Copy
             </>
           )}
         </button>
-      )}
+      </div>
     </div>
   );
 }

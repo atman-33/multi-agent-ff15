@@ -1,4 +1,13 @@
-import { Archive, Clock, RefreshCw, RotateCcw, User, X } from "lucide-react";
+import {
+  Archive,
+  Check,
+  Clipboard,
+  Clock,
+  RefreshCw,
+  RotateCcw,
+  User,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -31,6 +40,7 @@ export default function ReportDetail() {
   const [date, setDate] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const fetchContent = useCallback(async () => {
     if (!filename) {
@@ -64,6 +74,15 @@ export default function ReportDetail() {
   useEffect(() => {
     fetchContent();
   }, [fetchContent]);
+
+  const handleCopy = async () => {
+    if (!content) {
+      return;
+    }
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleArchiveAction = async () => {
     if (!filename) {
@@ -107,6 +126,26 @@ export default function ReportDetail() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* Copy raw markdown button */}
+          <Button
+            className="h-7 gap-1.5 text-xs"
+            disabled={loading || !content}
+            onClick={handleCopy}
+            size="sm"
+            variant="outline"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-green-500" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Clipboard className="h-3.5 w-3.5" />
+                Copy
+              </>
+            )}
+          </Button>
           {/* Archive / Restore button */}
           <Button
             className="h-7 gap-1.5 text-xs"

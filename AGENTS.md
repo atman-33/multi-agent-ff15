@@ -44,6 +44,8 @@ Layer 4: Session (Volatile) — AGENTS.md + .opencode/agents/*.md (auto-loaded, 
 
 ## File Structure
 
+> **Path rule**: All paths below are relative to this **framework repo root**, not the target project.
+
 ```
 multi-agent-ff15/
 ├── AGENTS.md                      # Shared rules (auto-loaded)
@@ -90,7 +92,7 @@ multi-agent-ff15/
 **ALL inter-agent communication MUST go through inbox YAML files (`queue/inbox/{agent}.yaml`).**
 Direct use of `inbox_write.sh` is required. The `inbox-auto-notify` plugin automatically wakes target agents via tmux — no manual wake needed.
 
-**Event-driven only. No polling.** (Exception: worklog-updater plugin polls every 30s for escalation of unresponsive agents.)
+**Event-driven only. No polling.** This includes Comrade progress checks. Wait for inbox reports. (Exception: worklog-updater plugin polls every 30s for escalation of unresponsive agents.)
 
 ### Message Flow
 
@@ -113,7 +115,7 @@ Comrade task flow and report format → see each Comrade's agent file.
 
 ## Supplementary Reports
 
-Output to `docs/reports/`. Include YAML frontmatter (`title`, `author`, `date`, `tags`). See `docs/report-guidelines.md` for full rules.
+Output to this framework's `docs/reports/` (not the target project's directory). Include YAML frontmatter (`title`, `author`, `date`, `tags`). See `docs/report-guidelines.md` for full rules.
 
 ## Forbidden Actions
 

@@ -95,7 +95,6 @@ const ALLOWED_SENDERS: &[&str] = &[
     "crystal", "user", "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris",
 ];
 
-const MAX_MESSAGE_LENGTH: usize = 4000;
 const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
 const INBOX_LOG_PATH: &str = "runtime/logs/inbox-log.jsonl";
 
@@ -431,12 +430,6 @@ fn send_crystal_message(target: String, message: String) -> Result<String, Strin
     let message = message.trim().to_string();
     if message.is_empty() {
         return Err("Message content cannot be empty".into());
-    }
-    if message.len() > MAX_MESSAGE_LENGTH {
-        return Err(format!(
-            "Message exceeds maximum length ({} chars)",
-            MAX_MESSAGE_LENGTH
-        ));
     }
 
     let root = get_project_root()?;

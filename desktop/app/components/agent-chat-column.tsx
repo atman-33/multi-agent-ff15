@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
+  ChevronDown,
   ChevronUp,
   Crown,
   MessageSquarePlus,
@@ -9,6 +10,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import MessageCard from "@/components/message-card";
@@ -274,7 +276,7 @@ const InboxBubble = memo(function InboxBubble({
           <ReactMarkdown
             className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             components={mdComponents}
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={[remarkGfm, remarkBreaks]}
           >
             {content}
           </ReactMarkdown>
@@ -295,7 +297,7 @@ const InboxBubble = memo(function InboxBubble({
         <ReactMarkdown
           className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
           components={mdComponents}
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkBreaks]}
         >
           {content}
         </ReactMarkdown>
@@ -722,6 +724,9 @@ function AgentChatColumn({
   const { label, Icon, imageSrc, theme } = AGENT_CONFIG[agent];
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
+  const prevTimelineLengthRef = useRef(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [imgError, setImgError] = useState(false);
 
   // Determine active view: Noctis own data or a comrade's data
@@ -780,21 +785,44 @@ function AgentChatColumn({
       return;
     }
     const threshold = 32; // px tolerance
-    isAtBottomRef.current =
+    const atBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    isAtBottomRef.current = atBottom;
+    setIsAtBottom(atBottom);
+    if (atBottom) {
+      setUnreadCount(0);
+    }
   };
 
-  // Auto-follow new messages only if at bottom (task 4.1)
+  // Auto-follow new messages only if at bottom; track unread count otherwise
   // biome-ignore lint/correctness/useExhaustiveDependencies: triggers
   useEffect(() => {
+    const prev = prevTimelineLengthRef.current;
+    prevTimelineLengthRef.current = timeline.length;
+    const newItems = timeline.length - prev;
+
     if (!isAtBottomRef.current) {
+      if (newItems > 0) {
+        setUnreadCount((c) => c + newItems);
+      }
       return;
     }
+    setUnreadCount(0);
     const el = scrollRef.current;
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
   }, [timeline.length, activeIsProcessing]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
+    isAtBottomRef.current = true;
+    setIsAtBottom(true);
+    setUnreadCount(0);
+  }, []);
 
   const totalCount = activeRecords.length + activeInboxMessages.length;
 
@@ -933,43 +961,64 @@ function AgentChatColumn({
       />
 
       {/* Scrollable message list */}
-      <div
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3"
-        onScroll={handleScroll}
-        ref={scrollRef}
-      >
-        {timeline.length === 0 && !activeIsProcessing ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground/60 text-sm">
-            No messages yet
-          </div>
-        ) : (
-          <>
-            {timeline.map((item) =>
-              item.type === "inbox" ? (
-                <InboxBubble key={item.msg.id} msg={item.msg} />
-              ) : (
-                /* Agent answer — left-aligned with label */
-                <div
-                  className="flex flex-col items-start gap-0.5"
-                  key={item.record.id}
-                >
-                  <span className="ml-1 font-semibold text-[10px] text-muted-foreground/60">
-                    {activeLabel}
-                  </span>
-                  <div className="w-full">
-                    <MessageCard record={item.record} />
+      <div className="relative min-h-0 flex-1">
+        <div
+          className="h-full space-y-3 overflow-y-auto px-3 py-3"
+          onScroll={handleScroll}
+          ref={scrollRef}
+        >
+          {timeline.length === 0 && !activeIsProcessing ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground/60 text-sm">
+              No messages yet
+            </div>
+          ) : (
+            <>
+              {timeline.map((item) =>
+                item.type === "inbox" ? (
+                  <InboxBubble key={item.msg.id} msg={item.msg} />
+                ) : (
+                  /* Agent answer — left-aligned with label */
+                  <div
+                    className="flex flex-col items-start gap-0.5"
+                    key={item.record.id}
+                  >
+                    <span className="ml-1 font-semibold text-[10px] text-muted-foreground/60">
+                      {activeLabel}
+                    </span>
+                    <div className="w-full">
+                      <MessageCard record={item.record} />
+                    </div>
                   </div>
-                </div>
-              )
+                )
+              )}
+              {/* Typing indicator */}
+              {activeIsProcessing && (
+                <TypingIndicator
+                  activityLines={activityLines}
+                  agentLabel={activeLabel}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Scroll-to-bottom float button */}
+        {!isAtBottom && (
+          <button
+            className={cn(
+              "absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/40 backdrop-blur-sm transition-all duration-200 hover:bg-black/60",
+              activeTheme.text
             )}
-            {/* Typing indicator */}
-            {activeIsProcessing && (
-              <TypingIndicator
-                activityLines={activityLines}
-                agentLabel={activeLabel}
-              />
+            onClick={scrollToBottom}
+            type="button"
+          >
+            <ChevronDown className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-0.5 font-bold text-[9px] text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
             )}
-          </>
+          </button>
         )}
       </div>
 
