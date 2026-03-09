@@ -88,6 +88,10 @@ python3 .opencode/skills/github-release/scripts/create_pr.py <from_branch> <to_b
 
 3. **Trigger GitHub Actions AFTER the PR is merged** — The "Release" workflow reads from main, so it must be run only after the release branch is merged.
 
+4. **ALWAYS confirm the next version with the user if it was not explicitly specified** — Never infer or auto-select the release version from `package.json`, tags, CHANGELOG, or branch state. If the user says "release it" without clearly naming the next version, stop and ask which version should be released before performing any release action.
+
+5. **Only use a version automatically when the user explicitly provided it** — Examples: `release 0.8.1`, `publish v1.2.0`, or `bump patch and release`. Otherwise, confirmation is mandatory.
+
 ## Requirements
 
 - Python 3
