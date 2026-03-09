@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.9.0] - 2026-03-09
+
+### Added
+- **`solo-noctis` command** - Added a dedicated command for operating with Noctis alone without assigning work to Comrades
+- **Chat convenience controls** - Added unread message count, scroll-to-bottom action, and copy actions for message cards and report markdown
+
+### Changed
+- **Desktop chat workflow** - Expanded message cards by default, removed composer message length limits, and improved inbox ordering and slash suggestion behavior
+- **Agent and model configuration** - Updated agent instructions, model definitions, and framework guidance to match the latest operating workflow
+- **Release skill safety** - The github-release skill now requires explicit user confirmation when the next release version is not specified
+
+### Fixed
+- **Report and chat UI polish** - Refined report detail layout, chat column behavior, and component formatting for a more consistent desktop experience
+- **Desktop integration cleanup** - Removed outdated API/Tauri handling tied to superseded behavior and refreshed the web app screenshot asset
+
+### Deprecated
+- None
+
+### Removed
+- Obsolete desktop app code paths related to the previous message page and backend bridge behavior
+
+### Security
+- None
+
 ## [0.8.0] - 2026-02-28
 
 ### Added
@@ -196,3 +221,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-02-15
 
 Initial release.
+
+[0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0

@@ -1,5 +1,5 @@
 {
-  "version": "0.8.0",
+  "version": "0.9.0",
   "scripts": {
     "desktop:install": "cd desktop && npm install",
     "desktop:dev": "cd desktop && XCURSOR_SIZE=24 npm run tauri:dev",
