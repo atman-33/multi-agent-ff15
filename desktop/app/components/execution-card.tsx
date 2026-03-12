@@ -5,7 +5,7 @@ import {
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatTimelineExecutionItem } from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +108,7 @@ function renderTodoStatus(status: string): string {
 
 function ExecutionCard({ item }: { item: ChatTimelineExecutionItem }) {
   const [expanded, setExpanded] = useState(item.state !== "completed");
+  const prevStateRef = useRef(item.state);
   const { Icon, className, label } = useMemo(
     () => getStateMeta(item.state),
     [item.state]
@@ -118,6 +119,13 @@ function ExecutionCard({ item }: { item: ChatTimelineExecutionItem }) {
     minute: "2-digit",
     second: "2-digit",
   });
+
+  useEffect(() => {
+    if (prevStateRef.current !== "completed" && item.state === "completed") {
+      setExpanded(false);
+    }
+    prevStateRef.current = item.state;
+  }, [item.state]);
 
   return (
     <div className="space-y-1 rounded-md border border-border/40 bg-white/5 px-3 py-2">
