@@ -1,25 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChatLogMeta, ChatLogRecord } from "@/lib/chat-timeline";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface ChatLogMeta {
-  event: string;
-  pane: string;
-}
-
-export interface ChatLogRecord {
-  agent: string;
-  content: string;
-  id: string;
-  kind: "answer" | "status" | "error";
-  meta: ChatLogMeta;
-  session_id: string;
-  source: string;
-  ts: string;
-}
 
 interface ChatLogPage {
   next_cursor: number;
@@ -37,6 +22,8 @@ export type AgentId =
   | "iris";
 /** Agents that have their own dedicated chat column. */
 export type MainAgentId = "noctis" | "lunafreya";
+
+export type { ChatLogMeta, ChatLogRecord };
 
 const POLL_INTERVAL_MS = 3000;
 const INITIAL_LIMIT = 100;

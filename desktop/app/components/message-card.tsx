@@ -3,7 +3,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatLogRecord } from "@/hooks/use-agent-chat-log";
+import type { ChatTimelineMessageItem } from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 
 interface MessageCardProps {
   className?: string;
-  record: ChatLogRecord;
+  record: ChatTimelineMessageItem;
 }
 
 function MessageCard({ record, className }: MessageCardProps) {
@@ -74,7 +74,7 @@ function MessageCard({ record, className }: MessageCardProps) {
   const clean = stripAnsi(record.content);
   const shouldFold = clean.length > FOLD_CHARS;
 
-  const ts = new Date(record.ts);
+  const ts = new Date(record.lastTs);
   const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",

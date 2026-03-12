@@ -125,9 +125,24 @@ struct ChatLogRecord {
     agent: String,
     source: String,
     kind: String,
-    content: String,
+    #[serde(default)]
+    content: Option<String>,
     session_id: String,
     meta: ChatLogMeta,
+    #[serde(default)]
+    schema_version: Option<u32>,
+    #[serde(default)]
+    item_id: Option<String>,
+    #[serde(default)]
+    message_id: Option<String>,
+    #[serde(default)]
+    turn_id: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+    #[serde(default)]
+    data: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Debug)]

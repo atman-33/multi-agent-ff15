@@ -13,6 +13,7 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
+import ExecutionCard from "@/components/execution-card";
 import MessageCard from "@/components/message-card";
 import MessageComposer from "@/components/message-composer";
 import {
@@ -38,8 +39,13 @@ import {
   type ComradeId,
 } from "@/constants/comrade-config";
 import { useAgentActivity } from "@/hooks/use-agent-activity";
-import type { AgentId, ChatLogRecord } from "@/hooks/use-agent-chat-log";
+import type { AgentId } from "@/hooks/use-agent-chat-log";
 import type { InboxLogRecord } from "@/hooks/use-inbox-log";
+import {
+  buildChatTimeline,
+  type ChatLogRecord,
+  type ChatTimelineItem,
+} from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {
@@ -168,12 +174,12 @@ const COMRADE_THEME = {
 } as const;
 
 type MergedItem =
-  | { type: "agent"; record: ChatLogRecord; ts: string }
+  | { type: "agent"; item: ChatTimelineItem; ts: string }
   | { type: "inbox"; msg: InboxLogRecord; ts: string };
 
 /** Merge agent records and inbox messages by UTC timestamp (pure sort) with optimistic deduplication. */
 function mergeTimeline(
-  records: ChatLogRecord[],
+  items: ChatTimelineItem[],
   inboxMessages: InboxLogRecord[],
   optimisticMessages: InboxLogRecord[] = []
 ): MergedItem[] {
@@ -183,7 +189,11 @@ function mergeTimeline(
   );
 
   return [
-    ...records.map((r) => ({ type: "agent" as const, record: r, ts: r.ts })),
+    ...items.map((item) => ({
+      type: "agent" as const,
+      item,
+      ts: item.type === "message" ? item.lastTs : item.lastTs,
+    })),
     ...inboxMessages.map((m) => ({ type: "inbox" as const, msg: m, ts: m.ts })),
     ...filteredOptimistic.map((m) => ({
       type: "inbox" as const,
@@ -306,19 +316,11 @@ const InboxBubble = memo(function InboxBubble({
   );
 });
 
-/** Typing indicator — three bouncing dots with scrolling activity log (up to 5 lines). */
-function TypingIndicator({
-  activityLines,
-  agentLabel,
-}: {
-  activityLines?: string[];
-  agentLabel: string;
-}) {
-  const lines = activityLines ?? [];
+function PendingIndicator({ agentLabel }: { agentLabel: string }) {
   return (
     <div className="flex flex-col items-start gap-0.5">
       <span className="text-[10px] text-muted-foreground/50">{agentLabel}</span>
-      <div className="flex flex-col gap-1.5 rounded-2xl rounded-tl-sm border border-border/30 bg-white/5 px-3 py-2.5">
+      <div className="rounded-2xl rounded-tl-sm border border-border/20 bg-white/[0.04] px-3 py-2">
         <div className="flex items-center gap-1">
           {[0, 1, 2].map((i) => (
             <span
@@ -331,24 +333,6 @@ function TypingIndicator({
             />
           ))}
         </div>
-        {lines.length > 0 && (
-          <div className="flex flex-col gap-0.5">
-            {lines.map((line, i) => (
-              <span
-                className={cn(
-                  "max-w-[260px] truncate font-mono text-[10px]",
-                  i === lines.length - 1
-                    ? "text-slate-300/80"
-                    : "text-muted-foreground/35"
-                )}
-                // biome-ignore lint/suspicious/noArrayIndexKey: ordered log lines
-                key={i}
-              >
-                {line}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -753,16 +737,22 @@ function AgentChatColumn({
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
-  const activityLines = useAgentActivity(activeAgentName, activeIsProcessing);
+  const liveEvents = useAgentActivity(activeAgentName, activeIsProcessing);
+  const showPendingIndicator = activeIsProcessing;
+
+  const agentTimeline = useMemo(
+    () => buildChatTimeline([...activeRecords, ...liveEvents]),
+    [activeRecords, liveEvents]
+  );
 
   const timeline = useMemo(
     () =>
       mergeTimeline(
-        activeRecords,
+        agentTimeline,
         activeInboxMessages,
         viewingComrade ? [] : optimisticMessages
       ),
-    [activeRecords, activeInboxMessages, optimisticMessages, viewingComrade]
+    [agentTimeline, activeInboxMessages, optimisticMessages, viewingComrade]
   );
 
   // Determine target agent for model switching
@@ -824,7 +814,7 @@ function AgentChatColumn({
     setUnreadCount(0);
   }, []);
 
-  const totalCount = activeRecords.length + activeInboxMessages.length;
+  const totalCount = agentTimeline.length + activeInboxMessages.length;
 
   return (
     <div
@@ -980,23 +970,23 @@ function AgentChatColumn({
                   /* Agent answer — left-aligned with label */
                   <div
                     className="flex flex-col items-start gap-0.5"
-                    key={item.record.id}
+                    key={item.item.key}
                   >
                     <span className="ml-1 font-semibold text-[10px] text-muted-foreground/60">
                       {activeLabel}
                     </span>
                     <div className="w-full">
-                      <MessageCard record={item.record} />
+                      {item.item.type === "message" ? (
+                        <MessageCard record={item.item} />
+                      ) : (
+                        <ExecutionCard item={item.item} />
+                      )}
                     </div>
                   </div>
                 )
               )}
-              {/* Typing indicator */}
-              {activeIsProcessing && (
-                <TypingIndicator
-                  activityLines={activityLines}
-                  agentLabel={activeLabel}
-                />
+              {showPendingIndicator && (
+                <PendingIndicator agentLabel={activeLabel} />
               )}
             </>
           )}

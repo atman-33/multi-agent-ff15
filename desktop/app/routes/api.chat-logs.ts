@@ -1,20 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
+import type { ChatLogRecord } from "@/lib/chat-timeline";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 
 const CHAT_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
-
-interface ChatLogRecord {
-  agent: string;
-  content: string;
-  id: string;
-  kind: string;
-  meta: { pane: string; event: string };
-  session_id: string;
-  source: string;
-  ts: string;
-}
 
 /**
  * GET /api/chat-logs?limit=100&cursor=<number>
