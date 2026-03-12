@@ -368,7 +368,7 @@ function MessageComposer({
       <div className="relative">
         <textarea
           className={cn(
-            "w-full resize-none rounded-xl border bg-background/60 py-2 pr-11 pl-3 text-xs leading-relaxed",
+            "w-full resize-none rounded-xl border bg-background/60 py-2 pr-12 pl-3 text-xs leading-relaxed shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm",
             "focus:outline-none focus:ring-1 focus:ring-ring",
             "placeholder:text-muted-foreground/40",
             "border-border/40"
@@ -383,12 +383,12 @@ function MessageComposer({
 
         <button
           className={cn(
-            "absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200",
+            "absolute right-1 bottom-2.5 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
             canSend
               ? arrowState === "done"
-                ? "bg-green-500/80 text-white shadow-sm"
-                : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
-              : "cursor-not-allowed bg-muted/40 text-muted-foreground/40"
+                ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-[1px]"
+              : "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
           )}
           disabled={!canSend}
           onClick={handleSend}
