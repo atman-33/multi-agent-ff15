@@ -1,6 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildNoctisFormationPreamble,
+  DEFAULT_NOCTIS_FORMATION,
+  NOCTIS_FORMATION_BY_ID,
+  NOCTIS_FORMATION_OPTIONS,
+  NOCTIS_FORMATION_STORAGE_KEY,
+  type NoctisFormationId,
+  isNoctisFormationId,
+} from "@/constants/noctis-formation";
 import type { AgentId } from "@/hooks/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +51,7 @@ function MessageComposer({
   targetAgentLabel,
   targetAgentImageSrc,
 }: MessageComposerProps) {
+  const isNoctisTarget = targetAgent === "noctis";
   const storageKey = `chat_draft_${targetAgent}`;
   const [content, setContent] = useState(() => {
     if (typeof window !== "undefined") {
@@ -63,7 +73,21 @@ function MessageComposer({
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
   const [lastAgent, setLastAgent] = useState<AgentId>(targetAgent);
+  const [lastFormation, setLastFormation] = useState<NoctisFormationId>(
+    DEFAULT_NOCTIS_FORMATION
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [noctisFormation, setNoctisFormation] = useState<NoctisFormationId>(
+    () => {
+      if (typeof window === "undefined") {
+        return DEFAULT_NOCTIS_FORMATION;
+      }
+      const stored = localStorage.getItem(NOCTIS_FORMATION_STORAGE_KEY);
+      return stored && isNoctisFormationId(stored)
+        ? stored
+        : DEFAULT_NOCTIS_FORMATION;
+    }
+  );
 
   const [arrowState, setArrowState] = useState<"idle" | "flying" | "done">(
     "idle"
@@ -77,6 +101,18 @@ function MessageComposer({
   const [showAtSuggestions, setShowAtSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    localStorage.setItem(NOCTIS_FORMATION_STORAGE_KEY, noctisFormation);
+  }, [noctisFormation]);
+
+  const activeFormation = isNoctisTarget
+    ? NOCTIS_FORMATION_BY_ID[noctisFormation]
+    : null;
+  const showFormationSelector = isNoctisTarget;
 
   const canSend = content.trim().length > 0 && status !== "sending";
 
@@ -92,22 +128,32 @@ function MessageComposer({
   });
 
   const doSend = useCallback(
-    async (target: AgentId, message: string) => {
+    async (
+      target: AgentId,
+      message: string,
+      formation: NoctisFormationId = DEFAULT_NOCTIS_FORMATION
+    ) => {
       setStatus("sending");
       setArrowState("flying");
       setErrorMsg(null);
+      const normalized = message.trim();
+      const preamble =
+        target === "noctis" ? buildNoctisFormationPreamble(formation) : "";
+      const outboundMessage = preamble
+        ? `${preamble}\n\n${normalized}`
+        : normalized;
       try {
         let messageId: string | undefined;
         if (isTauri) {
           messageId = await invoke<string>("send_crystal_message", {
             target,
-            message: message.trim(),
+            message: outboundMessage,
           });
         } else {
           const res = await fetch(`/api/inbox/${target}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ from: "crystal", content: message.trim() }),
+            body: JSON.stringify({ from: "crystal", content: outboundMessage }),
           });
           if (!res.ok) {
             const data = await res.json();
@@ -119,7 +165,7 @@ function MessageComposer({
         setStatus("sent");
         setContent("");
         localStorage.removeItem(storageKey);
-        onSent?.(target, message.trim(), messageId);
+        onSent?.(target, outboundMessage, messageId);
         setTimeout(() => setArrowState("done"), 300);
         setTimeout(() => setArrowState("idle"), 1500);
         setTimeout(() => setStatus("idle"), 2000);
@@ -127,15 +173,16 @@ function MessageComposer({
         setStatus("failed");
         setArrowState("idle");
         setErrorMsg(String(_e));
-        setLastContent(message);
+        setLastContent(normalized);
         setLastAgent(target);
+        setLastFormation(formation);
       }
     },
     [isTauri, onSent, storageKey]
   );
 
-  const handleSend = () => doSend(targetAgent, content);
-  const handleRetry = () => doSend(lastAgent, lastContent);
+  const handleSend = () => doSend(targetAgent, content, noctisFormation);
+  const handleRetry = () => doSend(lastAgent, lastContent, lastFormation);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isShowingAny = showSlashSuggestions || showAtSuggestions;
@@ -364,6 +411,41 @@ function MessageComposer({
           </>
         )}
       </div>
+
+      {showFormationSelector && (
+        <div className="mb-2 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="mr-1 font-medium text-[9px] text-muted-foreground/40 uppercase tracking-wide">
+              Formation
+            </span>
+            {NOCTIS_FORMATION_OPTIONS.map((option) => {
+              const isSelected = option.id === noctisFormation;
+              return (
+                <button
+                  className={cn(
+                    "rounded-full border px-2 py-1 text-[10px] transition-colors",
+                    isSelected
+                      ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-100"
+                      : "border-border/40 bg-background/40 text-muted-foreground/70 hover:border-border/70 hover:text-foreground"
+                  )}
+                  key={option.id}
+                  onClick={() => setNoctisFormation(option.id)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeFormation && activeFormation.id !== DEFAULT_NOCTIS_FORMATION && (
+            <div className="rounded-md border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-100/90">
+              <span className="font-medium text-indigo-100">Execution mode:</span>{" "}
+              {activeFormation.summary}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="relative">
         <textarea
