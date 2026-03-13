@@ -366,11 +366,15 @@ fn send_message(target: String, from: String, content: String) -> Result<String,
 }
 
 /// Read agent chat JSONL logs with optional cursor-based pagination.
-/// Returns records from `cursor` line onward (0-based), up to `limit` records.
-/// If cursor is None, returns the last `limit` records from the file.
+/// Returns records from `cursor` record onward (0-based, after optional agent filtering),
+/// up to `limit` records. If cursor is None, returns the last `limit` records.
 /// Broken/unparseable lines are silently skipped (task 2.2).
 #[tauri::command]
-fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPage, String> {
+fn read_agent_chat_logs(
+    limit: usize,
+    cursor: Option<usize>,
+    agent: Option<String>,
+) -> Result<ChatLogPage, String> {
     let root = get_project_root()?;
     let log_path = root.join(CHAT_LOG_PATH);
 
@@ -388,15 +392,23 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
         std::fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {}", e))?;
     let reader = BufReader::new(file);
 
-    // Collect all lines (we need total count and optionally the last N).
+    // Collect all lines, then optionally filter by agent before pagination.
     let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
-    let total_lines = lines.len();
+    let filtered_records: Vec<ChatLogRecord> = lines
+        .iter()
+        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(line).ok())
+        .filter(|record| match agent.as_deref() {
+            Some(target_agent) => record.agent == target_agent,
+            None => true,
+        })
+        .collect();
+    let total_lines = filtered_records.len();
 
     let is_truncated = cursor.is_some() && cursor.unwrap() > total_lines;
     let start = match cursor {
         Some(c) if !is_truncated => c,
         _ => {
-            // No cursor or truncated: return last `limit` lines.
+            // No cursor or truncated: return last `limit` filtered records.
             if total_lines > limit {
                 total_lines - limit
             } else {
@@ -405,20 +417,13 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
         }
     };
 
-    let slice = if start < total_lines {
-        &lines[start..]
-    } else {
-        &lines[0..0]
-    };
-
-    // Parse each line; skip broken lines (task 2.2).
-    let records: Vec<ChatLogRecord> = slice
-        .iter()
+    let records: Vec<ChatLogRecord> = filtered_records
+        .into_iter()
+        .skip(start)
         .take(limit)
-        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(line).ok())
         .collect();
 
-    let consumed = slice.len().min(limit);
+    let consumed = records.len();
     let next_cursor = start + consumed;
 
     Ok(ChatLogPage {

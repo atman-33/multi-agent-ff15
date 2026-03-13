@@ -1,4 +1,5 @@
 import {
+  ArrowUpRight,
   CheckCircle2,
   Circle,
   CircleSlash,
@@ -6,6 +7,14 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  EXECUTION_PREVIEW_MAX_CHARS,
+  EXECUTION_PREVIEW_MAX_TODOS,
+  getExecutionInputText,
+  hasVerboseExecutionContent,
+  truncateText,
+  type ChatDetailItem,
+} from "@/lib/chat-detail";
 import type { ChatTimelineExecutionItem } from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";
 
@@ -106,14 +115,23 @@ function renderTodoStatus(status: string): string {
   return "○";
 }
 
-function ExecutionCard({ item }: { item: ChatTimelineExecutionItem }) {
-  const [expanded, setExpanded] = useState(item.state !== "completed");
+interface ExecutionCardProps {
+  item: ChatTimelineExecutionItem;
+  onOpenDetail?: (item: ChatDetailItem) => void;
+}
+
+function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
+  const isVerbose = useMemo(() => hasVerboseExecutionContent(item), [item]);
+  const [expanded, setExpanded] = useState(
+    item.state !== "completed" && !isVerbose
+  );
   const prevStateRef = useRef(item.state);
   const { Icon, className, label } = useMemo(
     () => getStateMeta(item.state),
     [item.state]
   );
   const summary = useMemo(() => summarizeInput(item.input), [item.input]);
+  const inputText = useMemo(() => getExecutionInputText(item), [item]);
   const timeStr = new Date(item.lastTs).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -121,17 +139,31 @@ function ExecutionCard({ item }: { item: ChatTimelineExecutionItem }) {
   });
 
   useEffect(() => {
+    if (isVerbose) {
+      setExpanded(false);
+      prevStateRef.current = item.state;
+      return;
+    }
+
     if (prevStateRef.current !== "completed" && item.state === "completed") {
       setExpanded(false);
     }
     prevStateRef.current = item.state;
-  }, [item.state]);
+  }, [isVerbose, item.state]);
+
+  const handlePrimaryAction = () => {
+    if (isVerbose && onOpenDetail) {
+      onOpenDetail({ type: "execution", item });
+      return;
+    }
+    setExpanded((value) => !value);
+  };
 
   return (
     <div className="space-y-1 rounded-md border border-border/40 bg-white/5 px-3 py-2">
       <button
         className="flex w-full items-start gap-2 text-left"
-        onClick={() => setExpanded((value) => !value)}
+        onClick={handlePrimaryAction}
         type="button"
       >
         <Icon
@@ -165,7 +197,66 @@ function ExecutionCard({ item }: { item: ChatTimelineExecutionItem }) {
         </div>
       </button>
 
-      {expanded && (
+      {isVerbose ? (
+        <div className="space-y-2 border-border/20 border-t pt-2">
+          {item.isPlan && item.todos.length > 0 ? (
+            <div className="space-y-1.5">
+              {item.todos.slice(0, EXECUTION_PREVIEW_MAX_TODOS).map((todo) => (
+                <div
+                  className="flex items-start gap-2 text-xs"
+                  key={`${item.key}-${todo.id}`}
+                >
+                  <span className="mt-0.5 w-3 text-center text-muted-foreground/80">
+                    {renderTodoStatus(todo.status)}
+                  </span>
+                  <span className="flex-1 text-foreground/90">
+                    {todo.title}
+                  </span>
+                </div>
+              ))}
+              {item.todos.length > EXECUTION_PREVIEW_MAX_TODOS && (
+                <div className="text-[11px] text-muted-foreground/70">
+                  +{item.todos.length - EXECUTION_PREVIEW_MAX_TODOS} more plan items in detail
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {inputText && (
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
+                    Input preview
+                  </div>
+                  <pre className="max-h-24 overflow-hidden rounded bg-black/20 p-2 font-mono text-[11px] whitespace-pre-wrap break-words text-foreground/85">
+                    {truncateText(inputText, EXECUTION_PREVIEW_MAX_CHARS)}
+                  </pre>
+                </div>
+              )}
+              {item.result && (
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
+                    Result preview
+                  </div>
+                  <pre className="max-h-24 overflow-hidden rounded bg-black/20 p-2 font-mono text-[11px] whitespace-pre-wrap break-words text-foreground/85">
+                    {truncateText(item.result, EXECUTION_PREVIEW_MAX_CHARS)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {onOpenDetail && (
+            <button
+              className="flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => onOpenDetail({ type: "execution", item })}
+              type="button"
+            >
+              <ArrowUpRight className="h-3 w-3" />
+              Open detail
+            </button>
+          )}
+        </div>
+      ) : expanded ? (
         <div className="space-y-2 border-border/20 border-t pt-2">
           {item.isPlan && item.todos.length > 0 ? (
             <div className="space-y-1.5">
@@ -203,7 +294,7 @@ function ExecutionCard({ item }: { item: ChatTimelineExecutionItem }) {
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

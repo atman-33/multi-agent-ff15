@@ -17,6 +17,7 @@ import { Link } from "react-router";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
+import ChatDetailSheet from "@/components/chat-detail-sheet";
 import ExecutionCard from "@/components/execution-card";
 import MessageCard from "@/components/message-card";
 import MessageComposer from "@/components/message-composer";
@@ -56,6 +57,7 @@ import {
   type ChatLogRecord,
   type ChatTimelineItem,
 } from "@/lib/chat-timeline";
+import type { ChatDetailItem } from "@/lib/chat-detail";
 import {
   getProjectScopeForAgent,
   PROJECT_SCOPE_LABELS,
@@ -835,6 +837,7 @@ function AgentChatColumn({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [imgError, setImgError] = useState(false);
+  const [detailItem, setDetailItem] = useState<ChatDetailItem | null>(null);
 
   // Determine active view: Noctis own data or a comrade's data
   const viewingComrade = agent === "noctis" && partyView !== null;
@@ -863,6 +866,10 @@ function AgentChatColumn({
   const liveEvents = useAgentActivity(activeAgentName, activeIsProcessing);
   const showPendingIndicator = activeIsProcessing;
   const activeProjectScope = getProjectScopeForAgent(activeAgentName);
+
+  useEffect(() => {
+    setDetailItem(null);
+  }, [activeAgentName]);
 
   const projectById = useMemo(
     () =>
@@ -948,6 +955,16 @@ function AgentChatColumn({
     isAtBottomRef.current = true;
     setIsAtBottom(true);
     setUnreadCount(0);
+  }, []);
+
+  const handleOpenDetail = useCallback((item: ChatDetailItem) => {
+    setDetailItem(item);
+  }, []);
+
+  const handleDetailOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDetailItem(null);
+    }
   }, []);
 
   const totalCount = agentTimeline.length + activeInboxMessages.length;
@@ -1133,9 +1150,15 @@ function AgentChatColumn({
                     </span>
                     <div className="w-full">
                       {item.item.type === "message" ? (
-                        <MessageCard record={item.item} />
+                        <MessageCard
+                          onOpenDetail={handleOpenDetail}
+                          record={item.item}
+                        />
                       ) : (
-                        <ExecutionCard item={item.item} />
+                        <ExecutionCard
+                          item={item.item}
+                          onOpenDetail={handleOpenDetail}
+                        />
                       )}
                     </div>
                   </div>
@@ -1209,6 +1232,13 @@ function AgentChatColumn({
             ? COMRADE_CONFIG[partyView].label
             : AGENT_CONFIG[agent].label
         }
+      />
+
+      <ChatDetailSheet
+        activeLabel={activeLabel}
+        item={detailItem}
+        onOpenChange={handleDetailOpenChange}
+        open={detailItem !== null}
       />
     </div>
   );
