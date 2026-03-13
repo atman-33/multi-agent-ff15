@@ -1,12 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useActiveProjects } from "@/hooks/use-active-projects";
 import type { AgentId } from "@/hooks/use-agent-chat-log";
-import {
-  getProjectScopeForAgent,
-  PROJECT_SCOPE_LABELS,
-} from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
 
 const MIN_ROWS = 2;
@@ -82,38 +77,8 @@ function MessageComposer({
   const [showAtSuggestions, setShowAtSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const { data: projectsData } = useActiveProjects();
 
   const canSend = content.trim().length > 0 && status !== "sending";
-
-  const targetScope = getProjectScopeForAgent(targetAgent);
-  const projectById = useMemo(
-    () => Object.fromEntries((projectsData?.projects ?? []).map((project) => [project.id, project])),
-    [projectsData]
-  );
-  const activeProjectIds =
-    targetScope === null
-      ? []
-      : (projectsData?.projectScopes[targetScope]?.activeProjectIds ?? []);
-  const projectScopeSummary = useMemo(() => {
-    if (targetScope === null) {
-      return "No project scope";
-    }
-    if (projectsData === null) {
-      return `${PROJECT_SCOPE_LABELS[targetScope]} · …`;
-    }
-    if (activeProjectIds.length === 0) {
-      return `${PROJECT_SCOPE_LABELS[targetScope]} · No active project`;
-    }
-
-    const firstProject = projectById[activeProjectIds[0]];
-    const baseLabel = firstProject?.displayName ?? activeProjectIds[0];
-    if (activeProjectIds.length === 1) {
-      return `${PROJECT_SCOPE_LABELS[targetScope]} · ${baseLabel}`;
-    }
-
-    return `${PROJECT_SCOPE_LABELS[targetScope]} · ${baseLabel} +${activeProjectIds.length - 1}`;
-  }, [activeProjectIds, projectById, projectsData, targetScope]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -376,9 +341,6 @@ function MessageComposer({
             </span>
           </div>
         )}
-        <div className="truncate text-muted-foreground/50">
-          {projectScopeSummary}
-        </div>
         {status === "sent" && (
           <span className="ml-auto flex items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3 w-3" />
