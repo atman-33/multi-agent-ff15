@@ -691,6 +691,57 @@ fn get_tmux_panes() -> Result<Vec<TmuxPane>, String> {
     Ok(panes)
 }
 
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    let output = Command::new("explorer.exe")
+        .arg(".")
+        .current_dir(&path_buf)
+        .output()
+        .map_err(|e| format!("Failed to launch explorer.exe: {}", e))?;
+
+    if output.status.success() || output.status.code() == Some(1) {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        "Failed to open folder in Explorer".to_string()
+    } else {
+        format!("Failed to open folder in Explorer: {}", stderr)
+    })
+}
+
+#[tauri::command]
+fn open_project_in_vscode(path: String, target: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    match target.as_str() {
+        "wsl" => run_command("code", &[path.as_str()], Some(&path_buf)),
+        "windows" => {
+            let (_, distro) = detect_wsl();
+            if distro.is_empty() {
+                return Err("WSL distro could not be detected".to_string());
+            }
+
+            let folder_uri = format!("vscode-remote://wsl+{}{}", distro, path);
+            run_command(
+                "cmd.exe",
+                &["/C", "code", "--folder-uri", folder_uri.as_str()],
+                Some(&path_buf),
+            )
+        }
+        _ => Err(format!("Invalid VS Code target: {}", target)),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -714,6 +765,33 @@ fn check_command(cmd: &str, args: &[&str]) -> (bool, String) {
         }
         _ => (false, String::new()),
     }
+}
+
+fn run_command(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<(), String> {
+    let mut command = Command::new(cmd);
+    command.args(args);
+
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+
+    let output = command
+        .output()
+        .map_err(|e| format!("Failed to execute {}: {}", cmd, e))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if !stderr.is_empty() { stderr } else { stdout };
+
+    Err(if detail.is_empty() {
+        format!("{} exited with status {}", cmd, output.status)
+    } else {
+        format!("{} failed: {}", cmd, detail)
+    })
 }
 
 fn is_executable(path: &PathBuf) -> bool {
@@ -748,6 +826,8 @@ pub fn run() {
             read_model_options,
             switch_agent_model,
             get_tmux_panes,
+            open_folder,
+            open_project_in_vscode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
