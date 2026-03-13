@@ -10,20 +10,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import type { ActiveProjectsData } from "@/hooks/use-active-projects";
+import {
+  PROJECT_SCOPES,
+  PROJECT_SCOPE_DESCRIPTIONS,
+  PROJECT_SCOPE_LABELS,
+  type ProjectScope,
+} from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
 
-interface ProjectEntry {
-  displayName: string;
-  id: string;
-  path: string;
-  updatedAt: string;
-}
-
-interface ProjectsApiData {
-  activeProjectIds: string[];
-  configUpdatedAt: string;
+interface ProjectsApiData extends ActiveProjectsData {
   error?: string;
-  projects: ProjectEntry[];
 }
 
 const formatPath = (p: string): string => {
@@ -86,28 +83,37 @@ export default function ProjectsPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleToggle = async (projectId: string, nextChecked: boolean) => {
+  const handleToggle = async (
+    scope: ProjectScope,
+    projectId: string,
+    nextChecked: boolean
+  ) => {
     if (!serverData) {
       return;
     }
 
     // Optimistically update UI
-    const prevActiveIds = serverData.activeProjectIds;
+    const prevProjectScopes = serverData.projectScopes;
+    const prevActiveIds = prevProjectScopes[scope].activeProjectIds;
     const nextActiveIds = nextChecked
       ? [...prevActiveIds, projectId]
       : prevActiveIds.filter((id) => id !== projectId);
+    const nextProjectScopes = {
+      ...prevProjectScopes,
+      [scope]: { activeProjectIds: nextActiveIds },
+    };
 
     setServerData((prev) =>
-      prev ? { ...prev, activeProjectIds: nextActiveIds } : prev
+      prev ? { ...prev, projectScopes: nextProjectScopes } : prev
     );
-    setSavingIds((prev) => new Set(prev).add(projectId));
+    setSavingIds((prev) => new Set(prev).add(`${scope}:${projectId}`));
 
     try {
       const res = await fetch("/api/projects/active", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          activeProjectIds: nextActiveIds,
+          projectScopes: nextProjectScopes,
           currentUpdatedAt: serverData.configUpdatedAt,
         }),
       });
@@ -123,7 +129,7 @@ export default function ProjectsPage() {
         }
         // Revert optimistic update
         setServerData((prev) =>
-          prev ? { ...prev, activeProjectIds: prevActiveIds } : prev
+          prev ? { ...prev, projectScopes: prevProjectScopes } : prev
         );
         toast.error("Save failed", { description: result.error });
         return;
@@ -133,25 +139,30 @@ export default function ProjectsPage() {
       // Note: server returns `updatedAt`, not `configUpdatedAt`
       if (result.updatedAt) {
         setServerData((prev) =>
-          prev ? { ...prev, configUpdatedAt: result.updatedAt } : prev
+          prev
+            ? {
+                ...prev,
+                configUpdatedAt: result.updatedAt,
+                projectScopes: result.projectScopes ?? prev.projectScopes,
+              }
+            : prev
         );
       }
 
       toast.success(nextChecked ? "Project activated" : "Project deactivated", {
-        description: serverData.projects.find((p) => p.id === projectId)
-          ?.displayName,
+        description: `${PROJECT_SCOPE_LABELS[scope]} · ${serverData.projects.find((p) => p.id === projectId)?.displayName ?? projectId}`,
       });
       window.dispatchEvent(new CustomEvent("active-projects-changed"));
     } catch (e) {
       // Revert optimistic update
       setServerData((prev) =>
-        prev ? { ...prev, activeProjectIds: prevActiveIds } : prev
+        prev ? { ...prev, projectScopes: prevProjectScopes } : prev
       );
       toast.error("Save failed", { description: String(e) });
     } finally {
       setSavingIds((prev) => {
         const next = new Set(prev);
-        next.delete(projectId);
+        next.delete(`${scope}:${projectId}`);
         return next;
       });
     }
@@ -167,7 +178,10 @@ export default function ProjectsPage() {
     );
   }
 
-  const activeCount = serverData?.activeProjectIds.length ?? 0;
+  const scopeCounts = PROJECT_SCOPES.map((scope) => ({
+    scope,
+    count: serverData?.projectScopes[scope].activeProjectIds.length ?? 0,
+  }));
   const totalCount = serverData?.projects.length ?? 0;
 
   return (
@@ -180,8 +194,8 @@ export default function ProjectsPage() {
             Project Settings
           </h1>
           <p className="mt-1 text-muted-foreground text-sm">
-            Toggle which projects are injected into agent context on the next
-            run.
+            Manage scoped project injection for the Noctis team and Lunafreya.
+            Iris is excluded from project settings.
           </p>
         </div>
 
@@ -243,14 +257,23 @@ export default function ProjectsPage() {
       {/* Project list */}
       {serverData && serverData.projects.length > 0 && (
         <div className="space-y-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-4 py-1 text-[11px] uppercase tracking-widest text-muted-foreground/60">
+            <span>Project</span>
+            {PROJECT_SCOPES.map((scope) => (
+              <div className="text-center" key={scope} title={PROJECT_SCOPE_DESCRIPTIONS[scope]}>
+                {PROJECT_SCOPE_LABELS[scope]}
+              </div>
+            ))}
+          </div>
           {serverData.projects.map((project) => {
-            const isActive = serverData.activeProjectIds.includes(project.id);
-            const isSaving = savingIds.has(project.id);
+            const isActiveInAnyScope = PROJECT_SCOPES.some((scope) =>
+              serverData.projectScopes[scope].activeProjectIds.includes(project.id)
+            );
             return (
               <Card
                 className={cn(
                   "transition-all duration-150",
-                  isActive
+                  isActiveInAnyScope
                     ? "border-primary/40 bg-primary/5"
                     : "border-border/60"
                 )}
@@ -301,14 +324,24 @@ export default function ProjectsPage() {
                       <FolderOpen className="h-4 w-4" />
                     </Button>
 
-                    <Switch
-                      aria-label={`Toggle ${project.displayName}`}
-                      checked={isActive}
-                      disabled={isSaving}
-                      onCheckedChange={(checked) =>
-                        handleToggle(project.id, checked)
-                      }
-                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      {PROJECT_SCOPES.map((scope) => {
+                        const checked = serverData.projectScopes[scope].activeProjectIds.includes(project.id);
+                        const isSaving = savingIds.has(`${scope}:${project.id}`);
+                        return (
+                          <div className="flex min-w-[110px] items-center justify-center" key={scope}>
+                            <Switch
+                              aria-label={`Toggle ${project.displayName} for ${PROJECT_SCOPE_LABELS[scope]}`}
+                              checked={checked}
+                              disabled={isSaving}
+                              onCheckedChange={(nextChecked) =>
+                                handleToggle(scope, project.id, nextChecked)
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -319,9 +352,13 @@ export default function ProjectsPage() {
 
       {/* Active count summary */}
       {serverData && serverData.projects.length > 0 && (
-        <p className="text-right text-muted-foreground/50 text-xs">
-          {activeCount} / {totalCount} active
-        </p>
+        <div className="flex items-center justify-end gap-4 text-right text-muted-foreground/50 text-xs">
+          {scopeCounts.map(({ scope, count }) => (
+            <p key={scope}>
+              {PROJECT_SCOPE_LABELS[scope]}: {count} / {totalCount} active
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );

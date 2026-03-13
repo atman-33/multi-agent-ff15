@@ -1,12 +1,18 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
+import {
+  buildScopedProjectsYaml,
+  createEmptyProjectScopes,
+  readScopedProjectsConfig,
+  type ProjectScopeState,
+} from "@/lib/project-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { PROJECT_SCOPES, type ProjectScope } from "@/lib/project-scopes";
 
 /**
  * PUT /api/projects/active
- * Updates active_project_ids in config/current_projects.yaml.
+ * Updates scoped active_project_ids in config/current_projects.yaml.
  * Uses yaml_write_flock.sh for atomic, flock-protected writes.
  */
 export async function action({ request }: { request: Request }) {
@@ -17,23 +23,41 @@ export async function action({ request }: { request: Request }) {
   try {
     const root = getProjectRoot();
     const body = (await request.json()) as {
-      activeProjectIds?: unknown;
+      projectScopes?: Partial<Record<ProjectScope, ProjectScopeState>>;
       currentUpdatedAt?: string;
     };
 
-    if (!Array.isArray(body.activeProjectIds)) {
+    if (!body.projectScopes || typeof body.projectScopes !== "object") {
       return Response.json(
-        { error: "activeProjectIds must be an array" },
+        { error: "projectScopes must be an object" },
         { status: 400 }
       );
     }
-    const newIds: string[] = body.activeProjectIds;
+
+    const nextProjectScopes = createEmptyProjectScopes();
+    for (const scope of PROJECT_SCOPES) {
+      const ids = body.projectScopes[scope]?.activeProjectIds;
+      if (!Array.isArray(ids)) {
+        return Response.json(
+          { error: `${scope}.activeProjectIds must be an array` },
+          { status: 400 }
+        );
+      }
+
+      nextProjectScopes[scope] = {
+        activeProjectIds: ids.filter((id): id is string => typeof id === "string"),
+      };
+    }
 
     // Validate: all IDs must have a corresponding projects/<id>.yaml
     const projectsDir = join(root, "projects");
-    const invalidIds = newIds.filter(
-      (id) =>
-        typeof id !== "string" || !existsSync(join(projectsDir, `${id}.yaml`))
+    const allIds = Array.from(
+      new Set(
+        PROJECT_SCOPES.flatMap((scope) => nextProjectScopes[scope].activeProjectIds)
+      )
+    );
+    const invalidIds = allIds.filter(
+      (id) => !existsSync(join(projectsDir, `${id}.yaml`))
     );
     if (invalidIds.length > 0) {
       return Response.json(
@@ -44,20 +68,8 @@ export async function action({ request }: { request: Request }) {
 
     // Read current config for conflict detection and audit log
     const configPath = join(root, "config/current_projects.yaml");
-    let beforeIds: string[] = [];
-    let currentUpdatedAt = "";
-    if (existsSync(configPath)) {
-      try {
-        const raw = readFileSync(configPath, "utf-8");
-        const parsed = parseYaml(raw);
-        beforeIds = Array.isArray(parsed?.active_project_ids)
-          ? parsed.active_project_ids
-          : [];
-        currentUpdatedAt = parsed?.updated_at ?? "";
-      } catch {
-        // Ignore parse errors; treat as empty
-      }
-    }
+    const { configUpdatedAt: currentUpdatedAt, projectScopes: beforeProjectScopes } =
+      readScopedProjectsConfig(root);
 
     // Optimistic concurrency: reject if config was modified since client last read
     if (
@@ -76,13 +88,7 @@ export async function action({ request }: { request: Request }) {
 
     // Build YAML content
     const now = new Date().toISOString();
-    const idsBlock =
-      newIds.length === 0
-        ? "active_project_ids: []\n"
-        : "active_project_ids:\n" +
-          newIds.map((id) => `  - "${id}"`).join("\n") +
-          "\n";
-    const content = `${idsBlock}updated_at: "${now}"\nupdated_by: "desktop-app"\n`;
+    const content = buildScopedProjectsYaml(nextProjectScopes, now, "desktop-app");
 
     // Atomic write via yaml_write_flock.sh
     const result = spawnSync(
@@ -104,8 +110,8 @@ export async function action({ request }: { request: Request }) {
     console.log(
       JSON.stringify({
         event: "active_projects_changed",
-        before: beforeIds,
-        after: newIds,
+        before: beforeProjectScopes,
+        after: nextProjectScopes,
         at: now,
         by: "desktop-app",
       })
@@ -113,7 +119,7 @@ export async function action({ request }: { request: Request }) {
 
     return Response.json({
       success: true,
-      activeProjectIds: newIds,
+      projectScopes: nextProjectScopes,
       updatedAt: now,
     });
   } catch (e) {

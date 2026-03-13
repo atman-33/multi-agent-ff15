@@ -605,7 +605,11 @@ if [ ! -f "$SCRIPT_DIR/config/current_projects.yaml" ]; then
     cat > "$SCRIPT_DIR/config/current_projects.yaml" << 'EOF'
 # Active projects configuration
 # Managed by scripts/projects_activate.sh
-active_project_ids: []
+project_scopes:
+    noctis_team:
+        active_project_ids: []
+    lunafreya:
+        active_project_ids: []
 updated_at: ""
 updated_by: ""
 EOF

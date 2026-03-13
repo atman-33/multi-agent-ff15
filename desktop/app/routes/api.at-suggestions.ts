@@ -1,50 +1,9 @@
-import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
-import { parse as parseYaml } from "yaml";
+import { getActiveProjectRootsForScope } from "@/lib/project-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-
-// Helper to get active project roots
-function getActiveProjectRoots(appRoot: string): string[] {
-  const configPath = join(appRoot, "config/current_projects.yaml");
-  let activeProjectIds: string[] = [];
-
-  if (existsSync(configPath)) {
-    try {
-      const raw = readFileSync(configPath, "utf-8");
-      const parsed = parseYaml(raw);
-      if (Array.isArray(parsed?.active_project_ids)) {
-        activeProjectIds = parsed.active_project_ids;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const roots: string[] = [];
-  const projectsDir = join(appRoot, "projects");
-
-  for (const id of activeProjectIds) {
-    const projPath = join(projectsDir, `${id}.yaml`);
-    if (existsSync(projPath)) {
-      try {
-        const raw = readFileSync(projPath, "utf-8");
-        const parsed = parseYaml(raw);
-        if (parsed?.root_path && existsSync(parsed.root_path)) {
-          roots.push(parsed.root_path);
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  if (roots.length === 0) {
-    roots.push(appRoot);
-  }
-
-  return Array.from(new Set(roots));
-}
+import { getProjectScopeForAgent, type ProjectScopedAgentId } from "@/lib/project-scopes";
 
 function searchFiles(
   roots: string[],
@@ -148,9 +107,14 @@ export function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get("q") ?? "";
+    const agent = (url.searchParams.get("agent") ?? "") as ProjectScopedAgentId;
 
     const appRoot = getProjectRoot();
-    const roots = getActiveProjectRoots(appRoot);
+    const scope = getProjectScopeForAgent(agent);
+    const roots = getActiveProjectRootsForScope(appRoot, scope);
+    if (scope === null) {
+      return Response.json({ suggestions: [] });
+    }
     const suggestions = searchFiles(roots, q);
 
     return Response.json({ suggestions });
