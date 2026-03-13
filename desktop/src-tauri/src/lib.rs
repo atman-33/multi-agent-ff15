@@ -717,15 +717,22 @@ fn open_folder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_project_in_vscode(path: String, target: String) -> Result<(), String> {
+fn open_project_in_vscode(path: String, preference: String) -> Result<(), String> {
     let path_buf = PathBuf::from(&path);
     if !path_buf.exists() {
         return Err(format!("Path does not exist: {}", path));
     }
 
-    match target.as_str() {
+    match preference.as_str() {
         "wsl" => run_command("code", &[path.as_str()], Some(&path_buf)),
-        "windows" => {
+        "auto" if !is_windows_mounted_path(&path) => {
+            run_command("code", &[path.as_str()], Some(&path_buf))
+        }
+        "auto" | "windows" if is_windows_mounted_path(&path) => {
+            let windows_path = run_command_for_output("wslpath", &["-w", path.as_str()], None)?;
+            run_command("cmd.exe", &["/C", "code", windows_path.as_str()], Some(&path_buf))
+        }
+        "auto" | "windows" => {
             let (_, distro) = detect_wsl();
             if distro.is_empty() {
                 return Err("WSL distro could not be detected".to_string());
@@ -738,7 +745,7 @@ fn open_project_in_vscode(path: String, target: String) -> Result<(), String> {
                 Some(&path_buf),
             )
         }
-        _ => Err(format!("Invalid VS Code target: {}", target)),
+        _ => Err(format!("Invalid VS Code preference: {}", preference)),
     }
 }
 
@@ -792,6 +799,41 @@ fn run_command(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<(), St
     } else {
         format!("{} failed: {}", cmd, detail)
     })
+}
+
+fn run_command_for_output(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<String, String> {
+    let mut command = Command::new(cmd);
+    command.args(args);
+
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+
+    let output = command
+        .output()
+        .map_err(|e| format!("Failed to execute {}: {}", cmd, e))?;
+
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if !stderr.is_empty() { stderr } else { stdout };
+
+    Err(if detail.is_empty() {
+        format!("{} exited with status {}", cmd, output.status)
+    } else {
+        format!("{} failed: {}", cmd, detail)
+    })
+}
+
+fn is_windows_mounted_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 8
+        && &bytes[0..5] == b"/mnt/"
+        && bytes[5].is_ascii_alphabetic()
+        && bytes[6] == b'/'
 }
 
 fn is_executable(path: &PathBuf) -> bool {
