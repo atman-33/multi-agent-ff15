@@ -597,6 +597,11 @@ function ModelSwitchBar({
           }
         }
         toast.success(`Switched ${targetAgent} to ${newModel}`);
+        window.dispatchEvent(
+          new CustomEvent("agent-model-switched", {
+            detail: { agent: targetAgent, model: newModel },
+          })
+        );
       } catch (_e) {
         toast.error(`Model switch failed: ${String(_e)}`);
         setModelLabel(prevModel); // Revert on failure

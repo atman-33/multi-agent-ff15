@@ -1,5 +1,5 @@
 import { Check, Loader2, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,28 +17,46 @@ interface Mode {
 
 export default function ModeSwitcher() {
   const [modes, setModes] = useState<Mode[]>([]);
-  const [activeMode, setActiveMode] = useState<string>("normal");
+  const [activeMode, setActiveMode] = useState<string>("custom");
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchModes = async () => {
-      try {
-        const res = await fetch("/api/modes");
-        if (!res.ok) {
-          throw new Error("Failed to fetch modes");
-        }
-        const data = await res.json();
-        setModes(data.modes || []);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsLoading(false);
+  const fetchModes = useCallback(async () => {
+    try {
+      const res = await fetch("/api/modes");
+      if (!res.ok) {
+        throw new Error("Failed to fetch modes");
       }
-    };
-    fetchModes();
+      const data = (await res.json()) as {
+        activeMode?: string;
+        modes?: Mode[];
+      };
+      setModes(data.modes || []);
+      setActiveMode(data.activeMode || "custom");
+    } catch (e) {
+      console.error(e);
+      setActiveMode("custom");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void fetchModes();
+
+    const handleModeRefresh = () => {
+      void fetchModes();
+    };
+
+    window.addEventListener("mode-switched", handleModeRefresh);
+    window.addEventListener("agent-model-switched", handleModeRefresh);
+
+    return () => {
+      window.removeEventListener("mode-switched", handleModeRefresh);
+      window.removeEventListener("agent-model-switched", handleModeRefresh);
+    };
+  }, [fetchModes]);
 
   const handleSwitch = async (modeName: string) => {
     if (modeName === activeMode || isSwitching) {
