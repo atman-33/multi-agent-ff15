@@ -18,6 +18,15 @@
       ],
       "enabled": false
     },
+    "drawio": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@drawio/mcp"
+      ],
+      "enabled": false
+    },    
     "serena": {
       "type": "local",
       "command": [
