@@ -47,6 +47,11 @@ interface LogEntry {
   reason?: string;
 }
 
+interface MutableTextPart {
+  type?: string;
+  text?: string;
+}
+
 const resolveProjectScope = (agentId: string): "noctis_team" | "lunafreya" | null => {
   if (agentId === "lunafreya") {
     return "lunafreya";
@@ -62,6 +67,30 @@ const resolveProjectScope = (agentId: string): "noctis_team" | "lunafreya" | nul
   }
 
   return null;
+};
+
+const prependInjectionBlock = <T extends MutableTextPart>(
+  parts: T[],
+  block: string
+): T[] => {
+  const firstTextPart = parts.find(
+    (part): part is T =>
+      !!part && typeof part === "object" && part.type === "text"
+  );
+
+  if (firstTextPart && typeof firstTextPart.text === "string") {
+    firstTextPart.text = `${block}\n\n${firstTextPart.text}`;
+    return parts;
+  }
+
+  return [
+    {
+      synthetic: true,
+      text: block,
+      type: "text" as const,
+    } as unknown as T,
+    ...parts,
+  ];
 };
 
 const ProjectInstructionInjection: Plugin = async ({ $ }) => {
@@ -259,13 +288,7 @@ ${INJECTION_MARKER_END}`;
           projectScope
         );
 
-        output.parts.push({
-          id: `injection-${Date.now()}`,
-          sessionID: input.sessionID,
-          messageID: input.messageID ?? "",
-          type: "text" as const,
-          text: block,
-        } as unknown as (typeof output.parts)[0]);
+        output.parts = prependInjectionBlock(output.parts || [], block);
 
         // Log success (Task 5.3)
         await appendLog({
