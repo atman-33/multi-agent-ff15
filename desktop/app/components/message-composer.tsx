@@ -2,6 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CHAT_DRAFT_UPDATED_EVENT,
+  clearChatDraft,
+  type DraftTargetAgentId,
+  getChatDraftStorageKey,
+  readChatDraft,
+  setStoredActiveChatTarget,
+} from "@/lib/chat-drafts";
+import {
   buildNoctisFormationPreamble,
   DEFAULT_NOCTIS_FORMATION,
   NOCTIS_FORMATION_BY_ID,
@@ -28,9 +36,11 @@ interface SlashSuggestion {
 }
 
 interface AtSuggestion {
+  archived?: boolean;
+  description?: string;
   insertText: string;
   label: string;
-  source: "file" | "folder";
+  source: "file" | "folder" | "report";
   value: string;
 }
 
@@ -38,7 +48,7 @@ export interface MessageComposerProps {
   compact?: boolean;
   isTauri: boolean;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
-  targetAgent: AgentId;
+  targetAgent: DraftTargetAgentId;
   targetAgentImageSrc?: string;
   targetAgentLabel?: string;
 }
@@ -52,27 +62,58 @@ function MessageComposer({
   targetAgentImageSrc,
 }: MessageComposerProps) {
   const isNoctisTarget = targetAgent === "noctis";
-  const storageKey = `chat_draft_${targetAgent}`;
+  const storageKey = getChatDraftStorageKey(targetAgent);
   const [content, setContent] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem(storageKey) || "";
+      return readChatDraft(targetAgent);
     }
     return "";
   });
+  const [projectScopeLabel, setProjectScopeLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setContent(localStorage.getItem(storageKey) || "");
+      setContent(readChatDraft(targetAgent));
     }
-  }, [storageKey]);
+  }, [targetAgent]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     localStorage.setItem(storageKey, content);
   }, [content, storageKey]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setStoredActiveChatTarget(targetAgent);
+  }, [targetAgent]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleDraftUpdate = (event: Event) => {
+      const agent = (event as CustomEvent<{ agent?: string }>).detail?.agent;
+      if (agent === targetAgent) {
+        setContent(readChatDraft(targetAgent));
+      }
+    };
+
+    window.addEventListener(CHAT_DRAFT_UPDATED_EVENT, handleDraftUpdate);
+    return () => {
+      window.removeEventListener(CHAT_DRAFT_UPDATED_EVENT, handleDraftUpdate);
+    };
+  }, [targetAgent]);
+
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
-  const [lastAgent, setLastAgent] = useState<AgentId>(targetAgent);
+  const [lastAgent, setLastAgent] = useState<DraftTargetAgentId>(targetAgent);
   const [lastFormation, setLastFormation] = useState<NoctisFormationId>(
     DEFAULT_NOCTIS_FORMATION
   );
@@ -129,7 +170,7 @@ function MessageComposer({
 
   const doSend = useCallback(
     async (
-      target: AgentId,
+      target: DraftTargetAgentId,
       message: string,
       formation: NoctisFormationId = DEFAULT_NOCTIS_FORMATION
     ) => {
@@ -164,7 +205,7 @@ function MessageComposer({
         }
         setStatus("sent");
         setContent("");
-        localStorage.removeItem(storageKey);
+        clearChatDraft(targetAgent);
         onSent?.(target, outboundMessage, messageId);
         setTimeout(() => setArrowState("done"), 300);
         setTimeout(() => setArrowState("idle"), 1500);
@@ -270,6 +311,16 @@ function MessageComposer({
     );
   }, [activeSlashToken, allSlashSuggestions]);
 
+  const reportSuggestions = useMemo(
+    () => allAtSuggestions.filter((item) => item.source === "report"),
+    [allAtSuggestions]
+  );
+
+  const projectSuggestions = useMemo(
+    () => allAtSuggestions.filter((item) => item.source !== "report"),
+    [allAtSuggestions]
+  );
+
   const applySuggestion = (nextValue: string, trigger: "/" | "@") => {
     const textarea = textareaRef.current;
     if (!textarea) {
@@ -343,6 +394,11 @@ function MessageComposer({
         const data = await res.json();
         if (Array.isArray(data?.suggestions)) {
           setAllAtSuggestions(data.suggestions);
+          setProjectScopeLabel(
+            typeof data.projectScopeLabel === "string"
+              ? data.projectScopeLabel
+              : null
+          );
           setShowAtSuggestions(data.suggestions.length > 0);
           setSelectedSuggestionIndex(0);
         }
@@ -530,8 +586,13 @@ function MessageComposer({
         {showAtSuggestions && (
           <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
             <div className="border-border/40 border-b bg-muted/30 px-2 py-1.5 font-semibold text-[10px] text-muted-foreground">
-              FILES & FOLDERS
+              REFERENCES
             </div>
+            {reportSuggestions.length > 0 && (
+              <div className="border-border/30 border-b bg-amber-500/5 px-2 py-1 font-semibold text-[10px] text-amber-700 uppercase tracking-wide dark:text-amber-300">
+                Reports
+              </div>
+            )}
             {allAtSuggestions.map((item, idx) => (
               <button
                 className={cn(
@@ -545,14 +606,40 @@ function MessageComposer({
                 }}
                 type="button"
               >
-                <span className="truncate font-medium text-foreground">
-                  {item.label}
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-medium text-foreground">
+                    {item.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-1.5 py-0.5 font-semibold text-[9px] uppercase tracking-wide",
+                      item.source === "report"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {item.source === "report"
+                      ? item.archived
+                        ? "Archived Report"
+                        : "Report"
+                      : item.source}
+                  </span>
+                </div>
+                {item.description && (
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {item.description}
+                  </span>
+                )}
+                <span className="truncate text-[10px] text-muted-foreground/80">
                   {item.value}
                 </span>
               </button>
             ))}
+            {projectSuggestions.length > 0 && projectScopeLabel && (
+              <div className="border-border/30 border-t bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
+                Project file results are limited to the current {projectScopeLabel} scope.
+              </div>
+            )}
           </div>
         )}
       </div>

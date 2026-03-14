@@ -3,6 +3,7 @@ import {
   Check,
   Clipboard,
   Clock,
+  MessageSquarePlus,
   RefreshCw,
   RotateCcw,
   User,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 import {
   useNavigate,
   useOutletContext,
@@ -19,6 +21,34 @@ import {
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  appendToChatDraft,
+  getStoredActiveChatTarget,
+  type DraftTargetAgentId,
+} from "@/lib/chat-drafts";
+
+const TARGET_OPTIONS: Array<{ label: string; value: DraftTargetAgentId }> = [
+  { label: "Noctis", value: "noctis" },
+  { label: "Lunafreya", value: "lunafreya" },
+  { label: "Ignis", value: "ignis" },
+  { label: "Gladiolus", value: "gladiolus" },
+  { label: "Prompto", value: "prompto" },
+];
 
 interface ReportsOutletContext {
   archiveReport: (
@@ -38,9 +68,14 @@ export default function ReportDetail() {
   const [title, setTitle] = useState<string>("");
   const [author, setAuthor] = useState<string>("");
   const [date, setDate] = useState<string>("");
+  const [filePath, setFilePath] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [selectedTarget, setSelectedTarget] = useState<DraftTargetAgentId | "">(
+    ""
+  );
+  const [showTargetDialog, setShowTargetDialog] = useState(false);
 
   const fetchContent = useCallback(async () => {
     if (!filename) {
@@ -64,6 +99,7 @@ export default function ReportDetail() {
       setTitle(data.title || filename);
       setAuthor(data.author || "");
       setDate(data.date || "");
+      setFilePath(data.filePath || "");
     } catch (e) {
       setContent(`Failed to load content: ${e}`);
     } finally {
@@ -97,6 +133,28 @@ export default function ReportDetail() {
     }
   };
 
+  const insertReportIntoDraft = (target: DraftTargetAgentId) => {
+    if (!filePath) {
+      toast.error("Report path is not ready yet.");
+      return;
+    }
+
+    appendToChatDraft(target, filePath);
+    toast.success(`Inserted report into ${target} draft`);
+    navigate("/chat");
+  };
+
+  const handleInsertToChat = () => {
+    const inferredTarget = getStoredActiveChatTarget();
+    if (inferredTarget) {
+      insertReportIntoDraft(inferredTarget);
+      return;
+    }
+
+    setSelectedTarget("");
+    setShowTargetDialog(true);
+  };
+
   return (
     <div className="absolute inset-0 flex h-full flex-col">
       {/* Detail header */}
@@ -126,6 +184,16 @@ export default function ReportDetail() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            className="h-7 gap-1.5 text-xs"
+            disabled={loading || !filePath}
+            onClick={handleInsertToChat}
+            size="sm"
+            variant="outline"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            Insert to Chat
+          </Button>
           {/* Copy raw markdown button */}
           <Button
             className="h-7 gap-1.5 text-xs"
@@ -177,6 +245,56 @@ export default function ReportDetail() {
           </Button>
         </div>
       </div>
+
+      <Dialog onOpenChange={setShowTargetDialog} open={showTargetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Chat Target</DialogTitle>
+            <DialogDescription>
+              Choose which agent draft should receive this report reference.
+            </DialogDescription>
+          </DialogHeader>
+          <Select
+            onValueChange={(value) =>
+              setSelectedTarget(value as DraftTargetAgentId)
+            }
+            value={selectedTarget}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choose an agent" />
+            </SelectTrigger>
+            <SelectContent>
+              {TARGET_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              onClick={() => setShowTargetDialog(false)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedTarget}
+              onClick={() => {
+                if (!selectedTarget) {
+                  return;
+                }
+                setShowTargetDialog(false);
+                insertReportIntoDraft(selectedTarget);
+              }}
+              type="button"
+            >
+              Insert
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail content */}
       <div className="flex-1 overflow-auto p-4 md:p-8">
