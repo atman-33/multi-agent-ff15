@@ -15,6 +15,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { ReportMeta } from "./api.reports";
 
@@ -254,21 +255,29 @@ export default function ReportsLayout() {
           </div>
         </div>
 
-        {/* Detail Panel — rendered by child route */}
-        <div
-          className={cn(
-            "relative flex-1 overflow-hidden bg-muted/20",
-            isDetailShowing ? "flex" : "hidden md:flex"
-          )}
-        >
-          <Outlet
-            context={
-              { archiveReport } satisfies {
-                archiveReport: typeof archiveReport;
-              }
+        <Sheet
+          onOpenChange={(open) => {
+            if (!open) {
+              navigate("/reports");
             }
-          />
-        </div>
+          }}
+          open={isDetailShowing}
+        >
+          {isDetailShowing ? (
+            <SheetContent
+              className="flex h-full w-screen max-w-none flex-col gap-0 border-border/50 border-l bg-background/98 p-0 backdrop-blur-xl sm:w-[92vw] sm:max-w-3xl lg:max-w-5xl"
+              side="right"
+            >
+              <Outlet
+                context={
+                  { archiveReport } satisfies {
+                    archiveReport: typeof archiveReport;
+                  }
+                }
+              />
+            </SheetContent>
+          ) : null}
+        </Sheet>
       </div>
     </div>
   );

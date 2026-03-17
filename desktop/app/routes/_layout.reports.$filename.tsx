@@ -1,5 +1,6 @@
 import {
   Archive,
+  ChevronDown,
   Check,
   Clipboard,
   Clock,
@@ -30,6 +31,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  SheetClose,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +48,7 @@ import {
   type DraftTargetAgentId,
   getStoredActiveChatTarget,
 } from "@/lib/chat-drafts";
+import { cn } from "@/lib/utils";
 
 const TARGET_OPTIONS: Array<{ label: string; value: DraftTargetAgentId }> = [
   { label: "Noctis", value: "noctis" },
@@ -76,6 +84,14 @@ export default function ReportDetail() {
     ""
   );
   const [showTargetDialog, setShowTargetDialog] = useState(false);
+
+  const activeTarget = getStoredActiveChatTarget();
+  const activeTargetOption = TARGET_OPTIONS.find(
+    (option) => option.value === activeTarget
+  );
+  const insertButtonLabel = activeTargetOption
+    ? `Insert to ${activeTargetOption.label}`
+    : "Insert to Chat";
 
   const fetchContent = useCallback(async () => {
     if (!filename) {
@@ -155,48 +171,86 @@ export default function ReportDetail() {
     setShowTargetDialog(true);
   };
 
+  const handleChooseInsertTarget = () => {
+    setSelectedTarget(activeTarget ?? "");
+    setShowTargetDialog(true);
+  };
+
   return (
-    <div className="absolute inset-0 flex h-full flex-col">
-      {/* Detail header */}
-      <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-border/50 border-b bg-background/50 px-6 py-4 backdrop-blur-sm">
-        <div className="mr-4 min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-lg">
-            {title || filename}
-          </h3>
-          <div className="mt-1.5 flex items-center gap-3 text-muted-foreground text-xs">
-            {author && (
-              <span className="flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 font-medium text-primary">
-                <User className="h-3.5 w-3.5" />
-                {author}
+    <div className="flex h-full min-h-0 flex-col bg-background/70">
+      <SheetHeader className="shrink-0 border-border/50 border-b bg-background/80 px-5 py-4 text-left backdrop-blur-sm sm:px-6">
+        <div className="flex items-start justify-between gap-4 pr-8">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
+              <span className="rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 font-medium text-foreground">
+                Report preview
               </span>
-            )}
-            {date && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {new Date(date).toLocaleString()}
-              </span>
-            )}
-            {isArchived && (
-              <span className="rounded bg-amber-500/10 px-2 py-0.5 font-medium text-amber-600 text-xs dark:text-amber-400">
-                Archived
-              </span>
-            )}
+              {activeTargetOption ? (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                  Insert target: {activeTargetOption.label}
+                </span>
+              ) : null}
+              {isArchived ? (
+                <span className="rounded bg-amber-500/10 px-2 py-0.5 font-medium text-amber-600 text-xs dark:text-amber-400">
+                  Archived
+                </span>
+              ) : null}
+            </div>
+            <SheetTitle className="truncate pr-2">{title || filename}</SheetTitle>
+            <SheetDescription asChild>
+              <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-xs">
+                {author ? (
+                  <span className="flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                    <User className="h-3.5 w-3.5" />
+                    {author}
+                  </span>
+                ) : null}
+                {date ? (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(date).toLocaleString()}
+                  </span>
+                ) : null}
+              </div>
+            </SheetDescription>
           </div>
+          <SheetClose asChild>
+            <Button
+              className="h-8 w-8 shrink-0"
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetClose>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              className="h-8 gap-1.5 rounded-r-none border-r-0 text-xs"
+              disabled={loading || !filePath}
+              onClick={handleInsertToChat}
+              size="sm"
+              variant="outline"
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              {insertButtonLabel}
+            </Button>
+            <Button
+              className="h-8 rounded-l-none px-2"
+              disabled={loading || !filePath}
+              onClick={handleChooseInsertTarget}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              <span className="sr-only">Choose chat target</span>
+            </Button>
+          </div>
           <Button
-            className="h-7 gap-1.5 text-xs"
-            disabled={loading || !filePath}
-            onClick={handleInsertToChat}
-            size="sm"
-            variant="outline"
-          >
-            <MessageSquarePlus className="h-3.5 w-3.5" />
-            Insert to Chat
-          </Button>
-          {/* Copy raw markdown button */}
-          <Button
-            className="h-7 gap-1.5 text-xs"
+            className="h-8 gap-1.5 text-xs"
             disabled={loading || !content}
             onClick={handleCopy}
             size="sm"
@@ -214,9 +268,8 @@ export default function ReportDetail() {
               </>
             )}
           </Button>
-          {/* Archive / Restore button */}
           <Button
-            className="h-7 gap-1.5 text-xs"
+            className="h-8 gap-1.5 text-xs"
             disabled={archiving}
             onClick={handleArchiveAction}
             size="sm"
@@ -234,17 +287,8 @@ export default function ReportDetail() {
               </>
             )}
           </Button>
-          {/* Mobile back button */}
-          <Button
-            className="md:hidden"
-            onClick={() => navigate("/reports")}
-            size="icon"
-            variant="ghost"
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </div>
-      </div>
+      </SheetHeader>
 
       <Dialog onOpenChange={setShowTargetDialog} open={showTargetDialog}>
         <DialogContent>
@@ -252,6 +296,9 @@ export default function ReportDetail() {
             <DialogTitle>Select Chat Target</DialogTitle>
             <DialogDescription>
               Choose which agent draft should receive this report reference.
+              {activeTargetOption
+                ? ` Current default: ${activeTargetOption.label}.`
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <Select
@@ -297,7 +344,7 @@ export default function ReportDetail() {
       </Dialog>
 
       {/* Detail content */}
-      <div className="flex-1 overflow-auto p-4 md:p-8">
+      <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4 md:p-6">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-muted-foreground">
             <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
@@ -305,8 +352,13 @@ export default function ReportDetail() {
           </div>
         ) : (
           <Card className="mx-auto h-auto min-h-full max-w-4xl border-border/50 shadow-sm">
-            <CardContent className="px-5 pt-6 pb-8 md:px-10">
-              <div className="markdown-body text-sm md:text-base">
+            <CardContent className="px-5 pt-6 pb-8 md:px-8">
+              <div
+                className={cn(
+                  "markdown-body text-sm md:text-base",
+                  "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                )}
+              >
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {content || "*No content.*"}
                 </ReactMarkdown>
