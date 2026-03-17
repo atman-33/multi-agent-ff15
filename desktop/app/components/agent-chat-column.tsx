@@ -56,6 +56,7 @@ import type { ChatDetailItem } from "@/lib/chat-detail";
 import {
   buildChatTimeline,
   type ChatLogRecord,
+  type ChatTimelineExecutionItem,
   type ChatTimelineItem,
 } from "@/lib/chat-timeline";
 import {
@@ -333,6 +334,91 @@ function mergeTimeline(
       ts: m.ts,
     })),
   ].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+}
+
+function getCurrentPlanItem(
+  items: ChatTimelineItem[]
+): ChatTimelineExecutionItem | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.type === "execution" && item.isPlan) {
+      return item;
+    }
+  }
+
+  return null;
+}
+
+function normalizePlanStatus(
+  status: string
+): "completed" | "in_progress" | "pending" {
+  if (status === "completed") {
+    return "completed";
+  }
+  if (status === "in-progress" || status === "in_progress") {
+    return "in_progress";
+  }
+  return "pending";
+}
+
+function getPlanMetrics(item: ChatTimelineExecutionItem): {
+  completed: number;
+  inProgress: number;
+  left: number;
+  total: number;
+} {
+  const totals = item.todos.reduce(
+    (counts, todo) => {
+      const status = normalizePlanStatus(todo.status);
+      if (status === "completed") {
+        counts.completed += 1;
+      } else if (status === "in_progress") {
+        counts.inProgress += 1;
+      }
+
+      counts.total += 1;
+      return counts;
+    },
+    { completed: 0, inProgress: 0, left: 0, total: 0 }
+  );
+
+  return {
+    ...totals,
+    left: Math.max(totals.total - totals.completed, 0),
+  };
+}
+
+function getCurrentPlanHeadline(item: ChatTimelineExecutionItem): string {
+  const inProgressTodo = item.todos.find(
+    (todo) => normalizePlanStatus(todo.status) === "in_progress"
+  );
+  if (inProgressTodo?.title) {
+    return `In progress · ${inProgressTodo.title}`;
+  }
+
+  const nextTodo = item.todos.find(
+    (todo) => normalizePlanStatus(todo.status) === "pending"
+  );
+  if (nextTodo?.title) {
+    return `Next · ${nextTodo.title}`;
+  }
+
+  if (item.todos.length > 0) {
+    return "All tasks complete";
+  }
+
+  return "Plan updating...";
+}
+
+function renderPlanStatusGlyph(status: string): string {
+  const normalizedStatus = normalizePlanStatus(status);
+  if (normalizedStatus === "completed") {
+    return "✓";
+  }
+  if (normalizedStatus === "in_progress") {
+    return "•";
+  }
+  return "○";
 }
 
 /** Code block with wrap/scroll toggle button (appears on hover). */
@@ -851,6 +937,7 @@ function AgentChatColumn({
   const [unreadCount, setUnreadCount] = useState(0);
   const [imgError, setImgError] = useState(false);
   const [detailItem, setDetailItem] = useState<ChatDetailItem | null>(null);
+  const [isCurrentPlanExpanded, setIsCurrentPlanExpanded] = useState(false);
 
   // Determine active view: Noctis own data or a comrade's data
   const viewingComrade = agent === "noctis" && partyView !== null;
@@ -888,6 +975,7 @@ function AgentChatColumn({
 
     previousActiveAgentNameRef.current = activeAgentName;
     setDetailItem(null);
+    setIsCurrentPlanExpanded(false);
   }, [activeAgentName]);
 
   const projectById = useMemo(
@@ -916,6 +1004,18 @@ function AgentChatColumn({
         viewingComrade ? [] : optimisticMessages
       ),
     [agentTimeline, activeInboxMessages, optimisticMessages, viewingComrade]
+  );
+  const currentPlanItem = useMemo(
+    () => getCurrentPlanItem(agentTimeline),
+    [agentTimeline]
+  );
+  const currentPlanMetrics = useMemo(
+    () => (currentPlanItem ? getPlanMetrics(currentPlanItem) : null),
+    [currentPlanItem]
+  );
+  const currentPlanHeadline = useMemo(
+    () => (currentPlanItem ? getCurrentPlanHeadline(currentPlanItem) : null),
+    [currentPlanItem]
   );
 
   // Determine target agent for model switching
@@ -1210,6 +1310,173 @@ function AgentChatColumn({
           </button>
         )}
       </div>
+
+      {currentPlanItem && currentPlanMetrics ? (
+        <div className="sticky bottom-0 z-10 border-white/10 border-t bg-black/20 px-3 py-2 backdrop-blur-sm">
+          <div
+            className={cn(
+              "grid transition-all duration-300 ease-out",
+              isCurrentPlanExpanded
+                ? "mb-2 grid-rows-[1fr] opacity-100"
+                : "mb-0 grid-rows-[0fr] opacity-0"
+            )}
+          >
+            <div className="overflow-hidden">
+              <div
+                className={cn(
+                  "rounded-lg border border-white/10 bg-black/30 p-2.5 transition-all duration-300 ease-out",
+                  isCurrentPlanExpanded
+                    ? "translate-y-0 scale-100"
+                    : "-translate-y-1 scale-[0.98]"
+                )}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-[11px] text-foreground/90">
+                      Current Plan
+                    </div>
+                    <div className="truncate text-[11px] text-muted-foreground/75">
+                      {currentPlanHeadline}
+                    </div>
+                  </div>
+                  <button
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                    onClick={() =>
+                      handleOpenDetail({
+                        type: "execution",
+                        item: currentPlanItem,
+                      })
+                    }
+                    type="button"
+                  >
+                    Open detail
+                  </button>
+                </div>
+
+                <div className="mb-2 h-1 rounded-full bg-white/10">
+                  <div
+                    className="h-1 rounded-full bg-emerald-400/80 transition-all"
+                    style={{
+                      width:
+                        currentPlanMetrics.total > 0
+                          ? `${(currentPlanMetrics.completed / currentPlanMetrics.total) * 100}%`
+                          : "18%",
+                    }}
+                  />
+                </div>
+
+                <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
+                  {currentPlanMetrics.total > 0 ? (
+                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                      {currentPlanMetrics.completed}/{currentPlanMetrics.total}{" "}
+                      done
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      Updating
+                    </span>
+                  )}
+                  {currentPlanMetrics.inProgress > 0 ? (
+                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
+                      {currentPlanMetrics.inProgress} active
+                    </span>
+                  ) : null}
+                  {currentPlanMetrics.left > 0 ? (
+                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      {currentPlanMetrics.left} left
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1.5">
+                  {currentPlanItem.todos.length > 0 ? (
+                    currentPlanItem.todos.map((todo) => {
+                      const normalizedStatus = normalizePlanStatus(todo.status);
+                      return (
+                        <div
+                          className="flex items-start gap-2 rounded-md border border-border/30 bg-black/10 px-2 py-1.5 text-xs"
+                          key={`${currentPlanItem.key}-${todo.id}`}
+                        >
+                          <span
+                            className={cn(
+                              "mt-0.5 w-3 text-center",
+                              normalizedStatus === "completed"
+                                ? "text-emerald-300"
+                                : normalizedStatus === "in_progress"
+                                  ? "text-blue-300"
+                                  : "text-muted-foreground/80"
+                            )}
+                          >
+                            {renderPlanStatusGlyph(todo.status)}
+                          </span>
+                          <span
+                            className={cn(
+                              "flex-1",
+                              normalizedStatus === "completed"
+                                ? "text-foreground/55 line-through"
+                                : normalizedStatus === "in_progress"
+                                  ? "font-medium text-foreground"
+                                  : "text-foreground/90"
+                            )}
+                          >
+                            {todo.title}
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
+                      Plan updating...
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="flex w-full items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-2 text-left transition-colors duration-200 hover:bg-black/40"
+            onClick={() => setIsCurrentPlanExpanded((value) => !value)}
+            type="button"
+          >
+            <span className="shrink-0 font-medium text-[11px] text-foreground/90">
+              Current Plan
+            </span>
+
+            {currentPlanMetrics.total > 0 ? (
+              <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                {currentPlanMetrics.completed}/{currentPlanMetrics.total}
+              </span>
+            ) : (
+              <span className="shrink-0 rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] text-slate-300">
+                Updating
+              </span>
+            )}
+
+            {currentPlanMetrics.inProgress > 0 ? (
+              <span className="shrink-0 rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">
+                {currentPlanMetrics.inProgress} active
+              </span>
+            ) : null}
+
+            {currentPlanMetrics.left > 0 ? (
+              <span className="shrink-0 rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] text-slate-300">
+                {currentPlanMetrics.left} left
+              </span>
+            ) : null}
+
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/70">
+              {currentPlanHeadline}
+            </span>
+
+            {isCurrentPlanExpanded ? (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-300 ease-out" />
+            ) : (
+              <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-300 ease-out" />
+            )}
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-col items-center gap-0 py-1">
         <ChevronUp

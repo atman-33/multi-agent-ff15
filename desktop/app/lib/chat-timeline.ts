@@ -89,7 +89,23 @@ function parseTodos(data: Record<string, unknown> | null): TimelineTodo[] {
     return [];
   }
 
-  const candidates = [data.todoList, data.todos, data.items];
+  const input = toRecord(data.input);
+  const output = toRecord(data.output);
+  const result = toRecord(data.result);
+  const candidates = [
+    data.todoList,
+    data.todos,
+    data.items,
+    input?.todoList,
+    input?.todos,
+    input?.items,
+    output?.todoList,
+    output?.todos,
+    output?.items,
+    result?.todoList,
+    result?.todos,
+    result?.items,
+  ];
   for (const candidate of candidates) {
     if (!Array.isArray(candidate)) {
       continue;
@@ -105,9 +121,11 @@ function parseTodos(data: Record<string, unknown> | null): TimelineTodo[] {
         const title =
           typeof record.title === "string"
             ? record.title
-            : typeof record.step === "string"
-              ? record.step
-              : null;
+            : typeof record.content === "string"
+              ? record.content
+              : typeof record.step === "string"
+                ? record.step
+                : null;
 
         if (!title) {
           return null;

@@ -122,14 +122,6 @@ function truncateInline(value: string, maxChars = 140): string {
 }
 
 function summarizeExecution(item: ChatTimelineExecutionItem): string | null {
-  if (item.isPlan && item.todos.length > 0) {
-    const firstTodo = item.todos[0]?.title?.trim();
-    if (firstTodo) {
-      return truncateInline(`${item.todos.length} items · ${firstTodo}`);
-    }
-    return `${item.todos.length} plan items`;
-  }
-
   const inputSummary = summarizeInput(item.input);
   const resultSummary = summarizeResult(item.result);
 
@@ -148,6 +140,89 @@ function summarizeExecution(item: ChatTimelineExecutionItem): string | null {
   return null;
 }
 
+function normalizeTodoStatus(
+  status: string
+): "completed" | "in_progress" | "pending" {
+  if (status === "completed") {
+    return "completed";
+  }
+  if (status === "in-progress" || status === "in_progress") {
+    return "in_progress";
+  }
+  return "pending";
+}
+
+function getPlanCounts(todos: ChatTimelineExecutionItem["todos"]): {
+  completed: number;
+  inProgress: number;
+  pending: number;
+  total: number;
+} {
+  return todos.reduce(
+    (counts, todo) => {
+      const normalizedStatus = normalizeTodoStatus(todo.status);
+      if (normalizedStatus === "completed") {
+        counts.completed += 1;
+      } else if (normalizedStatus === "in_progress") {
+        counts.inProgress += 1;
+      } else {
+        counts.pending += 1;
+      }
+      counts.total += 1;
+      return counts;
+    },
+    { completed: 0, inProgress: 0, pending: 0, total: 0 }
+  );
+}
+
+function getPlanSummaryText(
+  item: ChatTimelineExecutionItem,
+  activeTodoLabel: string | null,
+  total: number
+): string {
+  if (total > 0) {
+    return activeTodoLabel ?? `${total} plan items`;
+  }
+
+  const inputSummary = summarizeInput(item.input);
+  if (inputSummary) {
+    return truncateInline(`Plan updating · ${inputSummary}`, 120);
+  }
+
+  return "Plan updating...";
+}
+
+function getActiveTodoLabel(
+  todos: ChatTimelineExecutionItem["todos"]
+): string | null {
+  const inProgressTodo = todos.find(
+    (todo) => normalizeTodoStatus(todo.status) === "in_progress"
+  );
+  if (inProgressTodo) {
+    return `In progress · ${truncateInline(inProgressTodo.title, 110)}`;
+  }
+
+  const nextPendingTodo = todos.find(
+    (todo) => normalizeTodoStatus(todo.status) === "pending"
+  );
+  if (nextPendingTodo) {
+    return `Next · ${truncateInline(nextPendingTodo.title, 110)}`;
+  }
+
+  return todos.length > 0 ? "All tasks complete" : null;
+}
+
+function getTodoTextClassName(status: string): string {
+  const normalizedStatus = normalizeTodoStatus(status);
+  if (normalizedStatus === "completed") {
+    return "text-foreground/55 line-through";
+  }
+  if (normalizedStatus === "in_progress") {
+    return "font-medium text-foreground";
+  }
+  return "text-foreground/90";
+}
+
 function renderTodoStatus(status: string): string {
   if (status === "completed") {
     return "✓";
@@ -159,18 +234,35 @@ function renderTodoStatus(status: string): string {
 }
 
 interface ExecutionCardProps {
+  defaultExpanded?: boolean;
   item: ChatTimelineExecutionItem;
   onOpenDetail?: (item: ChatDetailItem) => void;
 }
 
-function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
-  const [expanded, setExpanded] = useState(false);
+function ExecutionCard({
+  defaultExpanded = false,
+  item,
+  onOpenDetail,
+}: ExecutionCardProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const { Icon, className, label } = useMemo(
     () => getStateMeta(item.state),
     [item.state]
   );
-  const summary = useMemo(() => summarizeExecution(item), [item]);
+  const summary = useMemo(
+    () => (item.isPlan ? null : summarizeExecution(item)),
+    [item]
+  );
+  const planCounts = useMemo(() => getPlanCounts(item.todos), [item.todos]);
+  const activeTodoLabel = useMemo(
+    () => getActiveTodoLabel(item.todos),
+    [item.todos]
+  );
   const inputText = useMemo(() => getExecutionInputText(item), [item]);
+  const planSummaryText = useMemo(
+    () => getPlanSummaryText(item, activeTodoLabel, planCounts.total),
+    [activeTodoLabel, item, planCounts.total]
+  );
   const timeStr = new Date(item.lastTs).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -186,7 +278,10 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
       <div className="space-y-1 rounded-md border border-border/40 bg-white/5 px-3 py-2">
         <button
           aria-expanded={expanded}
-          className="flex w-full items-start gap-2 text-left"
+          className={cn(
+            "flex w-full items-start gap-2 text-left",
+            item.isPlan && !expanded && "items-center"
+          )}
           onClick={handlePrimaryAction}
           type="button"
         >
@@ -196,7 +291,12 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
               item.state === "running" && "animate-spin"
             )}
           />
-          <div className="min-w-0 flex-1 space-y-1">
+          <div
+            className={cn(
+              "min-w-0 flex-1 space-y-1",
+              item.isPlan && !expanded && "space-y-0"
+            )}
+          >
             <div className="flex items-center gap-2">
               <span className="truncate font-medium text-foreground/90 text-xs">
                 {item.isPlan ? "Task Plan" : item.title}
@@ -223,33 +323,129 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
                 {summary}
               </div>
             )}
+
+            {item.isPlan ? (
+              expanded ? (
+                <div className="space-y-1 pt-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
+                    {planCounts.total > 0 ? (
+                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                        {planCounts.completed}/{planCounts.total} done
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                        Updating plan
+                      </span>
+                    )}
+                    {planCounts.total > 0 && planCounts.inProgress > 0 ? (
+                      <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
+                        {planCounts.inProgress} active
+                      </span>
+                    ) : null}
+                    {planCounts.total > 0 && planCounts.pending > 0 ? (
+                      <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                        {planCounts.pending} pending
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {planSummaryText ? (
+                    <div className="truncate text-[11px] text-muted-foreground/80">
+                      {planSummaryText}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-[10px] text-muted-foreground/85">
+                  {planCounts.total > 0 ? (
+                    <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                      {planCounts.completed}/{planCounts.total}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      Updating
+                    </span>
+                  )}
+
+                  {planCounts.total > 0 && planCounts.inProgress > 0 ? (
+                    <span className="shrink-0 rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
+                      {planCounts.inProgress} active
+                    </span>
+                  ) : null}
+
+                  <span className="min-w-0 truncate text-[11px] text-muted-foreground/75">
+                    {planSummaryText}
+                  </span>
+                </div>
+              )
+            ) : null}
           </div>
         </button>
 
         {expanded ? (
           <div className="space-y-2 border-border/20 border-t pt-2">
             {item.isPlan && item.todos.length > 0 ? (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
+                  {planCounts.total > 0 ? (
+                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                      {planCounts.completed}/{planCounts.total} completed
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      Updating plan
+                    </span>
+                  )}
+                  {planCounts.total > 0 && planCounts.inProgress > 0 ? (
+                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
+                      {planCounts.inProgress} in progress
+                    </span>
+                  ) : null}
+                  {planCounts.total > 0 && planCounts.pending > 0 ? (
+                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      {planCounts.pending} pending
+                    </span>
+                  ) : null}
+                </div>
+
                 <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
                   Plan
                 </div>
                 {item.todos.map((todo) => (
                   <div
-                    className="flex items-start gap-2 text-xs"
+                    className="flex items-start gap-2 rounded-md border border-border/30 bg-black/10 px-2 py-1.5 text-xs"
                     key={`${item.key}-${todo.id}`}
                   >
-                    <span className="mt-0.5 w-3 text-center text-muted-foreground/80">
+                    <span
+                      className={cn(
+                        "mt-0.5 w-3 text-center",
+                        normalizeTodoStatus(todo.status) === "completed"
+                          ? "text-emerald-300"
+                          : normalizeTodoStatus(todo.status) === "in_progress"
+                            ? "text-blue-300"
+                            : "text-muted-foreground/80"
+                      )}
+                    >
                       {renderTodoStatus(todo.status)}
                     </span>
-                    <span className="flex-1 text-foreground/90">
+                    <span
+                      className={cn(
+                        "flex-1",
+                        getTodoTextClassName(todo.status)
+                      )}
+                    >
                       {todo.title}
                     </span>
                   </div>
                 ))}
               </div>
+            ) : item.isPlan ? (
+              <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
+                No plan items available yet.
+              </div>
             ) : null}
 
-            {inputText ? (
+            {!item.isPlan && inputText ? (
               <div className="space-y-1">
                 <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
                   Input
@@ -258,7 +454,7 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
               </div>
             ) : null}
 
-            {item.result ? (
+            {!item.isPlan && item.result ? (
               <div className="space-y-1">
                 <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
                   Result
