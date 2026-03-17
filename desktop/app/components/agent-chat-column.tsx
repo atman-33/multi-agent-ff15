@@ -310,6 +310,155 @@ type MergedItem =
   | { type: "agent"; item: ChatTimelineItem; ts: string }
   | { type: "inbox"; msg: InboxLogRecord; ts: string };
 
+type VirtualTimelineRow =
+  | { kind: "merged"; key: string; mergedItem: MergedItem }
+  | { agentLabel: string; key: string; kind: "pending" };
+
+interface VirtualRowLayout {
+  end: number;
+  height: number;
+  key: string;
+  row: VirtualTimelineRow;
+  start: number;
+}
+
+const ROW_OVERSCAN_PX = 480;
+
+function getEstimatedRowHeight(row: VirtualTimelineRow): number {
+  if (row.kind === "pending") {
+    return 48;
+  }
+
+  if (row.mergedItem.type === "inbox") {
+    return 88;
+  }
+
+  if (row.mergedItem.item.type === "execution") {
+    return row.mergedItem.item.isPlan ? 108 : 120;
+  }
+
+  return 140;
+}
+
+function buildVirtualRowLayouts(
+  rows: VirtualTimelineRow[],
+  measuredHeights: Map<string, number>
+): { layouts: VirtualRowLayout[]; totalHeight: number } {
+  let offset = 0;
+  const layouts = rows.map((row) => {
+    const height = measuredHeights.get(row.key) ?? getEstimatedRowHeight(row);
+    const layout = {
+      end: offset + height,
+      height,
+      key: row.key,
+      row,
+      start: offset,
+    } satisfies VirtualRowLayout;
+    offset += height;
+    return layout;
+  });
+
+  return { layouts, totalHeight: offset };
+}
+
+function getVisibleVirtualRows(
+  layouts: VirtualRowLayout[],
+  scrollTop: number,
+  viewportHeight: number
+): {
+  bottomSpacer: number;
+  topSpacer: number;
+  visibleLayouts: VirtualRowLayout[];
+} {
+  const visibleTop = Math.max(scrollTop - ROW_OVERSCAN_PX, 0);
+  const visibleBottom = scrollTop + viewportHeight + ROW_OVERSCAN_PX;
+  const visibleLayouts = layouts.filter(
+    (layout) => layout.end >= visibleTop && layout.start <= visibleBottom
+  );
+
+  if (visibleLayouts.length === 0) {
+    return { bottomSpacer: 0, topSpacer: 0, visibleLayouts: [] };
+  }
+
+  const first = visibleLayouts[0];
+  const last = visibleLayouts.at(-1);
+  const totalHeight = layouts.at(-1)?.end ?? 0;
+
+  if (!last) {
+    return { bottomSpacer: 0, topSpacer: 0, visibleLayouts: [] };
+  }
+
+  return {
+    bottomSpacer: Math.max(totalHeight - last.end, 0),
+    topSpacer: first.start,
+    visibleLayouts,
+  };
+}
+
+const VirtualizedTimelineRow = memo(function VirtualizedTimelineRow({
+  activeLabel,
+  layout,
+  onHeightChange,
+  onOpenDetail,
+}: {
+  activeLabel: string;
+  layout: VirtualRowLayout;
+  onHeightChange: (key: string, height: number) => void;
+  onOpenDetail: (item: ChatDetailItem) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = rowRef.current;
+    if (!node) {
+      return;
+    }
+
+    const measure = () => {
+      onHeightChange(layout.key, node.getBoundingClientRect().height);
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [layout.key, onHeightChange]);
+
+  return (
+    <div ref={rowRef}>
+      {layout.row.kind === "pending" ? (
+        <div className="pb-3">
+          <PendingIndicator agentLabel={layout.row.agentLabel} />
+        </div>
+      ) : layout.row.mergedItem.type === "inbox" ? (
+        <div className="pb-3">
+          <InboxBubble msg={layout.row.mergedItem.msg} />
+        </div>
+      ) : (
+        <div className="flex flex-col items-start gap-0.5 pb-3">
+          <span className="ml-1 font-semibold text-[10px] text-muted-foreground/60">
+            {activeLabel}
+          </span>
+          <div className="w-full">
+            {layout.row.mergedItem.item.type === "message" ? (
+              <MessageCard
+                onOpenDetail={onOpenDetail}
+                record={layout.row.mergedItem.item}
+              />
+            ) : (
+              <ExecutionCard
+                item={layout.row.mergedItem.item}
+                onOpenDetail={onOpenDetail}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 function sortMergedTimeline(left: MergedItem, right: MergedItem): number {
   const diff = new Date(left.ts).getTime() - new Date(right.ts).getTime();
   if (diff !== 0) {
@@ -950,6 +1099,11 @@ function AgentChatColumn({
   const [imgError, setImgError] = useState(false);
   const [detailItem, setDetailItem] = useState<ChatDetailItem | null>(null);
   const [isCurrentPlanExpanded, setIsCurrentPlanExpanded] = useState(false);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [measuredRowHeights, setMeasuredRowHeights] = useState<
+    Map<string, number>
+  >(() => new Map());
 
   // Determine active view: Noctis own data or a comrade's data
   const viewingComrade = agent === "noctis" && partyView !== null;
@@ -986,9 +1140,34 @@ function AgentChatColumn({
     }
 
     previousActiveAgentNameRef.current = activeAgentName;
+    prevTimelineLengthRef.current = 0;
+    isAtBottomRef.current = true;
     setDetailItem(null);
+    setIsAtBottom(true);
     setIsCurrentPlanExpanded(false);
+    setMeasuredRowHeights(new Map());
+    setScrollTop(0);
+    setUnreadCount(0);
+
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+    }
   }, [activeAgentName]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+
+    const updateViewportHeight = () => setViewportHeight(el.clientHeight);
+    updateViewportHeight();
+
+    const observer = new ResizeObserver(() => updateViewportHeight());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const projectById = useMemo(
     () =>
@@ -1016,6 +1195,39 @@ function AgentChatColumn({
         viewingComrade ? [] : optimisticMessages
       ),
     [agentTimeline, activeInboxMessages, optimisticMessages, viewingComrade]
+  );
+  const virtualRows = useMemo(() => {
+    const rows: VirtualTimelineRow[] = timeline.map((item) =>
+      item.type === "inbox"
+        ? {
+            kind: "merged",
+            key: `inbox:${item.msg.id}`,
+            mergedItem: item,
+          }
+        : {
+            kind: "merged",
+            key: item.item.key,
+            mergedItem: item,
+          }
+    );
+
+    if (showPendingIndicator) {
+      rows.push({
+        agentLabel: activeLabel,
+        key: `pending:${activeAgentName}`,
+        kind: "pending",
+      } as VirtualTimelineRow);
+    }
+
+    return rows;
+  }, [timeline, showPendingIndicator, activeLabel, activeAgentName]);
+  const { layouts: virtualRowLayouts, totalHeight } = useMemo(
+    () => buildVirtualRowLayouts(virtualRows, measuredRowHeights),
+    [virtualRows, measuredRowHeights]
+  );
+  const { bottomSpacer, topSpacer, visibleLayouts } = useMemo(
+    () => getVisibleVirtualRows(virtualRowLayouts, scrollTop, viewportHeight),
+    [virtualRowLayouts, scrollTop, viewportHeight]
   );
   const currentPlanItem = useMemo(
     () => getCurrentPlanItem(agentTimeline),
@@ -1049,6 +1261,7 @@ function AgentChatColumn({
     if (!el) {
       return;
     }
+    setScrollTop(el.scrollTop);
     const threshold = 32; // px tolerance
     const atBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
@@ -1079,6 +1292,30 @@ function AgentChatColumn({
     }
   }, [timeline.length, activeIsProcessing]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(totalHeight - viewportHeight, 0);
+
+    if (isAtBottomRef.current) {
+      if (Math.abs(el.scrollTop - maxScrollTop) < 1) {
+        return;
+      }
+
+      el.scrollTop = maxScrollTop;
+      setScrollTop(maxScrollTop);
+      return;
+    }
+
+    if (el.scrollTop > maxScrollTop) {
+      el.scrollTop = maxScrollTop;
+      setScrollTop(maxScrollTop);
+    }
+  }, [totalHeight, viewportHeight]);
+
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (el) {
@@ -1091,6 +1328,19 @@ function AgentChatColumn({
 
   const handleOpenDetail = useCallback((item: ChatDetailItem) => {
     setDetailItem(item);
+  }, []);
+
+  const handleRowHeightChange = useCallback((key: string, height: number) => {
+    setMeasuredRowHeights((prev) => {
+      const current = prev.get(key);
+      if (current && Math.abs(current - height) < 1) {
+        return prev;
+      }
+
+      const next = new Map(prev);
+      next.set(key, height);
+      return next;
+    });
   }, []);
 
   const handleDetailOpenChange = useCallback((open: boolean) => {
@@ -1258,7 +1508,7 @@ function AgentChatColumn({
       {/* Scrollable message list */}
       <div className="relative min-h-0 flex-1">
         <div
-          className="h-full space-y-3 overflow-y-auto px-3 py-3"
+          className="h-full overflow-y-auto px-3 py-3"
           onScroll={handleScroll}
           ref={scrollRef}
         >
@@ -1268,37 +1518,22 @@ function AgentChatColumn({
             </div>
           ) : (
             <>
-              {timeline.map((item) =>
-                item.type === "inbox" ? (
-                  <InboxBubble key={item.msg.id} msg={item.msg} />
-                ) : (
-                  /* Agent answer — left-aligned with label */
-                  <div
-                    className="flex flex-col items-start gap-0.5"
-                    key={item.item.key}
-                  >
-                    <span className="ml-1 font-semibold text-[10px] text-muted-foreground/60">
-                      {activeLabel}
-                    </span>
-                    <div className="w-full">
-                      {item.item.type === "message" ? (
-                        <MessageCard
-                          onOpenDetail={handleOpenDetail}
-                          record={item.item}
-                        />
-                      ) : (
-                        <ExecutionCard
-                          item={item.item}
-                          onOpenDetail={handleOpenDetail}
-                        />
-                      )}
-                    </div>
-                  </div>
-                )
-              )}
-              {showPendingIndicator && (
+              <div style={{ height: topSpacer }} />
+              {visibleLayouts.map((layout) => (
+                <VirtualizedTimelineRow
+                  activeLabel={activeLabel}
+                  key={layout.key}
+                  layout={layout}
+                  onHeightChange={handleRowHeightChange}
+                  onOpenDetail={handleOpenDetail}
+                />
+              ))}
+              <div style={{ height: bottomSpacer }} />
+              {visibleLayouts.length === 0 &&
+              totalHeight === 0 &&
+              showPendingIndicator ? (
                 <PendingIndicator agentLabel={activeLabel} />
-              )}
+              ) : null}
             </>
           )}
         </div>
