@@ -17,10 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  ALL_MODEL_SWITCH_AGENTS,
-  type ModelSwitchAgent,
-} from "@/constants/agents";
+import type { ModelSwitchAgent } from "@/constants/agents";
 import { cn } from "@/lib/utils";
 import ModeSwitcher from "./mode-switcher";
 
@@ -49,13 +46,23 @@ export function computeStatus(lastResponseAt: Date | null): AgentStatus {
 }
 
 const AGENT_LABELS: Record<ModelSwitchAgent, string> = {
-  noctis: "N",
-  lunafreya: "L",
-  ignis: "I",
-  gladiolus: "G",
-  prompto: "P",
+  noctis: "No",
+  lunafreya: "Lu",
+  ignis: "Ig",
+  gladiolus: "Gl",
+  prompto: "Pr",
   iris: "Ir",
 };
+
+const PRIMARY_CONTEXT_AGENTS: ModelSwitchAgent[] = [
+  "noctis",
+  "ignis",
+  "gladiolus",
+  "prompto",
+  "iris",
+];
+
+const ORACLE_CONTEXT_AGENT: ModelSwitchAgent = "lunafreya";
 
 function ContextMeter({
   agent,
@@ -139,13 +146,20 @@ export default function StatusBar({
       <div className="h-3 w-px shrink-0 bg-border/40" />
 
       <div className="flex items-end gap-1">
-        {ALL_MODEL_SWITCH_AGENTS.map((agent) => (
+        {PRIMARY_CONTEXT_AGENTS.map((agent) => (
           <ContextMeter
             agent={agent}
             key={agent}
             value={contextUsage[agent] ?? null}
           />
         ))}
+
+        <div className="mx-1 h-6 w-px shrink-0 bg-border/30" />
+
+        <ContextMeter
+          agent={ORACLE_CONTEXT_AGENT}
+          value={contextUsage[ORACLE_CONTEXT_AGENT] ?? null}
+        />
       </div>
 
       <div className="ml-auto flex items-center gap-2">
