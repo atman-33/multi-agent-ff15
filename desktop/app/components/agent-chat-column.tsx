@@ -1469,11 +1469,12 @@ function AgentChatColumn({
               {currentPlanHeadline}
             </span>
 
-            {isCurrentPlanExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-300 ease-out" />
-            ) : (
-              <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-300 ease-out" />
-            )}
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-300 ease-out",
+                isCurrentPlanExpanded ? "rotate-180" : "rotate-0"
+              )}
+            />
           </button>
         </div>
       ) : null}

@@ -2,7 +2,6 @@ import {
   ArrowUpRight,
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
   Circle,
   CircleSlash,
   LoaderCircle,
@@ -245,6 +244,10 @@ function ExecutionCard({
   onOpenDetail,
 }: ExecutionCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const chevronClassName = cn(
+    "h-3.5 w-3.5 shrink-0 text-muted-foreground/80 transition-transform duration-300 ease-out",
+    expanded ? "rotate-180" : "rotate-0"
+  );
   const { Icon, className, label } = useMemo(
     () => getStateMeta(item.state),
     [item.state]
@@ -278,25 +281,17 @@ function ExecutionCard({
       <div className="space-y-1 rounded-md border border-border/40 bg-white/5 px-3 py-2">
         <button
           aria-expanded={expanded}
-          className={cn(
-            "flex w-full items-start gap-2 text-left",
-            item.isPlan && !expanded && "items-center"
-          )}
+          className="flex w-full items-start gap-2 text-left"
           onClick={handlePrimaryAction}
           type="button"
         >
           <Icon
             className={cn(
-              "mt-0.5 h-4 w-4 shrink-0",
+              "mt-0.5 h-4 w-4 shrink-0 self-start",
               item.state === "running" && "animate-spin"
             )}
           />
-          <div
-            className={cn(
-              "min-w-0 flex-1 space-y-1",
-              item.isPlan && !expanded && "space-y-0"
-            )}
-          >
+          <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium text-foreground/90 text-xs">
                 {item.isPlan ? "Task Plan" : item.title}
@@ -312,11 +307,7 @@ function ExecutionCard({
               <span className="ml-auto text-[10px] text-muted-foreground">
                 {timeStr}
               </span>
-              {expanded ? (
-                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-              )}
+              <ChevronDown className={chevronClassName} />
             </div>
             {summary && (
               <div className="truncate text-[11px] text-muted-foreground/80">
@@ -382,88 +373,102 @@ function ExecutionCard({
           </div>
         </button>
 
-        {expanded ? (
-          <div className="space-y-2 border-border/20 border-t pt-2">
-            {item.isPlan && item.todos.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
-                  {planCounts.total > 0 ? (
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
-                      {planCounts.completed}/{planCounts.total} completed
-                    </span>
-                  ) : (
-                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
-                      Updating plan
-                    </span>
-                  )}
-                  {planCounts.total > 0 && planCounts.inProgress > 0 ? (
-                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
-                      {planCounts.inProgress} in progress
-                    </span>
-                  ) : null}
-                  {planCounts.total > 0 && planCounts.pending > 0 ? (
-                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
-                      {planCounts.pending} pending
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
-                  Plan
-                </div>
-                {item.todos.map((todo) => (
-                  <div
-                    className="flex items-start gap-2 rounded-md border border-border/30 bg-black/10 px-2 py-1.5 text-xs"
-                    key={`${item.key}-${todo.id}`}
-                  >
-                    <span
-                      className={cn(
-                        "mt-0.5 w-3 text-center",
-                        normalizeTodoStatus(todo.status) === "completed"
-                          ? "text-emerald-300"
-                          : normalizeTodoStatus(todo.status) === "in_progress"
-                            ? "text-blue-300"
-                            : "text-muted-foreground/80"
-                      )}
-                    >
-                      {renderTodoStatus(todo.status)}
-                    </span>
-                    <span
-                      className={cn(
-                        "flex-1",
-                        getTodoTextClassName(todo.status)
-                      )}
-                    >
-                      {todo.title}
-                    </span>
+        <div
+          className={cn(
+            "grid transition-all duration-300 ease-out",
+            expanded
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
+          )}
+        >
+          <div className="overflow-hidden">
+            <div
+              className={cn(
+                "space-y-2 border-border/20 border-t pt-2 transition-all duration-300 ease-out",
+                expanded ? "translate-y-0" : "-translate-y-1"
+              )}
+            >
+              {item.isPlan && item.todos.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
+                    {planCounts.total > 0 ? (
+                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                        {planCounts.completed}/{planCounts.total} completed
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                        Updating plan
+                      </span>
+                    )}
+                    {planCounts.total > 0 && planCounts.inProgress > 0 ? (
+                      <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
+                        {planCounts.inProgress} in progress
+                      </span>
+                    ) : null}
+                    {planCounts.total > 0 && planCounts.pending > 0 ? (
+                      <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                        {planCounts.pending} pending
+                      </span>
+                    ) : null}
                   </div>
-                ))}
-              </div>
-            ) : item.isPlan ? (
-              <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
-                No plan items available yet.
-              </div>
-            ) : null}
 
-            {!item.isPlan && inputText ? (
-              <div className="space-y-1">
-                <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
-                  Input
+                  <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
+                    Plan
+                  </div>
+                  {item.todos.map((todo) => (
+                    <div
+                      className="flex items-start gap-2 rounded-md border border-border/30 bg-black/10 px-2 py-1.5 text-xs"
+                      key={`${item.key}-${todo.id}`}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 w-3 text-center",
+                          normalizeTodoStatus(todo.status) === "completed"
+                            ? "text-emerald-300"
+                            : normalizeTodoStatus(todo.status) === "in_progress"
+                              ? "text-blue-300"
+                              : "text-muted-foreground/80"
+                        )}
+                      >
+                        {renderTodoStatus(todo.status)}
+                      </span>
+                      <span
+                        className={cn(
+                          "flex-1",
+                          getTodoTextClassName(todo.status)
+                        )}
+                      >
+                        {todo.title}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <WrapCode content={inputText} />
-              </div>
-            ) : null}
+              ) : item.isPlan ? (
+                <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
+                  No plan items available yet.
+                </div>
+              ) : null}
 
-            {!item.isPlan && item.result ? (
-              <div className="space-y-1">
-                <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
-                  Result
+              {!item.isPlan && inputText ? (
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
+                    Input
+                  </div>
+                  <WrapCode content={inputText} />
                 </div>
-                <WrapCode content={item.result} />
-              </div>
-            ) : null}
+              ) : null}
+
+              {!item.isPlan && item.result ? (
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
+                    Result
+                  </div>
+                  <WrapCode content={item.result} />
+                </div>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+        </div>
       </div>
 
       {onOpenDetail ? (
