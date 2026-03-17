@@ -8,12 +8,12 @@ import {
 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
+  type ChatDetailItem,
   EXECUTION_PREVIEW_MAX_CHARS,
   EXECUTION_PREVIEW_MAX_TODOS,
   getExecutionInputText,
   hasVerboseExecutionContent,
   truncateText,
-  type ChatDetailItem,
 } from "@/lib/chat-detail";
 import type { ChatTimelineExecutionItem } from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";
@@ -216,7 +216,8 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
               ))}
               {item.todos.length > EXECUTION_PREVIEW_MAX_TODOS && (
                 <div className="text-[11px] text-muted-foreground/70">
-                  +{item.todos.length - EXECUTION_PREVIEW_MAX_TODOS} more plan items in detail
+                  +{item.todos.length - EXECUTION_PREVIEW_MAX_TODOS} more plan
+                  items in detail
                 </div>
               )}
             </div>
@@ -227,7 +228,7 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
                     Input preview
                   </div>
-                  <pre className="max-h-24 overflow-hidden rounded bg-black/20 p-2 font-mono text-[11px] whitespace-pre-wrap break-words text-foreground/85">
+                  <pre className="max-h-24 overflow-hidden whitespace-pre-wrap break-words rounded bg-black/20 p-2 font-mono text-[11px] text-foreground/85">
                     {truncateText(inputText, EXECUTION_PREVIEW_MAX_CHARS)}
                   </pre>
                 </div>
@@ -237,7 +238,7 @@ function ExecutionCard({ item, onOpenDetail }: ExecutionCardProps) {
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
                     Result preview
                   </div>
-                  <pre className="max-h-24 overflow-hidden rounded bg-black/20 p-2 font-mono text-[11px] whitespace-pre-wrap break-words text-foreground/85">
+                  <pre className="max-h-24 overflow-hidden whitespace-pre-wrap break-words rounded bg-black/20 p-2 font-mono text-[11px] text-foreground/85">
                     {truncateText(item.result, EXECUTION_PREVIEW_MAX_CHARS)}
                   </pre>
                 </div>

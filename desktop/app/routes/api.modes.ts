@@ -7,7 +7,9 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 
 type ModeConfig = {
   _description?: string;
-} & Partial<Record<(typeof ALL_MODEL_SWITCH_AGENTS)[number], { model?: string }>>;
+} & Partial<
+  Record<(typeof ALL_MODEL_SWITCH_AGENTS)[number], { model?: string }>
+>;
 
 function modelsMatch(currentModel: string, expectedModel: string) {
   const current = currentModel.trim().toLowerCase();

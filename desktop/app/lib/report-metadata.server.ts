@@ -5,13 +5,15 @@ import yaml from "yaml";
 const DATE8_REGEX = /^\d{8}$/;
 const FILENAME_REGEX = /^(.*?)-([a-zA-Z0-9_-]+)-(\d{8})(?:[-_].*)?\.md$/;
 const FM_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+const MARKDOWN_EXTENSION_REGEX = /\.md$/i;
+const SAFE_REPORT_FILENAME_REGEX = /[^a-zA-Z0-9_.-]/g;
 
 export interface ReportMeta {
   archived: boolean;
   author: string;
   date: string;
-  filePath: string;
   filename: string;
+  filePath: string;
   tags: string[];
   title: string;
 }
@@ -36,7 +38,7 @@ function parseReportDocument(
   const stats = statSync(filePath);
 
   let content = rawContent;
-  let title = filename.replace(/\.md$/i, "");
+  let title = filename.replace(MARKDOWN_EXTENSION_REGEX, "");
   let author = "Unknown";
   let date = stats.mtime.toISOString();
   let tags: string[] = [];
@@ -73,7 +75,7 @@ function parseReportDocument(
     if (author === "Unknown") {
       author = nameMatch[2];
     }
-    if (title === filename.replace(/\.md$/i, "")) {
+    if (title === filename.replace(MARKDOWN_EXTENSION_REGEX, "")) {
       title = `${nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)} Report (${nameMatch[2]})`;
     }
     if (!fmMatch) {
@@ -101,7 +103,7 @@ function parseReportDocument(
 }
 
 export function sanitizeReportFilename(filename: string) {
-  return filename.replace(/[^a-zA-Z0-9_.-]/g, "");
+  return filename.replace(SAFE_REPORT_FILENAME_REGEX, "");
 }
 
 export function readReportDocument(
@@ -142,7 +144,11 @@ export function listReports(
       file.endsWith(".md")
     )) {
       reports.push(
-        parseReportDocument(join(target.dir, filename), filename, target.archived)
+        parseReportDocument(
+          join(target.dir, filename),
+          filename,
+          target.archived
+        )
       );
     }
   }

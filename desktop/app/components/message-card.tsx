@@ -1,9 +1,15 @@
-import { ArrowUpRight, Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+} from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import ChatMarkdown, { stripAnsi } from "@/components/chat-markdown";
 import {
-  MESSAGE_PREVIEW_MAX_CHARS,
   type ChatDetailItem,
+  MESSAGE_PREVIEW_MAX_CHARS,
 } from "@/lib/chat-detail";
 import type { ChatTimelineMessageItem } from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";

@@ -1,13 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import {
   buildScopedProjectsYaml,
   createEmptyProjectScopes,
-  readScopedProjectsConfig,
   type ProjectScopeState,
+  readScopedProjectsConfig,
 } from "@/lib/project-config.server";
-import { getProjectRoot } from "@/lib/get-project-root.server";
 import { PROJECT_SCOPES, type ProjectScope } from "@/lib/project-scopes";
 
 /**
@@ -45,7 +45,9 @@ export async function action({ request }: { request: Request }) {
       }
 
       nextProjectScopes[scope] = {
-        activeProjectIds: ids.filter((id): id is string => typeof id === "string"),
+        activeProjectIds: ids.filter(
+          (id): id is string => typeof id === "string"
+        ),
       };
     }
 
@@ -53,7 +55,9 @@ export async function action({ request }: { request: Request }) {
     const projectsDir = join(root, "projects");
     const allIds = Array.from(
       new Set(
-        PROJECT_SCOPES.flatMap((scope) => nextProjectScopes[scope].activeProjectIds)
+        PROJECT_SCOPES.flatMap(
+          (scope) => nextProjectScopes[scope].activeProjectIds
+        )
       )
     );
     const invalidIds = allIds.filter(
@@ -68,8 +72,10 @@ export async function action({ request }: { request: Request }) {
 
     // Read current config for conflict detection and audit log
     const configPath = join(root, "config/current_projects.yaml");
-    const { configUpdatedAt: currentUpdatedAt, projectScopes: beforeProjectScopes } =
-      readScopedProjectsConfig(root);
+    const {
+      configUpdatedAt: currentUpdatedAt,
+      projectScopes: beforeProjectScopes,
+    } = readScopedProjectsConfig(root);
 
     // Optimistic concurrency: reject if config was modified since client last read
     if (
@@ -88,7 +94,11 @@ export async function action({ request }: { request: Request }) {
 
     // Build YAML content
     const now = new Date().toISOString();
-    const content = buildScopedProjectsYaml(nextProjectScopes, now, "desktop-app");
+    const content = buildScopedProjectsYaml(
+      nextProjectScopes,
+      now,
+      "desktop-app"
+    );
 
     // Atomic write via yaml_write_flock.sh
     const result = spawnSync(

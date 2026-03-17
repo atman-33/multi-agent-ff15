@@ -7,8 +7,8 @@ export interface ReportMeta {
   archived?: boolean;
   author: string;
   date: string;
-  filePath?: string;
   filename: string;
+  filePath?: string;
   tags: string[];
   title: string;
 }

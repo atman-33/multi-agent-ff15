@@ -1,8 +1,8 @@
 import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
-import { getActiveProjectRootsForScope } from "@/lib/project-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getActiveProjectRootsForScope } from "@/lib/project-config.server";
 import {
   getProjectScopeForAgent,
   PROJECT_SCOPE_LABELS,
@@ -10,19 +10,16 @@ import {
 } from "@/lib/project-scopes";
 import { listReports } from "@/lib/report-metadata.server";
 
-type AtSuggestion = {
+interface AtSuggestion {
   archived?: boolean;
   description?: string;
   insertText: string;
   label: string;
   source: "file" | "folder" | "report";
   value: string;
-};
+}
 
-function searchProjectFiles(
-  roots: string[],
-  query: string
-): AtSuggestion[] {
+function searchProjectFiles(roots: string[], query: string): AtSuggestion[] {
   const IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".tmp"];
   const MAX_RESULTS = 50;
   const MAX_DIRS_EXPLORED = 1000;
@@ -80,16 +77,17 @@ function searchProjectFiles(
         const isDir = entry.isDirectory();
         const relPath = relative(root, fullPath);
 
-        if (qStr === "" || relPath.toLowerCase().includes(qStr)) {
-          if (!seenValues.has(fullPath)) {
-            seenValues.add(fullPath);
-            results.push({
-              label: relPath,
-              value: fullPath,
-              insertText: fullPath,
-              source: isDir ? "folder" : "file",
-            });
-          }
+        if (
+          (qStr === "" || relPath.toLowerCase().includes(qStr)) &&
+          !seenValues.has(fullPath)
+        ) {
+          seenValues.add(fullPath);
+          results.push({
+            label: relPath,
+            value: fullPath,
+            insertText: fullPath,
+            source: isDir ? "folder" : "file",
+          });
         }
 
         if (isDir && depth < MAX_DEPTH) {

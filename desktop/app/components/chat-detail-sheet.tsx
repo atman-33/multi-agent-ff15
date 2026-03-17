@@ -208,7 +208,7 @@ export default function ChatDetailSheet({
                 >
                   {item?.type === "execution"
                     ? executionStateMeta?.label
-                    : item?.item.kind ?? "answer"}
+                    : (item?.item.kind ?? "answer")}
                 </Badge>
               </div>
               <SheetTitle>
@@ -246,62 +246,71 @@ export default function ChatDetailSheet({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          {!item ? null : item.type === "message" ? (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-                <ChatMarkdown
-                  className="space-y-2 text-[13px] text-slate-100 leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                  content={stripAnsi(item.item.content)}
-                />
-              </div>
-            </div>
-          ) : executionStateMeta ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <executionStateMeta.Icon
-                  className={cn(
-                    "h-4 w-4 shrink-0",
-                    item.item.state === "running" && "animate-spin"
-                  )}
-                />
-                <div className="min-w-0 flex-1 text-sm text-slate-100">
-                  {item.item.isPlan ? "Task plan" : item.item.title}
+          {item ? (
+            item.type === "message" ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                  <ChatMarkdown
+                    className="space-y-2 text-[13px] text-slate-100 leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                    content={stripAnsi(item.item.content)}
+                  />
                 </div>
-                <Badge className={executionStateMeta.badgeClassName} variant="outline">
-                  {executionStateMeta.label}
-                </Badge>
               </div>
-
-              {item.item.isPlan && item.item.todos.length > 0 ? (
-                <DetailSection title="Plan items">
-                  <div className="space-y-2">
-                    {item.item.todos.map((todo) => (
-                      <div
-                        className="flex items-start gap-2 text-sm"
-                        key={`${item.item.key}-${todo.id}`}
-                      >
-                        <span className="mt-0.5 w-4 text-center text-slate-400">
-                          {renderTodoStatus(todo.status)}
-                        </span>
-                        <span className="flex-1 text-slate-100">{todo.title}</span>
-                      </div>
-                    ))}
+            ) : executionStateMeta ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <executionStateMeta.Icon
+                    className={cn(
+                      "h-4 w-4 shrink-0",
+                      item.item.state === "running" && "animate-spin"
+                    )}
+                  />
+                  <div className="min-w-0 flex-1 text-slate-100 text-sm">
+                    {item.item.isPlan ? "Task plan" : item.item.title}
                   </div>
-                </DetailSection>
-              ) : null}
+                  <Badge
+                    className={executionStateMeta.badgeClassName}
+                    variant="outline"
+                  >
+                    {executionStateMeta.label}
+                  </Badge>
+                </div>
 
-              {getExecutionInputText(item.item) ? (
-                <DetailSection title="Input">
-                  <DetailCodeBlock content={getExecutionInputText(item.item) ?? ""} />
-                </DetailSection>
-              ) : null}
+                {item.item.isPlan && item.item.todos.length > 0 ? (
+                  <DetailSection title="Plan items">
+                    <div className="space-y-2">
+                      {item.item.todos.map((todo) => (
+                        <div
+                          className="flex items-start gap-2 text-sm"
+                          key={`${item.item.key}-${todo.id}`}
+                        >
+                          <span className="mt-0.5 w-4 text-center text-slate-400">
+                            {renderTodoStatus(todo.status)}
+                          </span>
+                          <span className="flex-1 text-slate-100">
+                            {todo.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                ) : null}
 
-              {item.item.result ? (
-                <DetailSection title="Result">
-                  <DetailCodeBlock content={item.item.result} />
-                </DetailSection>
-              ) : null}
-            </div>
+                {getExecutionInputText(item.item) ? (
+                  <DetailSection title="Input">
+                    <DetailCodeBlock
+                      content={getExecutionInputText(item.item) ?? ""}
+                    />
+                  </DetailSection>
+                ) : null}
+
+                {item.item.result ? (
+                  <DetailSection title="Result">
+                    <DetailCodeBlock content={item.item.result} />
+                  </DetailSection>
+                ) : null}
+              </div>
+            ) : null
           ) : null}
         </div>
       </SheetContent>

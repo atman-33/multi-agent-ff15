@@ -57,8 +57,12 @@ const markdownComponents: Components = {
       {children}
     </a>
   ),
-  h1: ({ children }) => <h1 className="mt-2 mb-1 font-bold text-sm">{children}</h1>,
-  h2: ({ children }) => <h2 className="mt-2 mb-1 font-bold text-xs">{children}</h2>,
+  h1: ({ children }) => (
+    <h1 className="mt-2 mb-1 font-bold text-sm">{children}</h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="mt-2 mb-1 font-bold text-xs">{children}</h2>
+  ),
   h3: ({ children }) => (
     <h3 className="mt-1 mb-0.5 font-semibold text-xs">{children}</h3>
   ),
@@ -75,7 +79,9 @@ const markdownComponents: Components = {
     );
   },
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-  ul: ({ children }) => <ul className="list-disc space-y-0.5 pl-4">{children}</ul>,
+  ul: ({ children }) => (
+    <ul className="list-disc space-y-0.5 pl-4">{children}</ul>
+  ),
   ol: ({ children }) => (
     <ol className="list-decimal space-y-0.5 pl-4">{children}</ol>
   ),

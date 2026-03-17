@@ -22,7 +22,10 @@ export interface ScopedProjectsConfig {
   updatedBy: string;
 }
 
-export function createEmptyProjectScopes(): Record<ProjectScope, ProjectScopeState> {
+export function createEmptyProjectScopes(): Record<
+  ProjectScope,
+  ProjectScopeState
+> {
   return {
     noctis_team: { activeProjectIds: [] },
     lunafreya: { activeProjectIds: [] },
@@ -42,7 +45,8 @@ export function readScopedProjectsConfig(root: string): ScopedProjectsConfig {
   try {
     const raw = readFileSync(configPath, "utf-8");
     const parsed = parseYaml(raw);
-    configUpdatedAt = typeof parsed?.updated_at === "string" ? parsed.updated_at : "";
+    configUpdatedAt =
+      typeof parsed?.updated_at === "string" ? parsed.updated_at : "";
     updatedBy = typeof parsed?.updated_by === "string" ? parsed.updated_by : "";
 
     for (const scope of PROJECT_SCOPES) {
@@ -68,7 +72,7 @@ function renderScopeYaml(scope: ProjectScope, ids: string[]): string {
   return [
     `  ${scope}:`,
     "    active_project_ids:",
-    ...ids.map((id) => `      - \"${id}\"`),
+    ...ids.map((id) => `      - "${id}"`),
   ].join("\n");
 }
 
@@ -81,8 +85,8 @@ export function buildScopedProjectsYaml(
     "project_scopes:",
     renderScopeYaml("noctis_team", projectScopes.noctis_team.activeProjectIds),
     renderScopeYaml("lunafreya", projectScopes.lunafreya.activeProjectIds),
-    `updated_at: \"${updatedAt}\"`,
-    `updated_by: \"${updatedBy}\"`,
+    `updated_at: "${updatedAt}"`,
+    `updated_by: "${updatedBy}"`,
     "",
   ].join("\n");
 }

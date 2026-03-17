@@ -6,6 +6,8 @@ type LaunchStrategy =
   | { type: "wsl"; args: string[] }
   | { type: "windows"; args: string[] };
 
+const WINDOWS_MOUNTED_PATH_REGEX = /^\/mnt\/[a-z]\//i;
+
 function execFileAsync(file: string, args: string[], cwd?: string) {
   return new Promise<void>((resolve, reject) => {
     execFile(file, args, { cwd }, (error) => {
@@ -45,10 +47,10 @@ function getWslFolderUri(path: string): string {
 }
 
 function isWindowsMountedPath(path: string): boolean {
-  return /^\/mnt\/[a-z]\//i.test(path);
+  return WINDOWS_MOUNTED_PATH_REGEX.test(path);
 }
 
-async function getWindowsPath(path: string): Promise<string> {
+function getWindowsPath(path: string): Promise<string> {
   return execFileWithOutput("wslpath", ["-w", path]);
 }
 

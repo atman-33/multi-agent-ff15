@@ -46,7 +46,7 @@ export function isNoctisFormationId(value: string): value is NoctisFormationId {
 
 export function buildNoctisFormationPreamble(formation: NoctisFormationId) {
   const option = NOCTIS_FORMATION_BY_ID[formation];
-  if (!option || !("commandPath" in option) || !option.commandPath) {
+  if (!(option && "commandPath" in option && option.commandPath)) {
     return "";
   }
   return `Follow instructions in ${option.commandPath}.`;

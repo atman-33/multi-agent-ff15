@@ -48,16 +48,16 @@ import {
   COMRADES,
   type ComradeId,
 } from "@/constants/comrade-config";
-import { useAgentActivity } from "@/hooks/use-agent-activity";
 import { useActiveProjects } from "@/hooks/use-active-projects";
+import { useAgentActivity } from "@/hooks/use-agent-activity";
 import type { AgentId } from "@/hooks/use-agent-chat-log";
 import type { InboxLogRecord } from "@/hooks/use-inbox-log";
+import type { ChatDetailItem } from "@/lib/chat-detail";
 import {
   buildChatTimeline,
   type ChatLogRecord,
   type ChatTimelineItem,
 } from "@/lib/chat-timeline";
-import type { ChatDetailItem } from "@/lib/chat-detail";
 import {
   getProjectScopeForAgent,
   PROJECT_SCOPE_LABELS,
@@ -86,9 +86,12 @@ interface AgentChatColumnProps {
 
 interface ProjectStatusChipProps {
   activeProjectIds: string[];
-  projectById: Record<string, { branchName?: string | null; displayName: string; path: string }>;
-  scopeLabel: string;
   loading: boolean;
+  projectById: Record<
+    string,
+    { branchName?: string | null; displayName: string; path: string }
+  >;
+  scopeLabel: string;
 }
 
 const AGENT_CONFIG = {
@@ -202,8 +205,11 @@ function ProjectStatusChip({
   scopeLabel,
   loading,
 }: ProjectStatusChipProps) {
-  const firstProject = activeProjectIds[0] ? projectById[activeProjectIds[0]] : null;
-  const firstProjectLabel = firstProject?.displayName ?? activeProjectIds[0] ?? "No project";
+  const firstProject = activeProjectIds[0]
+    ? projectById[activeProjectIds[0]]
+    : null;
+  const firstProjectLabel =
+    firstProject?.displayName ?? activeProjectIds[0] ?? "No project";
   const extraCount = Math.max(activeProjectIds.length - 1, 0);
 
   return (
@@ -221,9 +227,13 @@ function ProjectStatusChip({
             {scopeLabel}
           </span>
           {loading ? (
-            <span className="truncate text-[10px] text-amber-100/80">Loading...</span>
+            <span className="truncate text-[10px] text-amber-100/80">
+              Loading...
+            </span>
           ) : activeProjectIds.length === 0 ? (
-            <span className="truncate font-medium text-[10px] text-amber-100/85">No project</span>
+            <span className="truncate font-medium text-[10px] text-amber-100/85">
+              No project
+            </span>
           ) : (
             <>
               <span className="truncate font-semibold text-[10px] text-amber-50">
@@ -257,10 +267,14 @@ function ProjectStatusChip({
         </div>
         <div className="max-h-[300px] overflow-y-auto py-1">
           {!loading && activeProjectIds.length === 0 && (
-            <div className="px-4 py-3 text-muted-foreground text-sm">No active project</div>
+            <div className="px-4 py-3 text-muted-foreground text-sm">
+              No active project
+            </div>
           )}
           {loading && (
-            <div className="px-4 py-3 text-muted-foreground text-sm">Loading...</div>
+            <div className="px-4 py-3 text-muted-foreground text-sm">
+              Loading...
+            </div>
           )}
           {activeProjectIds.map((id) => {
             const project = projectById[id];
@@ -863,11 +877,17 @@ function AgentChatColumn({
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
+  const previousActiveAgentNameRef = useRef(activeAgentName);
   const liveEvents = useAgentActivity(activeAgentName, activeIsProcessing);
   const showPendingIndicator = activeIsProcessing;
   const activeProjectScope = getProjectScopeForAgent(activeAgentName);
 
   useEffect(() => {
+    if (previousActiveAgentNameRef.current === activeAgentName) {
+      return;
+    }
+
+    previousActiveAgentNameRef.current = activeAgentName;
     setDetailItem(null);
   }, [activeAgentName]);
 
@@ -881,7 +901,8 @@ function AgentChatColumn({
   const activeProjectIds =
     activeProjectScope === null
       ? []
-      : (projectsData?.projectScopes[activeProjectScope]?.activeProjectIds ?? []);
+      : (projectsData?.projectScopes[activeProjectScope]?.activeProjectIds ??
+        []);
 
   const agentTimeline = useMemo(
     () => buildChatTimeline([...activeRecords, ...liveEvents]),

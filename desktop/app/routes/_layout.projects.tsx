@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Check, ChevronDown, FolderGit2, FolderOpen, RefreshCw } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  FolderGit2,
+  FolderOpen,
+  RefreshCw,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -18,9 +24,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { ActiveProjectsData } from "@/hooks/use-active-projects";
 import {
-  PROJECT_SCOPES,
   PROJECT_SCOPE_DESCRIPTIONS,
   PROJECT_SCOPE_LABELS,
+  PROJECT_SCOPES,
   type ProjectScope,
 } from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
@@ -32,9 +38,10 @@ interface ProjectsApiData extends ActiveProjectsData {
 type VSCodePreference = "auto" | "wsl" | "windows";
 
 const VSCODE_PREFERENCE_STORAGE_KEY = "projects_vscode_preferences";
+const WINDOWS_MOUNTED_PATH_REGEX = /^\/mnt\/[a-z]\//i;
 
 const isWindowsMountedPath = (path: string): boolean =>
-  /^\/mnt\/[a-z]\//i.test(path);
+  WINDOWS_MOUNTED_PATH_REGEX.test(path);
 
 const resolveVSCodeTarget = (
   path: string,
@@ -58,7 +65,10 @@ const getPreferenceLabel = (preference: VSCodePreference): string => {
   }
 };
 
-const getResolvedTargetLabel = (path: string, preference: VSCodePreference): string =>
+const getResolvedTargetLabel = (
+  path: string,
+  preference: VSCodePreference
+): string =>
   resolveVSCodeTarget(path, preference) === "windows" ? "Windows" : "WSL";
 
 const readVSCodePreferences = (): Record<string, VSCodePreference> => {
@@ -395,17 +405,23 @@ export default function ProjectsPage() {
       {/* Project list */}
       {serverData && serverData.projects.length > 0 && (
         <div className="space-y-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-4 py-1 text-[11px] uppercase tracking-widest text-muted-foreground/60">
+          <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-4 py-1 text-[11px] text-muted-foreground/60 uppercase tracking-widest">
             <span>Project</span>
             {PROJECT_SCOPES.map((scope) => (
-              <div className="text-center" key={scope} title={PROJECT_SCOPE_DESCRIPTIONS[scope]}>
+              <div
+                className="text-center"
+                key={scope}
+                title={PROJECT_SCOPE_DESCRIPTIONS[scope]}
+              >
                 {PROJECT_SCOPE_LABELS[scope]}
               </div>
             ))}
           </div>
           {serverData.projects.map((project) => {
             const isActiveInAnyScope = PROJECT_SCOPES.some((scope) =>
-              serverData.projectScopes[scope].activeProjectIds.includes(project.id)
+              serverData.projectScopes[scope].activeProjectIds.includes(
+                project.id
+              )
             );
             const vscodePreference = vscodePreferences[project.id] ?? "auto";
             const resolvedTargetLabel = getResolvedTargetLabel(
@@ -455,7 +471,7 @@ export default function ProjectsPage() {
                         className="h-8 w-8 text-muted-foreground hover:text-primary"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void openFolder(project.path);
+                          openFolder(project.path).catch(() => undefined);
                         }}
                         size="icon"
                         title="Open in Explorer"
@@ -468,7 +484,9 @@ export default function ProjectsPage() {
                           className="h-8 gap-1 rounded-r-none border-r-0 px-2.5 text-[11px]"
                           onClick={(e) => {
                             e.stopPropagation();
-                            void openVSCode(project.path, vscodePreference);
+                            openVSCode(project.path, vscodePreference).catch(
+                              () => undefined
+                            );
                           }}
                           size="sm"
                           title={`Open in VS Code (${getPreferenceLabel(vscodePreference)} -> ${resolvedTargetLabel})`}
@@ -498,32 +516,37 @@ export default function ProjectsPage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="px-2 py-1.5">
-                              <p className="font-medium text-xs">Open in VS Code</p>
+                              <p className="font-medium text-xs">
+                                Open in VS Code
+                              </p>
                               <p className="text-[11px] text-muted-foreground">
-                                Auto uses WSL for Linux paths and Windows for /mnt drives.
+                                Auto uses WSL for Linux paths and Windows for
+                                /mnt drives.
                               </p>
                             </div>
                             <div className="grid gap-1">
-                              {([
-                                {
-                                  preference: "auto",
-                                  label: `Auto (${resolvedTargetLabel})`,
-                                  description:
-                                    "Choose based on the project path.",
-                                },
-                                {
-                                  preference: "wsl",
-                                  label: "Open in WSL",
-                                  description:
-                                    "Always launch through the WSL code command.",
-                                },
-                                {
-                                  preference: "windows",
-                                  label: "Open in Windows",
-                                  description:
-                                    "Use native Windows VS Code when possible.",
-                                },
-                              ] as const).map((option) => (
+                              {(
+                                [
+                                  {
+                                    preference: "auto",
+                                    label: `Auto (${resolvedTargetLabel})`,
+                                    description:
+                                      "Choose based on the project path.",
+                                  },
+                                  {
+                                    preference: "wsl",
+                                    label: "Open in WSL",
+                                    description:
+                                      "Always launch through the WSL code command.",
+                                  },
+                                  {
+                                    preference: "windows",
+                                    label: "Open in Windows",
+                                    description:
+                                      "Use native Windows VS Code when possible.",
+                                  },
+                                ] as const
+                              ).map((option) => (
                                 <button
                                   className={cn(
                                     "flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-2 text-left text-xs transition-colors",
@@ -533,13 +556,21 @@ export default function ProjectsPage() {
                                   )}
                                   key={option.preference}
                                   onClick={() => {
-                                    updateVSCodePreference(project.id, option.preference);
-                                    void openVSCode(project.path, option.preference);
+                                    updateVSCodePreference(
+                                      project.id,
+                                      option.preference
+                                    );
+                                    openVSCode(
+                                      project.path,
+                                      option.preference
+                                    ).catch(() => undefined);
                                   }}
                                   type="button"
                                 >
                                   <div className="flex w-full items-center gap-2">
-                                    <span className="font-medium">{option.label}</span>
+                                    <span className="font-medium">
+                                      {option.label}
+                                    </span>
                                     {vscodePreference === option.preference && (
                                       <Check className="ml-auto h-3.5 w-3.5" />
                                     )}
@@ -557,10 +588,17 @@ export default function ProjectsPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       {PROJECT_SCOPES.map((scope) => {
-                        const checked = serverData.projectScopes[scope].activeProjectIds.includes(project.id);
-                        const isSaving = savingIds.has(`${scope}:${project.id}`);
+                        const checked = serverData.projectScopes[
+                          scope
+                        ].activeProjectIds.includes(project.id);
+                        const isSaving = savingIds.has(
+                          `${scope}:${project.id}`
+                        );
                         return (
-                          <div className="flex min-w-[110px] items-center justify-center" key={scope}>
+                          <div
+                            className="flex min-w-[110px] items-center justify-center"
+                            key={scope}
+                          >
                             <Switch
                               aria-label={`Toggle ${project.displayName} for ${PROJECT_SCOPE_LABELS[scope]}`}
                               checked={checked}

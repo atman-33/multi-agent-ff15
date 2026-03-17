@@ -43,10 +43,10 @@ export default function ModeSwitcher() {
   }, []);
 
   useEffect(() => {
-    void fetchModes();
+    fetchModes().catch(console.error);
 
     const handleModeRefresh = () => {
-      void fetchModes();
+      fetchModes().catch(console.error);
     };
 
     window.addEventListener("mode-switched", handleModeRefresh);

@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { toast } from "sonner";
 import {
   useNavigate,
   useOutletContext,
@@ -19,6 +18,7 @@ import {
   useSearchParams,
 } from "react-router";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -38,8 +38,8 @@ import {
 } from "@/components/ui/select";
 import {
   appendToChatDraft,
-  getStoredActiveChatTarget,
   type DraftTargetAgentId,
+  getStoredActiveChatTarget,
 } from "@/lib/chat-drafts";
 
 const TARGET_OPTIONS: Array<{ label: string; value: DraftTargetAgentId }> = [

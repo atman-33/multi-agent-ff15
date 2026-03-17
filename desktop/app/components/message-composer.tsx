@@ -2,6 +2,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildNoctisFormationPreamble,
+  DEFAULT_NOCTIS_FORMATION,
+  isNoctisFormationId,
+  NOCTIS_FORMATION_BY_ID,
+  NOCTIS_FORMATION_OPTIONS,
+  NOCTIS_FORMATION_STORAGE_KEY,
+  type NoctisFormationId,
+} from "@/constants/noctis-formation";
+import type { AgentId } from "@/hooks/use-agent-chat-log";
+import {
   CHAT_DRAFT_UPDATED_EVENT,
   clearChatDraft,
   type DraftTargetAgentId,
@@ -9,16 +19,6 @@ import {
   readChatDraft,
   setStoredActiveChatTarget,
 } from "@/lib/chat-drafts";
-import {
-  buildNoctisFormationPreamble,
-  DEFAULT_NOCTIS_FORMATION,
-  NOCTIS_FORMATION_BY_ID,
-  NOCTIS_FORMATION_OPTIONS,
-  NOCTIS_FORMATION_STORAGE_KEY,
-  type NoctisFormationId,
-  isNoctisFormationId,
-} from "@/constants/noctis-formation";
-import type { AgentId } from "@/hooks/use-agent-chat-log";
 import { cn } from "@/lib/utils";
 
 const MIN_ROWS = 2;
@@ -69,7 +69,9 @@ function MessageComposer({
     }
     return "";
   });
-  const [projectScopeLabel, setProjectScopeLabel] = useState<string | null>(null);
+  const [projectScopeLabel, setProjectScopeLabel] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -219,7 +221,7 @@ function MessageComposer({
         setLastFormation(formation);
       }
     },
-    [isTauri, onSent, storageKey]
+    [isTauri, onSent, targetAgent]
   );
 
   const handleSend = () => doSend(targetAgent, content, noctisFormation);
@@ -494,12 +496,15 @@ function MessageComposer({
             })}
           </div>
 
-          {activeFormation && activeFormation.id !== DEFAULT_NOCTIS_FORMATION && (
-            <div className="rounded-md border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-100/90">
-              <span className="font-medium text-indigo-100">Execution mode:</span>{" "}
-              {activeFormation.summary}
-            </div>
-          )}
+          {activeFormation &&
+            activeFormation.id !== DEFAULT_NOCTIS_FORMATION && (
+              <div className="rounded-md border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-100/90">
+                <span className="font-medium text-indigo-100">
+                  Execution mode:
+                </span>{" "}
+                {activeFormation.summary}
+              </div>
+            )}
         </div>
       )}
 
@@ -637,7 +642,8 @@ function MessageComposer({
             ))}
             {projectSuggestions.length > 0 && projectScopeLabel && (
               <div className="border-border/30 border-t bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
-                Project file results are limited to the current {projectScopeLabel} scope.
+                Project file results are limited to the current{" "}
+                {projectScopeLabel} scope.
               </div>
             )}
           </div>

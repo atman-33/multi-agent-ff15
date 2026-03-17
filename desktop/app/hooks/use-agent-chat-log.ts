@@ -84,10 +84,13 @@ export function useAgentChatLog() {
 
   /** Flush pending records into state (task 3.4) */
   const flushBuffer = useCallback(() => {
-    const pendingEntries = Object.entries(pendingRef.current) as Array<
-      [AgentId, ChatLogRecord[] | undefined]
-    >;
-    if (pendingEntries.every(([, records]) => !records || records.length === 0)) {
+    const pendingEntries = Object.entries(pendingRef.current) as [
+      AgentId,
+      ChatLogRecord[] | undefined,
+    ][];
+    if (
+      pendingEntries.every(([, records]) => !records || records.length === 0)
+    ) {
       return;
     }
     const toAdd = pendingRef.current;
@@ -96,9 +99,10 @@ export function useAgentChatLog() {
       let changed = false;
       const next: AgentRecordMap = { ...prev };
 
-      for (const [agent, records] of Object.entries(toAdd) as Array<
-        [AgentId, ChatLogRecord[] | undefined]
-      >) {
+      for (const [agent, records] of Object.entries(toAdd) as [
+        AgentId,
+        ChatLogRecord[] | undefined,
+      ][]) {
         if (!records || records.length === 0) {
           continue;
         }
@@ -180,7 +184,9 @@ export function useAgentChatLog() {
         const existingIds = new Set(
           (allRecordsRef.current[agent] ?? []).map((record) => record.id)
         );
-        const fresh = page.records.filter((record) => !existingIds.has(record.id));
+        const fresh = page.records.filter(
+          (record) => !existingIds.has(record.id)
+        );
         if (fresh.length > 0) {
           allRecordsRef.current = {
             ...allRecordsRef.current,
@@ -250,8 +256,7 @@ export function useAgentChatLog() {
    * Memoization is handled by the caller via useMemo if needed.
    */
   const getRecordsForAgent = useCallback(
-    (agent: AgentId): ChatLogRecord[] =>
-      recordsByAgent[agent] ?? [],
+    (agent: AgentId): ChatLogRecord[] => recordsByAgent[agent] ?? [],
     [recordsByAgent]
   );
 
