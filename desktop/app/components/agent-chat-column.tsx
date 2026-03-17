@@ -216,16 +216,15 @@ function ProjectStatusChip({
     <HoverCard closeDelay={120} openDelay={150}>
       <HoverCardTrigger asChild>
         <Link
+          aria-label={`Open ${scopeLabel} projects`}
           className={cn(
             "flex min-w-0 items-center gap-2 rounded-full border px-2.5 py-1 transition-all duration-200",
             "border-amber-500/30 bg-amber-500/10 text-amber-100 hover:border-amber-400/50 hover:bg-amber-500/15"
           )}
+          title={`${scopeLabel} projects`}
           to="/projects"
         >
           <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-          <span className="shrink-0 font-semibold text-[9px] text-amber-300/80 uppercase tracking-[0.18em]">
-            {scopeLabel}
-          </span>
           {loading ? (
             <span className="truncate text-[10px] text-amber-100/80">
               Loading...
