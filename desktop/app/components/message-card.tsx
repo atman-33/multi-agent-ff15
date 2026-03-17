@@ -129,10 +129,13 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
   const shouldFold = messageBody.length > MESSAGE_PREVIEW_MAX_CHARS;
 
   const ts = new Date(record.lastTs);
+  const showFineGrainedTime =
+    Math.abs(ts.getTime() - new Date(record.firstTs).getTime()) < 1000;
   const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    ...(showFineGrainedTime ? { fractionalSecondDigits: 3 as const } : {}),
   });
 
   const isError = record.kind === "error";

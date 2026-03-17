@@ -310,6 +310,17 @@ type MergedItem =
   | { type: "agent"; item: ChatTimelineItem; ts: string }
   | { type: "inbox"; msg: InboxLogRecord; ts: string };
 
+function sortMergedTimeline(left: MergedItem, right: MergedItem): number {
+  const diff = new Date(left.ts).getTime() - new Date(right.ts).getTime();
+  if (diff !== 0) {
+    return diff;
+  }
+
+  const leftStableId = left.type === "inbox" ? left.msg.id : left.item.key;
+  const rightStableId = right.type === "inbox" ? right.msg.id : right.item.key;
+  return leftStableId.localeCompare(rightStableId);
+}
+
 /** Merge agent records and inbox messages by UTC timestamp (pure sort) with optimistic deduplication. */
 function mergeTimeline(
   items: ChatTimelineItem[],
@@ -325,7 +336,7 @@ function mergeTimeline(
     ...items.map((item) => ({
       type: "agent" as const,
       item,
-      ts: item.type === "message" ? item.lastTs : item.lastTs,
+      ts: item.firstTs,
     })),
     ...inboxMessages.map((m) => ({ type: "inbox" as const, msg: m, ts: m.ts })),
     ...filteredOptimistic.map((m) => ({
@@ -333,7 +344,7 @@ function mergeTimeline(
       msg: m,
       ts: m.ts,
     })),
-  ].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+  ].sort(sortMergedTimeline);
 }
 
 function getCurrentPlanItem(
@@ -459,6 +470,7 @@ const InboxBubble = memo(function InboxBubble({
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    fractionalSecondDigits: 3,
   });
   const isCrystal = msg.from === "crystal";
   const fromLabel = msg.from.charAt(0).toUpperCase() + msg.from.slice(1);

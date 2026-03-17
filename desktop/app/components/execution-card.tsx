@@ -266,10 +266,15 @@ function ExecutionCard({
     () => getPlanSummaryText(item, activeTodoLabel, planCounts.total),
     [activeTodoLabel, item, planCounts.total]
   );
+  const showFineGrainedTime =
+    Math.abs(
+      new Date(item.lastTs).getTime() - new Date(item.firstTs).getTime()
+    ) < 1000;
   const timeStr = new Date(item.lastTs).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    ...(showFineGrainedTime ? { fractionalSecondDigits: 3 as const } : {}),
   });
 
   const handlePrimaryAction = () => {

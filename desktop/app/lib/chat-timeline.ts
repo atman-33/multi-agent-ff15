@@ -34,7 +34,9 @@ export interface ChatTimelineMessageItem {
   key: string;
   kind: "answer" | "status" | "error";
   lastTs: string;
+  messageId?: string;
   source: string;
+  turnId?: string;
 }
 
 export interface ChatTimelineExecutionItem {
@@ -44,12 +46,14 @@ export interface ChatTimelineExecutionItem {
   isPlan: boolean;
   key: string;
   lastTs: string;
+  messageId?: string;
   result: string | null;
   source: string;
   state: "pending" | "running" | "completed" | "failed" | "interrupted";
   title: string;
   todos: TimelineTodo[];
   toolUseId: string;
+  turnId?: string;
 }
 
 export type ChatTimelineItem =
@@ -215,7 +219,9 @@ export function buildChatTimeline(
               ? "status"
               : "answer",
         lastTs: record.ts,
+        messageId: record.message_id,
         source: record.source,
+        turnId: record.turn_id,
       });
       continue;
     }
@@ -233,7 +239,9 @@ export function buildChatTimeline(
           key,
           kind: "answer",
           lastTs: record.ts,
+          messageId: record.message_id,
           source: record.source,
+          turnId: record.turn_id,
         });
         continue;
       }
@@ -241,6 +249,8 @@ export function buildChatTimeline(
       if (existing.type === "message") {
         existing.content = record.content ?? existing.content;
         existing.lastTs = record.ts;
+        existing.messageId = record.message_id ?? existing.messageId;
+        existing.turnId = record.turn_id ?? existing.turnId;
       }
       continue;
     }
@@ -256,7 +266,9 @@ export function buildChatTimeline(
         key,
         kind: record.state === "error" ? "error" : "status",
         lastTs: record.ts,
+        messageId: record.message_id,
         source: record.source,
+        turnId: record.turn_id,
       });
       continue;
     }
@@ -284,12 +296,14 @@ export function buildChatTimeline(
           isPlan,
           key,
           lastTs: record.ts,
+          messageId: record.message_id,
           result: nextResult,
           source: record.source,
           state: toState(record.state),
           title: record.title ?? (isPlan ? "Task Plan" : "Tool"),
           toolUseId: record.item_id ?? record.id,
           todos,
+          turnId: record.turn_id,
         });
         continue;
       }
@@ -298,10 +312,12 @@ export function buildChatTimeline(
         existing.input = nextInput ?? existing.input;
         existing.isPlan = isPlan || existing.isPlan;
         existing.lastTs = record.ts;
+        existing.messageId = record.message_id ?? existing.messageId;
         existing.result = nextResult ?? existing.result;
         existing.state = toState(record.state);
         existing.title = record.title ?? existing.title;
         existing.todos = todos.length > 0 ? todos : existing.todos;
+        existing.turnId = record.turn_id ?? existing.turnId;
       }
     }
   }
