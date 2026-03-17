@@ -270,6 +270,8 @@ function ExecutionCard({
     () => (item.isPlan ? planSummaryText : summary),
     [item.isPlan, planSummaryText, summary]
   );
+  const headerSummary =
+    collapsedSummary ?? (item.isPlan ? "Plan updating..." : "No details");
   const showFineGrainedTime =
     Math.abs(
       new Date(item.lastTs).getTime() - new Date(item.firstTs).getTime()
@@ -287,116 +289,45 @@ function ExecutionCard({
 
   return (
     <div className="group/execution">
-      <div
-        className={cn(
-          "rounded-md border border-border/40 bg-white/5",
-          expanded ? "space-y-1 px-3 py-2" : "px-2.5 py-1.5"
-        )}
-      >
+      <div className="rounded-md border border-border/40 bg-white/5 px-2.5 py-1.5">
         <button
           aria-expanded={expanded}
-          className={cn(
-            "flex w-full min-w-0 gap-2 text-left",
-            expanded ? "items-start" : "items-center"
-          )}
+          className="flex w-full min-w-0 items-center gap-2 text-left"
           onClick={handlePrimaryAction}
           type="button"
         >
           <Icon
             className={cn(
               "h-4 w-4 shrink-0",
-              expanded && "mt-0.5 self-start",
               item.state === "running" && "animate-spin"
             )}
           />
-          <div className="min-w-0 flex-1">
-            {expanded ? (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium text-foreground/90 text-xs">
-                    {item.isPlan ? "Task Plan" : item.title}
-                  </span>
-                  <span
-                    className={cn(
-                      "rounded border px-1.5 py-0.5 text-[10px]",
-                      className
-                    )}
-                  >
-                    {label}
-                  </span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {timeStr}
-                  </span>
-                  <ChevronDown className={chevronClassName} />
-                </div>
-                {summary && (
-                  <div className="truncate text-[11px] text-muted-foreground/80">
-                    {summary}
-                  </div>
-                )}
-
-                {item.isPlan ? (
-                  <div className="space-y-1 pt-0.5">
-                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
-                      {planCounts.total > 0 ? (
-                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
-                          {planCounts.completed}/{planCounts.total} done
-                        </span>
-                      ) : (
-                        <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
-                          Updating plan
-                        </span>
-                      )}
-                      {planCounts.total > 0 && planCounts.inProgress > 0 ? (
-                        <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
-                          {planCounts.inProgress} active
-                        </span>
-                      ) : null}
-                      {planCounts.total > 0 && planCounts.pending > 0 ? (
-                        <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
-                          {planCounts.pending} pending
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {planSummaryText ? (
-                      <div className="truncate text-[11px] text-muted-foreground/80">
-                        {planSummaryText}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-                <span className="shrink-0 font-medium text-[11px] text-foreground/90">
-                  {item.isPlan ? "Task Plan" : item.title}
-                </span>
-                <span
-                  className={cn(
-                    "shrink-0 rounded border px-1.5 py-0.5 text-[10px]",
-                    className
-                  )}
-                >
-                  {label}
-                </span>
-                {item.isPlan ? (
-                  <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
-                    {planCounts.total > 0
-                      ? `${planCounts.completed}/${planCounts.total}`
-                      : "Updating"}
-                  </span>
-                ) : null}
-                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/75">
-                  {collapsedSummary ??
-                    (item.isPlan ? "Plan updating..." : "No details")}
-                </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {timeStr}
-                </span>
-                <ChevronDown className={chevronClassName} />
-              </div>
-            )}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+            <span className="max-w-28 shrink truncate font-medium text-[11px] text-foreground/90">
+              {item.isPlan ? "Task Plan" : item.title}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded border px-1.5 py-0.5 text-[10px]",
+                className
+              )}
+            >
+              {label}
+            </span>
+            {item.isPlan ? (
+              <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                {planCounts.total > 0
+                  ? `${planCounts.completed}/${planCounts.total}`
+                  : "Updating"}
+              </span>
+            ) : null}
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/75">
+              {headerSummary}
+            </span>
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              {timeStr}
+            </span>
+            <ChevronDown className={chevronClassName} />
           </div>
         </button>
 
@@ -404,8 +335,8 @@ function ExecutionCard({
           className={cn(
             "grid transition-all duration-300 ease-out",
             expanded
-              ? "grid-rows-[1fr] opacity-100"
-              : "grid-rows-[0fr] opacity-0"
+              ? "grid-rows-[1fr] pt-2 opacity-100"
+              : "grid-rows-[0fr] pt-0 opacity-0"
           )}
         >
           <div className="overflow-hidden">
@@ -415,30 +346,32 @@ function ExecutionCard({
                 expanded ? "translate-y-0" : "-translate-y-1"
               )}
             >
+              {item.isPlan ? (
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
+                  {planCounts.total > 0 ? (
+                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                      {planCounts.completed}/{planCounts.total} done
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      Updating plan
+                    </span>
+                  )}
+                  {planCounts.total > 0 && planCounts.inProgress > 0 ? (
+                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
+                      {planCounts.inProgress} active
+                    </span>
+                  ) : null}
+                  {planCounts.total > 0 && planCounts.pending > 0 ? (
+                    <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
+                      {planCounts.pending} pending
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               {item.isPlan && item.todos.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/85">
-                    {planCounts.total > 0 ? (
-                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
-                        {planCounts.completed}/{planCounts.total} completed
-                      </span>
-                    ) : (
-                      <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
-                        Updating plan
-                      </span>
-                    )}
-                    {planCounts.total > 0 && planCounts.inProgress > 0 ? (
-                      <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-300">
-                        {planCounts.inProgress} in progress
-                      </span>
-                    ) : null}
-                    {planCounts.total > 0 && planCounts.pending > 0 ? (
-                      <span className="rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-slate-300">
-                        {planCounts.pending} pending
-                      </span>
-                    ) : null}
-                  </div>
-
                   <div className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.12em]">
                     Plan
                   </div>
