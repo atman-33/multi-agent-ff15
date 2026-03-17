@@ -1,4 +1,11 @@
-import { FolderGit2, FolderOpen, RefreshCw } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  Check,
+  ChevronDown,
+  FolderGit2,
+  FolderOpen,
+  RefreshCw,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -9,22 +16,83 @@ import {
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import type { ActiveProjectsData } from "@/hooks/use-active-projects";
+import {
+  PROJECT_SCOPE_DESCRIPTIONS,
+  PROJECT_SCOPE_LABELS,
+  PROJECT_SCOPES,
+  type ProjectScope,
+} from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
 
-interface ProjectEntry {
-  displayName: string;
-  id: string;
-  path: string;
-  updatedAt: string;
+interface ProjectsApiData extends ActiveProjectsData {
+  error?: string;
 }
 
-interface ProjectsApiData {
-  activeProjectIds: string[];
-  configUpdatedAt: string;
-  error?: string;
-  projects: ProjectEntry[];
-}
+type VSCodePreference = "auto" | "wsl" | "windows";
+
+const VSCODE_PREFERENCE_STORAGE_KEY = "projects_vscode_preferences";
+const WINDOWS_MOUNTED_PATH_REGEX = /^\/mnt\/[a-z]\//i;
+
+const isWindowsMountedPath = (path: string): boolean =>
+  WINDOWS_MOUNTED_PATH_REGEX.test(path);
+
+const resolveVSCodeTarget = (
+  path: string,
+  preference: VSCodePreference
+): "wsl" | "windows" => {
+  if (preference === "auto") {
+    return isWindowsMountedPath(path) ? "windows" : "wsl";
+  }
+
+  return preference;
+};
+
+const getPreferenceLabel = (preference: VSCodePreference): string => {
+  switch (preference) {
+    case "wsl":
+      return "WSL";
+    case "windows":
+      return "Win";
+    default:
+      return "Auto";
+  }
+};
+
+const getResolvedTargetLabel = (
+  path: string,
+  preference: VSCodePreference
+): string =>
+  resolveVSCodeTarget(path, preference) === "windows" ? "Windows" : "WSL";
+
+const readVSCodePreferences = (): Record<string, VSCodePreference> => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = localStorage.getItem(VSCODE_PREFERENCE_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([, value]) =>
+          value === "auto" || value === "wsl" || value === "windows"
+      )
+    ) as Record<string, VSCodePreference>;
+  } catch {
+    return {};
+  }
+};
 
 const formatPath = (p: string): string => {
   if (!p) {
@@ -57,10 +125,30 @@ const formatDate = (iso: string): string => {
 };
 
 export default function ProjectsPage() {
+  const isTauri =
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [serverData, setServerData] = useState<ProjectsApiData | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [vscodePreferences, setVSCodePreferences] = useState<
+    Record<string, VSCodePreference>
+  >({});
+
+  useEffect(() => {
+    setVSCodePreferences(readVSCodePreferences());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    localStorage.setItem(
+      VSCODE_PREFERENCE_STORAGE_KEY,
+      JSON.stringify(vscodePreferences)
+    );
+  }, [vscodePreferences]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -86,28 +174,94 @@ export default function ProjectsPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleToggle = async (projectId: string, nextChecked: boolean) => {
+  const openFolder = useCallback(
+    async (path: string) => {
+      try {
+        if (isTauri) {
+          await invoke("open_folder", { path });
+          return;
+        }
+
+        const res = await fetch("/api/open-folder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path }),
+        });
+
+        if (!res.ok) {
+          const result = await res.json().catch(() => ({}));
+          throw new Error(result.error ?? `HTTP ${res.status}`);
+        }
+      } catch (e) {
+        toast.error("Open folder failed", { description: String(e) });
+      }
+    },
+    [isTauri]
+  );
+
+  const openVSCode = useCallback(
+    async (path: string, preference: VSCodePreference) => {
+      try {
+        if (isTauri) {
+          await invoke("open_project_in_vscode", { path, preference });
+          return;
+        }
+
+        const res = await fetch("/api/open-vscode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path, preference }),
+        });
+
+        if (!res.ok) {
+          const result = await res.json().catch(() => ({}));
+          throw new Error(result.error ?? `HTTP ${res.status}`);
+        }
+      } catch (e) {
+        toast.error("Open in VS Code failed", { description: String(e) });
+      }
+    },
+    [isTauri]
+  );
+
+  const updateVSCodePreference = useCallback(
+    (projectId: string, preference: VSCodePreference) => {
+      setVSCodePreferences((prev) => ({ ...prev, [projectId]: preference }));
+    },
+    []
+  );
+
+  const handleToggle = async (
+    scope: ProjectScope,
+    projectId: string,
+    nextChecked: boolean
+  ) => {
     if (!serverData) {
       return;
     }
 
     // Optimistically update UI
-    const prevActiveIds = serverData.activeProjectIds;
+    const prevProjectScopes = serverData.projectScopes;
+    const prevActiveIds = prevProjectScopes[scope].activeProjectIds;
     const nextActiveIds = nextChecked
       ? [...prevActiveIds, projectId]
       : prevActiveIds.filter((id) => id !== projectId);
+    const nextProjectScopes = {
+      ...prevProjectScopes,
+      [scope]: { activeProjectIds: nextActiveIds },
+    };
 
     setServerData((prev) =>
-      prev ? { ...prev, activeProjectIds: nextActiveIds } : prev
+      prev ? { ...prev, projectScopes: nextProjectScopes } : prev
     );
-    setSavingIds((prev) => new Set(prev).add(projectId));
+    setSavingIds((prev) => new Set(prev).add(`${scope}:${projectId}`));
 
     try {
       const res = await fetch("/api/projects/active", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          activeProjectIds: nextActiveIds,
+          projectScopes: nextProjectScopes,
           currentUpdatedAt: serverData.configUpdatedAt,
         }),
       });
@@ -123,7 +277,7 @@ export default function ProjectsPage() {
         }
         // Revert optimistic update
         setServerData((prev) =>
-          prev ? { ...prev, activeProjectIds: prevActiveIds } : prev
+          prev ? { ...prev, projectScopes: prevProjectScopes } : prev
         );
         toast.error("Save failed", { description: result.error });
         return;
@@ -133,25 +287,30 @@ export default function ProjectsPage() {
       // Note: server returns `updatedAt`, not `configUpdatedAt`
       if (result.updatedAt) {
         setServerData((prev) =>
-          prev ? { ...prev, configUpdatedAt: result.updatedAt } : prev
+          prev
+            ? {
+                ...prev,
+                configUpdatedAt: result.updatedAt,
+                projectScopes: result.projectScopes ?? prev.projectScopes,
+              }
+            : prev
         );
       }
 
       toast.success(nextChecked ? "Project activated" : "Project deactivated", {
-        description: serverData.projects.find((p) => p.id === projectId)
-          ?.displayName,
+        description: `${PROJECT_SCOPE_LABELS[scope]} · ${serverData.projects.find((p) => p.id === projectId)?.displayName ?? projectId}`,
       });
       window.dispatchEvent(new CustomEvent("active-projects-changed"));
     } catch (e) {
       // Revert optimistic update
       setServerData((prev) =>
-        prev ? { ...prev, activeProjectIds: prevActiveIds } : prev
+        prev ? { ...prev, projectScopes: prevProjectScopes } : prev
       );
       toast.error("Save failed", { description: String(e) });
     } finally {
       setSavingIds((prev) => {
         const next = new Set(prev);
-        next.delete(projectId);
+        next.delete(`${scope}:${projectId}`);
         return next;
       });
     }
@@ -167,7 +326,10 @@ export default function ProjectsPage() {
     );
   }
 
-  const activeCount = serverData?.activeProjectIds.length ?? 0;
+  const scopeCounts = PROJECT_SCOPES.map((scope) => ({
+    scope,
+    count: serverData?.projectScopes[scope].activeProjectIds.length ?? 0,
+  }));
   const totalCount = serverData?.projects.length ?? 0;
 
   return (
@@ -180,8 +342,8 @@ export default function ProjectsPage() {
             Project Settings
           </h1>
           <p className="mt-1 text-muted-foreground text-sm">
-            Toggle which projects are injected into agent context on the next
-            run.
+            Manage scoped project injection for the Noctis team and Lunafreya.
+            Iris is excluded from project settings.
           </p>
         </div>
 
@@ -243,14 +405,34 @@ export default function ProjectsPage() {
       {/* Project list */}
       {serverData && serverData.projects.length > 0 && (
         <div className="space-y-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-4 py-1 text-[11px] text-muted-foreground/60 uppercase tracking-widest">
+            <span>Project</span>
+            {PROJECT_SCOPES.map((scope) => (
+              <div
+                className="text-center"
+                key={scope}
+                title={PROJECT_SCOPE_DESCRIPTIONS[scope]}
+              >
+                {PROJECT_SCOPE_LABELS[scope]}
+              </div>
+            ))}
+          </div>
           {serverData.projects.map((project) => {
-            const isActive = serverData.activeProjectIds.includes(project.id);
-            const isSaving = savingIds.has(project.id);
+            const isActiveInAnyScope = PROJECT_SCOPES.some((scope) =>
+              serverData.projectScopes[scope].activeProjectIds.includes(
+                project.id
+              )
+            );
+            const vscodePreference = vscodePreferences[project.id] ?? "auto";
+            const resolvedTargetLabel = getResolvedTargetLabel(
+              project.path,
+              vscodePreference
+            );
             return (
               <Card
                 className={cn(
                   "transition-all duration-150",
-                  isActive
+                  isActiveInAnyScope
                     ? "border-primary/40 bg-primary/5"
                     : "border-border/60"
                 )}
@@ -282,33 +464,153 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  {/* Right side: open folder + switch */}
+                  {/* Right side: launch actions + switch */}
                   <div className="flex shrink-0 items-center gap-3">
-                    <Button
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        fetch("/api/open-folder", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ path: project.path }),
-                        }).catch(console.error);
-                      }}
-                      size="icon"
-                      title="Open in Explorer"
-                      variant="ghost"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openFolder(project.path).catch(() => undefined);
+                        }}
+                        size="icon"
+                        title="Open in Explorer"
+                        variant="ghost"
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+                      <div className="flex items-center">
+                        <Button
+                          className="h-8 gap-1 rounded-r-none border-r-0 px-2.5 text-[11px]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openVSCode(project.path, vscodePreference).catch(
+                              () => undefined
+                            );
+                          }}
+                          size="sm"
+                          title={`Open in VS Code (${getPreferenceLabel(vscodePreference)} -> ${resolvedTargetLabel})`}
+                          variant="outline"
+                        >
+                          <span>VS Code</span>
+                          <span className="text-[10px] text-muted-foreground/80">
+                            {getPreferenceLabel(vscodePreference)}
+                          </span>
+                        </Button>
 
-                    <Switch
-                      aria-label={`Toggle ${project.displayName}`}
-                      checked={isActive}
-                      disabled={isSaving}
-                      onCheckedChange={(checked) =>
-                        handleToggle(project.id, checked)
-                      }
-                    />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              className="h-8 rounded-l-none px-2 text-muted-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                              size="sm"
+                              title="Choose VS Code launch mode"
+                              variant="outline"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            className="w-60 p-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="px-2 py-1.5">
+                              <p className="font-medium text-xs">
+                                Open in VS Code
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Auto uses WSL for Linux paths and Windows for
+                                /mnt drives.
+                              </p>
+                            </div>
+                            <div className="grid gap-1">
+                              {(
+                                [
+                                  {
+                                    preference: "auto",
+                                    label: `Auto (${resolvedTargetLabel})`,
+                                    description:
+                                      "Choose based on the project path.",
+                                  },
+                                  {
+                                    preference: "wsl",
+                                    label: "Open in WSL",
+                                    description:
+                                      "Always launch through the WSL code command.",
+                                  },
+                                  {
+                                    preference: "windows",
+                                    label: "Open in Windows",
+                                    description:
+                                      "Use native Windows VS Code when possible.",
+                                  },
+                                ] as const
+                              ).map((option) => (
+                                <button
+                                  className={cn(
+                                    "flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-2 text-left text-xs transition-colors",
+                                    vscodePreference === option.preference
+                                      ? "bg-accent text-accent-foreground"
+                                      : "hover:bg-accent/60"
+                                  )}
+                                  key={option.preference}
+                                  onClick={() => {
+                                    updateVSCodePreference(
+                                      project.id,
+                                      option.preference
+                                    );
+                                    openVSCode(
+                                      project.path,
+                                      option.preference
+                                    ).catch(() => undefined);
+                                  }}
+                                  type="button"
+                                >
+                                  <div className="flex w-full items-center gap-2">
+                                    <span className="font-medium">
+                                      {option.label}
+                                    </span>
+                                    {vscodePreference === option.preference && (
+                                      <Check className="ml-auto h-3.5 w-3.5" />
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {option.description}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {PROJECT_SCOPES.map((scope) => {
+                        const checked = serverData.projectScopes[
+                          scope
+                        ].activeProjectIds.includes(project.id);
+                        const isSaving = savingIds.has(
+                          `${scope}:${project.id}`
+                        );
+                        return (
+                          <div
+                            className="flex min-w-[110px] items-center justify-center"
+                            key={scope}
+                          >
+                            <Switch
+                              aria-label={`Toggle ${project.displayName} for ${PROJECT_SCOPE_LABELS[scope]}`}
+                              checked={checked}
+                              disabled={isSaving}
+                              onCheckedChange={(nextChecked) =>
+                                handleToggle(scope, project.id, nextChecked)
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -319,9 +621,13 @@ export default function ProjectsPage() {
 
       {/* Active count summary */}
       {serverData && serverData.projects.length > 0 && (
-        <p className="text-right text-muted-foreground/50 text-xs">
-          {activeCount} / {totalCount} active
-        </p>
+        <div className="flex items-center justify-end gap-4 text-right text-muted-foreground/50 text-xs">
+          {scopeCounts.map(({ scope, count }) => (
+            <p key={scope}>
+              {PROJECT_SCOPE_LABELS[scope]}: {count} / {totalCount} active
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );

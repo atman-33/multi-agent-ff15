@@ -7,11 +7,11 @@ This system manages and executes not only its own development but **all white-co
 ## Mechanism
 
 ```
-config/current_projects.yaml    # Active project IDs (gitignored)
+config/current_projects.yaml    # Active project IDs by scope (gitignored)
 projects/<project_id>.yaml      # Per-project metadata: instruction files, paths, hashes (gitignored)
 ```
 
-- **`config/current_projects.yaml`**: Which projects are currently active
+- **`config/current_projects.yaml`**: Which projects are currently active for `noctis_team` and `lunafreya`
 - **`projects/<id>.yaml`**: Instruction file metadata for each registered project (AGENTS.md, CLAUDE.md, GEMINI.md paths + SHA256)
 - **Actual project files** (source code, design docs, etc.) are placed in the external folder specified by `root_path`
 - **`projects/` is git-ignored** (contains local path information)
@@ -23,9 +23,14 @@ projects/<project_id>.yaml      # Per-project metadata: instruction files, paths
 ### config/current_projects.yaml
 
 ```yaml
-active_project_ids:
-  - "client-x"
-  - "internal-tool"
+project_scopes:
+  noctis_team:
+    active_project_ids:
+      - "client-x"
+      - "internal-tool"
+  lunafreya:
+    active_project_ids:
+      - "client-x"
 updated_at: "2026-02-22T12:00:00Z"
 updated_by: "script"
 ```
@@ -68,13 +73,14 @@ You: "Research top 3 solutions for [problem]"
 
 ### Multi-project management
 
-Activate projects to automatically inject their instruction file references into every agent message.
+Activate projects per scope to automatically inject their instruction file references into Noctis team or Lunafreya messages.
 
 ```
 You: "Switch to project client-x"
-→ Noctis runs: scripts/projects_activate.sh set client-x
+→ Noctis runs: scripts/projects_activate.sh noctis_team set client-x
+→ Lunafreya can independently run: scripts/projects_activate.sh lunafreya set client-x
 → project-instruction-injection plugin injects AGENTS.md paths
-→ All agents read project-specific rules on demand
+→ Iris remains outside project-scoped injection
 ```
 
 ### Document generation
@@ -99,8 +105,8 @@ External projects may contain instruction files (AGENTS.md, CLAUDE.md, GEMINI.md
 
 ```
 scripts/project_register.sh     # Register project + detect instruction files
-scripts/projects_activate.sh    # Manage active project list
-config/current_projects.yaml    # Currently active project IDs
+scripts/projects_activate.sh    # Manage active project lists by scope
+config/current_projects.yaml    # Currently active project IDs by scope
 projects/<id>.yaml              # Per-project metadata (instruction files, hashes)
 .opencode/plugins/project-instruction-injection.ts  # Auto-inject references
 logs/project-instruction-injection.jsonl            # Audit log
@@ -126,25 +132,28 @@ This:
 #### 2. Activate Projects
 
 ```bash
-# Add projects to active list
-scripts/projects_activate.sh add my-project another-project
+# Add projects to the Noctis team scope
+scripts/projects_activate.sh noctis_team add my-project another-project
 
-# Replace active list entirely
-scripts/projects_activate.sh set my-project
+# Replace Lunafreya scope entirely
+scripts/projects_activate.sh lunafreya set my-project
 
-# Remove from active list
-scripts/projects_activate.sh remove my-project
+# Remove from a scope
+scripts/projects_activate.sh noctis_team remove my-project
 
-# Show active projects
-scripts/projects_activate.sh list
+# Show active projects for a scope
+scripts/projects_activate.sh noctis_team list
 ```
 
 #### 3. Automatic Injection
 
-When projects are active, the `project-instruction-injection` plugin automatically adds a `<project-instruction-context>` block to every user message. This block contains:
-- Active project IDs and root paths
+When projects are active, the `project-instruction-injection` plugin automatically adds a `<project-instruction-context>` block to project-scoped user messages. This block contains:
+- The resolved project scope (`noctis_team` or `lunafreya`)
+- Active project IDs and root paths for that scope
 - Paths to all existing instruction files
 - Policy directive to read files before implementation
+
+Noctis, Ignis, Gladiolus, and Prompto share `noctis_team`. Lunafreya uses `lunafreya`. Iris receives no project instruction injection.
 
 Agents then read the referenced instruction files on demand — no content is duplicated into the prompt.
 
@@ -180,8 +189,8 @@ updated_at: "2026-02-22T12:00:00Z"
 Every injection is logged to `logs/project-instruction-injection.jsonl`:
 
 ```jsonl
-{"timestamp":"2026-02-22T12:00:00Z","session_id":"s1","agent_id":"ignis","active_project_ids":["my-project"],"resolved_files":["/path/AGENTS.md"],"result":"ok"}
-{"timestamp":"2026-02-22T12:01:00Z","session_id":"s1","agent_id":"prompto","active_project_ids":[],"resolved_files":[],"result":"skip","reason":"no active projects"}
+{"timestamp":"2026-02-22T12:00:00Z","session_id":"s1","agent_id":"ignis","project_scope":"noctis_team","active_project_ids":["my-project"],"resolved_files":["/path/AGENTS.md"],"result":"ok"}
+{"timestamp":"2026-02-22T12:01:00Z","session_id":"s1","agent_id":"iris","active_project_ids":[],"resolved_files":[],"result":"skip","reason":"agent has no project scope"}
 ```
 
 ---

@@ -125,9 +125,24 @@ struct ChatLogRecord {
     agent: String,
     source: String,
     kind: String,
-    content: String,
+    #[serde(default)]
+    content: Option<String>,
     session_id: String,
     meta: ChatLogMeta,
+    #[serde(default)]
+    schema_version: Option<u32>,
+    #[serde(default)]
+    item_id: Option<String>,
+    #[serde(default)]
+    message_id: Option<String>,
+    #[serde(default)]
+    turn_id: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+    #[serde(default)]
+    data: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Debug)]
@@ -351,11 +366,15 @@ fn send_message(target: String, from: String, content: String) -> Result<String,
 }
 
 /// Read agent chat JSONL logs with optional cursor-based pagination.
-/// Returns records from `cursor` line onward (0-based), up to `limit` records.
-/// If cursor is None, returns the last `limit` records from the file.
+/// Returns records from `cursor` record onward (0-based, after optional agent filtering),
+/// up to `limit` records. If cursor is None, returns the last `limit` records.
 /// Broken/unparseable lines are silently skipped (task 2.2).
 #[tauri::command]
-fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPage, String> {
+fn read_agent_chat_logs(
+    limit: usize,
+    cursor: Option<usize>,
+    agent: Option<String>,
+) -> Result<ChatLogPage, String> {
     let root = get_project_root()?;
     let log_path = root.join(CHAT_LOG_PATH);
 
@@ -373,15 +392,23 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
         std::fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {}", e))?;
     let reader = BufReader::new(file);
 
-    // Collect all lines (we need total count and optionally the last N).
+    // Collect all lines, then optionally filter by agent before pagination.
     let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
-    let total_lines = lines.len();
+    let filtered_records: Vec<ChatLogRecord> = lines
+        .iter()
+        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(line).ok())
+        .filter(|record| match agent.as_deref() {
+            Some(target_agent) => record.agent == target_agent,
+            None => true,
+        })
+        .collect();
+    let total_lines = filtered_records.len();
 
     let is_truncated = cursor.is_some() && cursor.unwrap() > total_lines;
     let start = match cursor {
         Some(c) if !is_truncated => c,
         _ => {
-            // No cursor or truncated: return last `limit` lines.
+            // No cursor or truncated: return last `limit` filtered records.
             if total_lines > limit {
                 total_lines - limit
             } else {
@@ -390,20 +417,13 @@ fn read_agent_chat_logs(limit: usize, cursor: Option<usize>) -> Result<ChatLogPa
         }
     };
 
-    let slice = if start < total_lines {
-        &lines[start..]
-    } else {
-        &lines[0..0]
-    };
-
-    // Parse each line; skip broken lines (task 2.2).
-    let records: Vec<ChatLogRecord> = slice
-        .iter()
+    let records: Vec<ChatLogRecord> = filtered_records
+        .into_iter()
+        .skip(start)
         .take(limit)
-        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(line).ok())
         .collect();
 
-    let consumed = slice.len().min(limit);
+    let consumed = records.len();
     let next_cursor = start + consumed;
 
     Ok(ChatLogPage {
@@ -676,6 +696,64 @@ fn get_tmux_panes() -> Result<Vec<TmuxPane>, String> {
     Ok(panes)
 }
 
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    let output = Command::new("explorer.exe")
+        .arg(".")
+        .current_dir(&path_buf)
+        .output()
+        .map_err(|e| format!("Failed to launch explorer.exe: {}", e))?;
+
+    if output.status.success() || output.status.code() == Some(1) {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        "Failed to open folder in Explorer".to_string()
+    } else {
+        format!("Failed to open folder in Explorer: {}", stderr)
+    })
+}
+
+#[tauri::command]
+fn open_project_in_vscode(path: String, preference: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    match preference.as_str() {
+        "wsl" => run_command("code", &[path.as_str()], Some(&path_buf)),
+        "auto" if !is_windows_mounted_path(&path) => {
+            run_command("code", &[path.as_str()], Some(&path_buf))
+        }
+        "auto" | "windows" if is_windows_mounted_path(&path) => {
+            let windows_path = run_command_for_output("wslpath", &["-w", path.as_str()], None)?;
+            run_command("cmd.exe", &["/C", "code", windows_path.as_str()], Some(&path_buf))
+        }
+        "auto" | "windows" => {
+            let (_, distro) = detect_wsl();
+            if distro.is_empty() {
+                return Err("WSL distro could not be detected".to_string());
+            }
+
+            let folder_uri = format!("vscode-remote://wsl+{}{}", distro, path);
+            run_command(
+                "cmd.exe",
+                &["/C", "code", "--folder-uri", folder_uri.as_str()],
+                Some(&path_buf),
+            )
+        }
+        _ => Err(format!("Invalid VS Code preference: {}", preference)),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -699,6 +777,68 @@ fn check_command(cmd: &str, args: &[&str]) -> (bool, String) {
         }
         _ => (false, String::new()),
     }
+}
+
+fn run_command(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<(), String> {
+    let mut command = Command::new(cmd);
+    command.args(args);
+
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+
+    let output = command
+        .output()
+        .map_err(|e| format!("Failed to execute {}: {}", cmd, e))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if !stderr.is_empty() { stderr } else { stdout };
+
+    Err(if detail.is_empty() {
+        format!("{} exited with status {}", cmd, output.status)
+    } else {
+        format!("{} failed: {}", cmd, detail)
+    })
+}
+
+fn run_command_for_output(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<String, String> {
+    let mut command = Command::new(cmd);
+    command.args(args);
+
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+
+    let output = command
+        .output()
+        .map_err(|e| format!("Failed to execute {}: {}", cmd, e))?;
+
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if !stderr.is_empty() { stderr } else { stdout };
+
+    Err(if detail.is_empty() {
+        format!("{} exited with status {}", cmd, output.status)
+    } else {
+        format!("{} failed: {}", cmd, detail)
+    })
+}
+
+fn is_windows_mounted_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 8
+        && &bytes[0..5] == b"/mnt/"
+        && bytes[5].is_ascii_alphabetic()
+        && bytes[6] == b'/'
 }
 
 fn is_executable(path: &PathBuf) -> bool {
@@ -733,6 +873,8 @@ pub fn run() {
             read_model_options,
             switch_agent_model,
             get_tmux_panes,
+            open_folder,
+            open_project_in_vscode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -20,11 +20,11 @@ modes:
   normal:
     _description: Standard configuration
     noctis:
-      model: github-copilot/claude-sonnet-4.6
-    ignis:
-      model: github-copilot/claude-sonnet-4.6
-    gladiolus:
       model: github-copilot/gpt-5.4
+    ignis:
+      model: github-copilot/gpt-5.4
+    gladiolus:
+      model: github-copilot/claude-sonnet-4.6
     prompto:
       model: github-copilot/gemini-3.1-pro-preview
     lunafreya:
@@ -89,5 +89,20 @@ modes:
       model: github-copilot/gpt-5-mini
     lunafreya:
       model: github-copilot/gpt-5-mini
+    iris:
+      model: github-copilot/gpt-5-mini
+
+  gpt54:
+    _description: All agents use GPT-5.4 except Iris
+    noctis:
+      model: github-copilot/gpt-5.4
+    ignis:
+      model: github-copilot/gpt-5.4
+    gladiolus:
+      model: github-copilot/gpt-5.4
+    prompto:
+      model: github-copilot/gpt-5.4
+    lunafreya:
+      model: github-copilot/gpt-5.4
     iris:
       model: github-copilot/gpt-5-mini

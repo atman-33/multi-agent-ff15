@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { ChatLogRecord } from "@/lib/chat-timeline";
 
-interface ActivityEvent {
-  text?: string;
-  type: "tool" | "text" | "idle";
-}
-
-const MAX_ACTIVITY_LINES = 5;
+const MAX_ACTIVITY_EVENTS = 200;
 
 /**
  * Subscribe to the real-time activity stream for a given OpenCode agent.
@@ -21,20 +17,21 @@ const MAX_ACTIVITY_LINES = 5;
 export function useAgentActivity(
   agent: string,
   isProcessing: boolean
-): string[] {
-  const [activityLines, setActivityLines] = useState<string[]>([]);
+): ChatLogRecord[] {
+  const [activityEvents, setActivityEvents] = useState<ChatLogRecord[]>([]);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (!isProcessing) {
-      // Agent went idle — clear lines and close any open connection
-      setActivityLines([]);
       if (esRef.current) {
         esRef.current.close();
         esRef.current = null;
       }
+      setActivityEvents([]);
       return;
     }
+
+    setActivityEvents([]);
 
     // Open SSE stream
     const es = new EventSource(`/api/agent-stream/${agent}`);
@@ -42,14 +39,18 @@ export function useAgentActivity(
 
     es.onmessage = (e: MessageEvent<string>) => {
       try {
-        const parsed = JSON.parse(e.data) as ActivityEvent;
-        if (parsed.type === "idle") {
-          setActivityLines([]);
-        } else if (parsed.text) {
-          setActivityLines((prev) => [
-            ...prev.slice(-(MAX_ACTIVITY_LINES - 1)),
-            parsed.text as string,
-          ]);
+        const parsed = JSON.parse(e.data) as ChatLogRecord;
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          typeof parsed.id === "string"
+        ) {
+          setActivityEvents((prev) => {
+            const next = [...prev, parsed];
+            return next.length > MAX_ACTIVITY_EVENTS
+              ? next.slice(-MAX_ACTIVITY_EVENTS)
+              : next;
+          });
         }
       } catch {
         // ignore JSON parse errors
@@ -68,5 +69,5 @@ export function useAgentActivity(
     };
   }, [agent, isProcessing]);
 
-  return activityLines;
+  return activityEvents;
 }

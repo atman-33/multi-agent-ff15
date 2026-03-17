@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ProjectScope } from "@/lib/project-scopes";
 
 export interface ProjectEntry {
   branchName?: string;
@@ -9,8 +10,8 @@ export interface ProjectEntry {
 }
 
 export interface ActiveProjectsData {
-  activeProjectIds: string[];
   configUpdatedAt: string;
+  projectScopes: Record<ProjectScope, { activeProjectIds: string[] }>;
   projects: ProjectEntry[];
 }
 

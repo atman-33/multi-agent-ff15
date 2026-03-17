@@ -40,11 +40,58 @@ interface LogEntry {
   timestamp: string;
   session_id: string;
   agent_id: string;
+  project_scope?: string;
   active_project_ids: string[];
   resolved_files: string[];
   result: "ok" | "skip" | "error";
   reason?: string;
 }
+
+interface MutableTextPart {
+  type?: string;
+  text?: string;
+}
+
+const resolveProjectScope = (agentId: string): "noctis_team" | "lunafreya" | null => {
+  if (agentId === "lunafreya") {
+    return "lunafreya";
+  }
+
+  if (
+    agentId === "noctis" ||
+    agentId === "ignis" ||
+    agentId === "gladiolus" ||
+    agentId === "prompto"
+  ) {
+    return "noctis_team";
+  }
+
+  return null;
+};
+
+const prependInjectionBlock = <T extends MutableTextPart>(
+  parts: T[],
+  block: string
+): T[] => {
+  const firstTextPart = parts.find(
+    (part): part is T =>
+      !!part && typeof part === "object" && part.type === "text"
+  );
+
+  if (firstTextPart && typeof firstTextPart.text === "string") {
+    firstTextPart.text = `${block}\n\n${firstTextPart.text}`;
+    return parts;
+  }
+
+  return [
+    {
+      synthetic: true,
+      text: block,
+      type: "text" as const,
+    } as unknown as T,
+    ...parts,
+  ];
+};
 
 const ProjectInstructionInjection: Plugin = async ({ $ }) => {
   const agentId = process.env.AGENT_ID || "unknown";
@@ -80,9 +127,11 @@ const ProjectInstructionInjection: Plugin = async ({ $ }) => {
   };
 
   // --- Load active project IDs from config (Task 4.3) ---
-  const loadActiveProjectIds = async (): Promise<string[]> => {
+  const loadActiveProjectIds = async (
+    projectScope: "noctis_team" | "lunafreya"
+  ): Promise<string[]> => {
     try {
-      const result = await $`python3 .opencode/lib/project_loader.py active-ids`.quiet();
+      const result = await $`python3 .opencode/lib/project_loader.py active-ids ${projectScope}`.quiet();
       return JSON.parse(result.text().trim()) as string[];
     } catch {
       return [];
@@ -104,7 +153,8 @@ const ProjectInstructionInjection: Plugin = async ({ $ }) => {
 
   // --- Generate injection block (Task 4.5) ---
   const generateInjectionBlock = (
-    projects: ProjectDefinition[]
+    projects: ProjectDefinition[],
+    projectScope: "noctis_team" | "lunafreya"
   ): { block: string; resolvedFiles: string[] } => {
     const resolvedFiles: string[] = [];
     let activeProjectsYaml = "";
@@ -133,6 +183,7 @@ const ProjectInstructionInjection: Plugin = async ({ $ }) => {
     const firstProject = projects[0];
 
     const block = `${INJECTION_MARKER}
+project_scope: ${projectScope}
 active_projects:
 ${activeProjectsYaml}serena_activation:
   project_id: ${firstProject?.id ?? "none"}
@@ -155,6 +206,21 @@ ${INJECTION_MARKER_END}`;
     "chat.message": async (input, output) => {
       try {
         await log("[TRIGGER] chat.message hook called");
+        const projectScope = resolveProjectScope(agentId);
+
+        if (projectScope === null) {
+          await appendLog({
+            timestamp: new Date().toISOString(),
+            session_id: sessionId,
+            agent_id: agentId,
+            active_project_ids: [],
+            resolved_files: [],
+            result: "skip",
+            reason: "agent has no project scope",
+          });
+          return;
+        }
+
         // --- Duplicate injection prevention (Task 4.7) ---
         const existingParts = output.parts || [];
         for (const part of existingParts) {
@@ -165,6 +231,7 @@ ${INJECTION_MARKER_END}`;
               timestamp: new Date().toISOString(),
               session_id: sessionId,
               agent_id: agentId,
+              project_scope: projectScope,
               active_project_ids: [],
               resolved_files: [],
               result: "skip",
@@ -175,7 +242,7 @@ ${INJECTION_MARKER_END}`;
         }
 
         // Load active projects
-        const activeIds = await loadActiveProjectIds();
+        const activeIds = await loadActiveProjectIds(projectScope);
 
         // No active projects → skip (Task 5.4)
         if (activeIds.length === 0) {
@@ -183,6 +250,7 @@ ${INJECTION_MARKER_END}`;
             timestamp: new Date().toISOString(),
             session_id: sessionId,
             agent_id: agentId,
+            project_scope: projectScope,
             active_project_ids: [],
             resolved_files: [],
             result: "skip",
@@ -205,6 +273,7 @@ ${INJECTION_MARKER_END}`;
             timestamp: new Date().toISOString(),
             session_id: sessionId,
             agent_id: agentId,
+            project_scope: projectScope,
             active_project_ids: activeIds,
             resolved_files: [],
             result: "skip",
@@ -214,21 +283,19 @@ ${INJECTION_MARKER_END}`;
         }
 
         // Generate and inject block (Task 4.6)
-        const { block, resolvedFiles } = generateInjectionBlock(projects);
+        const { block, resolvedFiles } = generateInjectionBlock(
+          projects,
+          projectScope
+        );
 
-        output.parts.push({
-          id: `injection-${Date.now()}`,
-          sessionID: input.sessionID,
-          messageID: input.messageID ?? "",
-          type: "text" as const,
-          text: block,
-        } as unknown as (typeof output.parts)[0]);
+        output.parts = prependInjectionBlock(output.parts || [], block);
 
         // Log success (Task 5.3)
         await appendLog({
           timestamp: new Date().toISOString(),
           session_id: sessionId,
           agent_id: agentId,
+          project_scope: projectScope,
           active_project_ids: activeIds,
           resolved_files: resolvedFiles,
           result: "ok",
@@ -239,6 +306,7 @@ ${INJECTION_MARKER_END}`;
           timestamp: new Date().toISOString(),
           session_id: sessionId,
           agent_id: agentId,
+          project_scope: resolveProjectScope(agentId) ?? undefined,
           active_project_ids: [],
           resolved_files: [],
           result: "error",

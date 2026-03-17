@@ -1,7 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildNoctisFormationPreamble,
+  DEFAULT_NOCTIS_FORMATION,
+  isNoctisFormationId,
+  NOCTIS_FORMATION_BY_ID,
+  NOCTIS_FORMATION_OPTIONS,
+  NOCTIS_FORMATION_STORAGE_KEY,
+  type NoctisFormationId,
+} from "@/constants/noctis-formation";
 import type { AgentId } from "@/hooks/use-agent-chat-log";
+import {
+  CHAT_DRAFT_UPDATED_EVENT,
+  clearChatDraft,
+  type DraftTargetAgentId,
+  getChatDraftStorageKey,
+  readChatDraft,
+  setStoredActiveChatTarget,
+} from "@/lib/chat-drafts";
 import { cn } from "@/lib/utils";
 
 const MIN_ROWS = 2;
@@ -19,9 +36,11 @@ interface SlashSuggestion {
 }
 
 interface AtSuggestion {
+  archived?: boolean;
+  description?: string;
   insertText: string;
   label: string;
-  source: "file" | "folder";
+  source: "file" | "folder" | "report";
   value: string;
 }
 
@@ -29,7 +48,7 @@ export interface MessageComposerProps {
   compact?: boolean;
   isTauri: boolean;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
-  targetAgent: AgentId;
+  targetAgent: DraftTargetAgentId;
   targetAgentImageSrc?: string;
   targetAgentLabel?: string;
 }
@@ -42,28 +61,76 @@ function MessageComposer({
   targetAgentLabel,
   targetAgentImageSrc,
 }: MessageComposerProps) {
-  const storageKey = `chat_draft_${targetAgent}`;
+  const isNoctisTarget = targetAgent === "noctis";
+  const storageKey = getChatDraftStorageKey(targetAgent);
   const [content, setContent] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem(storageKey) || "";
+      return readChatDraft(targetAgent);
     }
     return "";
   });
+  const [projectScopeLabel, setProjectScopeLabel] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setContent(localStorage.getItem(storageKey) || "");
+      setContent(readChatDraft(targetAgent));
     }
-  }, [storageKey]);
+  }, [targetAgent]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     localStorage.setItem(storageKey, content);
   }, [content, storageKey]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setStoredActiveChatTarget(targetAgent);
+  }, [targetAgent]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleDraftUpdate = (event: Event) => {
+      const agent = (event as CustomEvent<{ agent?: string }>).detail?.agent;
+      if (agent === targetAgent) {
+        setContent(readChatDraft(targetAgent));
+      }
+    };
+
+    window.addEventListener(CHAT_DRAFT_UPDATED_EVENT, handleDraftUpdate);
+    return () => {
+      window.removeEventListener(CHAT_DRAFT_UPDATED_EVENT, handleDraftUpdate);
+    };
+  }, [targetAgent]);
+
   const [status, setStatus] = useState<SendStatus>("idle");
   const [lastContent, setLastContent] = useState("");
-  const [lastAgent, setLastAgent] = useState<AgentId>(targetAgent);
+  const [lastAgent, setLastAgent] = useState<DraftTargetAgentId>(targetAgent);
+  const [lastFormation, setLastFormation] = useState<NoctisFormationId>(
+    DEFAULT_NOCTIS_FORMATION
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [noctisFormation, setNoctisFormation] = useState<NoctisFormationId>(
+    () => {
+      if (typeof window === "undefined") {
+        return DEFAULT_NOCTIS_FORMATION;
+      }
+      const stored = localStorage.getItem(NOCTIS_FORMATION_STORAGE_KEY);
+      return stored && isNoctisFormationId(stored)
+        ? stored
+        : DEFAULT_NOCTIS_FORMATION;
+    }
+  );
 
   const [arrowState, setArrowState] = useState<"idle" | "flying" | "done">(
     "idle"
@@ -77,6 +144,18 @@ function MessageComposer({
   const [showAtSuggestions, setShowAtSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    localStorage.setItem(NOCTIS_FORMATION_STORAGE_KEY, noctisFormation);
+  }, [noctisFormation]);
+
+  const activeFormation = isNoctisTarget
+    ? NOCTIS_FORMATION_BY_ID[noctisFormation]
+    : null;
+  const showFormationSelector = isNoctisTarget;
 
   const canSend = content.trim().length > 0 && status !== "sending";
 
@@ -92,22 +171,32 @@ function MessageComposer({
   });
 
   const doSend = useCallback(
-    async (target: AgentId, message: string) => {
+    async (
+      target: DraftTargetAgentId,
+      message: string,
+      formation: NoctisFormationId = DEFAULT_NOCTIS_FORMATION
+    ) => {
       setStatus("sending");
       setArrowState("flying");
       setErrorMsg(null);
+      const normalized = message.trim();
+      const preamble =
+        target === "noctis" ? buildNoctisFormationPreamble(formation) : "";
+      const outboundMessage = preamble
+        ? `${preamble}\n\n${normalized}`
+        : normalized;
       try {
         let messageId: string | undefined;
         if (isTauri) {
           messageId = await invoke<string>("send_crystal_message", {
             target,
-            message: message.trim(),
+            message: outboundMessage,
           });
         } else {
           const res = await fetch(`/api/inbox/${target}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ from: "crystal", content: message.trim() }),
+            body: JSON.stringify({ from: "crystal", content: outboundMessage }),
           });
           if (!res.ok) {
             const data = await res.json();
@@ -118,8 +207,8 @@ function MessageComposer({
         }
         setStatus("sent");
         setContent("");
-        localStorage.removeItem(storageKey);
-        onSent?.(target, message.trim(), messageId);
+        clearChatDraft(targetAgent);
+        onSent?.(target, outboundMessage, messageId);
         setTimeout(() => setArrowState("done"), 300);
         setTimeout(() => setArrowState("idle"), 1500);
         setTimeout(() => setStatus("idle"), 2000);
@@ -127,15 +216,16 @@ function MessageComposer({
         setStatus("failed");
         setArrowState("idle");
         setErrorMsg(String(_e));
-        setLastContent(message);
+        setLastContent(normalized);
         setLastAgent(target);
+        setLastFormation(formation);
       }
     },
-    [isTauri, onSent, storageKey]
+    [isTauri, onSent, targetAgent]
   );
 
-  const handleSend = () => doSend(targetAgent, content);
-  const handleRetry = () => doSend(lastAgent, lastContent);
+  const handleSend = () => doSend(targetAgent, content, noctisFormation);
+  const handleRetry = () => doSend(lastAgent, lastContent, lastFormation);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isShowingAny = showSlashSuggestions || showAtSuggestions;
@@ -223,6 +313,16 @@ function MessageComposer({
     );
   }, [activeSlashToken, allSlashSuggestions]);
 
+  const reportSuggestions = useMemo(
+    () => allAtSuggestions.filter((item) => item.source === "report"),
+    [allAtSuggestions]
+  );
+
+  const projectSuggestions = useMemo(
+    () => allAtSuggestions.filter((item) => item.source !== "report"),
+    [allAtSuggestions]
+  );
+
   const applySuggestion = (nextValue: string, trigger: "/" | "@") => {
     const textarea = textareaRef.current;
     if (!textarea) {
@@ -288,7 +388,7 @@ function MessageComposer({
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/at-suggestions?q=${encodeURIComponent(activeAtToken)}`
+          `/api/at-suggestions?q=${encodeURIComponent(activeAtToken)}&agent=${encodeURIComponent(targetAgent)}`
         );
         if (!res.ok) {
           return;
@@ -296,6 +396,11 @@ function MessageComposer({
         const data = await res.json();
         if (Array.isArray(data?.suggestions)) {
           setAllAtSuggestions(data.suggestions);
+          setProjectScopeLabel(
+            typeof data.projectScopeLabel === "string"
+              ? data.projectScopeLabel
+              : null
+          );
           setShowAtSuggestions(data.suggestions.length > 0);
           setSelectedSuggestionIndex(0);
         }
@@ -305,7 +410,7 @@ function MessageComposer({
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [activeAtToken]);
+  }, [activeAtToken, targetAgent]);
 
   useEffect(() => {
     const shouldShow =
@@ -365,10 +470,48 @@ function MessageComposer({
         )}
       </div>
 
+      {showFormationSelector && (
+        <div className="mb-2 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="mr-1 font-medium text-[9px] text-muted-foreground/40 uppercase tracking-wide">
+              Formation
+            </span>
+            {NOCTIS_FORMATION_OPTIONS.map((option) => {
+              const isSelected = option.id === noctisFormation;
+              return (
+                <button
+                  className={cn(
+                    "rounded-full border px-2 py-1 text-[10px] transition-colors",
+                    isSelected
+                      ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-100"
+                      : "border-border/40 bg-background/40 text-muted-foreground/70 hover:border-border/70 hover:text-foreground"
+                  )}
+                  key={option.id}
+                  onClick={() => setNoctisFormation(option.id)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeFormation &&
+            activeFormation.id !== DEFAULT_NOCTIS_FORMATION && (
+              <div className="rounded-md border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-100/90">
+                <span className="font-medium text-indigo-100">
+                  Execution mode:
+                </span>{" "}
+                {activeFormation.summary}
+              </div>
+            )}
+        </div>
+      )}
+
       <div className="relative">
         <textarea
           className={cn(
-            "w-full resize-none rounded-xl border bg-background/60 py-2 pr-11 pl-3 text-xs leading-relaxed",
+            "w-full resize-none rounded-xl border bg-background/60 py-2 pr-12 pl-3 text-xs leading-relaxed shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm",
             "focus:outline-none focus:ring-1 focus:ring-ring",
             "placeholder:text-muted-foreground/40",
             "border-border/40"
@@ -383,12 +526,12 @@ function MessageComposer({
 
         <button
           className={cn(
-            "absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full transition-all duration-200",
+            "absolute right-1 bottom-2.5 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
             canSend
               ? arrowState === "done"
-                ? "bg-green-500/80 text-white shadow-sm"
-                : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
-              : "cursor-not-allowed bg-muted/40 text-muted-foreground/40"
+                ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-[1px]"
+              : "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
           )}
           disabled={!canSend}
           onClick={handleSend}
@@ -448,8 +591,13 @@ function MessageComposer({
         {showAtSuggestions && (
           <div className="absolute right-0 bottom-[calc(100%+8px)] left-0 z-20 max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/95 shadow-lg backdrop-blur-sm">
             <div className="border-border/40 border-b bg-muted/30 px-2 py-1.5 font-semibold text-[10px] text-muted-foreground">
-              FILES & FOLDERS
+              REFERENCES
             </div>
+            {reportSuggestions.length > 0 && (
+              <div className="border-border/30 border-b bg-amber-500/5 px-2 py-1 font-semibold text-[10px] text-amber-700 uppercase tracking-wide dark:text-amber-300">
+                Reports
+              </div>
+            )}
             {allAtSuggestions.map((item, idx) => (
               <button
                 className={cn(
@@ -463,14 +611,41 @@ function MessageComposer({
                 }}
                 type="button"
               >
-                <span className="truncate font-medium text-foreground">
-                  {item.label}
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-medium text-foreground">
+                    {item.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-1.5 py-0.5 font-semibold text-[9px] uppercase tracking-wide",
+                      item.source === "report"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {item.source === "report"
+                      ? item.archived
+                        ? "Archived Report"
+                        : "Report"
+                      : item.source}
+                  </span>
+                </div>
+                {item.description && (
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {item.description}
+                  </span>
+                )}
+                <span className="truncate text-[10px] text-muted-foreground/80">
                   {item.value}
                 </span>
               </button>
             ))}
+            {projectSuggestions.length > 0 && projectScopeLabel && (
+              <div className="border-border/30 border-t bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
+                Project file results are limited to the current{" "}
+                {projectScopeLabel} scope.
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1,39 +1,87 @@
 import type { LoaderFunctionArgs } from "react-router";
+import type { ChatLogRecord } from "@/lib/chat-timeline";
 import { getClientForAgent } from "@/lib/opencode-client.server";
 
-/**
- * Format a tool call into a human-readable activity string.
- * e.g. "bash: echo hello" or "read_file: src/foo.ts"
- */
-function formatToolActivity(
-  tool: string,
-  input: Record<string, unknown>
-): string {
-  const cmd = input.command ?? input.cmd;
-  const filePath =
-    input.path ?? input.file_path ?? input.filePath ?? input.filename;
+function createId(agent: string, sequence: number): string {
+  return `${agent}-live-${Date.now()}-${sequence}`;
+}
 
-  if (typeof cmd === "string") {
-    return `${tool}: ${cmd.slice(0, 80)}`;
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
   }
-  if (typeof filePath === "string") {
-    return `${tool}: ${filePath}`;
+  return value as Record<string, unknown>;
+}
+
+function normalizeState(value: string | undefined): string {
+  if (value === "pending") {
+    return "pending";
   }
-  const firstVal = Object.values(input)[0];
-  if (typeof firstVal === "string") {
-    return `${tool}: ${firstVal.slice(0, 80)}`;
+  if (value === "completed") {
+    return "completed";
   }
-  return tool;
+  if (value === "error") {
+    return "failed";
+  }
+  return "running";
+}
+
+function getToolResult(output: unknown): string | null {
+  if (typeof output === "string") {
+    return output;
+  }
+  const record = asRecord(output);
+  if (!record) {
+    return null;
+  }
+  if (typeof record.text === "string") {
+    return record.text;
+  }
+  return null;
+}
+
+function isPlanTool(
+  toolName: string | undefined,
+  input: Record<string, unknown>
+): boolean {
+  if (toolName === "manage_todo_list" || toolName === "todowrite") {
+    return true;
+  }
+  return Array.isArray(input.todoList) || Array.isArray(input.todos);
+}
+
+function createBaseRecord(
+  agent: string,
+  sequence: number,
+  kind: string,
+  sessionId: string | null,
+  turnId: string | null,
+  itemId?: string,
+  messageId?: string
+): ChatLogRecord {
+  return {
+    agent,
+    id: createId(agent, sequence),
+    item_id: itemId,
+    kind,
+    message_id: messageId,
+    meta: {
+      event: "agent_stream",
+      pane: "stream",
+    },
+    schema_version: 2,
+    session_id: sessionId ?? "stream",
+    source: "live_stream",
+    ts: new Date().toISOString(),
+    turn_id: turnId ?? undefined,
+  };
 }
 
 /**
  * GET /api/agent-stream/:agent
  *
  * SSE stream that proxies OpenCode's event stream for a given agent.
- * Emits JSON events:
- *   { type: "tool", text: "bash: ls -la" }
- *   { type: "text", text: "Analyzing..." }
- *   { type: "idle" }
+ * Emits normalized timeline records.
  */
 export function loader({ request, params }: LoaderFunctionArgs) {
   const { agent } = params;
@@ -45,6 +93,17 @@ export function loader({ request, params }: LoaderFunctionArgs) {
 
   const encoder = new TextEncoder();
   let aborted = false;
+  let sequence = 0;
+  let currentSessionId: string | null = null;
+  let currentTurnId: string | null = null;
+  let turnCounter = 0;
+  let currentMessageId: string | null = null;
+  const seenSnapshots = new Map<string, string>();
+
+  const nextSequence = (): number => {
+    sequence += 1;
+    return sequence;
+  };
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -57,7 +116,7 @@ export function loader({ request, params }: LoaderFunctionArgs) {
         }
       });
 
-      const enqueue = (payload: object) => {
+      const enqueue = (payload: ChatLogRecord) => {
         if (aborted) {
           return;
         }
@@ -68,6 +127,48 @@ export function loader({ request, params }: LoaderFunctionArgs) {
         } catch {
           // controller closed
         }
+      };
+
+      const ensureTurn = (): string => {
+        if (currentTurnId) {
+          return currentTurnId;
+        }
+        turnCounter += 1;
+        currentTurnId = `${currentSessionId ?? "stream"}:turn:${turnCounter}`;
+        const recordSequence = nextSequence();
+        enqueue({
+          ...createBaseRecord(
+            agent ?? "agent",
+            recordSequence,
+            "turn",
+            currentSessionId,
+            currentTurnId,
+            currentTurnId
+          ),
+          state: "started",
+        });
+        return currentTurnId;
+      };
+
+      const finishTurn = (state: "completed" | "interrupted"): void => {
+        if (!currentTurnId) {
+          return;
+        }
+        const recordSequence = nextSequence();
+        enqueue({
+          ...createBaseRecord(
+            agent ?? "agent",
+            recordSequence,
+            "turn",
+            currentSessionId,
+            currentTurnId,
+            currentTurnId
+          ),
+          state,
+        });
+        currentTurnId = null;
+        currentMessageId = null;
+        seenSnapshots.clear();
       };
 
       try {
@@ -81,11 +182,18 @@ export function loader({ request, params }: LoaderFunctionArgs) {
           const e = event as {
             type: string;
             properties?: {
+              info?: {
+                id?: string;
+                role?: string;
+              };
               part?: {
+                id?: string;
                 type?: string;
                 text?: string;
                 tool?: string;
                 state?: {
+                  error?: string;
+                  output?: unknown;
                   status?: string;
                   input?: Record<string, unknown>;
                 };
@@ -94,36 +202,106 @@ export function loader({ request, params }: LoaderFunctionArgs) {
             };
           };
 
+          if (e.type === "session.created") {
+            const props = e.properties as
+              | { sessionID?: string; sessionId?: string; id?: string }
+              | undefined;
+            currentSessionId =
+              props?.sessionID ??
+              props?.sessionId ??
+              props?.id ??
+              currentSessionId;
+            continue;
+          }
+
+          if (e.type === "message.updated") {
+            const info = e.properties?.info;
+            if (info?.role === "assistant" && typeof info.id === "string") {
+              currentMessageId = info.id;
+            }
+            continue;
+          }
+
           if (e.type === "message.part.updated") {
             const part = e.properties?.part;
             if (!part) {
               continue;
             }
 
-            if (
-              part.type === "tool" &&
-              part.state?.status === "running" &&
-              part.tool
-            ) {
-              const text = formatToolActivity(
-                part.tool,
-                part.state.input ?? {}
-              );
-              enqueue({ type: "tool", text });
-            } else if (part.type === "text" && typeof part.text === "string") {
-              const snippet = part.text.replace(/\s+/g, " ").slice(-60).trim();
-              if (snippet) {
-                enqueue({ type: "text", text: snippet });
+            const turnId = ensureTurn();
+
+            if (part.type === "text" && typeof part.text === "string") {
+              const snapshot = part.text.trim();
+              const itemId =
+                part.id ?? currentMessageId ?? `text-${sequence + 1}`;
+              if (!snapshot) {
+                continue;
               }
+              if (seenSnapshots.get(itemId) === snapshot) {
+                continue;
+              }
+              seenSnapshots.set(itemId, snapshot);
+              const recordSequence = nextSequence();
+              enqueue({
+                ...createBaseRecord(
+                  agent ?? "agent",
+                  recordSequence,
+                  "assistant_text",
+                  currentSessionId,
+                  turnId,
+                  itemId,
+                  currentMessageId ?? undefined
+                ),
+                content: snapshot,
+              });
+              continue;
             }
-          } else if (e.type === "session.idle" || e.type === "session.status") {
+
+            if (part.type === "tool" && part.tool) {
+              const input = part.state?.input ?? {};
+              const toolState = normalizeState(part.state?.status);
+              const toolUseId = part.id ?? `tool-${sequence + 1}`;
+              const isPlan = isPlanTool(part.tool, input);
+              const recordSequence = nextSequence();
+              enqueue({
+                ...createBaseRecord(
+                  agent ?? "agent",
+                  recordSequence,
+                  isPlan ? "plan" : "tool",
+                  currentSessionId,
+                  turnId,
+                  toolUseId,
+                  currentMessageId ?? undefined
+                ),
+                data: {
+                  input,
+                  result: getToolResult(part.state?.output),
+                  todoList: Array.isArray(
+                    (input as Record<string, unknown>).todoList
+                  )
+                    ? (input as Record<string, unknown>).todoList
+                    : undefined,
+                },
+                state: toolState,
+                title: part.tool,
+              });
+              continue;
+            }
+          }
+
+          if (e.type === "session.error") {
+            finishTurn("interrupted");
+            continue;
+          }
+
+          if (e.type === "session.idle" || e.type === "session.status") {
             const sessionEvent = e as {
               type: string;
               properties?: { status?: { type?: string } };
             };
             const statusType = sessionEvent.properties?.status?.type;
             if (!statusType || statusType === "idle") {
-              enqueue({ type: "idle" });
+              finishTurn("completed");
             }
           }
         }

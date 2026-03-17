@@ -1,29 +1,20 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
+import type { ChatLogRecord } from "@/lib/chat-timeline";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 
 const CHAT_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
-interface ChatLogRecord {
-  agent: string;
-  content: string;
-  id: string;
-  kind: string;
-  meta: { pane: string; event: string };
-  session_id: string;
-  source: string;
-  ts: string;
-}
-
 /**
- * GET /api/chat-logs?limit=100&cursor=<number>
+ * GET /api/chat-logs?limit=100&cursor=<number>&agent=<agent-id>
  * Returns { records, next_cursor, total_lines }
  * Mirrors the Tauri `read_agent_chat_logs` command.
  */
 export function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
+    const agent = url.searchParams.get("agent") ?? "";
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "100", 10);
     const cursorParam = url.searchParams.get("cursor");
     const cursor =
@@ -44,7 +35,19 @@ export function loader({ request }: LoaderFunctionArgs) {
     const lines = readFileSync(logPath, "utf-8")
       .split("\n")
       .filter((l) => l.trim() !== "");
-    const totalLines = lines.length;
+    const filtered = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line) as ChatLogRecord;
+        } catch {
+          return null;
+        }
+      })
+      .filter(
+        (record): record is ChatLogRecord =>
+          record !== null && (!agent || record.agent === agent)
+      );
+    const totalLines = filtered.length;
 
     const isTruncated = cursor !== null && cursor > totalLines;
     let start = 0;
@@ -54,21 +57,11 @@ export function loader({ request }: LoaderFunctionArgs) {
       start = totalLines - limit;
     }
 
-    const slice = lines.slice(start, start + limit);
-
-    const records: ChatLogRecord[] = slice
-      .map((line) => {
-        try {
-          return JSON.parse(line) as ChatLogRecord;
-        } catch {
-          return null;
-        }
-      })
-      .filter((r): r is ChatLogRecord => r !== null);
+    const records = filtered.slice(start, start + limit);
 
     return Response.json({
       records,
-      next_cursor: start + slice.length,
+      next_cursor: start + records.length,
       total_lines: totalLines,
       reset: isTruncated,
     });

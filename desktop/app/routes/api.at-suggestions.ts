@@ -1,71 +1,32 @@
-import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
-import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getActiveProjectRootsForScope } from "@/lib/project-config.server";
+import {
+  getProjectScopeForAgent,
+  PROJECT_SCOPE_LABELS,
+  type ProjectScopedAgentId,
+} from "@/lib/project-scopes";
+import { listReports } from "@/lib/report-metadata.server";
 
-// Helper to get active project roots
-function getActiveProjectRoots(appRoot: string): string[] {
-  const configPath = join(appRoot, "config/current_projects.yaml");
-  let activeProjectIds: string[] = [];
-
-  if (existsSync(configPath)) {
-    try {
-      const raw = readFileSync(configPath, "utf-8");
-      const parsed = parseYaml(raw);
-      if (Array.isArray(parsed?.active_project_ids)) {
-        activeProjectIds = parsed.active_project_ids;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  const roots: string[] = [];
-  const projectsDir = join(appRoot, "projects");
-
-  for (const id of activeProjectIds) {
-    const projPath = join(projectsDir, `${id}.yaml`);
-    if (existsSync(projPath)) {
-      try {
-        const raw = readFileSync(projPath, "utf-8");
-        const parsed = parseYaml(raw);
-        if (parsed?.root_path && existsSync(parsed.root_path)) {
-          roots.push(parsed.root_path);
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  if (roots.length === 0) {
-    roots.push(appRoot);
-  }
-
-  return Array.from(new Set(roots));
+interface AtSuggestion {
+  archived?: boolean;
+  description?: string;
+  insertText: string;
+  label: string;
+  source: "file" | "folder" | "report";
+  value: string;
 }
 
-function searchFiles(
-  roots: string[],
-  query: string
-): {
-  label: string;
-  value: string;
-  insertText: string;
-  source: "file" | "folder";
-}[] {
+function searchProjectFiles(roots: string[], query: string): AtSuggestion[] {
   const IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".tmp"];
   const MAX_RESULTS = 50;
   const MAX_DIRS_EXPLORED = 1000;
   const MAX_DEPTH = 10;
 
-  const results: {
-    label: string;
-    value: string;
-    insertText: string;
-    source: "file" | "folder";
-  }[] = [];
+  const results: AtSuggestion[] = [];
+  const seenValues = new Set<string>();
   const qStr = query.toLowerCase();
 
   for (const root of roots) {
@@ -116,13 +77,15 @@ function searchFiles(
         const isDir = entry.isDirectory();
         const relPath = relative(root, fullPath);
 
-        // Exact filename match or path includes query
-        if (qStr === "" || relPath.toLowerCase().includes(qStr)) {
-          // We differentiate by prefixing folder/file to UI (optional)
+        if (
+          (qStr === "" || relPath.toLowerCase().includes(qStr)) &&
+          !seenValues.has(fullPath)
+        ) {
+          seenValues.add(fullPath);
           results.push({
-            label: relPath, // relative path shown in UI
+            label: relPath,
             value: fullPath,
-            insertText: fullPath, // inserted
+            insertText: fullPath,
             source: isDir ? "folder" : "file",
           });
         }
@@ -140,6 +103,49 @@ function searchFiles(
   return results;
 }
 
+function searchReports(appRoot: string, query: string): AtSuggestion[] {
+  const qStr = query.trim().toLowerCase();
+  const reports = listReports(appRoot, { includeArchived: true });
+
+  const matches = reports.filter((report) => {
+    if (!qStr) {
+      return true;
+    }
+
+    return [report.title, report.filename, report.author, ...report.tags].some(
+      (value) => value.toLowerCase().includes(qStr)
+    );
+  });
+
+  matches.sort((left, right) => {
+    const leftStarts = `${left.title} ${left.filename}`
+      .toLowerCase()
+      .startsWith(qStr)
+      ? 1
+      : 0;
+    const rightStarts = `${right.title} ${right.filename}`
+      .toLowerCase()
+      .startsWith(qStr)
+      ? 1
+      : 0;
+
+    if (leftStarts !== rightStarts) {
+      return rightStarts - leftStarts;
+    }
+
+    return new Date(right.date).getTime() - new Date(left.date).getTime();
+  });
+
+  return matches.slice(0, 12).map((report) => ({
+    archived: report.archived,
+    description: `${report.archived ? "Archived" : "Active"} report${report.author ? ` · ${report.author}` : ""}`,
+    insertText: report.filePath,
+    label: report.title,
+    source: "report",
+    value: report.filePath,
+  }));
+}
+
 /**
  * GET /api/at-suggestions?q=foo
  * Returns file/folder suggestions based on the provided query.
@@ -148,12 +154,23 @@ export function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const q = url.searchParams.get("q") ?? "";
+    const agent = (url.searchParams.get("agent") ?? "") as ProjectScopedAgentId;
 
     const appRoot = getProjectRoot();
-    const roots = getActiveProjectRoots(appRoot);
-    const suggestions = searchFiles(roots, q);
+    const scope = getProjectScopeForAgent(agent);
+    if (scope === null) {
+      return Response.json({ projectScopeLabel: null, suggestions: [] });
+    }
 
-    return Response.json({ suggestions });
+    const roots = getActiveProjectRootsForScope(appRoot, scope);
+    const projectSuggestions = searchProjectFiles(roots, q);
+    const reportSuggestions = searchReports(appRoot, q);
+    const suggestions = [...reportSuggestions, ...projectSuggestions];
+
+    return Response.json({
+      projectScopeLabel: PROJECT_SCOPE_LABELS[scope],
+      suggestions,
+    });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }

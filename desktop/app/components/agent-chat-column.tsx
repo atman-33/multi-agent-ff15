@@ -3,18 +3,29 @@ import {
   ChevronDown,
   ChevronUp,
   Crown,
+  FolderGit2,
+  GitBranch,
   MessageSquarePlus,
   Moon,
+  Settings2,
   Square,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
+import { Link } from "react-router";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
+import ChatDetailSheet from "@/components/chat-detail-sheet";
+import ExecutionCard from "@/components/execution-card";
 import MessageCard from "@/components/message-card";
 import MessageComposer from "@/components/message-composer";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import {
   Select,
   SelectContent,
@@ -37,9 +48,20 @@ import {
   COMRADES,
   type ComradeId,
 } from "@/constants/comrade-config";
+import { useActiveProjects } from "@/hooks/use-active-projects";
 import { useAgentActivity } from "@/hooks/use-agent-activity";
-import type { AgentId, ChatLogRecord } from "@/hooks/use-agent-chat-log";
+import type { AgentId } from "@/hooks/use-agent-chat-log";
 import type { InboxLogRecord } from "@/hooks/use-inbox-log";
+import type { ChatDetailItem } from "@/lib/chat-detail";
+import {
+  buildChatTimeline,
+  type ChatLogRecord,
+  type ChatTimelineItem,
+} from "@/lib/chat-timeline";
+import {
+  getProjectScopeForAgent,
+  PROJECT_SCOPE_LABELS,
+} from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {
@@ -60,6 +82,16 @@ interface AgentChatColumnProps {
   partyView?: ComradeId | null;
   records: ChatLogRecord[];
   status?: string;
+}
+
+interface ProjectStatusChipProps {
+  activeProjectIds: string[];
+  loading: boolean;
+  projectById: Record<
+    string,
+    { branchName?: string | null; displayName: string; path: string }
+  >;
+  scopeLabel: string;
 }
 
 const AGENT_CONFIG = {
@@ -167,13 +199,119 @@ const COMRADE_THEME = {
   },
 } as const;
 
+function ProjectStatusChip({
+  activeProjectIds,
+  projectById,
+  scopeLabel,
+  loading,
+}: ProjectStatusChipProps) {
+  const firstProject = activeProjectIds[0]
+    ? projectById[activeProjectIds[0]]
+    : null;
+  const firstProjectLabel =
+    firstProject?.displayName ?? activeProjectIds[0] ?? "No project";
+  const extraCount = Math.max(activeProjectIds.length - 1, 0);
+
+  return (
+    <HoverCard closeDelay={120} openDelay={150}>
+      <HoverCardTrigger asChild>
+        <Link
+          aria-label={`Open ${scopeLabel} projects`}
+          className={cn(
+            "flex min-w-0 items-center gap-2 rounded-full border px-2.5 py-1 transition-all duration-200",
+            "border-amber-500/30 bg-amber-500/10 text-amber-100 hover:border-amber-400/50 hover:bg-amber-500/15"
+          )}
+          title={`${scopeLabel} projects`}
+          to="/projects"
+        >
+          <FolderGit2 className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+          {loading ? (
+            <span className="truncate text-[10px] text-amber-100/80">
+              Loading...
+            </span>
+          ) : activeProjectIds.length === 0 ? (
+            <span className="truncate font-medium text-[10px] text-amber-100/85">
+              No project
+            </span>
+          ) : (
+            <>
+              <span className="truncate font-semibold text-[10px] text-amber-50">
+                {firstProjectLabel}
+              </span>
+              {firstProject?.branchName && (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-950/70 px-1.5 py-0.5 font-mono text-[9px] text-amber-300">
+                  <GitBranch className="h-2.5 w-2.5" />
+                  {firstProject.branchName}
+                </span>
+              )}
+              {extraCount > 0 && (
+                <span className="shrink-0 rounded-full bg-amber-300 px-1.5 py-0.5 font-black text-[9px] text-amber-950">
+                  +{extraCount}
+                </span>
+              )}
+            </>
+          )}
+          <Settings2 className="h-3 w-3 shrink-0 text-amber-200/70" />
+        </Link>
+      </HoverCardTrigger>
+      <HoverCardContent
+        align="end"
+        className="w-80 overflow-hidden border-amber-500/20 bg-card/95 p-0 backdrop-blur-md"
+      >
+        <div className="border-border/50 border-b bg-amber-500/5 px-4 py-3">
+          <h4 className="flex items-center gap-2 font-bold text-amber-500/85 text-xs uppercase tracking-widest">
+            <FolderGit2 className="h-3 w-3" />
+            {scopeLabel}
+          </h4>
+        </div>
+        <div className="max-h-[300px] overflow-y-auto py-1">
+          {!loading && activeProjectIds.length === 0 && (
+            <div className="px-4 py-3 text-muted-foreground text-sm">
+              No active project
+            </div>
+          )}
+          {loading && (
+            <div className="px-4 py-3 text-muted-foreground text-sm">
+              Loading...
+            </div>
+          )}
+          {activeProjectIds.map((id) => {
+            const project = projectById[id];
+            return (
+              <div
+                className="group flex flex-col gap-0.5 px-4 py-2 transition-colors hover:bg-amber-500/10"
+                key={id}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-semibold text-foreground/90 text-sm transition-colors group-hover:text-amber-500">
+                    {project?.displayName ?? id}
+                  </span>
+                  {project?.branchName && (
+                    <span className="inline-flex items-center gap-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] text-amber-500/80">
+                      <GitBranch className="h-2.5 w-2.5" />
+                      {project.branchName}
+                    </span>
+                  )}
+                </div>
+                <span className="truncate font-mono text-[10px] text-muted-foreground opacity-60">
+                  {project?.path ?? "Unknown path"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 type MergedItem =
-  | { type: "agent"; record: ChatLogRecord; ts: string }
+  | { type: "agent"; item: ChatTimelineItem; ts: string }
   | { type: "inbox"; msg: InboxLogRecord; ts: string };
 
 /** Merge agent records and inbox messages by UTC timestamp (pure sort) with optimistic deduplication. */
 function mergeTimeline(
-  records: ChatLogRecord[],
+  items: ChatTimelineItem[],
   inboxMessages: InboxLogRecord[],
   optimisticMessages: InboxLogRecord[] = []
 ): MergedItem[] {
@@ -183,7 +321,11 @@ function mergeTimeline(
   );
 
   return [
-    ...records.map((r) => ({ type: "agent" as const, record: r, ts: r.ts })),
+    ...items.map((item) => ({
+      type: "agent" as const,
+      item,
+      ts: item.type === "message" ? item.lastTs : item.lastTs,
+    })),
     ...inboxMessages.map((m) => ({ type: "inbox" as const, msg: m, ts: m.ts })),
     ...filteredOptimistic.map((m) => ({
       type: "inbox" as const,
@@ -306,19 +448,11 @@ const InboxBubble = memo(function InboxBubble({
   );
 });
 
-/** Typing indicator — three bouncing dots with scrolling activity log (up to 5 lines). */
-function TypingIndicator({
-  activityLines,
-  agentLabel,
-}: {
-  activityLines?: string[];
-  agentLabel: string;
-}) {
-  const lines = activityLines ?? [];
+function PendingIndicator({ agentLabel }: { agentLabel: string }) {
   return (
     <div className="flex flex-col items-start gap-0.5">
       <span className="text-[10px] text-muted-foreground/50">{agentLabel}</span>
-      <div className="flex flex-col gap-1.5 rounded-2xl rounded-tl-sm border border-border/30 bg-white/5 px-3 py-2.5">
+      <div className="rounded-2xl rounded-tl-sm border border-border/20 bg-white/[0.04] px-3 py-2">
         <div className="flex items-center gap-1">
           {[0, 1, 2].map((i) => (
             <span
@@ -331,24 +465,6 @@ function TypingIndicator({
             />
           ))}
         </div>
-        {lines.length > 0 && (
-          <div className="flex flex-col gap-0.5">
-            {lines.map((line, i) => (
-              <span
-                className={cn(
-                  "max-w-[260px] truncate font-mono text-[10px]",
-                  i === lines.length - 1
-                    ? "text-slate-300/80"
-                    : "text-muted-foreground/35"
-                )}
-                // biome-ignore lint/suspicious/noArrayIndexKey: ordered log lines
-                key={i}
-              >
-                {line}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -496,6 +612,11 @@ function ModelSwitchBar({
           }
         }
         toast.success(`Switched ${targetAgent} to ${newModel}`);
+        window.dispatchEvent(
+          new CustomEvent("agent-model-switched", {
+            detail: { agent: targetAgent, model: newModel },
+          })
+        );
       } catch (_e) {
         toast.error(`Model switch failed: ${String(_e)}`);
         setModelLabel(prevModel); // Revert on failure
@@ -722,12 +843,14 @@ function AgentChatColumn({
   onSent,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc, theme } = AGENT_CONFIG[agent];
+  const { data: projectsData } = useActiveProjects();
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const prevTimelineLengthRef = useRef(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [imgError, setImgError] = useState(false);
+  const [detailItem, setDetailItem] = useState<ChatDetailItem | null>(null);
 
   // Determine active view: Noctis own data or a comrade's data
   const viewingComrade = agent === "noctis" && partyView !== null;
@@ -753,16 +876,46 @@ function AgentChatColumn({
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
-  const activityLines = useAgentActivity(activeAgentName, activeIsProcessing);
+  const previousActiveAgentNameRef = useRef(activeAgentName);
+  const liveEvents = useAgentActivity(activeAgentName, activeIsProcessing);
+  const showPendingIndicator = activeIsProcessing;
+  const activeProjectScope = getProjectScopeForAgent(activeAgentName);
+
+  useEffect(() => {
+    if (previousActiveAgentNameRef.current === activeAgentName) {
+      return;
+    }
+
+    previousActiveAgentNameRef.current = activeAgentName;
+    setDetailItem(null);
+  }, [activeAgentName]);
+
+  const projectById = useMemo(
+    () =>
+      Object.fromEntries(
+        (projectsData?.projects ?? []).map((project) => [project.id, project])
+      ),
+    [projectsData]
+  );
+  const activeProjectIds =
+    activeProjectScope === null
+      ? []
+      : (projectsData?.projectScopes[activeProjectScope]?.activeProjectIds ??
+        []);
+
+  const agentTimeline = useMemo(
+    () => buildChatTimeline([...activeRecords, ...liveEvents]),
+    [activeRecords, liveEvents]
+  );
 
   const timeline = useMemo(
     () =>
       mergeTimeline(
-        activeRecords,
+        agentTimeline,
         activeInboxMessages,
         viewingComrade ? [] : optimisticMessages
       ),
-    [activeRecords, activeInboxMessages, optimisticMessages, viewingComrade]
+    [agentTimeline, activeInboxMessages, optimisticMessages, viewingComrade]
   );
 
   // Determine target agent for model switching
@@ -824,7 +977,17 @@ function AgentChatColumn({
     setUnreadCount(0);
   }, []);
 
-  const totalCount = activeRecords.length + activeInboxMessages.length;
+  const handleOpenDetail = useCallback((item: ChatDetailItem) => {
+    setDetailItem(item);
+  }, []);
+
+  const handleDetailOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDetailItem(null);
+    }
+  }, []);
+
+  const totalCount = agentTimeline.length + activeInboxMessages.length;
 
   return (
     <div
@@ -903,7 +1066,17 @@ function AgentChatColumn({
             ))}
           </div>
 
-          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60">
+          <div className="ml-auto min-w-0">
+            {activeProjectScope !== null && (
+              <ProjectStatusChip
+                activeProjectIds={activeProjectIds}
+                loading={projectsData === null}
+                projectById={projectById}
+                scopeLabel={PROJECT_SCOPE_LABELS[activeProjectScope]}
+              />
+            )}
+          </div>
+          <span className="shrink-0 text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>
         </div>
@@ -944,7 +1117,17 @@ function AgentChatColumn({
           <span className={cn("font-medium text-xs", activeTheme.text)}>
             {label}
           </span>
-          <span className="ml-auto text-[10px] text-muted-foreground/60">
+          <div className="ml-auto min-w-0">
+            {activeProjectScope !== null && (
+              <ProjectStatusChip
+                activeProjectIds={activeProjectIds}
+                loading={projectsData === null}
+                projectById={projectById}
+                scopeLabel={PROJECT_SCOPE_LABELS[activeProjectScope]}
+              />
+            )}
+          </div>
+          <span className="text-[10px] text-muted-foreground/60">
             {totalCount} msgs
           </span>
         </div>
@@ -980,23 +1163,29 @@ function AgentChatColumn({
                   /* Agent answer — left-aligned with label */
                   <div
                     className="flex flex-col items-start gap-0.5"
-                    key={item.record.id}
+                    key={item.item.key}
                   >
                     <span className="ml-1 font-semibold text-[10px] text-muted-foreground/60">
                       {activeLabel}
                     </span>
                     <div className="w-full">
-                      <MessageCard record={item.record} />
+                      {item.item.type === "message" ? (
+                        <MessageCard
+                          onOpenDetail={handleOpenDetail}
+                          record={item.item}
+                        />
+                      ) : (
+                        <ExecutionCard
+                          item={item.item}
+                          onOpenDetail={handleOpenDetail}
+                        />
+                      )}
                     </div>
                   </div>
                 )
               )}
-              {/* Typing indicator */}
-              {activeIsProcessing && (
-                <TypingIndicator
-                  activityLines={activityLines}
-                  agentLabel={activeLabel}
-                />
+              {showPendingIndicator && (
+                <PendingIndicator agentLabel={activeLabel} />
               )}
             </>
           )}
@@ -1063,6 +1252,13 @@ function AgentChatColumn({
             ? COMRADE_CONFIG[partyView].label
             : AGENT_CONFIG[agent].label
         }
+      />
+
+      <ChatDetailSheet
+        activeLabel={activeLabel}
+        item={detailItem}
+        onOpenChange={handleDetailOpenChange}
+        open={detailItem !== null}
       />
     </div>
   );

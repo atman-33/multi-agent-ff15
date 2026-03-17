@@ -95,7 +95,7 @@ Four-layer context structure for efficient knowledge sharing:
 | Layer | Location | Purpose |
 |-------|----------|---------|
 | Layer 1: Memory MCP | Managed by OpenCode Memory MCP | Cross-project, cross-session long-term memory |
-| Layer 2: Project | `config/current_projects.yaml`, `projects/<id>.yaml` | Project-specific information & technical knowledge |
+| Layer 2: Project | `config/current_projects.yaml`, `projects/<id>.yaml` | Project-specific information & technical knowledge scoped to Noctis team or Lunafreya |
 | Layer 3: YAML Inbox | `queue/inbox/{agent}.yaml` | Communication + task management (source of truth) |
 | Layer 4: Session | AGENTS.md, .opencode/agents/*.md | Working context (resets with /new) |
 

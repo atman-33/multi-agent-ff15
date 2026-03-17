@@ -1,65 +1,26 @@
-import { Check, ChevronDown, ChevronUp, Copy } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
-import type { Components } from "react-markdown";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import type { ChatLogRecord } from "@/hooks/use-agent-chat-log";
+import {
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+} from "lucide-react";
+import { memo, useCallback, useState } from "react";
+import ChatMarkdown, { stripAnsi } from "@/components/chat-markdown";
+import {
+  type ChatDetailItem,
+  MESSAGE_PREVIEW_MAX_CHARS,
+} from "@/lib/chat-detail";
+import type { ChatTimelineMessageItem } from "@/lib/chat-timeline";
 import { cn } from "@/lib/utils";
-
-// ---------------------------------------------------------------------------
-// ANSI removal (frontend double-protection)
-// ---------------------------------------------------------------------------
-
-function stripAnsi(text: string): string {
-  // CSI sequences (colors, cursor, etc.)
-  return (
-    text
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: necessary for stripping ANSI codes
-      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: necessary for stripping ANSI codes
-      .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: necessary for stripping ANSI codes
-      .replace(/\x1b[@-Z\\-_]/g, "")
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: necessary for stripping ANSI codes
-      .replace(/[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]/g, "")
-  ); // other control chars
-}
-
-const FOLD_CHARS = 800;
-
-/** Code block with wrap/scroll toggle button (appears on hover). */
-function CodeBlock({ children }: { children: React.ReactNode }) {
-  const [wrap, setWrap] = useState(false);
-  return (
-    <div className="group relative my-1">
-      <button
-        className="absolute top-1 right-1 z-10 rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-muted-foreground/70 leading-none opacity-0 transition-opacity hover:bg-white/20 hover:text-foreground/80 group-hover:opacity-100"
-        onClick={() => setWrap((v) => !v)}
-        title={wrap ? "Switch to scroll mode" : "Switch to wrap mode"}
-        type="button"
-      >
-        {wrap ? "→ scroll" : "↵ wrap"}
-      </button>
-      <pre
-        className={cn(
-          "min-w-0 max-w-full rounded bg-black/20 p-1.5 text-[11px]",
-          wrap
-            ? "overflow-x-hidden [&_code]:overflow-x-hidden [&_code]:whitespace-pre-wrap [&_code]:break-words"
-            : "overflow-x-auto [&_code]:overflow-x-auto [&_code]:whitespace-pre"
-        )}
-      >
-        {children}
-      </pre>
-    </div>
-  );
-}
 
 interface MessageCardProps {
   className?: string;
-  record: ChatLogRecord;
+  onOpenDetail?: (item: ChatDetailItem) => void;
+  record: ChatTimelineMessageItem;
 }
 
-function MessageCard({ record, className }: MessageCardProps) {
+function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -72,9 +33,9 @@ function MessageCard({ record, className }: MessageCardProps) {
   }, [record.content]);
 
   const clean = stripAnsi(record.content);
-  const shouldFold = clean.length > FOLD_CHARS;
+  const shouldFold = clean.length > MESSAGE_PREVIEW_MAX_CHARS;
 
-  const ts = new Date(record.ts);
+  const ts = new Date(record.lastTs);
   const timeStr = ts.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -82,58 +43,6 @@ function MessageCard({ record, className }: MessageCardProps) {
   });
 
   const isError = record.kind === "error";
-
-  const mdComponents = useMemo<Components>(
-    () => ({
-      img: () => null,
-      a: ({ href, children }) => (
-        <a
-          className="text-blue-400 underline hover:text-blue-300"
-          href={href}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {children}
-        </a>
-      ),
-      h1: ({ children }) => (
-        <h1 className="mt-2 mb-1 font-bold text-sm">{children}</h1>
-      ),
-      h2: ({ children }) => (
-        <h2 className="mt-2 mb-1 font-bold text-xs">{children}</h2>
-      ),
-      h3: ({ children }) => (
-        <h3 className="mt-1 mb-0.5 font-semibold text-xs">{children}</h3>
-      ),
-      code: ({ children, className: cls }) => {
-        const isBlock = cls?.includes("language-");
-        return isBlock ? (
-          <code className="block overflow-x-auto whitespace-pre rounded bg-black/30 px-2 py-1 font-mono text-[11px]">
-            {children}
-          </code>
-        ) : (
-          <code className="rounded bg-black/30 px-1 font-mono text-[11px]">
-            {children}
-          </code>
-        );
-      },
-      pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-      ul: ({ children }) => (
-        <ul className="list-disc space-y-0.5 pl-4">{children}</ul>
-      ),
-      ol: ({ children }) => (
-        <ol className="list-decimal space-y-0.5 pl-4">{children}</ol>
-      ),
-      p: ({ children }) => <p className="my-0.5">{children}</p>,
-      hr: () => <hr className="my-2 border-border/30" />,
-      blockquote: ({ children }) => (
-        <blockquote className="border-border/50 border-l-2 pl-2 text-muted-foreground italic">
-          {children}
-        </blockquote>
-      ),
-    }),
-    []
-  );
 
   return (
     <div className="group/card">
@@ -168,24 +77,20 @@ function MessageCard({ record, className }: MessageCardProps) {
             shouldFold && !expanded && "max-h-48 overflow-hidden"
           )}
         >
-          <ReactMarkdown
+          <ChatMarkdown
             className="space-y-1 text-foreground/90 text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-            components={mdComponents}
-            remarkPlugins={[remarkGfm]}
-          >
-            {clean}
-          </ReactMarkdown>
+            content={clean}
+          />
           {/* Gradient fade when folded */}
           {shouldFold && !expanded && (
             <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-white/5 to-transparent" />
           )}
         </div>
 
-        {/* Fold toggle */}
         {shouldFold && (
           <button
             className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => setExpanded((value) => !value)}
             type="button"
           >
             {expanded ? (
@@ -204,7 +109,18 @@ function MessageCard({ record, className }: MessageCardProps) {
       </div>
 
       {/* Copy button — shown on card hover, outside the card border */}
-      <div className="mt-1 flex justify-start opacity-0 transition-opacity group-hover/card:opacity-100">
+      <div className="mt-1 flex justify-start gap-2 opacity-0 transition-opacity group-hover/card:opacity-100">
+        {onOpenDetail && (
+          <button
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+            onClick={() => onOpenDetail({ type: "message", item: record })}
+            title="Open larger message view"
+            type="button"
+          >
+            <ArrowUpRight className="h-3 w-3" />
+            Open detail
+          </button>
+        )}
         <button
           className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
           onClick={handleCopy}

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# projects_activate.sh: Manage active project list
+# projects_activate.sh: Manage scoped active project lists
 #
 # Usage:
-#   projects_activate.sh add <project_id...>     - Add projects to active list
-#   projects_activate.sh remove <project_id...>  - Remove projects from active list
-#   projects_activate.sh set <project_id...>      - Replace active list entirely
-#   projects_activate.sh list                     - Display active projects
+#   projects_activate.sh <scope> add <project_id...>     - Add projects to scope list
+#   projects_activate.sh <scope> remove <project_id...>  - Remove projects from scope list
+#   projects_activate.sh <scope> set <project_id...>     - Replace scope list entirely
+#   projects_activate.sh <scope> list                    - Display scoped active projects
 #
-# Active projects stored in config/current_projects.yaml
+# Active projects stored in config/current_projects.yaml under project_scopes
 # Uses yaml_write_flock.sh for atomic updates.
 #
 # Exit codes: 0=success, 1=error, 2=usage error
@@ -22,7 +22,11 @@ YAML_WRITE="${SCRIPT_DIR}/yaml_write_flock.sh"
 
 usage() {
   cat >&2 <<EOF
-Usage: projects_activate.sh <command> [project_id...]
+Usage: projects_activate.sh <scope> <command> [project_id...]
+
+Scopes:
+  noctis_team
+  lunafreya
 
 Commands:
   add <id...>      Add project IDs to active list
@@ -37,8 +41,36 @@ if [[ $# -lt 1 ]]; then
   usage
 fi
 
-COMMAND="$1"
-shift
+if [[ $# -lt 2 ]]; then
+  usage
+fi
+
+SCOPE="$1"
+COMMAND="$2"
+shift 2
+
+validate_scope() {
+  case "$1" in
+    noctis_team|lunafreya)
+      return 0
+      ;;
+    *)
+      echo "ERROR: Unknown scope: $1" >&2
+      usage
+      ;;
+  esac
+}
+
+other_scope() {
+  if [[ "$1" == "noctis_team" ]]; then
+    echo "lunafreya"
+    return
+  fi
+
+  echo "noctis_team"
+}
+
+validate_scope "$SCOPE"
 
 # --- Helper: validate project ID exists in projects/ directory (Task 3.6) ---
 validate_project_id() {
@@ -53,31 +85,56 @@ validate_project_id() {
 
 # --- Helper: read current active IDs from config ---
 read_active_ids() {
+  local scope="$1"
   if [[ ! -f "$CONFIG_FILE" ]]; then
     echo ""
     return
   fi
-  python3 "${SCRIPT_DIR}/lib/yaml_config_reader.py" active-ids "$CONFIG_FILE" 2>/dev/null
+  python3 "${SCRIPT_DIR}/lib/yaml_config_reader.py" active-ids "$scope" "$CONFIG_FILE" 2>/dev/null
 }
 
 # --- Helper: write active IDs to config (Task 3.7) ---
 write_active_ids() {
+  local scope="$1"
+  shift
   local ids=("$@")
   local TIMESTAMP
   TIMESTAMP=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
-  
-  local YAML_LIST=""
-  if [[ ${#ids[@]} -eq 0 ]]; then
-    YAML_LIST="active_project_ids: []"
+
+  local other
+  other=$(other_scope "$scope")
+  mapfile -t OTHER_IDS < <(read_active_ids "$other")
+
+  local NOCTIS_IDS=()
+  local LUNA_IDS=()
+  if [[ "$scope" == "noctis_team" ]]; then
+    NOCTIS_IDS=("${ids[@]}")
+    LUNA_IDS=("${OTHER_IDS[@]}")
   else
-    YAML_LIST="active_project_ids:"
-    for pid in "${ids[@]}"; do
-      YAML_LIST+="
-  - \"${pid}\""
-    done
+    NOCTIS_IDS=("${OTHER_IDS[@]}")
+    LUNA_IDS=("${ids[@]}")
   fi
 
-  local YAML_CONTENT="${YAML_LIST}
+  local render_scope_yaml
+  render_scope_yaml() {
+    local render_scope="$1"
+    shift
+    local render_ids=("$@")
+    if [[ ${#render_ids[@]} -eq 0 ]]; then
+      printf '  %s:\n    active_project_ids: []' "$render_scope"
+      return
+    fi
+
+    printf '  %s:\n    active_project_ids:' "$render_scope"
+    for pid in "${render_ids[@]}"; do
+      printf '\n      - "%s"' "$pid"
+    done
+  }
+
+  local YAML_CONTENT
+  YAML_CONTENT="project_scopes:
+$(render_scope_yaml "noctis_team" "${NOCTIS_IDS[@]}")
+$(render_scope_yaml "lunafreya" "${LUNA_IDS[@]}")
 updated_at: \"${TIMESTAMP}\"
 updated_by: \"script\""
 
@@ -101,7 +158,7 @@ case "$COMMAND" in
     done
 
     # Read current IDs
-    mapfile -t CURRENT_IDS < <(read_active_ids)
+    mapfile -t CURRENT_IDS < <(read_active_ids "$SCOPE")
 
     # Merge: add new IDs that aren't already active
     MERGED=("${CURRENT_IDS[@]}")
@@ -118,8 +175,8 @@ case "$COMMAND" in
       fi
     done
 
-    write_active_ids "${MERGED[@]}" || exit 1
-    echo "OK: Active projects: ${MERGED[*]}" >&2
+    write_active_ids "$SCOPE" "${MERGED[@]}" || exit 1
+    echo "OK: Active projects for ${SCOPE}: ${MERGED[*]}" >&2
     ;;
 
   # --- remove: remove project IDs from active list (Task 3.3) ---
@@ -130,7 +187,7 @@ case "$COMMAND" in
     fi
 
     # Read current IDs
-    mapfile -t CURRENT_IDS < <(read_active_ids)
+    mapfile -t CURRENT_IDS < <(read_active_ids "$SCOPE")
 
     # Filter out specified IDs (idempotent — removing non-active is silent)
     FILTERED=()
@@ -147,11 +204,11 @@ case "$COMMAND" in
       fi
     done
 
-    write_active_ids "${FILTERED[@]}" || exit 1
+    write_active_ids "$SCOPE" "${FILTERED[@]}" || exit 1
     if [[ ${#FILTERED[@]} -eq 0 ]]; then
-      echo "OK: No active projects" >&2
+      echo "OK: No active projects for ${SCOPE}" >&2
     else
-      echo "OK: Active projects: ${FILTERED[*]}" >&2
+      echo "OK: Active projects for ${SCOPE}: ${FILTERED[*]}" >&2
     fi
     ;;
 
@@ -177,17 +234,17 @@ case "$COMMAND" in
       fi
     done
 
-    write_active_ids "${NEW_IDS[@]}" || exit 1
-    echo "OK: Active projects: ${NEW_IDS[*]}" >&2
+    write_active_ids "$SCOPE" "${NEW_IDS[@]}" || exit 1
+    echo "OK: Active projects for ${SCOPE}: ${NEW_IDS[*]}" >&2
     ;;
 
   # --- list: display active projects (Task 3.5) ---
   list)
-    mapfile -t CURRENT_IDS < <(read_active_ids)
+    mapfile -t CURRENT_IDS < <(read_active_ids "$SCOPE")
     if [[ ${#CURRENT_IDS[@]} -eq 0 ]] || [[ -z "${CURRENT_IDS[0]:-}" ]]; then
-      echo "No active projects" >&2
+      echo "No active projects for ${SCOPE}" >&2
     else
-      echo "Active projects:" >&2
+      echo "Active projects for ${SCOPE}:" >&2
       for pid in "${CURRENT_IDS[@]}"; do
         if [[ -n "$pid" ]]; then
           echo "  - ${pid}" >&2

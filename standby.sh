@@ -415,7 +415,11 @@ if [ ! -f ./config/current_projects.yaml ]; then
     cat > ./config/current_projects.yaml << 'EOF'
 # Active projects configuration
 # Managed by scripts/projects_activate.sh
-active_project_ids: []
+project_scopes:
+    noctis_team:
+        active_project_ids: []
+    lunafreya:
+        active_project_ids: []
 updated_at: ""
 updated_by: ""
 EOF
