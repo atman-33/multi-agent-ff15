@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [0.10.0] - 2026-03-17
+
+### Added
+- **Project-aware desktop workflow** - Added scoped project management, active project status surfaces, and project-specific instruction injection across the desktop app and backend
+- **Richer chat inspection tools** - Added chat detail sheets, execution cards, markdown rendering, timeline helpers, and report detail views for reviewing agent output
+- **VS Code opening support** - Added API support for opening files in VS Code from the desktop experience
+
+### Changed
+- **Agent chat experience** - Improved the agent chat column, message composer, message cards, and activity streaming with better expansion behavior, draft handling, and Noctis formation controls
+- **Project and report plumbing** - Refined project loading, active project APIs, report metadata handling, and YAML config readers to support scoped multi-project workflows more reliably
+- **Configuration and setup defaults** - Updated model configuration, setup scripts, standby behavior, and OpenCode configuration to match the latest desktop workflow
+
+### Fixed
+- **Instruction and report integration** - Fixed project instruction prepending, report handling, and chat draft integration issues in the desktop stack
+- **Suggestion and activity reliability** - Improved at-suggestion handling, mode switching events, agent activity updates, and stream refresh behavior
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Security
+- None
+
 ## [0.9.0] - 2026-03-09
 
 ### Added
@@ -222,4 +248,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
+[0.10.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0
