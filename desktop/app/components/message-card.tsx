@@ -1,11 +1,12 @@
 import {
   ArrowUpRight,
+  BadgeInfo,
   Check,
   ChevronDown,
-  ChevronUp,
   Copy,
+  Inbox,
 } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import ChatMarkdown, { stripAnsi } from "@/components/chat-markdown";
 import {
   type ChatDetailItem,
@@ -20,9 +21,89 @@ interface MessageCardProps {
   record: ChatTimelineMessageItem;
 }
 
+interface ProjectInstructionContextViewModel {
+  openspecRoot: string | null;
+  policies: string[];
+  projectId: string | null;
+  projectRoot: string | null;
+  scope: string | null;
+}
+
+const POLICY_SPLIT_REGEX = /\(\d+\)\s*/;
+const PROJECT_CONTEXT_BLOCK_REGEX =
+  /<project-instruction-context>([\s\S]*?)<\/project-instruction-context>/;
+const PROJECT_SCOPE_REGEX = /project_scope:\s*(.+)/;
+const PROJECT_ID_REGEX = /-\s+id:\s*(.+)/;
+const PROJECT_ROOT_REGEX = /root_path:\s*(.+)/;
+const OPENSPEC_ROOT_REGEX = /openspec_context:\s*[\s\S]*?root:\s*(.+)/;
+const POLICY_REGEX = /policy:\s*([\s\S]*)/;
+const PROJECT_CONTEXT_REMOVE_REGEX =
+  /<project-instruction-context>[\s\S]*?<\/project-instruction-context>/;
+const INBOX_NOTICE_REGEX =
+  /(You have new inbox messages\.\s*Run:\s*scripts\/inbox_read\.sh\s+\w+)/;
+
+function parsePolicies(value: string): string[] {
+  return value
+    .split(POLICY_SPLIT_REGEX)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseProjectInstructionContext(
+  content: string
+): ProjectInstructionContextViewModel | null {
+  const match = content.match(PROJECT_CONTEXT_BLOCK_REGEX);
+  if (!match) {
+    return null;
+  }
+
+  const raw = match[1]?.trim() ?? "";
+  const scope = raw.match(PROJECT_SCOPE_REGEX)?.[1]?.trim() ?? null;
+  const projectId = raw.match(PROJECT_ID_REGEX)?.[1]?.trim() ?? null;
+  const projectRoot = raw.match(PROJECT_ROOT_REGEX)?.[1]?.trim() ?? null;
+  const openspecRoot = raw.match(OPENSPEC_ROOT_REGEX)?.[1]?.trim() ?? null;
+  const policyRaw = raw.match(POLICY_REGEX)?.[1]?.trim() ?? "";
+
+  return {
+    openspecRoot,
+    policies: parsePolicies(policyRaw),
+    projectId,
+    projectRoot,
+    scope,
+  };
+}
+
+function removeProjectInstructionContext(content: string): string {
+  return content.replace(PROJECT_CONTEXT_REMOVE_REGEX, "").trim();
+}
+
+function extractInboxNotice(content: string): {
+  notice: string | null;
+  remainder: string;
+} {
+  const match = content.match(INBOX_NOTICE_REGEX);
+  if (!match) {
+    return { notice: null, remainder: content.trim() };
+  }
+
+  return {
+    notice: match[1]?.trim() ?? null,
+    remainder: content.replace(match[0], "").trim(),
+  };
+}
+
 function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
   const [expanded, setExpanded] = useState(true);
+  const [contextExpanded, setContextExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const contextChevronClassName = cn(
+    "ml-auto h-3 w-3 text-sky-200/70 transition-transform duration-300 ease-out",
+    contextExpanded ? "rotate-180" : "rotate-0"
+  );
+  const messageChevronClassName = cn(
+    "h-3 w-3 transition-transform duration-300 ease-out",
+    expanded ? "rotate-180" : "rotate-0"
+  );
 
   const handleCopy = useCallback(() => {
     const clean = stripAnsi(record.content);
@@ -33,7 +114,19 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
   }, [record.content]);
 
   const clean = stripAnsi(record.content);
-  const shouldFold = clean.length > MESSAGE_PREVIEW_MAX_CHARS;
+  const projectContext = useMemo(
+    () => parseProjectInstructionContext(clean),
+    [clean]
+  );
+  const contentWithoutContext = useMemo(
+    () => removeProjectInstructionContext(clean),
+    [clean]
+  );
+  const { notice: inboxNotice, remainder: messageBody } = useMemo(
+    () => extractInboxNotice(contentWithoutContext),
+    [contentWithoutContext]
+  );
+  const shouldFold = messageBody.length > MESSAGE_PREVIEW_MAX_CHARS;
 
   const ts = new Date(record.lastTs);
   const timeStr = ts.toLocaleTimeString("en-US", {
@@ -43,6 +136,9 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
   });
 
   const isError = record.kind === "error";
+  const contextSummary = projectContext
+    ? `${projectContext.projectId ?? "project"} · ${projectContext.scope ?? "scope"} · Serena + OpenSpec (${projectContext.policies.length} rules)`
+    : null;
 
   return (
     <div className="group/card">
@@ -55,7 +151,6 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
           className
         )}
       >
-        {/* Header */}
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
           <span>{timeStr}</span>
           {record.kind !== "answer" && (
@@ -70,24 +165,126 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
           )}
         </div>
 
-        {/* Content — markdown preview with fade-clip when folded */}
-        <div
-          className={cn(
-            "relative",
-            shouldFold && !expanded && "max-h-48 overflow-hidden"
-          )}
-        >
-          <ChatMarkdown
-            className="space-y-1 text-foreground/90 text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-            content={clean}
-          />
-          {/* Gradient fade when folded */}
-          {shouldFold && !expanded && (
-            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-white/5 to-transparent" />
-          )}
+        <div className="space-y-2">
+          {projectContext ? (
+            <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2">
+              <button
+                className="flex w-full items-start gap-2 text-left"
+                onClick={() => setContextExpanded((value) => !value)}
+                type="button"
+              >
+                <BadgeInfo className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-[11px] text-sky-100">
+                      Project Context
+                    </span>
+                    <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
+                      Injected
+                    </span>
+                    <ChevronDown className={contextChevronClassName} />
+                  </div>
+                  {contextSummary ? (
+                    <div className="mt-1 text-[11px] text-sky-100/80">
+                      {contextSummary}
+                    </div>
+                  ) : null}
+                </div>
+              </button>
+
+              <div
+                className={cn(
+                  "grid transition-all duration-300 ease-out",
+                  contextExpanded
+                    ? "mt-2 grid-rows-[1fr] opacity-100"
+                    : "mt-0 grid-rows-[0fr] opacity-0"
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div
+                    className={cn(
+                      "grid gap-2 border-sky-500/10 border-t pt-2 text-[11px] text-sky-50/85 transition-all duration-300 ease-out",
+                      contextExpanded ? "translate-y-0" : "-translate-y-1"
+                    )}
+                  >
+                    <div>
+                      <div className="text-sky-200/60 uppercase tracking-[0.12em]">
+                        Scope
+                      </div>
+                      <div>{projectContext.scope ?? "Unknown"}</div>
+                    </div>
+                    <div>
+                      <div className="text-sky-200/60 uppercase tracking-[0.12em]">
+                        Active Project
+                      </div>
+                      <div>{projectContext.projectId ?? "Unknown"}</div>
+                      {projectContext.projectRoot ? (
+                        <div className="font-mono text-[10px] text-sky-100/60">
+                          {projectContext.projectRoot}
+                        </div>
+                      ) : null}
+                    </div>
+                    {projectContext.openspecRoot ? (
+                      <div>
+                        <div className="text-sky-200/60 uppercase tracking-[0.12em]">
+                          OpenSpec Root
+                        </div>
+                        <div className="font-mono text-[10px] text-sky-100/70">
+                          {projectContext.openspecRoot}
+                        </div>
+                      </div>
+                    ) : null}
+                    {projectContext.policies.length > 0 ? (
+                      <div>
+                        <div className="text-sky-200/60 uppercase tracking-[0.12em]">
+                          Policies
+                        </div>
+                        <ol className="list-decimal space-y-1 pl-4">
+                          {projectContext.policies.map((policy) => (
+                            <li key={policy}>{policy}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {inboxNotice ? (
+            <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[11px] text-amber-100/85">
+              <div className="flex items-start gap-2">
+                <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                <div className="min-w-0">
+                  <div className="font-medium text-amber-100">Inbox Notice</div>
+                  <div className="mt-0.5">{inboxNotice}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {messageBody ? (
+            <div className="relative overflow-hidden transition-all duration-300 ease-out">
+              <div
+                className={cn(
+                  "transition-all duration-300 ease-out",
+                  shouldFold && !expanded ? "max-h-48" : "max-h-[120rem]"
+                )}
+              >
+                <ChatMarkdown
+                  className="space-y-1 text-foreground/90 text-xs leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                  content={messageBody}
+                />
+              </div>
+              {shouldFold && !expanded && (
+                <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-white/5 to-transparent" />
+              )}
+            </div>
+          ) : null}
         </div>
 
-        {shouldFold && (
+        {shouldFold && messageBody && (
           <button
             className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setExpanded((value) => !value)}
@@ -95,12 +292,12 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
           >
             {expanded ? (
               <>
-                <ChevronUp className="h-3 w-3" />
+                <ChevronDown className={messageChevronClassName} />
                 Collapse
               </>
             ) : (
               <>
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className={messageChevronClassName} />
                 Show more
               </>
             )}
@@ -108,7 +305,6 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
         )}
       </div>
 
-      {/* Copy button — shown on card hover, outside the card border */}
       <div className="mt-1 flex justify-start gap-2 opacity-0 transition-opacity group-hover/card:opacity-100">
         {onOpenDetail && (
           <button
