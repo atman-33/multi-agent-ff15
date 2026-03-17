@@ -526,7 +526,7 @@ function MessageComposer({
 
         <button
           className={cn(
-            "absolute right-1 bottom-2.5 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
+            "absolute right-1 bottom-2.5 flex h-6 w-6 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
             canSend
               ? arrowState === "done"
                 ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
