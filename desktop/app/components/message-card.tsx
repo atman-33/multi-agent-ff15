@@ -142,6 +142,7 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
   const contextSummary = projectContext
     ? `${projectContext.projectId ?? "project"} · ${projectContext.scope ?? "scope"} · Serena + OpenSpec (${projectContext.policies.length} rules)`
     : null;
+  const inboxSummary = inboxNotice?.replace(/\s+/g, " ").trim() ?? null;
 
   return (
     <div className="group/card">
@@ -170,29 +171,23 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
 
         <div className="space-y-2">
           {projectContext ? (
-            <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2">
+            <div className="rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
               <button
-                className="flex w-full items-start gap-2 text-left"
+                className="flex w-full min-w-0 items-center gap-2 text-left"
                 onClick={() => setContextExpanded((value) => !value)}
                 type="button"
               >
-                <BadgeInfo className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-[11px] text-sky-100">
-                      Project Context
-                    </span>
-                    <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
-                      Injected
-                    </span>
-                    <ChevronDown className={contextChevronClassName} />
-                  </div>
-                  {contextSummary ? (
-                    <div className="mt-1 text-[11px] text-sky-100/80">
-                      {contextSummary}
-                    </div>
-                  ) : null}
-                </div>
+                <BadgeInfo className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                <span className="shrink-0 font-medium text-[11px] text-sky-100">
+                  Project Context
+                </span>
+                <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
+                  Injected
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-sky-100/80">
+                  {contextSummary ?? "Injected project instructions"}
+                </span>
+                <ChevronDown className={contextChevronClassName} />
               </button>
 
               <div
@@ -256,13 +251,15 @@ function MessageCard({ record, className, onOpenDetail }: MessageCardProps) {
           ) : null}
 
           {inboxNotice ? (
-            <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-[11px] text-amber-100/85">
-              <div className="flex items-start gap-2">
-                <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
-                <div className="min-w-0">
-                  <div className="font-medium text-amber-100">Inbox Notice</div>
-                  <div className="mt-0.5">{inboxNotice}</div>
-                </div>
+            <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-100/85">
+              <div className="flex min-w-0 items-center gap-2">
+                <Inbox className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+                <span className="shrink-0 font-medium text-amber-100">
+                  Inbox Notice
+                </span>
+                <span className="min-w-0 truncate text-amber-100/80">
+                  {inboxSummary}
+                </span>
               </div>
             </div>
           ) : null}
