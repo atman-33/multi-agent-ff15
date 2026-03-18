@@ -417,6 +417,37 @@ function getDomMaxScrollTop(element: HTMLDivElement): number {
   return Math.max(element.scrollHeight - element.clientHeight, 0);
 }
 
+function flushMeasuredHeights(
+  pendingHeights: Map<string, number>,
+  setMeasuredRowHeights: React.Dispatch<
+    React.SetStateAction<Map<string, number>>
+  >
+): void {
+  if (pendingHeights.size === 0) {
+    return;
+  }
+
+  const nextPending = new Map(pendingHeights);
+  pendingHeights.clear();
+
+  setMeasuredRowHeights((prev) => {
+    let changed = false;
+    const next = new Map(prev);
+
+    for (const [key, height] of nextPending) {
+      const current = next.get(key);
+      if (current && Math.abs(current - height) < 1) {
+        continue;
+      }
+
+      next.set(key, height);
+      changed = true;
+    }
+
+    return changed ? next : prev;
+  });
+}
+
 const VirtualizedTimelineRow = memo(function VirtualizedTimelineRow({
   activeLabel,
   layout,
@@ -789,6 +820,7 @@ function ModelSwitchBar({
   const [modelLabel, setModelLabel] = useState("");
   const [isSwitching, setIsSwitching] = useState(false);
   const [isAborting, setIsAborting] = useState(false);
+  const hasModelOptions = modelOptions.length > 0;
 
   const sortedModelOptions = useMemo(
     () => [...modelOptions].sort((a, b) => a.localeCompare(b)),
@@ -927,19 +959,17 @@ function ModelSwitchBar({
     }
   }, [isTauri, targetAgent]);
 
-  if (modelOptions.length === 0) {
-    return null;
-  }
-
   return (
-    <div className="flex items-center gap-1.5 border-border/20 border-b bg-background/30 px-3 py-1">
+    <div className="flex min-h-10 items-center gap-1.5 border-border/20 border-b bg-background/30 px-3 py-1">
       <Select
-        disabled={isSwitching}
+        disabled={isSwitching || !hasModelOptions}
         onValueChange={(val) => applySwitch(val)}
-        value={modelLabel}
+        value={hasModelOptions ? modelLabel : ""}
       >
         <SelectTrigger className="h-7 flex-1 border-border/40 bg-background/60 text-[11px]">
-          <SelectValue placeholder="Unknown" />
+          <SelectValue
+            placeholder={hasModelOptions ? "Unknown" : "Loading model..."}
+          />
         </SelectTrigger>
         <SelectContent>
           {modelLabel && !sortedModelOptions.includes(modelLabel) && (
@@ -959,6 +989,7 @@ function ModelSwitchBar({
           <TooltipTrigger asChild>
             <button
               className="rounded border border-primary/30 bg-primary/10 p-1 text-primary transition-colors hover:bg-primary/20"
+              disabled={!hasModelOptions}
               onClick={async () => {
                 try {
                   if (isTauri) {
@@ -1002,9 +1033,9 @@ function ModelSwitchBar({
             <button
               className={cn(
                 "rounded border border-red-500/30 bg-red-500/10 p-1 text-red-500 transition-colors hover:bg-red-500/20",
-                isAborting && "animate-pulse opacity-50"
+                (isAborting || !hasModelOptions) && "animate-pulse opacity-50"
               )}
-              disabled={isAborting}
+              disabled={isAborting || !hasModelOptions}
               onClick={handleAbort}
               type="button"
             >
@@ -1156,13 +1187,13 @@ function SessionHistoryTriggerBar({
 
   return (
     <button
-      className="w-full border-white/5 border-b bg-background/20 px-3 py-1.5 text-left transition-colors hover:bg-background/30"
+      className="min-h-[58px] w-full border-white/5 border-b bg-background/20 px-3 py-1.5 text-left transition-colors hover:bg-background/30"
       onClick={onOpen}
       type="button"
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5 overflow-hidden">
             <span className="font-medium text-[11px] text-foreground/90">
               History · {activeAgentName}
             </span>
@@ -1175,7 +1206,7 @@ function SessionHistoryTriggerBar({
               {statusLabel}
             </span>
             {staleSelectionDetected ? (
-              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200/90">
+              <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200/90">
                 Restored
               </span>
             ) : null}
@@ -1421,6 +1452,12 @@ function AgentChatColumn({
   const isAtBottomRef = useRef(true);
   const prevTimelineLengthRef = useRef(0);
   const previousScrollResetKeyRef = useRef<string | null>(null);
+  const hydrationRafRef = useRef<number | null>(null);
+  const hydrationStableFramesRef = useRef(0);
+  const hydrationTargetRef = useRef(-1);
+  const hydrationAttemptsRef = useRef(0);
+  const pendingMeasuredHeightsRef = useRef(new Map<string, number>());
+  const measureFlushFrameRef = useRef<number | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [imgError, setImgError] = useState(false);
@@ -1428,6 +1465,7 @@ function AgentChatColumn({
   const [isCurrentPlanExpanded, setIsCurrentPlanExpanded] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [isHydratingTimeline, setIsHydratingTimeline] = useState(true);
   const [measuredRowHeights, setMeasuredRowHeights] = useState<
     Map<string, number>
   >(() => new Map());
@@ -1509,9 +1547,13 @@ function AgentChatColumn({
 
     previousScrollResetKeyRef.current = scrollResetKey;
     prevTimelineLengthRef.current = 0;
+    hydrationStableFramesRef.current = 0;
+    hydrationTargetRef.current = -1;
+    hydrationAttemptsRef.current = 0;
     isAtBottomRef.current = true;
     setDetailItem(null);
     setIsAtBottom(true);
+    setIsHydratingTimeline(true);
     setIsCurrentPlanExpanded(false);
     setMeasuredRowHeights(new Map());
     setScrollTop(0);
@@ -1522,6 +1564,17 @@ function AgentChatColumn({
       el.scrollTop = 0;
     }
   }, [scrollResetKey]);
+
+  useEffect(() => {
+    return () => {
+      if (hydrationRafRef.current !== null) {
+        window.cancelAnimationFrame(hydrationRafRef.current);
+      }
+      if (measureFlushFrameRef.current !== null) {
+        window.cancelAnimationFrame(measureFlushFrameRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1688,6 +1741,82 @@ function AgentChatColumn({
     }
   }, [viewportHeight]);
 
+  useEffect(() => {
+    if (!isHydratingTimeline) {
+      return;
+    }
+
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+
+    if (timeline.length === 0 && !showPendingIndicator) {
+      setIsHydratingTimeline(false);
+      return;
+    }
+
+    if (hydrationRafRef.current !== null) {
+      window.cancelAnimationFrame(hydrationRafRef.current);
+      hydrationRafRef.current = null;
+    }
+
+    const alignToBottom = () => {
+      const node = scrollRef.current;
+      if (!node) {
+        return;
+      }
+
+      if (viewportHeight <= 0) {
+        hydrationRafRef.current = window.requestAnimationFrame(alignToBottom);
+        return;
+      }
+
+      hydrationAttemptsRef.current += 1;
+
+      const target = getDomMaxScrollTop(node);
+      if (Math.abs(node.scrollTop - target) >= 1) {
+        node.scrollTop = target;
+      }
+
+      setScrollTop(target);
+      isAtBottomRef.current = true;
+      setIsAtBottom(true);
+
+      if (Math.abs(hydrationTargetRef.current - target) < 1) {
+        hydrationStableFramesRef.current += 1;
+      } else {
+        hydrationTargetRef.current = target;
+        hydrationStableFramesRef.current = 0;
+      }
+
+      if (
+        hydrationStableFramesRef.current >= 1 ||
+        hydrationAttemptsRef.current >= 12
+      ) {
+        hydrationRafRef.current = null;
+        setIsHydratingTimeline(false);
+        return;
+      }
+
+      hydrationRafRef.current = window.requestAnimationFrame(alignToBottom);
+    };
+
+    hydrationRafRef.current = window.requestAnimationFrame(alignToBottom);
+
+    return () => {
+      if (hydrationRafRef.current !== null) {
+        window.cancelAnimationFrame(hydrationRafRef.current);
+        hydrationRafRef.current = null;
+      }
+    };
+  }, [
+    isHydratingTimeline,
+    showPendingIndicator,
+    timeline.length,
+    viewportHeight,
+  ]);
+
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (el) {
@@ -1703,15 +1832,18 @@ function AgentChatColumn({
   }, []);
 
   const handleRowHeightChange = useCallback((key: string, height: number) => {
-    setMeasuredRowHeights((prev) => {
-      const current = prev.get(key);
-      if (current && Math.abs(current - height) < 1) {
-        return prev;
-      }
+    pendingMeasuredHeightsRef.current.set(key, height);
 
-      const next = new Map(prev);
-      next.set(key, height);
-      return next;
+    if (measureFlushFrameRef.current !== null) {
+      return;
+    }
+
+    measureFlushFrameRef.current = window.requestAnimationFrame(() => {
+      measureFlushFrameRef.current = null;
+      flushMeasuredHeights(
+        pendingMeasuredHeightsRef.current,
+        setMeasuredRowHeights
+      );
     });
   }, []);
 
@@ -1933,8 +2065,20 @@ function AgentChatColumn({
 
       {/* Scrollable message list */}
       <div className="relative min-h-0 flex-1">
+        {isHydratingTimeline ? (
+          <div className="absolute inset-0 z-10 flex flex-col gap-3 px-3 py-3">
+            <div className="h-5 w-24 animate-pulse rounded bg-white/8" />
+            <div className="ml-auto h-16 w-[72%] animate-pulse rounded-2xl bg-white/6" />
+            <div className="h-20 w-[88%] animate-pulse rounded-2xl bg-white/6" />
+            <div className="ml-auto h-14 w-[60%] animate-pulse rounded-2xl bg-white/6" />
+            <div className="mt-auto h-12 w-[68%] animate-pulse rounded-2xl bg-white/5" />
+          </div>
+        ) : null}
         <div
-          className="h-full overflow-y-auto px-3 py-3"
+          className={cn(
+            "h-full overflow-y-auto px-3 py-3",
+            isHydratingTimeline ? "invisible" : "visible"
+          )}
           onScroll={handleScroll}
           ref={scrollRef}
         >
