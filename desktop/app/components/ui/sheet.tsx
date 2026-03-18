@@ -51,13 +51,24 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   overlayClassName?: string;
+  showCloseButton?: boolean;
 }
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
 >(
-  ({ side = "right", className, children, overlayClassName, ...props }, ref) => (
+  (
+    {
+      side = "right",
+      className,
+      children,
+      overlayClassName,
+      showCloseButton = true,
+      ...props
+    },
+    ref
+  ) => (
   <SheetPortal>
     <SheetOverlay className={overlayClassName} />
     <SheetPrimitive.Content
@@ -66,10 +77,12 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </SheetPrimitive.Close>
+      {showCloseButton ? (
+        <SheetPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </SheetPrimitive.Close>
+      ) : null}
     </SheetPrimitive.Content>
   </SheetPortal>
   )

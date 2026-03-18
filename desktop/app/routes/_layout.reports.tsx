@@ -6,7 +6,7 @@ import {
   RotateCcw,
   User,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import {
   Alert,
@@ -21,17 +21,40 @@ import type { ReportMeta } from "./api.reports";
 
 type Tab = "active" | "archived";
 
+const SHEET_CLOSE_ANIMATION_MS = 300;
+
 export default function ReportsLayout() {
   const [reports, setReports] = useState<ReportMeta[]>([]);
   const [tab, setTab] = useState<Tab>("active");
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const closeTimeoutRef = useRef<number | null>(null);
 
   // Detail is showing when the URL is not exactly /reports
   const isDetailShowing =
     location.pathname !== "/reports" && location.pathname !== "/reports/";
+
+  useEffect(() => {
+    if (isDetailShowing) {
+      if (closeTimeoutRef.current !== null) {
+        window.clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
+
+      setIsSheetOpen(true);
+    }
+  }, [isDetailShowing]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current !== null) {
+        window.clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const fetchReports = useCallback(async (currentTab: Tab) => {
     setLoadingList(true);
@@ -67,12 +90,31 @@ export default function ReportsLayout() {
   };
 
   const handleSelect = (r: ReportMeta) => {
+    if (closeTimeoutRef.current !== null) {
+      window.clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
+    setIsSheetOpen(true);
+
     if (tab === "archived") {
       navigate(`/reports/${encodeURIComponent(r.filename)}?archived=true`);
     } else {
       navigate(`/reports/${encodeURIComponent(r.filename)}`);
     }
   };
+
+  const closeDetail = useCallback(() => {
+    if (closeTimeoutRef.current !== null) {
+      window.clearTimeout(closeTimeoutRef.current);
+    }
+
+    setIsSheetOpen(false);
+    closeTimeoutRef.current = window.setTimeout(() => {
+      closeTimeoutRef.current = null;
+      navigate("/reports");
+    }, SHEET_CLOSE_ANIMATION_MS);
+  }, [navigate]);
 
   // Called by list buttons and passed to detail via outlet context
   const archiveReport = useCallback(
@@ -254,17 +296,25 @@ export default function ReportsLayout() {
 
         <Sheet
           onOpenChange={(open) => {
-            if (!open) {
-              navigate("/reports");
+            if (open) {
+              if (closeTimeoutRef.current !== null) {
+                window.clearTimeout(closeTimeoutRef.current);
+                closeTimeoutRef.current = null;
+              }
+
+              setIsSheetOpen(true);
+            } else {
+              closeDetail();
             }
           }}
-          open={isDetailShowing}
+          open={isSheetOpen}
         >
           {isDetailShowing ? (
             <SheetContent
               className="flex h-full w-screen max-w-none flex-col gap-0 border-border/50 border-l bg-background/98 p-0 backdrop-blur-xl sm:w-[92vw] sm:max-w-3xl lg:max-w-5xl"
               overlayClassName="bg-black/20"
               side="right"
+              showCloseButton={false}
             >
               <Outlet
                 context={
