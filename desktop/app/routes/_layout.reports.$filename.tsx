@@ -313,7 +313,7 @@ export default function ReportDetail() {
             <CardContent className="px-5 pt-6 pb-8 md:px-8">
               <div
                 className={cn(
-                  "markdown-body text-sm md:text-base",
+                  "markdown-body text-[13px] leading-6 md:text-sm md:leading-6",
                   "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                 )}
               >
