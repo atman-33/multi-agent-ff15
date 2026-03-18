@@ -126,10 +126,7 @@ export default function ReportsLayout() {
       <div className="flex flex-1 overflow-hidden">
         {/* Master List */}
         <div
-          className={cn(
-            "shrink-0 flex-col overflow-auto border-border/50 border-r",
-            isDetailShowing ? "hidden w-72 md:flex lg:w-80" : "flex w-full"
-          )}
+          className="flex w-full flex-col overflow-auto"
         >
           {/* Tab switcher */}
           <div className="sticky top-0 z-10 border-border/50 border-b bg-card/40 backdrop-blur-sm">
@@ -266,6 +263,7 @@ export default function ReportsLayout() {
           {isDetailShowing ? (
             <SheetContent
               className="flex h-full w-screen max-w-none flex-col gap-0 border-border/50 border-l bg-background/98 p-0 backdrop-blur-xl sm:w-[92vw] sm:max-w-3xl lg:max-w-5xl"
+              overlayClassName="bg-black/20"
               side="right"
             >
               <Outlet
