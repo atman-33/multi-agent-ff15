@@ -27,6 +27,13 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -52,6 +59,7 @@ import { useActiveProjects } from "@/hooks/use-active-projects";
 import { useAgentActivity } from "@/hooks/use-agent-activity";
 import type { AgentId } from "@/hooks/use-agent-chat-log";
 import type { InboxLogRecord } from "@/hooks/use-inbox-log";
+import { useSessionHistorySelection } from "@/hooks/use-session-history-selection";
 import type { ChatDetailItem } from "@/lib/chat-detail";
 import {
   buildChatTimeline,
@@ -63,6 +71,13 @@ import {
   getProjectScopeForAgent,
   PROJECT_SCOPE_LABELS,
 } from "@/lib/project-scopes";
+import {
+  filterChatLogRecordsBySession,
+  getSessionHistoryFallbackLabel,
+  getSessionHistoryPrimaryLabel,
+  getSessionHistoryRelativeTimeLabel,
+  type SessionHistorySummary,
+} from "@/lib/session-history";
 import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {
@@ -79,9 +94,12 @@ interface AgentChatColumnProps {
   optimisticMessages?: InboxLogRecord[];
   partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
   partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
+  partySessionSummaries?: Partial<Record<ComradeId, SessionHistorySummary[]>>;
   /** Party props — only used when agent === "noctis" */
   partyView?: ComradeId | null;
   records: ChatLogRecord[];
+  sessionHistoryReady?: boolean;
+  sessionSummaries?: SessionHistorySummary[];
   status?: string;
 }
 
@@ -1069,6 +1087,298 @@ function ComradeTab({
   );
 }
 
+function formatSessionTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function SessionHistoryTriggerBar({
+  activeAgentName,
+  onOpen,
+  selectedSummary,
+  sessionSummaries,
+  sessionHistoryReady,
+  staleSelectionDetected,
+  showDetachedBanner,
+}: {
+  activeAgentName: AgentId;
+  onOpen: () => void;
+  selectedSummary: SessionHistorySummary | null;
+  sessionSummaries: readonly SessionHistorySummary[];
+  sessionHistoryReady: boolean;
+  staleSelectionDetected: boolean;
+  showDetachedBanner: boolean;
+}) {
+  const hasSavedSessions = sessionSummaries.length > 0;
+  const statusLabel = sessionHistoryReady
+    ? hasSavedSessions
+      ? selectedSummary?.isActive
+        ? "Live now"
+        : showDetachedBanner
+          ? "Viewing history"
+          : "Saved"
+      : "No saved sessions"
+    : "Loading";
+  const statusClass = sessionHistoryReady
+    ? hasSavedSessions
+      ? selectedSummary?.isActive
+        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+        : showDetachedBanner
+          ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+          : "border-border/40 bg-white/5 text-muted-foreground/80"
+      : "border-border/40 bg-white/5 text-muted-foreground/80"
+    : "border-border/40 bg-white/5 text-muted-foreground/80";
+  const headline = sessionHistoryReady
+    ? hasSavedSessions
+      ? selectedSummary
+        ? getSessionHistoryPrimaryLabel(selectedSummary)
+        : `Latest session for ${activeAgentName}`
+      : `No saved sessions for ${activeAgentName}`
+    : `Loading history for ${activeAgentName}`;
+  const detail = sessionHistoryReady
+    ? hasSavedSessions
+      ? selectedSummary
+        ? `${getSessionHistoryRelativeTimeLabel(selectedSummary.lastActivityAt)} · ${selectedSummary.messageCount} records`
+        : "Read-only history is available."
+      : "Existing send and session controls remain unchanged."
+    : "Read-only history is still loading.";
+
+  return (
+    <button
+      className="w-full border-white/5 border-b bg-background/20 px-3 py-1.5 text-left transition-colors hover:bg-background/30"
+      onClick={onOpen}
+      type="button"
+    >
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="font-medium text-[11px] text-foreground/90">
+              History · {activeAgentName}
+            </span>
+            <span
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px]",
+                statusClass
+              )}
+            >
+              {statusLabel}
+            </span>
+            {staleSelectionDetected ? (
+              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200/90">
+                Restored
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-1 truncate text-[11px] text-foreground/90">
+            {headline}
+          </div>
+          <div className="truncate text-[10px] text-muted-foreground/70">
+            {detail}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <span className="text-[10px] text-muted-foreground/55">
+            {sessionSummaries.length} sessions
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function SessionHistorySheet({
+  activeAgentName,
+  onOpenChange,
+  onSelectSession,
+  open,
+  selectedSessionId,
+  selectedSummary,
+  sessionSummaries,
+  sessionHistoryReady,
+  staleSelectionDetected,
+  showDetachedBanner,
+}: {
+  activeAgentName: AgentId;
+  onOpenChange: (open: boolean) => void;
+  onSelectSession: (sessionId: string | null) => void;
+  open: boolean;
+  selectedSessionId: string | null;
+  selectedSummary: SessionHistorySummary | null;
+  sessionSummaries: readonly SessionHistorySummary[];
+  sessionHistoryReady: boolean;
+  staleSelectionDetected: boolean;
+  showDetachedBanner: boolean;
+}) {
+  const handleSelectSession = useCallback(
+    (sessionId: string) => {
+      onSelectSession(sessionId);
+      onOpenChange(false);
+    },
+    [onOpenChange, onSelectSession]
+  );
+
+  return (
+    <Sheet onOpenChange={onOpenChange} open={open}>
+      <SheetContent
+        className="flex h-full w-full flex-col gap-0 border-white/10 bg-zinc-950/95 p-0 text-foreground shadow-2xl sm:max-w-[440px]"
+        side="right"
+      >
+        <SheetHeader className="border-white/10 border-b px-5 py-4 pr-12">
+          <SheetTitle className="text-sm">Session History</SheetTitle>
+          <SheetDescription className="text-xs">
+            Read-only view for {activeAgentName}. Timeline filtering stays bound
+            to the selected session.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="space-y-3 border-white/10 border-b px-4 py-4">
+            {sessionHistoryReady ? (
+              sessionSummaries.length > 0 ? (
+                <>
+                  {selectedSummary ? (
+                    <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/80">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5",
+                            selectedSummary.isActive
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                              : "border-border/40 bg-white/5 text-muted-foreground/80"
+                          )}
+                        >
+                          {selectedSummary.isActive ? "Active" : "Saved"}
+                        </span>
+                        <span>{selectedSummary.messageCount} records</span>
+                        <span>
+                          Started {formatSessionTimestamp(selectedSummary.startedAt)}
+                        </span>
+                      </div>
+                      <div className="mt-2 truncate text-foreground/90 text-xs">
+                        {getSessionHistoryPrimaryLabel(selectedSummary)}
+                      </div>
+                      <div className="mt-1 truncate text-[11px] text-muted-foreground/75">
+                        {getSessionHistoryFallbackLabel(
+                          selectedSummary.lastActivityAt
+                        )}
+                      </div>
+                      <div className="mt-2 truncate font-mono text-[10px] text-muted-foreground/50">
+                        {selectedSummary.sessionId}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {staleSelectionDetected ? (
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200/90">
+                      Previously selected session was unavailable, so the newest
+                      saved session was restored.
+                    </div>
+                  ) : null}
+
+                  {showDetachedBanner ? (
+                    <div className="rounded-md border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200/90">
+                      Another live session is active for {activeAgentName}. This
+                      sheet remains pinned to the selected saved session.
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="rounded-md border border-border/40 border-dashed bg-background/30 px-3 py-3 text-[11px] text-muted-foreground/75">
+                  No saved sessions yet for {activeAgentName}. Existing send and
+                  session controls remain unchanged.
+                </div>
+              )
+            ) : (
+              <div className="animate-pulse rounded-md border border-border/30 bg-background/40 px-3 py-3 text-[11px] text-muted-foreground/60">
+                Loading session history…
+              </div>
+            )}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="font-medium text-[11px] text-foreground/90 uppercase tracking-wider">
+                Saved sessions
+              </div>
+              <div className="text-[10px] text-muted-foreground/55">
+                {sessionSummaries.length} total
+              </div>
+            </div>
+
+            {sessionHistoryReady && sessionSummaries.length > 0 ? (
+              <div className="space-y-2">
+                {sessionSummaries.map((summary) => {
+                  const isSelected = summary.sessionId === selectedSessionId;
+
+                  return (
+                    <button
+                      aria-pressed={isSelected}
+                      className={cn(
+                        "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                        isSelected
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-white/10 bg-black/10 hover:bg-white/5"
+                      )}
+                      key={summary.sessionId}
+                      onClick={() => handleSelectSession(summary.sessionId)}
+                      type="button"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="truncate font-medium text-foreground/90 text-xs">
+                            {getSessionHistoryPrimaryLabel(summary)}
+                          </span>
+                          {summary.isActive ? (
+                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
+                              Active
+                            </span>
+                          ) : null}
+                          {isSelected ? (
+                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                              Selected
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-muted-foreground/75">
+                          {getSessionHistoryFallbackLabel(summary.lastActivityAt)}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/55">
+                          <span>{getSessionHistoryRelativeTimeLabel(summary.lastActivityAt)}</span>
+                          <span>{summary.messageCount} records</span>
+                          <span>Started {formatSessionTimestamp(summary.startedAt)}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="border-white/10 border-t bg-black/20 px-4 py-3">
+            <div className="font-medium text-[11px] text-foreground/90 uppercase tracking-wider">
+              Future actions
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground/70 leading-relaxed">
+              Resume, Fork, and New will appear here in a later phase. This
+              sheet stays read-only for now.
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default memo(AgentChatColumn);
 
 function AgentChatColumn({
@@ -1080,6 +1390,7 @@ function AgentChatColumn({
   onPartyViewChange,
   partyRecords,
   partyInboxMessages,
+  partySessionSummaries,
   busyMap,
   modelOptions = [],
   modelRefreshTrigger,
@@ -1087,6 +1398,8 @@ function AgentChatColumn({
   isTauri = false,
   optimisticMessages = [],
   contextPercent,
+  sessionHistoryReady = false,
+  sessionSummaries = [],
   onSent,
 }: AgentChatColumnProps) {
   const { label, Icon, imageSrc, theme } = AGENT_CONFIG[agent];
@@ -1104,6 +1417,8 @@ function AgentChatColumn({
   const [measuredRowHeights, setMeasuredRowHeights] = useState<
     Map<string, number>
   >(() => new Map());
+  const [isSessionHistorySheetOpen, setIsSessionHistorySheetOpen] =
+    useState(false);
 
   // Determine active view: Noctis own data or a comrade's data
   const viewingComrade = agent === "noctis" && partyView !== null;
@@ -1113,6 +1428,10 @@ function AgentChatColumn({
     viewingComrade && partyView
       ? (partyInboxMessages?.[partyView] ?? [])
       : inboxMessages;
+  const activeSessionSummaries =
+    viewingComrade && partyView
+      ? (partySessionSummaries?.[partyView] ?? [])
+      : sessionSummaries;
   const activeLabel =
     viewingComrade && partyView ? COMRADE_CONFIG[partyView].label : label;
   const activeIsProcessing = viewingComrade
@@ -1129,10 +1448,45 @@ function AgentChatColumn({
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
+  const { selectedSessionId, setSelectedSessionId } =
+    useSessionHistorySelection(activeAgentName, activeSessionSummaries);
+  const staleSelectionDetected = useMemo(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    const persistedSelection = localStorage.getItem(
+      `chat_selected_session:${activeAgentName}`
+    );
+    return !!persistedSelection && persistedSelection !== selectedSessionId;
+  }, [activeAgentName, selectedSessionId]);
+  const selectedSessionSummary = useMemo(
+    () =>
+      activeSessionSummaries.find(
+        (summary) => summary.sessionId === selectedSessionId
+      ) ?? null,
+    [activeSessionSummaries, selectedSessionId]
+  );
+  const hasActiveSessionSummary = useMemo(
+    () => activeSessionSummaries.some((summary) => summary.isActive),
+    [activeSessionSummaries]
+  );
+  const showDetachedHistoryNotice =
+    !!selectedSessionSummary &&
+    activeIsProcessing &&
+    hasActiveSessionSummary &&
+    !selectedSessionSummary.isActive;
   const previousActiveAgentNameRef = useRef(activeAgentName);
-  const liveEvents = useAgentActivity(activeAgentName, activeIsProcessing);
+  const liveEvents = useAgentActivity(
+    activeAgentName,
+    activeIsProcessing,
+    selectedSessionId
+  );
   const showPendingIndicator = activeIsProcessing;
   const activeProjectScope = getProjectScopeForAgent(activeAgentName);
+  const filteredRecords = useMemo(
+    () => filterChatLogRecordsBySession(activeRecords, selectedSessionId),
+    [activeRecords, selectedSessionId]
+  );
 
   useEffect(() => {
     if (previousActiveAgentNameRef.current === activeAgentName) {
@@ -1183,8 +1537,8 @@ function AgentChatColumn({
         []);
 
   const agentTimeline = useMemo(
-    () => buildChatTimeline([...activeRecords, ...liveEvents]),
-    [activeRecords, liveEvents]
+    () => buildChatTimeline([...filteredRecords, ...liveEvents]),
+    [filteredRecords, liveEvents]
   );
 
   const timeline = useMemo(
@@ -1350,6 +1704,19 @@ function AgentChatColumn({
   }, []);
 
   const totalCount = agentTimeline.length + activeInboxMessages.length;
+  const hasSessionSelection = selectedSessionId !== null;
+  const showEmptyTimeline =
+    timeline.length === 0 &&
+    !activeIsProcessing &&
+    (!sessionHistoryReady ||
+      activeSessionSummaries.length === 0 ||
+      !hasSessionSelection);
+  const showSelectedSessionEmptyState =
+    timeline.length === 0 &&
+    !activeIsProcessing &&
+    sessionHistoryReady &&
+    activeSessionSummaries.length > 0 &&
+    hasSessionSelection;
 
   return (
     <div
@@ -1505,6 +1872,29 @@ function AgentChatColumn({
         targetAgent={switchTargetAgent}
       />
 
+      <SessionHistoryTriggerBar
+        activeAgentName={activeAgentName}
+        onOpen={() => setIsSessionHistorySheetOpen(true)}
+        selectedSummary={selectedSessionSummary}
+        sessionHistoryReady={sessionHistoryReady}
+        sessionSummaries={activeSessionSummaries}
+        staleSelectionDetected={staleSelectionDetected}
+        showDetachedBanner={showDetachedHistoryNotice}
+      />
+
+      <SessionHistorySheet
+        activeAgentName={activeAgentName}
+        onOpenChange={setIsSessionHistorySheetOpen}
+        onSelectSession={setSelectedSessionId}
+        open={isSessionHistorySheetOpen}
+        selectedSessionId={selectedSessionId}
+        selectedSummary={selectedSessionSummary}
+        sessionHistoryReady={sessionHistoryReady}
+        sessionSummaries={activeSessionSummaries}
+        staleSelectionDetected={staleSelectionDetected}
+        showDetachedBanner={showDetachedHistoryNotice}
+      />
+
       {/* Scrollable message list */}
       <div className="relative min-h-0 flex-1">
         <div
@@ -1512,9 +1902,19 @@ function AgentChatColumn({
           onScroll={handleScroll}
           ref={scrollRef}
         >
-          {timeline.length === 0 && !activeIsProcessing ? (
+          {showEmptyTimeline ? (
             <div className="flex h-full items-center justify-center text-muted-foreground/60 text-sm">
               No messages yet
+            </div>
+          ) : showSelectedSessionEmptyState ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <div className="text-muted-foreground/70 text-sm">
+                No records found for the selected session.
+              </div>
+              <div className="max-w-xs text-[11px] text-muted-foreground/55 leading-relaxed">
+                Open History to switch to another saved session. Message sending
+                and session controls are unchanged in this phase.
+              </div>
             </div>
           ) : (
             <>

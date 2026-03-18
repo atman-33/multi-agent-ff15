@@ -88,11 +88,24 @@ struct TmuxPane {
 
 const ALLOWED_TARGETS: &[&str] = &["noctis", "lunafreya"];
 const ALLOWED_INBOX_AGENTS: &[&str] = &[
-    "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris", "crystal",
+    "noctis",
+    "lunafreya",
+    "ignis",
+    "gladiolus",
+    "prompto",
+    "iris",
+    "crystal",
 ];
 const MODEL_SWITCH_TARGETS: &[&str] = &["noctis", "lunafreya", "ignis", "gladiolus", "prompto"];
 const ALLOWED_SENDERS: &[&str] = &[
-    "crystal", "user", "noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris",
+    "crystal",
+    "user",
+    "noctis",
+    "lunafreya",
+    "ignis",
+    "gladiolus",
+    "prompto",
+    "iris",
 ];
 
 const CHAT_LOG_PATH: &str = "runtime/logs/agent-chat-monitor.jsonl";
@@ -154,6 +167,18 @@ struct ChatLogPage {
     total_lines: usize,
     /// Whether the file was truncated/reset since the last read.
     reset: bool,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ChatSessionSummary {
+    agent: String,
+    is_active: bool,
+    last_activity_at: String,
+    message_count: usize,
+    preview: String,
+    session_id: String,
+    started_at: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -259,10 +284,10 @@ fn mark_inbox_read(agent: String, message_id: String) -> Result<(), String> {
         return Err("Inbox file not found".into());
     }
 
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read inbox: {}", e))?;
-    let mut inbox: InboxFile = serde_yaml::from_str(&content)
-        .map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
+    let content =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {}", e))?;
+    let mut inbox: InboxFile =
+        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
 
     let mut found = false;
     for msg in &mut inbox.messages {
@@ -277,13 +302,12 @@ fn mark_inbox_read(agent: String, message_id: String) -> Result<(), String> {
         return Err(format!("Message not found: {}", message_id));
     }
 
-    let yaml_str = serde_yaml::to_string(&inbox)
-        .map_err(|e| format!("Failed to serialize YAML: {}", e))?;
+    let yaml_str =
+        serde_yaml::to_string(&inbox).map_err(|e| format!("Failed to serialize YAML: {}", e))?;
     let tmp_path = path.with_extension("yaml.tmp");
     std::fs::write(&tmp_path, &yaml_str)
         .map_err(|e| format!("Failed to write temp file: {}", e))?;
-    std::fs::rename(&tmp_path, &path)
-        .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+    std::fs::rename(&tmp_path, &path).map_err(|e| format!("Failed to rename temp file: {}", e))?;
 
     Ok(())
 }
@@ -301,22 +325,21 @@ fn mark_all_inbox_read(agent: String) -> Result<(), String> {
         return Err("Inbox file not found".into());
     }
 
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read inbox: {}", e))?;
-    let mut inbox: InboxFile = serde_yaml::from_str(&content)
-        .map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
+    let content =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {}", e))?;
+    let mut inbox: InboxFile =
+        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse inbox YAML: {}", e))?;
 
     for msg in &mut inbox.messages {
         msg.read = true;
     }
 
-    let yaml_str = serde_yaml::to_string(&inbox)
-        .map_err(|e| format!("Failed to serialize YAML: {}", e))?;
+    let yaml_str =
+        serde_yaml::to_string(&inbox).map_err(|e| format!("Failed to serialize YAML: {}", e))?;
     let tmp_path = path.with_extension("yaml.tmp");
     std::fs::write(&tmp_path, &yaml_str)
         .map_err(|e| format!("Failed to write temp file: {}", e))?;
-    std::fs::rename(&tmp_path, &path)
-        .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+    std::fs::rename(&tmp_path, &path).map_err(|e| format!("Failed to rename temp file: {}", e))?;
 
     Ok(())
 }
@@ -326,12 +349,18 @@ fn mark_all_inbox_read(agent: String) -> Result<(), String> {
 fn send_message(target: String, from: String, content: String) -> Result<String, String> {
     // Validate target
     if !ALLOWED_TARGETS.contains(&target.as_str()) {
-        return Err(format!("Invalid target: {}. Allowed: {:?}", target, ALLOWED_TARGETS));
+        return Err(format!(
+            "Invalid target: {}. Allowed: {:?}",
+            target, ALLOWED_TARGETS
+        ));
     }
 
     // Validate sender
     if !ALLOWED_SENDERS.contains(&from.as_str()) {
-        return Err(format!("Invalid sender: {}. Allowed: {:?}", from, ALLOWED_SENDERS));
+        return Err(format!(
+            "Invalid sender: {}. Allowed: {:?}",
+            from, ALLOWED_SENDERS
+        ));
     }
 
     // Validate content
@@ -434,6 +463,33 @@ fn read_agent_chat_logs(
     })
 }
 
+#[tauri::command]
+fn read_agent_session_history(agent: String) -> Result<Vec<ChatSessionSummary>, String> {
+    if !ALLOWED_INBOX_AGENTS.contains(&agent.as_str()) {
+        return Err(format!("Invalid agent: {}", agent));
+    }
+
+    let root = get_project_root()?;
+    let log_path = root.join(CHAT_LOG_PATH);
+
+    if !log_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let file =
+        std::fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {}", e))?;
+    let reader = BufReader::new(file);
+
+    let records: Vec<ChatLogRecord> = reader
+        .lines()
+        .filter_map(|line| line.ok())
+        .filter_map(|line| serde_json::from_str::<ChatLogRecord>(&line).ok())
+        .filter(|record| record.agent == agent)
+        .collect();
+
+    Ok(build_chat_session_summaries(&records, &agent))
+}
+
 /// Send a message from Crystal to a target agent via inbox_write.sh.
 /// target must be "noctis" or "lunafreya". Message is limited to 4000 chars.
 #[tauri::command]
@@ -523,11 +579,7 @@ fn read_inbox_log(cursor: Option<usize>) -> Result<InboxLogPage, String> {
         }
     };
 
-    let slice: Vec<InboxLogRecord> = all_records
-        .into_iter()
-        .skip(start)
-        .take(LIMIT)
-        .collect();
+    let slice: Vec<InboxLogRecord> = all_records.into_iter().skip(start).take(LIMIT).collect();
 
     let consumed = slice.len();
     let next_cursor = start + consumed;
@@ -612,8 +664,8 @@ fn read_model_options() -> Result<Vec<String>, String> {
         return Ok(vec![]);
     }
 
-    let raw = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read models.yaml: {}", e))?;
+    let raw =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read models.yaml: {}", e))?;
     let parsed: ModelsYaml =
         serde_yaml::from_str(&raw).map_err(|e| format!("Invalid models.yaml: {}", e))?;
 
@@ -735,7 +787,11 @@ fn open_project_in_vscode(path: String, preference: String) -> Result<(), String
         }
         "auto" | "windows" if is_windows_mounted_path(&path) => {
             let windows_path = run_command_for_output("wslpath", &["-w", path.as_str()], None)?;
-            run_command("cmd.exe", &["/C", "code", windows_path.as_str()], Some(&path_buf))
+            run_command(
+                "cmd.exe",
+                &["/C", "code", windows_path.as_str()],
+                Some(&path_buf),
+            )
         }
         "auto" | "windows" => {
             let (_, distro) = detect_wsl();
@@ -806,7 +862,11 @@ fn run_command(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<(), St
     })
 }
 
-fn run_command_for_output(cmd: &str, args: &[&str], cwd: Option<&PathBuf>) -> Result<String, String> {
+fn run_command_for_output(
+    cmd: &str,
+    args: &[&str],
+    cwd: Option<&PathBuf>,
+) -> Result<String, String> {
     let mut command = Command::new(cmd);
     command.args(args);
 
@@ -852,6 +912,103 @@ fn is_executable(path: &PathBuf) -> bool {
     false
 }
 
+fn build_chat_session_summaries(records: &[ChatLogRecord], agent: &str) -> Vec<ChatSessionSummary> {
+    let mut summaries = std::collections::HashMap::<String, ChatSessionSummary>::new();
+    let mut sorted_records = records.to_vec();
+    sorted_records.sort_by(|left, right| left.ts.cmp(&right.ts).then(left.id.cmp(&right.id)));
+
+    for record in sorted_records {
+        let session_id = record.session_id.trim();
+        if session_id.is_empty() {
+            continue;
+        }
+
+        let preview = get_chat_record_preview(&record);
+        let is_active = record.source == "live_stream"
+            || record
+                .state
+                .as_deref()
+                .map(|state| matches!(state, "pending" | "running"))
+                .unwrap_or(false);
+
+        match summaries.get_mut(session_id) {
+            Some(existing) => {
+                existing.message_count += 1;
+
+                if record.ts < existing.started_at {
+                    existing.started_at = record.ts.clone();
+                }
+
+                if record.ts >= existing.last_activity_at {
+                    existing.last_activity_at = record.ts.clone();
+                    existing.is_active = is_active;
+                    if !preview.is_empty() {
+                        existing.preview = preview;
+                    }
+                } else if existing.preview.is_empty() && !preview.is_empty() {
+                    existing.preview = preview;
+                }
+            }
+            None => {
+                summaries.insert(
+                    session_id.to_string(),
+                    ChatSessionSummary {
+                        agent: agent.to_string(),
+                        is_active,
+                        last_activity_at: record.ts.clone(),
+                        message_count: 1,
+                        preview,
+                        session_id: session_id.to_string(),
+                        started_at: record.ts.clone(),
+                    },
+                );
+            }
+        }
+    }
+
+    let mut result: Vec<ChatSessionSummary> = summaries.into_values().collect();
+    result.sort_by(|left, right| {
+        right
+            .last_activity_at
+            .cmp(&left.last_activity_at)
+            .then(left.session_id.cmp(&right.session_id))
+    });
+    result
+}
+
+fn get_chat_record_preview(record: &ChatLogRecord) -> String {
+    let mut candidates = Vec::new();
+    if let Some(content) = &record.content {
+        candidates.push(content.as_str());
+    }
+    if let Some(title) = &record.title {
+        candidates.push(title.as_str());
+    }
+    candidates.push(record.meta.event.as_str());
+    candidates.push(record.kind.as_str());
+
+    for candidate in candidates {
+        let trimmed = candidate.split_whitespace().collect::<Vec<_>>().join(" ");
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        return trim_preview(&trimmed, 120);
+    }
+
+    String::new()
+}
+
+fn trim_preview(value: &str, max_chars: usize) -> String {
+    let total_chars = value.chars().count();
+    if total_chars <= max_chars {
+        return value.to_string();
+    }
+
+    let truncated: String = value.chars().take(max_chars.saturating_sub(1)).collect();
+    format!("{}…", truncated)
+}
+
 // ---------------------------------------------------------------------------
 // App entry
 // ---------------------------------------------------------------------------
@@ -867,6 +1024,7 @@ pub fn run() {
             mark_all_inbox_read,
             send_message,
             read_agent_chat_logs,
+            read_agent_session_history,
             send_crystal_message,
             read_inbox_log,
             health_check,

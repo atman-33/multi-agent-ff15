@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  buildSessionHistorySummaries,
+  filterChatLogRecordsBySession,
+} from "@/lib/session-history";
 import type { ChatLogMeta, ChatLogRecord } from "@/lib/chat-timeline";
 
 // ---------------------------------------------------------------------------
@@ -256,7 +260,20 @@ export function useAgentChatLog() {
    * Memoization is handled by the caller via useMemo if needed.
    */
   const getRecordsForAgent = useCallback(
-    (agent: AgentId): ChatLogRecord[] => recordsByAgent[agent] ?? [],
+    (
+      agent: AgentId,
+      selectedSessionId?: string | null
+    ): ChatLogRecord[] =>
+      filterChatLogRecordsBySession(
+        recordsByAgent[agent] ?? [],
+        selectedSessionId
+      ),
+    [recordsByAgent]
+  );
+
+  const getSessionSummariesForAgent = useCallback(
+    (agent: AgentId) =>
+      buildSessionHistorySummaries(agent, recordsByAgent[agent] ?? []),
     [recordsByAgent]
   );
 
@@ -266,6 +283,7 @@ export function useAgentChatLog() {
     allRecords: flattenRecordMap(recordsByAgent),
     allRecordsRef,
     getRecordsForAgent,
+    getSessionSummariesForAgent,
     lastUpdated,
     error,
     isTauri,

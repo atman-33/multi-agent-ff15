@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LoaderFunctionArgs } from "react-router";
-import type { ChatLogRecord } from "@/lib/chat-timeline";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { parseChatLogLines } from "@/lib/session-history";
 
 const CHAT_LOG_PATH = "runtime/logs/agent-chat-monitor.jsonl";
 
@@ -35,18 +35,7 @@ export function loader({ request }: LoaderFunctionArgs) {
     const lines = readFileSync(logPath, "utf-8")
       .split("\n")
       .filter((l) => l.trim() !== "");
-    const filtered = lines
-      .map((line) => {
-        try {
-          return JSON.parse(line) as ChatLogRecord;
-        } catch {
-          return null;
-        }
-      })
-      .filter(
-        (record): record is ChatLogRecord =>
-          record !== null && (!agent || record.agent === agent)
-      );
+    const filtered = parseChatLogLines(lines, agent || undefined);
     const totalLines = filtered.length;
 
     const isTruncated = cursor !== null && cursor > totalLines;

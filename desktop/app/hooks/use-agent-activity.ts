@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { filterChatLogRecordsBySession } from "@/lib/session-history";
 import type { ChatLogRecord } from "@/lib/chat-timeline";
 
 const MAX_ACTIVITY_EVENTS = 200;
@@ -16,7 +17,8 @@ const MAX_ACTIVITY_EVENTS = 200;
  */
 export function useAgentActivity(
   agent: string,
-  isProcessing: boolean
+  isProcessing: boolean,
+  selectedSessionId?: string | null
 ): ChatLogRecord[] {
   const [activityEvents, setActivityEvents] = useState<ChatLogRecord[]>([]);
   const esRef = useRef<EventSource | null>(null);
@@ -69,5 +71,8 @@ export function useAgentActivity(
     };
   }, [agent, isProcessing]);
 
-  return activityEvents;
+  return useMemo(
+    () => filterChatLogRecordsBySession(activityEvents, selectedSessionId),
+    [activityEvents, selectedSessionId]
+  );
 }

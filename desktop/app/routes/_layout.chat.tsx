@@ -17,6 +17,7 @@ const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 export default function UnifiedChatRoute() {
   const {
     getRecordsForAgent,
+    getSessionSummariesForAgent,
     lastUpdated,
     error,
     isTauri,
@@ -67,6 +68,23 @@ export default function UnifiedChatRoute() {
     [noctisRecords, lunafeyaRecords]
   );
 
+  const noctisSessionSummaries = useMemo(
+    () => getSessionSummariesForAgent("noctis"),
+    [getSessionSummariesForAgent]
+  );
+  const lunafreyaSessionSummaries = useMemo(
+    () => getSessionSummariesForAgent("lunafreya"),
+    [getSessionSummariesForAgent]
+  );
+
+  const sessionSummariesMap = useMemo(
+    () => ({
+      noctis: noctisSessionSummaries,
+      lunafreya: lunafreyaSessionSummaries,
+    }),
+    [noctisSessionSummaries, lunafreyaSessionSummaries]
+  );
+
   const { getMessagesForAgent: getInboxMessages, refresh: refreshInbox } =
     useInboxLog();
 
@@ -109,6 +127,14 @@ export default function UnifiedChatRoute() {
         COMRADES.map((c) => [c, getInboxMessages(c)])
       ) as Record<ComradeId, ReturnType<typeof getInboxMessages>>,
     [getInboxMessages]
+  );
+
+  const comradeSessionSummaries = useMemo(
+    () =>
+      Object.fromEntries(
+        COMRADES.map((c) => [c, getSessionSummariesForAgent(c)])
+      ) as Record<ComradeId, ReturnType<typeof getSessionSummariesForAgent>>,
+    [getSessionSummariesForAgent]
   );
 
   const statuses = useAgentStatuses();
@@ -192,6 +218,8 @@ export default function UnifiedChatRoute() {
     [handleRefresh]
   );
 
+  const sessionHistoryReady = lastUpdated !== null || error !== null;
+
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       <StatusBar
@@ -223,12 +251,15 @@ export default function UnifiedChatRoute() {
               onSent={handleCrystalSent}
               optimisticMessages={optimisticMessages[agent]}
               records={recordsMap[agent]}
+              sessionHistoryReady={sessionHistoryReady}
+              sessionSummaries={sessionSummariesMap[agent]}
               status={effectiveStatuses[agent]}
               {...(agent === "noctis" && {
                 partyView: noctisPartyView,
                 onPartyViewChange: setNoctisPartyView,
                 partyRecords: comradeRecords,
                 partyInboxMessages: comradeInboxMessages,
+                partySessionSummaries: comradeSessionSummaries,
                 busyMap: effectiveStatuses as any,
               })}
             />
