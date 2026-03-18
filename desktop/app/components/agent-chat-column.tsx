@@ -27,19 +27,19 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -411,6 +411,10 @@ function getVisibleVirtualRows(
     topSpacer: first.start,
     visibleLayouts,
   };
+}
+
+function getDomMaxScrollTop(element: HTMLDivElement): number {
+  return Math.max(element.scrollHeight - element.clientHeight, 0);
 }
 
 const VirtualizedTimelineRow = memo(function VirtualizedTimelineRow({
@@ -1260,7 +1264,8 @@ function SessionHistorySheet({
                         </span>
                         <span>{selectedSummary.messageCount} records</span>
                         <span>
-                          Started {formatSessionTimestamp(selectedSummary.startedAt)}
+                          Started{" "}
+                          {formatSessionTimestamp(selectedSummary.startedAt)}
                         </span>
                       </div>
                       <div className="mt-2 truncate text-foreground/90 text-xs">
@@ -1349,12 +1354,20 @@ function SessionHistorySheet({
                           ) : null}
                         </div>
                         <div className="mt-1 truncate text-[11px] text-muted-foreground/75">
-                          {getSessionHistoryFallbackLabel(summary.lastActivityAt)}
+                          {getSessionHistoryFallbackLabel(
+                            summary.lastActivityAt
+                          )}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/55">
-                          <span>{getSessionHistoryRelativeTimeLabel(summary.lastActivityAt)}</span>
+                          <span>
+                            {getSessionHistoryRelativeTimeLabel(
+                              summary.lastActivityAt
+                            )}
+                          </span>
                           <span>{summary.messageCount} records</span>
-                          <span>Started {formatSessionTimestamp(summary.startedAt)}</span>
+                          <span>
+                            Started {formatSessionTimestamp(summary.startedAt)}
+                          </span>
                         </div>
                       </div>
                     </button>
@@ -1407,6 +1420,7 @@ function AgentChatColumn({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const prevTimelineLengthRef = useRef(0);
+  const previousScrollResetKeyRef = useRef<string | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [imgError, setImgError] = useState(false);
@@ -1475,7 +1489,6 @@ function AgentChatColumn({
     activeIsProcessing &&
     hasActiveSessionSummary &&
     !selectedSessionSummary.isActive;
-  const previousActiveAgentNameRef = useRef(activeAgentName);
   const liveEvents = useAgentActivity(
     activeAgentName,
     activeIsProcessing,
@@ -1483,17 +1496,18 @@ function AgentChatColumn({
   );
   const showPendingIndicator = activeIsProcessing;
   const activeProjectScope = getProjectScopeForAgent(activeAgentName);
+  const scrollResetKey = `${activeAgentName}:${selectedSessionId ?? "__all__"}`;
   const filteredRecords = useMemo(
     () => filterChatLogRecordsBySession(activeRecords, selectedSessionId),
     [activeRecords, selectedSessionId]
   );
 
   useEffect(() => {
-    if (previousActiveAgentNameRef.current === activeAgentName) {
+    if (previousScrollResetKeyRef.current === scrollResetKey) {
       return;
     }
 
-    previousActiveAgentNameRef.current = activeAgentName;
+    previousScrollResetKeyRef.current = scrollResetKey;
     prevTimelineLengthRef.current = 0;
     isAtBottomRef.current = true;
     setDetailItem(null);
@@ -1507,7 +1521,7 @@ function AgentChatColumn({
     if (el) {
       el.scrollTop = 0;
     }
-  }, [activeAgentName]);
+  }, [scrollResetKey]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1652,9 +1666,13 @@ function AgentChatColumn({
       return;
     }
 
-    const maxScrollTop = Math.max(totalHeight - viewportHeight, 0);
+    const maxScrollTop = getDomMaxScrollTop(el);
 
     if (isAtBottomRef.current) {
+      if (viewportHeight <= 0) {
+        return;
+      }
+
       if (Math.abs(el.scrollTop - maxScrollTop) < 1) {
         return;
       }
@@ -1668,7 +1686,7 @@ function AgentChatColumn({
       el.scrollTop = maxScrollTop;
       setScrollTop(maxScrollTop);
     }
-  }, [totalHeight, viewportHeight]);
+  }, [viewportHeight]);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -1702,6 +1720,24 @@ function AgentChatColumn({
       setDetailItem(null);
     }
   }, []);
+
+  const handleComposerSent = useCallback(
+    (target: AgentId, content: string, id?: string) => {
+      isAtBottomRef.current = true;
+      setIsAtBottom(true);
+      setUnreadCount(0);
+
+      const el = scrollRef.current;
+      if (el) {
+        const nextScrollTop = getDomMaxScrollTop(el);
+        el.scrollTop = nextScrollTop;
+        setScrollTop(nextScrollTop);
+      }
+
+      onSent?.(target, content, id);
+    },
+    [onSent]
+  );
 
   const totalCount = agentTimeline.length + activeInboxMessages.length;
   const hasSessionSelection = selectedSessionId !== null;
@@ -1878,8 +1914,8 @@ function AgentChatColumn({
         selectedSummary={selectedSessionSummary}
         sessionHistoryReady={sessionHistoryReady}
         sessionSummaries={activeSessionSummaries}
-        staleSelectionDetected={staleSelectionDetected}
         showDetachedBanner={showDetachedHistoryNotice}
+        staleSelectionDetected={staleSelectionDetected}
       />
 
       <SessionHistorySheet
@@ -1891,8 +1927,8 @@ function AgentChatColumn({
         selectedSummary={selectedSessionSummary}
         sessionHistoryReady={sessionHistoryReady}
         sessionSummaries={activeSessionSummaries}
-        staleSelectionDetected={staleSelectionDetected}
         showDetachedBanner={showDetachedHistoryNotice}
+        staleSelectionDetected={staleSelectionDetected}
       />
 
       {/* Scrollable message list */}
@@ -2155,7 +2191,7 @@ function AgentChatColumn({
       <MessageComposer
         compact
         isTauri={isTauri}
-        onSent={onSent}
+        onSent={handleComposerSent}
         targetAgent={viewingComrade && partyView ? partyView : agent}
         targetAgentImageSrc={
           viewingComrade && partyView

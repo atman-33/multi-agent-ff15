@@ -183,7 +183,9 @@ export function filterChatLogRecordsBySession<T extends ChatLogRecord>(
 export function getSessionHistoryPrimaryLabel(
   summary: SessionHistorySummary
 ): string {
-  return summary.preview || getSessionHistoryFallbackLabel(summary.lastActivityAt);
+  return (
+    summary.preview || getSessionHistoryFallbackLabel(summary.lastActivityAt)
+  );
 }
 
 export function getSessionHistoryFallbackLabel(timestamp: string): string {
@@ -238,12 +240,18 @@ function getRecordPreview(record: ChatLogRecord): string {
     }
   }
 
-  const mappedEvent = normalizeStructuredLabel(record.meta.event, FRIENDLY_EVENT_LABELS);
+  const mappedEvent = normalizeStructuredLabel(
+    record.meta.event,
+    FRIENDLY_EVENT_LABELS
+  );
   if (mappedEvent) {
     return mappedEvent;
   }
 
-  const mappedKind = normalizeStructuredLabel(record.kind, FRIENDLY_KIND_LABELS);
+  const mappedKind = normalizeStructuredLabel(
+    record.kind,
+    FRIENDLY_KIND_LABELS
+  );
   if (mappedKind) {
     return mappedKind;
   }
@@ -255,7 +263,9 @@ function getRecordFallbackLabel(timestamp: string): string {
   return getSessionHistoryFallbackLabel(timestamp);
 }
 
-function normalizeReadableCandidate(candidate: string | undefined): string | null {
+function normalizeReadableCandidate(
+  candidate: string | undefined
+): string | null {
   if (typeof candidate !== "string") {
     return null;
   }
@@ -309,11 +319,13 @@ function isMachineLikePreview(value: string): boolean {
     return true;
   }
 
-  return MACHINE_TOKEN_PATTERN.test(normalized) &&
+  return (
+    MACHINE_TOKEN_PATTERN.test(normalized) &&
     (normalized.includes("_") ||
       normalized.includes(".") ||
       normalized.includes(":") ||
-      normalized.includes("-"));
+      normalized.includes("-"))
+  );
 }
 
 function trimPreview(value: string): string {
