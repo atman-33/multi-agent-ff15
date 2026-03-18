@@ -21,6 +21,7 @@ import ChatDetailSheet from "@/components/chat-detail-sheet";
 import ExecutionCard from "@/components/execution-card";
 import MessageCard from "@/components/message-card";
 import MessageComposer from "@/components/message-composer";
+import TurnCard from "@/components/turn-card";
 import {
   HoverCard,
   HoverCardContent,
@@ -351,6 +352,10 @@ function getEstimatedRowHeight(row: VirtualTimelineRow): number {
     return 88;
   }
 
+  if (row.mergedItem.item.type === "turn") {
+    return 220;
+  }
+
   if (row.mergedItem.item.type === "execution") {
     return row.mergedItem.item.isPlan ? 108 : 120;
   }
@@ -499,6 +504,11 @@ const VirtualizedTimelineRow = memo(function VirtualizedTimelineRow({
                 onOpenDetail={onOpenDetail}
                 record={layout.row.mergedItem.item}
               />
+            ) : layout.row.mergedItem.item.type === "turn" ? (
+              <TurnCard
+                item={layout.row.mergedItem.item}
+                onOpenDetail={onOpenDetail}
+              />
             ) : (
               <ExecutionCard
                 item={layout.row.mergedItem.item}
@@ -554,6 +564,16 @@ function getCurrentPlanItem(
 ): ChatTimelineExecutionItem | null {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
+    if (item?.type === "turn") {
+      const currentTurnPlan = [...item.executions]
+        .reverse()
+        .find((execution) => execution.isPlan);
+      if (currentTurnPlan) {
+        return currentTurnPlan;
+      }
+      continue;
+    }
+
     if (item?.type === "execution" && item.isPlan) {
       return item;
     }
@@ -1871,7 +1891,7 @@ function AgentChatColumn({
     [onSent]
   );
 
-  const totalCount = agentTimeline.length + activeInboxMessages.length;
+  const totalCount = timeline.length + (showPendingIndicator ? 1 : 0);
   const hasSessionSelection = selectedSessionId !== null;
   const showEmptyTimeline =
     timeline.length === 0 &&

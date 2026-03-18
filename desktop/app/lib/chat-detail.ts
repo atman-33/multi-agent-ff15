@@ -1,6 +1,7 @@
 import type {
   ChatTimelineExecutionItem,
   ChatTimelineMessageItem,
+  ChatTimelineTurnItem,
 } from "@/lib/chat-timeline";
 
 export const MESSAGE_PREVIEW_MAX_CHARS = 800;
@@ -9,7 +10,8 @@ export const EXECUTION_PREVIEW_MAX_TODOS = 4;
 
 export type ChatDetailItem =
   | { type: "message"; item: ChatTimelineMessageItem }
-  | { type: "execution"; item: ChatTimelineExecutionItem };
+  | { type: "execution"; item: ChatTimelineExecutionItem }
+  | { type: "turn"; item: ChatTimelineTurnItem };
 
 export function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) {

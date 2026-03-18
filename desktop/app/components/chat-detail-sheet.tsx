@@ -57,6 +57,19 @@ function renderTodoStatus(status: string): string {
   return "○";
 }
 
+function renderTurnLifecycleLabel(state: string): string {
+  if (state === "started") {
+    return "Turn started";
+  }
+  if (state === "completed") {
+    return "Turn completed";
+  }
+  if (state === "failed") {
+    return "Turn failed";
+  }
+  return `Turn ${state}`;
+}
+
 function getStateMeta(state: ChatTimelineExecutionItem["state"]): {
   Icon: typeof LoaderCircle;
   badgeClassName: string;
@@ -153,6 +166,41 @@ export default function ChatDetailSheet({
       return stripAnsi(item.item.content);
     }
 
+    if (item.type === "turn") {
+      return [
+        item.item.primaryMessage?.content
+          ? `Answer\n${stripAnsi(item.item.primaryMessage.content)}`
+          : null,
+        item.item.supportingMessages.length > 0
+          ? `Assistant fragments\n${item.item.supportingMessages
+              .map((message) => stripAnsi(message.content))
+              .join("\n\n")}`
+          : null,
+        item.item.statuses.length > 0
+          ? `Status\n${item.item.statuses
+              .map((message) => stripAnsi(message.content))
+              .join("\n")}`
+          : null,
+        item.item.executions.length > 0
+          ? `Tool & Plan Activity\n${item.item.executions
+              .map((execution) => {
+                const inputText = getExecutionInputText(execution);
+                return [
+                  execution.title,
+                  `State: ${execution.state}`,
+                  inputText ? `Input\n${inputText}` : null,
+                  execution.result ? `Result\n${execution.result}` : null,
+                ]
+                  .filter(Boolean)
+                  .join("\n");
+              })
+              .join("\n\n")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+
     const inputText = getExecutionInputText(item.item);
     return [
       item.item.title,
@@ -208,7 +256,9 @@ export default function ChatDetailSheet({
                 >
                   {item?.type === "execution"
                     ? executionStateMeta?.label
-                    : (item?.item.kind ?? "answer")}
+                    : item?.type === "turn"
+                      ? "Turn"
+                      : (item?.item.kind ?? "answer")}
                 </Badge>
               </div>
               <SheetTitle>
@@ -216,7 +266,9 @@ export default function ChatDetailSheet({
                   ? item.item.isPlan
                     ? "Task plan detail"
                     : item.item.title
-                  : "Message detail"}
+                  : item?.type === "turn"
+                    ? "Turn detail"
+                    : "Message detail"}
               </SheetTitle>
               <SheetDescription className="text-slate-400">
                 {timestamp ? `${timestamp} · Full detail view` : ""}
@@ -255,6 +307,143 @@ export default function ChatDetailSheet({
                     content={stripAnsi(item.item.content)}
                   />
                 </div>
+              </div>
+            ) : item.type === "turn" ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                  {item.item.primaryMessage ? (
+                    <ChatMarkdown
+                      className="space-y-2 text-[13px] text-slate-100 leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                      content={stripAnsi(item.item.primaryMessage.content)}
+                    />
+                  ) : (
+                    <div className="text-slate-400 text-sm">
+                      No final answer text was captured for this turn.
+                    </div>
+                  )}
+                </div>
+
+                {item.item.supportingMessages.length > 0 ? (
+                  <DetailSection title="Assistant fragments">
+                    <div className="space-y-3">
+                      {item.item.supportingMessages.map((message) => (
+                        <div
+                          className="rounded-lg border border-white/10 bg-black/20 p-3"
+                          key={message.key}
+                        >
+                          <ChatMarkdown
+                            className="space-y-2 text-slate-100 text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                            content={stripAnsi(message.content)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                ) : null}
+
+                {item.item.statuses.length > 0 ? (
+                  <DetailSection title="Status">
+                    <div className="space-y-2 text-slate-200 text-sm">
+                      {item.item.statuses.map((message) => (
+                        <div
+                          className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                          key={message.key}
+                        >
+                          {stripAnsi(message.content)}
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                ) : null}
+
+                {item.item.executions.length > 0 ? (
+                  <DetailSection title="Tool & plan activity">
+                    <div className="space-y-4">
+                      {item.item.executions.map((execution) => {
+                        const stateMeta = getStateMeta(execution.state);
+                        const inputText = getExecutionInputText(execution);
+
+                        return (
+                          <div
+                            className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-4"
+                            key={execution.key}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <stateMeta.Icon
+                                className={cn(
+                                  "h-4 w-4 shrink-0",
+                                  execution.state === "running" &&
+                                    "animate-spin"
+                                )}
+                              />
+                              <div className="min-w-0 flex-1 text-slate-100 text-sm">
+                                {execution.isPlan
+                                  ? "Task plan"
+                                  : execution.title}
+                              </div>
+                              <Badge
+                                className={stateMeta.badgeClassName}
+                                variant="outline"
+                              >
+                                {stateMeta.label}
+                              </Badge>
+                            </div>
+
+                            {execution.isPlan && execution.todos.length > 0 ? (
+                              <div className="space-y-2 text-slate-200 text-sm">
+                                {execution.todos.map((todo) => (
+                                  <div
+                                    className="flex items-start gap-2"
+                                    key={`${execution.key}-${todo.id}`}
+                                  >
+                                    <span className="mt-0.5 w-4 text-center text-slate-400">
+                                      {renderTodoStatus(todo.status)}
+                                    </span>
+                                    <span className="flex-1">{todo.title}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {inputText ? (
+                              <DetailSection title="Input">
+                                <DetailCodeBlock content={inputText} />
+                              </DetailSection>
+                            ) : null}
+
+                            {execution.result ? (
+                              <DetailSection title="Result">
+                                <DetailCodeBlock content={execution.result} />
+                              </DetailSection>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </DetailSection>
+                ) : null}
+
+                {item.item.lifecycle.length > 0 ? (
+                  <DetailSection title="Turn lifecycle">
+                    <div className="space-y-2 text-slate-200 text-sm">
+                      {item.item.lifecycle.map((entry) => (
+                        <div
+                          className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                          key={entry.id}
+                        >
+                          <span>{renderTurnLifecycleLabel(entry.state)}</span>
+                          <span className="shrink-0 text-[11px] text-slate-400">
+                            {new Date(entry.ts).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </DetailSection>
+                ) : null}
               </div>
             ) : executionStateMeta ? (
               <div className="space-y-4">
