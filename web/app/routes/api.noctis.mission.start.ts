@@ -2,19 +2,41 @@ import type { Route } from "./+types/api.noctis.mission.start";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { createMission, buildDelegationLedger } from "@/lib/mission-store";
+import { createMission, buildDelegationLedger, setAgentModels } from "@/lib/mission-store";
+import type { ModelSelection, AgentId } from "@/lib/types/mission";
+
+function isModelSelection(value: unknown): value is ModelSelection {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.providerID === "string" && typeof v.modelID === "string";
+}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const body = await request.json().catch(() => null) as { message?: unknown } | null;
+  const body = await request.json().catch(() => null) as {
+    message?: unknown;
+    noctisModel?: unknown;
+    workerModels?: unknown;
+  } | null;
   if (!body || typeof body.message !== "string" || !body.message.trim()) {
     return Response.json({ error: "Missing message" }, { status: 400 });
   }
 
   const message = body.message.trim();
+  const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
+
+  const workerModelsRaw = body.workerModels && typeof body.workerModels === "object"
+    ? body.workerModels as Record<string, unknown>
+    : {};
+  const agentModels: Partial<Record<AgentId, ModelSelection>> = {};
+  if (noctisModel) agentModels["noctis"] = noctisModel;
+  for (const agentId of ["ignis", "gladiolus", "prompto"] as const) {
+    const m = workerModelsRaw[agentId];
+    if (isModelSelection(m)) agentModels[agentId] = m;
+  }
 
   try {
     const client = getOpencodeClient();
@@ -36,6 +58,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     const mission = createMission(missionId, sessionId);
+    setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);
 
     const injectedContext = buildInjectedPromptContext({
@@ -53,6 +76,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         ],
         agent: "noctis",
         system: ledger,
+        ...(noctisModel ? { model: noctisModel } : {}),
       },
     });
 

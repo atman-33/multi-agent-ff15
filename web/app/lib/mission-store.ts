@@ -1,4 +1,4 @@
-import type { Mission, Task, DelegationLedger, WorkerAgentId, TaskStatus } from "./types/mission";
+import type { Mission, Task, DelegationLedger, WorkerAgentId, AgentId, ModelSelection, TaskStatus } from "./types/mission";
 
 const store = new Map<string, Mission>();
 
@@ -13,6 +13,7 @@ export function createMission(id: string, noctisSessionId: string): Mission {
       activeTasks: [],
       completedSummaries: {},
     },
+    agentModels: {},
   };
   store.set(id, mission);
   return mission;
@@ -30,6 +31,15 @@ export function setWorkerSession(
   const mission = store.get(missionId);
   if (!mission) return;
   mission.workerSessions[agentId] = sessionId;
+}
+
+export function setAgentModels(
+  missionId: string,
+  agentModels: Partial<Record<AgentId, ModelSelection>>
+): void {
+  const mission = store.get(missionId);
+  if (!mission) return;
+  mission.agentModels = { ...mission.agentModels, ...agentModels };
 }
 
 export function addTask(missionId: string, task: Task): void {

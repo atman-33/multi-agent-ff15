@@ -89,11 +89,13 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const existingSessionId = mission.workerSessions[agentId];
 
     if (existingSessionId) {
+      const workerModel = mission.agentModels[agentId];
       const promptResult = await client.session.promptAsync({
         path: { id: existingSessionId },
         body: {
           parts: [{ type: "text", text: taskPrompt }],
           agent: agentId,
+          ...(workerModel ? { model: workerModel } : {}),
         },
       });
 
@@ -137,6 +139,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         ],
         agent: agentId,
         system: ledger,
+        ...(mission.agentModels[agentId] ? { model: mission.agentModels[agentId] } : {}),
       },
     });
 

@@ -26,6 +26,8 @@ type ChatStore = {
   setSelectedModel: (model: ModelSelection) => void;
   selectedAgent: string | null;
   setSelectedAgent: (agent: string | null) => void;
+  agentModels: Record<string, ModelSelection | null>;
+  setAgentModel: (agentId: string, model: ModelSelection | null) => void;
   sessionDrafts: Record<string, SessionDraft>;
   setSessionDraft: (sessionId: string, draft: SessionDraft) => void;
   clearSessionDraft: (sessionId: string) => void;
@@ -40,6 +42,7 @@ type ChatStore = {
 
 const MODEL_STORAGE_KEY = "ff15.selectedModel";
 const AGENT_STORAGE_KEY = "ff15.selectedAgent";
+const AGENT_MODELS_STORAGE_KEY = "ff15.agentModels";
 const SESSION_DRAFTS_STORAGE_KEY = "ff15.sessionDrafts";
 
 const isSessionDraftSlashMention = (value: unknown): value is SessionDraftSlashMention => {
@@ -82,6 +85,29 @@ const getInitialAgent = (): string | null => {
   const raw = window.localStorage.getItem(AGENT_STORAGE_KEY);
   if (!raw) return null;
   return raw;
+};
+
+const getInitialAgentModels = (): Record<string, ModelSelection | null> => {
+  if (typeof window === "undefined") return {};
+  const raw = window.localStorage.getItem(AGENT_MODELS_STORAGE_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const result: Record<string, ModelSelection | null> = {};
+    for (const [agentId, value] of Object.entries(parsed)) {
+      if (!value || typeof value !== "object") {
+        result[agentId] = null;
+        continue;
+      }
+      const v = value as Record<string, unknown>;
+      if (typeof v.providerID === "string" && typeof v.modelID === "string") {
+        result[agentId] = { providerID: v.providerID, modelID: v.modelID };
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
 };
 
 const getInitialSessionDrafts = (): Record<string, SessionDraft> => {
@@ -161,6 +187,16 @@ export const useChatStore = create<ChatStore>((set) => ({
       }
     }
     set({ selectedAgent: agent });
+  },
+  agentModels: getInitialAgentModels(),
+  setAgentModel: (agentId, model) => {
+    set((current) => {
+      const next = { ...current.agentModels, [agentId]: model };
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(AGENT_MODELS_STORAGE_KEY, JSON.stringify(next));
+      }
+      return { agentModels: next };
+    });
   },
   sessionDrafts: getInitialSessionDrafts(),
   setSessionDraft: (sessionId, draft) =>

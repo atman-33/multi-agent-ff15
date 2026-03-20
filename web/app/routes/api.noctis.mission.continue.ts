@@ -1,6 +1,13 @@
 import type { Route } from "./+types/api.noctis.mission.continue";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getMission } from "@/lib/mission-store";
+import type { ModelSelection } from "@/lib/types/mission";
+
+function isModelSelection(value: unknown): value is ModelSelection {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.providerID === "string" && typeof v.modelID === "string";
+}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
@@ -10,6 +17,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const body = await request.json().catch(() => null) as {
     missionId?: unknown;
     message?: unknown;
+    noctisModel?: unknown;
   } | null;
 
   if (!body || typeof body.missionId !== "string" || !body.missionId.trim()) {
@@ -21,11 +29,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   const missionId = body.missionId.trim();
   const message = body.message.trim();
+  const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
 
   const mission = getMission(missionId);
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
+
+  const effectiveModel = noctisModel ?? mission.agentModels["noctis"];
 
   try {
     const client = getOpencodeClient();
@@ -34,6 +45,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       body: {
         parts: [{ type: "text", text: message }],
         agent: "noctis",
+        ...(effectiveModel ? { model: effectiveModel } : {}),
       },
     });
 

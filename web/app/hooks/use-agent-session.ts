@@ -8,6 +8,7 @@ import {
   resetToIdle,
   type AgentEvent,
 } from "@/lib/event-to-party-update";
+import { useChatStore } from "@/stores/chat-store";
 
 const INITIAL_PARTY: PartyMember[] = [
   {
@@ -209,12 +210,22 @@ export function useAgentSession(): UseAgentSessionReturn {
       setMessages((prev) => [...prev, userMessage]);
       streamingMessageIdRef.current = null;
 
+      const agentModels = useChatStore.getState().agentModels;
+
       try {
         if (!missionIdRef.current) {
           const res = await fetch("/api/noctis/mission/start", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({
+              message: text,
+              noctisModel: agentModels["noctis"] ?? null,
+              workerModels: {
+                ignis: agentModels["ignis"] ?? null,
+                gladiolus: agentModels["gladiolus"] ?? null,
+                prompto: agentModels["prompto"] ?? null,
+              },
+            }),
           });
 
           if (!res.ok) {
@@ -234,6 +245,7 @@ export function useAgentSession(): UseAgentSessionReturn {
             body: JSON.stringify({
               missionId: missionIdRef.current,
               message: text,
+              noctisModel: agentModels["noctis"] ?? null,
             }),
           });
 

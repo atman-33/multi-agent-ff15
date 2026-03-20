@@ -1,6 +1,11 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
 
+export interface ModelSelection {
+  providerID: string;
+  modelID: string;
+}
+
 export interface WorkerResult {
   task_id: string;
   status: "completed" | "failed";
@@ -39,6 +44,7 @@ export interface Mission {
   workerSessions: Partial<Record<WorkerAgentId, string>>;
   taskGraph: Task[];
   delegationLedger: DelegationLedger;
+  agentModels: Partial<Record<AgentId, ModelSelection>>;
 }
 
 export interface TaskContextParams {
