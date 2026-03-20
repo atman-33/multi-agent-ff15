@@ -11,9 +11,19 @@ type Props = {
 
 const MessageBubble = ({ role, parts }: Props) => {
   const isUser = role === "user";
-  const text = parts.filter((part) => part.type === "text").map((part) => part.text ?? "").join("");
-  const reasoning = parts.filter((part) => part.type === "reasoning").map((part) => part.text ?? "").join("");
+  const text = parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text ?? "")
+    .join("");
+  const reasoning = parts
+    .filter((part) => part.type === "reasoning")
+    .map((part) => part.text ?? "")
+    .join("");
   const tools = parts.filter((part) => part.type === "tool");
+
+  if (!text && !reasoning && tools.length === 0) {
+    return null;
+  }
 
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
@@ -34,14 +44,15 @@ const MessageBubble = ({ role, parts }: Props) => {
             </div>
           ))}
 
-        {reasoning && (
-          <p className="mt-2 text-xs italic text-muted-foreground">{reasoning}</p>
-        )}
+        {reasoning && <p className="mt-2 text-xs italic text-muted-foreground">{reasoning}</p>}
 
         {tools.length > 0 && (
           <div className="mt-3 space-y-2">
             {tools.map((tool, index) => (
-              <details key={`${tool.tool ?? "tool"}-${index}`} className="rounded-md border border-border/60 bg-muted/30 p-2">
+              <details
+                key={`${tool.tool ?? "tool"}-${index}`}
+                className="rounded-md border border-border/60 bg-muted/30 p-2"
+              >
                 <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
                   {tool.tool ?? "Tool"}
                 </summary>
