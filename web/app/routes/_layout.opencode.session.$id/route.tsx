@@ -1,6 +1,8 @@
+import { Terminal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MessageComposer from "@/routes/_layout.session.$id/components/message-composer";
 import MessageList from "@/routes/_layout.session.$id/components/message-list";
@@ -40,6 +42,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const [messages, setMessages] = useState<MessageInfo[]>(loaderData.messages ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [isAborting, setIsAborting] = useState(false);
+  const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -251,13 +254,55 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
     setStreamingMessageId,
   ]);
 
+  const handleOpenTerminal = useCallback(async () => {
+    if (!sessionId || isOpeningTerminal) {
+      return;
+    }
+
+    setIsOpeningTerminal(true);
+    try {
+      const response = await fetch(`/api/session/${sessionId}/open-terminal`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `HTTP ${response.status}`);
+      }
+
+      toast.success("Opened session terminal", {
+        description: `opencode -s ${sessionId}`,
+      });
+    } catch (error) {
+      toast.error("Unable to open session terminal", {
+        description: error instanceof Error ? error.message : "Terminal launch failed",
+      });
+    } finally {
+      setIsOpeningTerminal(false);
+    }
+  }, [isOpeningTerminal, sessionId]);
+
   const displayMessages = useMemo(() => messages, [messages]);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-border/50 border-b px-5 py-2.5">
-        <h1 className="font-semibold text-sm">{currentSessionTitle}</h1>
-        <p className="text-muted-foreground text-xs">{sessionId}</p>
+      <div className="flex items-start justify-between gap-3 border-border/50 border-b px-5 py-2.5">
+        <div className="min-w-0">
+          <h1 className="truncate font-semibold text-sm">{currentSessionTitle}</h1>
+          <p className="truncate text-muted-foreground text-xs">{sessionId}</p>
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={handleOpenTerminal}
+          disabled={!sessionId || isOpeningTerminal}
+          title="Open session terminal"
+        >
+          <Terminal className={isOpeningTerminal ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+        </Button>
       </div>
 
       <ScrollArea className="flex-1 px-4 py-4">
