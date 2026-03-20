@@ -83,7 +83,7 @@ const ReportDetail = (_props: Route.ComponentProps) => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <SheetHeader className="shrink-0 border-border/50 border-b bg-background/50 px-5 py-4 text-left backdrop-blur-sm sm:px-6">
+      <SheetHeader className="shrink-0 border-border/50 border-b bg-background/50 px-5 py-4 text-left backdrop-blur-xs sm:px-6">
         <div className="flex items-start justify-between gap-4 pr-8">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
@@ -169,7 +169,7 @@ const ReportDetail = (_props: Route.ComponentProps) => {
             <span className="text-sm">Loading content...</span>
           </div>
         ) : (
-          <Card className="mx-auto h-auto min-h-full max-w-4xl border-border/50 shadow-sm">
+          <Card className="mx-auto h-auto min-h-full max-w-4xl border-border/50 shadow-xs">
             <CardContent className="px-5 pt-6 pb-8 md:px-8">
               <div
                 className={cn(

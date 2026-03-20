@@ -646,7 +646,7 @@ const MessageComposer = ({
   }, [value]);
 
   return (
-    <div className="rounded-xl border border-transparent bg-card shadow-sm">
+    <div className="rounded-xl border border-transparent bg-card shadow-xs">
       <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
         <PopoverAnchor asChild>
           <div className="px-3 pt-3">
@@ -711,7 +711,7 @@ const MessageComposer = ({
                 className={cn(
                   "w-full resize-none rounded-xl border border-transparent bg-transparent py-2 pl-3 pr-3 text-xs leading-relaxed text-foreground",
                   "shadow-none backdrop-blur-0",
-                  "focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none",
+                  "focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-hidden",
                   "placeholder:text-muted-foreground/75"
                 )}
               />
@@ -792,12 +792,12 @@ const MessageComposer = ({
           className={cn(
             "ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-end rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
             showAbortAction
-              ? "border-red-500/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(239,68,68,0.16))] text-red-50 shadow-[0_10px_28px_rgba(2,6,23,0.32),0_0_0_1px_rgba(239,68,68,0.06),inset_0_1px_0_rgba(255,255,255,0.1)] hover:border-red-400/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(248,113,113,0.22))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.4),0_0_18px_rgba(239,68,68,0.12),inset_0_1px_0_rgba(255,255,255,0.14)] active:translate-y-[1px]"
+              ? "border-red-500/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(239,68,68,0.16))] text-red-50 shadow-[0_10px_28px_rgba(2,6,23,0.32),0_0_0_1px_rgba(239,68,68,0.06),inset_0_1px_0_rgba(255,255,255,0.1)] hover:border-red-400/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(248,113,113,0.22))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.4),0_0_18px_rgba(239,68,68,0.12),inset_0_1px_0_rgba(255,255,255,0.14)] active:translate-y-px"
               : !canSubmit || disabled
                 ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                 : arrowState === "done"
                   ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                  : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-[1px]"
+                  : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-px"
           )}
         >
           {showAbortAction ? (

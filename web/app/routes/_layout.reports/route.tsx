@@ -123,7 +123,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
 
   return (
     <div className="relative flex h-full flex-col bg-background">
-      <div className="flex shrink-0 items-center justify-between border-border/50 border-b bg-card/40 px-5 py-3 backdrop-blur-sm">
+      <div className="flex shrink-0 items-center justify-between border-border/50 border-b bg-card/40 px-5 py-3 backdrop-blur-xs">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold text-sm">Reports</h2>
@@ -147,7 +147,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-full flex-col overflow-auto">
-          <div className="sticky top-0 z-10 border-border/50 border-b bg-card/40 backdrop-blur-sm">
+          <div className="sticky top-0 z-10 border-border/50 border-b bg-card/40 backdrop-blur-xs">
             <div className="flex">
               <button
                 className={cn(
@@ -197,7 +197,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
               return (
                 <button
                   className={cn(
-                    "group flex flex-col gap-1 border-border/50 border-b p-4 text-left transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none",
+                    "group flex flex-col gap-1 border-border/50 border-b p-4 text-left transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-hidden",
                     isActive && "bg-muted"
                   )}
                   key={report.filename}

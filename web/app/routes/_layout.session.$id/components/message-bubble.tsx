@@ -82,10 +82,10 @@ const MessageBubble = ({ role, parts }: Props) => {
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[80%] rounded-xl border px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-sm",
+          "max-w-[80%] rounded-xl border px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
           isUser
-            ? "rounded-br-md border-sky-500/15 bg-sky-500/[0.08] text-foreground/90"
-            : "rounded-bl-md border-border/40 bg-white/[0.045] text-foreground"
+            ? "rounded-br-md border-sky-500/15 bg-sky-500/8 text-foreground/90"
+            : "rounded-bl-md border-border/40 bg-white/4.5 text-foreground"
         )}
       >
         {internalContext ? (
@@ -126,7 +126,7 @@ const MessageBubble = ({ role, parts }: Props) => {
                     contextExpanded ? "translate-y-0" : "-translate-y-1"
                   )}
                 >
-                  <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap break-words text-sky-50/85">
+                  <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap wrap-break-word text-sky-50/85">
                     {internalContext.raw}
                   </pre>
                 </div>

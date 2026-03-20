@@ -221,7 +221,7 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
           <div className="group relative">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground/50 transition-colors group-focus-within:text-primary" />
             <input
-              className="h-9 w-full rounded-lg border border-border/50 bg-muted/20 px-3 pl-10 text-sm ring-1 ring-border/50 transition-all placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              className="h-9 w-full rounded-lg border border-border/50 bg-muted/20 px-3 pl-10 text-sm ring-1 ring-border/50 transition-all placeholder:text-muted-foreground/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Filter agents or categories..."
               value={search}
