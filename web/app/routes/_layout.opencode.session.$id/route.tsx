@@ -408,6 +408,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
       <div className="border-border/50 border-t px-4 py-4">
         <div className="mx-auto max-w-3xl">
           <MessageComposer
+            sessionId={sessionId}
             onSend={handleSend}
             onAbort={handleAbort}
             disabled={isLoading || isAborting}

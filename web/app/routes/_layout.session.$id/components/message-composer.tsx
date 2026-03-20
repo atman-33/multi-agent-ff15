@@ -60,6 +60,7 @@ type ProvidersResponse = {
 };
 
 type Props = {
+  sessionId?: string;
   onSend: (
     parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }>,
     options?: { agent?: string | null }
@@ -288,6 +289,7 @@ const ComposerSelectionControls = memo(
 ComposerSelectionControls.displayName = "ComposerSelectionControls";
 
 const MessageComposer = ({
+  sessionId,
   onSend,
   onAbort,
   disabled,
@@ -312,6 +314,43 @@ const MessageComposer = ({
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
   const setSelectedAgent = useChatStore((state) => state.setSelectedAgent);
+  const sessionDrafts = useChatStore((state) => state.sessionDrafts);
+  const setSessionDraft = useChatStore((state) => state.setSessionDraft);
+  const clearSessionDraft = useChatStore((state) => state.clearSessionDraft);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setValue("");
+      setFileMentions([]);
+      setSlashMentions([]);
+      return;
+    }
+
+    const draft = sessionDrafts[sessionId];
+    setValue(draft?.value ?? "");
+    setFileMentions(draft?.fileMentions ?? []);
+    setSlashMentions(draft?.slashMentions ?? []);
+    setSuggestions([]);
+    setIsOpen(false);
+    setSelectedSuggestionIndex(0);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    if (!value && fileMentions.length === 0 && slashMentions.length === 0) {
+      clearSessionDraft(sessionId);
+      return;
+    }
+
+    setSessionDraft(sessionId, {
+      value,
+      fileMentions,
+      slashMentions,
+    });
+  }, [clearSessionDraft, fileMentions, sessionId, setSessionDraft, slashMentions, value]);
 
   useEffect(() => {
     const loadAgents = async () => {
@@ -561,11 +600,23 @@ const MessageComposer = ({
       setValue("");
       setFileMentions([]);
       setSlashMentions([]);
+      if (sessionId) {
+        clearSessionDraft(sessionId);
+      }
     } catch {
       setArrowState("idle");
       toast.error("Unable to prepare message");
     }
-  }, [canSubmit, disabled, onSend, parseParts, selectedAgent, triggerSendAnimation]);
+  }, [
+    canSubmit,
+    clearSessionDraft,
+    disabled,
+    onSend,
+    parseParts,
+    selectedAgent,
+    sessionId,
+    triggerSendAnimation,
+  ]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
