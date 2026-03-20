@@ -3,7 +3,7 @@ name: project-manage
 description: "(opencode-project - Skill) Manages external project registration and activation in the FF15 multi-agent system. Use when registering a new project, activating/deactivating projects, or listing active projects. Triggers on: 'register project', 'activate project', 'deactivate project', 'list active projects', 'add project', 'project management'."
 metadata:
   author: multi-agent-ff15
-  version: "2.0"
+  version: "2.2"
   created: "2026-02-22"
 ---
 
@@ -90,7 +90,9 @@ scripts/projects_activate.sh remove my-app
 ## Typical Workflow
 
 ```bash
-# 1. Try activate_project to confirm the working value (ID → Linux path → UNC path)
+# 1. Try activate_project to confirm the working value.
+#    In WSL: UNC path → Linux path.
+#    Outside WSL: project ID → absolute path.
 #    Use whichever succeeds first as the --serena-project value.
 
 # 2. Register the project with the confirmed value
@@ -98,7 +100,7 @@ scripts/project_register.sh \
   --id "client-x" \
   --name "Client X" \
   --root "/home/atman/repos/client-x" \
-  --serena-project "client-x"   # value confirmed in step 1
+  --serena-project "<confirmed_value>"   # value confirmed in step 1
 
 # 3. Add to active project list
 scripts/projects_activate.sh add client-x
@@ -113,11 +115,17 @@ After activation, the `project-instruction-injection` plugin automatically adds 
 
 ## Serena Activation
 
-Before registering, **confirm which value works** for `activate_project`. Try in order, stop at first success:
+Before registering, **confirm which value works** for `activate_project`.
+
+In **WSL environments**, try in order and stop at first success:
+
+1. **UNC path** (e.g., `\\wsl$\Ubuntu\home\atman\repos\client-x`)
+2. **`root_path` as-is** (Linux path, e.g., `/home/atman/repos/client-x`)
+
+Outside WSL, try in order and stop at first success:
 
 1. **Project ID alone** (e.g., `client-x`) — fastest if already registered in Serena
-2. **`root_path` as-is** (Linux path, e.g., `/home/atman/repos/client-x`)
-3. **UNC path** (e.g., `\\wsl$\Ubuntu\home\atman\repos\client-x`) — for WSL environments
+2. **Absolute project path**
 
 Pass the successful value as `--serena-project` when running `project_register.sh`. This ensures `serena_project` is set correctly in the YAML from the start.
 
@@ -130,31 +138,35 @@ Pass the successful value as `--serena-project` when running `project_register.s
 `projects/<id>.yaml`:
 
 ```yaml
-id: "client-x"
-name: "Client X"
-root_path: "/home/atman/repos/client-x"
-serena_project: "client-x"  # optional; set after first successful Serena activation
+id: 'client-x'
+name: 'Client X'
+root_path: '/home/atman/repos/client-x'
+serena_project: '\\wsl$\Ubuntu\home\atman\repos\client-x'  # optional; use the confirmed Serena activation value
 instruction_files:
   - type: agents
-    path: "/home/atman/repos/client-x/AGENTS.md"
+    path: '/home/atman/repos/client-x/AGENTS.md'
     exists: true
-    sha256: "abc123..."
-    last_checked_at: "2026-02-22T12:00:00Z"
+    sha256: 'abc123...'
+    last_checked_at: '2026-02-22T12:00:00Z'
   - type: claude
-    path: "/home/atman/repos/client-x/CLAUDE.md"
+    path: '/home/atman/repos/client-x/CLAUDE.md'
     exists: false
-    sha256: ""
-    last_checked_at: "2026-02-22T12:00:00Z"
-updated_at: "2026-02-22T12:00:00Z"
+    sha256: ''
+    last_checked_at: '2026-02-22T12:00:00Z'
+updated_at: '2026-02-22T12:00:00Z'
 ```
 
 `config/current_projects.yaml`:
 
 ```yaml
-active_project_ids:
-  - "client-x"
-updated_at: "2026-02-22T12:00:00Z"
-updated_by: "script"
+project_scopes:
+  noctis_team:
+    active_project_ids:
+      - 'client-x'
+  lunafreya:
+    active_project_ids: []
+updated_at: '2026-02-22T12:00:00Z'
+updated_by: 'script'
 ```
 
 ---
@@ -172,6 +184,10 @@ scripts/project_register.sh \
 ```
 
 The SHA256 hash will be updated. No need to re-activate.
+
+If `serena_project` is already present in the existing YAML, re-registering without `--serena-project` preserves that value.
+
+Note: `project_register.sh` now writes YAML-safe single-quoted scalars for path-like fields. This avoids parse failures when `serena_project` contains backslashes, such as UNC paths in WSL.
 
 ---
 

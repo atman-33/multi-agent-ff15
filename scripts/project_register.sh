@@ -27,6 +27,12 @@ PROJECT_ROOT=""
 SERENA_PROJECT=""
 FORCE=false
 
+yaml_quote() {
+  local value="$1"
+  value=${value//\'/\'\'}
+  printf "'%s'" "$value"
+}
+
 # --- Argument parsing ---
 usage() {
   cat >&2 <<EOF
@@ -147,6 +153,11 @@ if [[ -f "$OUTPUT_FILE" ]]; then
   fi
 fi
 
+EXISTING_SERENA_PROJECT_LINE=""
+if [[ -z "$SERENA_PROJECT" && -f "$OUTPUT_FILE" ]]; then
+  EXISTING_SERENA_PROJECT_LINE="$(grep -m1 '^serena_project:' "$OUTPUT_FILE" || true)"
+fi
+
 # --- Instruction file detection (Task 2.2) ---
 TIMESTAMP=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
 INSTRUCTION_ENTRIES=""
@@ -167,19 +178,19 @@ for FILENAME in "${INSTRUCTION_FILES[@]}"; do
     # File exists and is not a symlink — compute SHA256 (Task 2.3)
     SHA256=$(sha256sum "$FILEPATH" | awk '{print $1}')
     INSTRUCTION_ENTRIES+="  - type: ${FILE_TYPE}
-    path: \"${FILEPATH}\"
+    path: $(yaml_quote "$FILEPATH")
     exists: true
-    sha256: \"${SHA256}\"
-    last_checked_at: \"${TIMESTAMP}\"
+    sha256: $(yaml_quote "$SHA256")
+    last_checked_at: $(yaml_quote "$TIMESTAMP")
 "
     FILES_FOUND=$((FILES_FOUND + 1))
   else
     # File does not exist or is a symlink
     INSTRUCTION_ENTRIES+="  - type: ${FILE_TYPE}
-    path: \"${FILEPATH}\"
+    path: $(yaml_quote "$FILEPATH")
     exists: false
-    sha256: \"\"
-    last_checked_at: \"${TIMESTAMP}\"
+    sha256: ''
+    last_checked_at: $(yaml_quote "$TIMESTAMP")
 "
   fi
 done
@@ -196,15 +207,18 @@ mkdir -p "$PROJECTS_DIR" 2>/dev/null
 # Build serena_project line only if value was provided
 SERENA_PROJECT_LINE=""
 if [[ -n "$SERENA_PROJECT" ]]; then
-  SERENA_PROJECT_LINE="serena_project: \"${SERENA_PROJECT}\"
+  SERENA_PROJECT_LINE="serena_project: $(yaml_quote "$SERENA_PROJECT")
+"
+elif [[ -n "$EXISTING_SERENA_PROJECT_LINE" ]]; then
+  SERENA_PROJECT_LINE="${EXISTING_SERENA_PROJECT_LINE}
 "
 fi
 
-YAML_CONTENT="id: \"${PROJECT_ID}\"
-name: \"${PROJECT_NAME}\"
-root_path: \"${NORMALIZED_ROOT}\"
+YAML_CONTENT="id: $(yaml_quote "$PROJECT_ID")
+name: $(yaml_quote "$PROJECT_NAME")
+root_path: $(yaml_quote "$NORMALIZED_ROOT")
 ${SERENA_PROJECT_LINE}instruction_files:
-${INSTRUCTION_ENTRIES}updated_at: \"${TIMESTAMP}\""
+${INSTRUCTION_ENTRIES}updated_at: $(yaml_quote "$TIMESTAMP")"
 
 # Write using yaml_write_flock.sh for atomic writes
 if ! "$YAML_WRITE" "$OUTPUT_FILE" "$YAML_CONTENT"; then
