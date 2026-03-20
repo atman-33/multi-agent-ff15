@@ -273,10 +273,9 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                             size="icon"
                             className={cn(
                               "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
-                              "bg-background/30 text-foreground/70 opacity-60",
-                              "hover:bg-accent hover:text-foreground hover:opacity-100",
-                              "focus-visible:opacity-100",
-                              isActive && "opacity-100"
+                              "bg-background/30 text-foreground/70 opacity-0",
+                              "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                              "focus-visible:opacity-100"
                             )}
                             onClick={() => beginRename(session)}
                             title="Rename session"
