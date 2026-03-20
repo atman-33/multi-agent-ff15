@@ -13,6 +13,7 @@
 openspec/*
 
 # Misc files
+.serena
 .skillportrc
 
 # Temporary files

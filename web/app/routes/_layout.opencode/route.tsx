@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
@@ -106,83 +107,89 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   }, [loadSessions]);
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <aside className="flex w-64 shrink-0 flex-col border-border/50 border-r bg-background">
-        <div className="flex items-center justify-between border-border/50 border-b px-3 py-3">
-          <span className="text-xs font-semibold text-muted-foreground">Sessions</span>
-          <div className="flex items-center gap-1">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              onClick={loadSessions}
-              disabled={isFetching}
-              title="Refresh sessions"
-            >
-              <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              onClick={handleNewSession}
-              disabled={isFetching}
-              title="New session"
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
+    <ResizablePanelGroup orientation="horizontal" className="h-full min-h-[200px] min-w-0 overflow-hidden">
+      <ResizablePanel defaultSize="24%" minSize="18%" maxSize="40%">
+        <aside className="flex h-full flex-col border-border/50 border-r bg-background">
+          <div className="flex items-center justify-between border-border/50 border-b px-3 py-3">
+            <span className="text-xs font-semibold text-muted-foreground">Sessions</span>
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={loadSessions}
+                disabled={isFetching}
+                title="Refresh sessions"
+              >
+                <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={handleNewSession}
+                disabled={isFetching}
+                title="New session"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
+
+          <ScrollArea className="min-h-0 flex-1 px-2 py-2">
+            <nav className="space-y-1">
+              {sortedSessions.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                  No sessions yet. Create one to get started.
+                </div>
+              ) : (
+                sortedSessions.map((session) => {
+                  const isActive = session.id === activeSessionId;
+                  const isRunning = (sessionStates[session.id] ?? "idle") !== "idle";
+                  return (
+                    <NavLink
+                      key={session.id}
+                      to={`/opencode/session/${session.id}`}
+                      className={() =>
+                        cn(
+                          "flex items-start gap-2 rounded-md px-3 py-2 text-sm transition-all",
+                          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                          isActive
+                            ? "border border-primary/20 bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                        )
+                      }
+                    >
+                      {isRunning ? (
+                        <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                      ) : (
+                        <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-xs text-foreground">
+                          {session.title || "Untitled"}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {formatRelativeTime(session.time.updated)}
+                        </div>
+                      </div>
+                    </NavLink>
+                  );
+                })
+              )}
+            </nav>
+          </ScrollArea>
+        </aside>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      <ResizablePanel defaultSize="76%" minSize="45%">
+        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+          <Outlet />
         </div>
-
-        <ScrollArea className="flex-1 px-2 py-2">
-          <nav className="space-y-1">
-            {sortedSessions.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                No sessions yet. Create one to get started.
-              </div>
-            ) : (
-              sortedSessions.map((session) => {
-                const isActive = session.id === activeSessionId;
-                const isRunning = (sessionStates[session.id] ?? "idle") !== "idle";
-                return (
-                  <NavLink
-                    key={session.id}
-                    to={`/opencode/session/${session.id}`}
-                    className={() =>
-                      cn(
-                        "flex items-start gap-2 rounded-md px-3 py-2 text-sm transition-all",
-                        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                        isActive
-                          ? "border border-primary/20 bg-primary/15 text-primary"
-                          : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                      )
-                    }
-                  >
-                    {isRunning ? (
-                      <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-                    ) : (
-                      <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-xs text-foreground">
-                        {session.title || "Untitled"}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {formatRelativeTime(session.time.updated)}
-                      </div>
-                    </div>
-                  </NavLink>
-                );
-              })
-            )}
-          </nav>
-        </ScrollArea>
-      </aside>
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Outlet />
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 };
 

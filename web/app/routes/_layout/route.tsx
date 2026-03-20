@@ -8,7 +8,7 @@ const Layout = (_props: Route.ComponentProps) => {
   const isLoading = navigation.state !== "idle";
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       <aside
         className="flex shrink-0 flex-col border-border/50 border-r"
         style={{ width: "var(--sidebar-width)" }}
@@ -58,13 +58,13 @@ const Layout = (_props: Route.ComponentProps) => {
         </div>
       </aside>
 
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {isLoading && (
           <div className="absolute top-0 right-0 left-0 z-50 h-0.5 overflow-hidden bg-primary/20">
             <div className="h-full w-1/3 animate-pulse bg-primary" />
           </div>
         )}
-        <main className="flex-1 overflow-auto">
+        <main className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
           <Outlet />
         </main>
       </div>
