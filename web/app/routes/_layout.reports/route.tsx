@@ -263,7 +263,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
         </div>
 
         <Sheet onOpenChange={(open) => (!open ? closeDetail() : setIsSheetOpen(true))} open={isSheetOpen}>
-          <SheetContent className="w-full p-0 sm:max-w-3xl">
+          <SheetContent className="w-full p-0 sm:max-w-3xl" showCloseButton={false}>
             <Outlet context={{ archiveReport }} />
           </SheetContent>
         </Sheet>
