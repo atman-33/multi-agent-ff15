@@ -33,8 +33,8 @@ const Layout = (_props: Route.ComponentProps) => {
 
         <nav className="flex-1 space-y-0.5 px-2 py-3">
           {[
-            { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
             { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
+            { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
             { to: "/reports", icon: FileText, label: "Reports", end: true },
             { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
             { to: "/mcp", icon: Cpu, label: "MCP", end: true },
