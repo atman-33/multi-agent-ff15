@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
-import type { Route } from "./+types/api.session.$id.open-terminal";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import type { Route } from "./+types/api.session.$id.open-terminal";
 
 type SessionSummary = {
   id: string;
@@ -59,14 +60,15 @@ async function resolveOpencodePath(): Promise<string> {
   return resolved;
 }
 
-async function openSessionTerminal(sessionId: string, directory: string) {
+async function openSessionTerminal(sessionId: string) {
   const distro = process.env.WSL_DISTRO_NAME;
   if (!distro) {
     throw new Error("WSL_DISTRO_NAME is not available");
   }
 
   const opencodePath = await resolveOpencodePath();
-  const resumeCommand = `cd ${quoteForBash(directory)} && ${quoteForBash(opencodePath)} -s ${quoteForBash(sessionId)}`;
+  const projectRoot = getProjectRoot();
+  const resumeCommand = `cd ${quoteForBash(projectRoot)} && ${quoteForBash(opencodePath)} -s ${quoteForBash(sessionId)}`;
 
   const launchInPowerShell = async (filePath: string, args: string[]) => {
     const encodedArgumentList = args.map((arg) => quoteForPowerShell(arg)).join(", ");
@@ -75,14 +77,7 @@ async function openSessionTerminal(sessionId: string, directory: string) {
   };
 
   if (await hasWindowsTerminal()) {
-    await launchInPowerShell("wt.exe", [
-      "wsl.exe",
-      "-d",
-      distro,
-      "bash",
-      "-ic",
-      resumeCommand,
-    ]);
+    await launchInPowerShell("wt.exe", ["wsl.exe", "-d", distro, "bash", "-ic", resumeCommand]);
     return;
   }
 
@@ -103,12 +98,14 @@ export const action = async ({ params }: Route.ActionArgs) => {
       return Response.json({ error: result.error }, { status: 502 });
     }
 
-    const session = (result.data as SessionSummary[] | undefined)?.find((entry) => entry.id === sessionId);
+    const session = (result.data as SessionSummary[] | undefined)?.find(
+      (entry) => entry.id === sessionId
+    );
     if (!session?.directory) {
       return Response.json({ error: "Session directory not found" }, { status: 404 });
     }
 
-    await openSessionTerminal(sessionId, session.directory);
+    await openSessionTerminal(sessionId);
 
     return Response.json({ ok: true });
   } catch (error) {
