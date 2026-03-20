@@ -12,12 +12,15 @@ type Props = {
 };
 
 type InternalContextViewModel = {
-  entries: Array<{ key: string; value: string }>;
+  raw: string;
   summary: string;
 };
 
 const INTERNAL_CONTEXT_BLOCK_REGEX = /<internal-context>([\s\S]*?)<\/internal-context>/;
 const INTERNAL_CONTEXT_REMOVE_REGEX = /<internal-context>[\s\S]*?<\/internal-context>/g;
+const INTERNAL_CONTEXT_SESSION_REGEX = /^session_id:\s*(.+)$/m;
+const INTERNAL_CONTEXT_SCOPE_REGEX = /^project_scope:\s*(.+)$/m;
+const INTERNAL_CONTEXT_PROJECT_ID_REGEX = /^\s*- id:\s*(.+)$/gm;
 
 function parseInternalContext(content: string): InternalContextViewModel | null {
   const match = content.match(INTERNAL_CONTEXT_BLOCK_REGEX);
@@ -25,34 +28,30 @@ function parseInternalContext(content: string): InternalContextViewModel | null 
     return null;
   }
 
-  const entries = (match[1] ?? "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const separatorIndex = line.indexOf(":");
-      if (separatorIndex === -1) {
-        return { key: line, value: "" };
-      }
-
-      return {
-        key: line.slice(0, separatorIndex).trim(),
-        value: line.slice(separatorIndex + 1).trim(),
-      };
-    });
-
-  if (entries.length === 0) {
+  const raw = (match[1] ?? "").trim();
+  if (!raw) {
     return {
-      entries: [],
+      raw: "",
       summary: "Injected internal context",
     };
   }
 
-  const sessionEntry = entries.find((entry) => entry.key === "session_id");
+  const sessionId = raw.match(INTERNAL_CONTEXT_SESSION_REGEX)?.[1]?.trim() ?? null;
+  const projectScope = raw.match(INTERNAL_CONTEXT_SCOPE_REGEX)?.[1]?.trim() ?? null;
+  const projectIds = Array.from(raw.matchAll(INTERNAL_CONTEXT_PROJECT_ID_REGEX)).map((matchItem) =>
+    matchItem[1]?.trim()
+  ).filter((value): value is string => Boolean(value));
+
+  const summaryParts = [sessionId ? `Session ${sessionId}` : null, projectScope, projectIds[0] ?? null]
+    .filter((value): value is string => Boolean(value));
+  const extraProjectCount = Math.max(projectIds.length - 1, 0);
 
   return {
-    entries,
-    summary: sessionEntry?.value ? `Session ${sessionEntry.value}` : "Injected internal context",
+    raw,
+    summary:
+      summaryParts.length > 0
+        ? `${summaryParts.join(" · ")}${extraProjectCount > 0 ? ` +${extraProjectCount}` : ""}`
+        : "Injected internal context",
   };
 }
 
@@ -127,14 +126,9 @@ const MessageBubble = ({ role, parts }: Props) => {
                     contextExpanded ? "translate-y-0" : "-translate-y-1"
                   )}
                 >
-                  {internalContext.entries.map((entry) => (
-                    <div key={`${entry.key}-${entry.value}`}>
-                      <div className="uppercase tracking-[0.12em] text-sky-200/60">{entry.key}</div>
-                      <div className="break-all font-mono text-[10px] text-sky-100/80">
-                        {entry.value || "-"}
-                      </div>
-                    </div>
-                  ))}
+                  <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap break-words text-sky-50/85">
+                    {internalContext.raw}
+                  </pre>
                 </div>
               </div>
             </div>
