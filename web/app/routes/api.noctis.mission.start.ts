@@ -20,12 +20,16 @@ export const action = async ({ request }: Route.ActionArgs) => {
     message?: unknown;
     noctisModel?: unknown;
     workerModels?: unknown;
+    title?: unknown;
+    objective?: unknown;
   } | null;
   if (!body || typeof body.message !== "string" || !body.message.trim()) {
     return Response.json({ error: "Missing message" }, { status: 400 });
   }
 
   const message = body.message.trim();
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const objective = typeof body.objective === "string" ? body.objective.trim() : message;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
 
   const workerModelsRaw = body.workerModels && typeof body.workerModels === "object"
@@ -57,7 +61,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
     }
 
-    const mission = createMission(missionId, sessionId);
+    const mission = createMission(missionId, sessionId, {
+      title: title || message.slice(0, 80),
+      objective,
+    });
     setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);
 

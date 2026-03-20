@@ -6,6 +6,8 @@ export interface ModelSelection {
   modelID: string;
 }
 
+export type MissionStatus = "active" | "completed" | "archived";
+
 export interface WorkerResult {
   task_id: string;
   status: "completed" | "failed";
@@ -45,6 +47,20 @@ export interface Mission {
   taskGraph: Task[];
   delegationLedger: DelegationLedger;
   agentModels: Partial<Record<AgentId, ModelSelection>>;
+  createdAt: string;
+  updatedAt: string;
+  title: string;
+  objective?: string;
+  status: MissionStatus;
+}
+
+export interface MissionSummary {
+  missionId: string;
+  title: string;
+  objective?: string;
+  createdAt: string;
+  updatedAt: string;
+  status: MissionStatus;
 }
 
 export interface TaskContextParams {

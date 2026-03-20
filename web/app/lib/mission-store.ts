@@ -1,8 +1,77 @@
-import type { Mission, Task, DelegationLedger, WorkerAgentId, AgentId, ModelSelection, TaskStatus } from "./types/mission";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import type {
+  AgentId,
+  DelegationLedger,
+  Mission,
+  MissionStatus,
+  MissionSummary,
+  ModelSelection,
+  Task,
+  TaskStatus,
+  WorkerAgentId,
+} from "./types/mission";
 
 const store = new Map<string, Mission>();
 
-export function createMission(id: string, noctisSessionId: string): Mission {
+function getMissionStoreDir(): string {
+  return join(getProjectRoot(), ".tmp", "noctis-missions");
+}
+
+function getMissionFilePath(id: string): string {
+  return join(getMissionStoreDir(), `${id}.json`);
+}
+
+function ensureMissionStoreDir(): void {
+  const dir = getMissionStoreDir();
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+function persistMission(mission: Mission): void {
+  ensureMissionStoreDir();
+  writeFileSync(getMissionFilePath(mission.id), JSON.stringify(mission, null, 2), "utf-8");
+}
+
+function readMissionFromDisk(id: string): Mission | null {
+  const filePath = getMissionFilePath(id);
+  if (!existsSync(filePath)) return null;
+
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function toMissionSummary(mission: Mission): MissionSummary {
+  return {
+    missionId: mission.id,
+    title: mission.title,
+    objective: mission.objective,
+    createdAt: mission.createdAt,
+    updatedAt: mission.updatedAt,
+    status: mission.status,
+  };
+}
+
+function touchMission(mission: Mission, status?: MissionStatus): void {
+  mission.updatedAt = new Date().toISOString();
+  if (status) {
+    mission.status = status;
+  }
+  persistMission(mission);
+}
+
+export function createMission(
+  id: string,
+  noctisSessionId: string,
+  options?: { title?: string; objective?: string }
+): Mission {
+  const now = new Date().toISOString();
   const mission: Mission = {
     id,
     noctisSessionId,
@@ -14,13 +83,46 @@ export function createMission(id: string, noctisSessionId: string): Mission {
       completedSummaries: {},
     },
     agentModels: {},
+    createdAt: now,
+    updatedAt: now,
+    title: options?.title?.trim() || `Mission ${now}`,
+    objective: options?.objective?.trim() || undefined,
+    status: "active",
   };
   store.set(id, mission);
+  persistMission(mission);
   return mission;
 }
 
 export function getMission(id: string): Mission | undefined {
-  return store.get(id);
+  const inMemory = store.get(id);
+  if (inMemory) {
+    return inMemory;
+  }
+
+  const fromDisk = readMissionFromDisk(id);
+  if (fromDisk) {
+    store.set(id, fromDisk);
+    return fromDisk;
+  }
+
+  return undefined;
+}
+
+export function listMissionSummaries(): MissionSummary[] {
+  ensureMissionStoreDir();
+  const dir = getMissionStoreDir();
+  if (!existsSync(dir)) {
+    return [];
+  }
+
+  const filenames = readdirSync(dir).filter((name) => name.endsWith(".json"));
+  const missions = filenames
+    .map((filename) => readMissionFromDisk(filename.replace(/\.json$/, "")))
+    .filter((mission): mission is Mission => mission !== null)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+
+  return missions.map(toMissionSummary);
 }
 
 export function setWorkerSession(
@@ -28,22 +130,24 @@ export function setWorkerSession(
   agentId: WorkerAgentId,
   sessionId: string
 ): void {
-  const mission = store.get(missionId);
+  const mission = getMission(missionId);
   if (!mission) return;
   mission.workerSessions[agentId] = sessionId;
+  touchMission(mission);
 }
 
 export function setAgentModels(
   missionId: string,
   agentModels: Partial<Record<AgentId, ModelSelection>>
 ): void {
-  const mission = store.get(missionId);
+  const mission = getMission(missionId);
   if (!mission) return;
   mission.agentModels = { ...mission.agentModels, ...agentModels };
+  touchMission(mission);
 }
 
 export function addTask(missionId: string, task: Task): void {
-  const mission = store.get(missionId);
+  const mission = getMission(missionId);
   if (!mission) return;
   mission.taskGraph.push(task);
   mission.delegationLedger.activeTasks.push({
@@ -51,6 +155,7 @@ export function addTask(missionId: string, task: Task): void {
     assignedTo: task.assignedTo,
     status: task.status,
   });
+  touchMission(mission);
 }
 
 export function updateTask(
@@ -59,7 +164,7 @@ export function updateTask(
   status: TaskStatus,
   summary?: string
 ): void {
-  const mission = store.get(missionId);
+  const mission = getMission(missionId);
   if (!mission) return;
 
   const task = mission.taskGraph.find((t) => t.id === taskId);
@@ -67,9 +172,7 @@ export function updateTask(
     task.status = status;
   }
 
-  const ledgerEntry = mission.delegationLedger.activeTasks.find(
-    (t) => t.id === taskId
-  );
+  const ledgerEntry = mission.delegationLedger.activeTasks.find((t) => t.id === taskId);
   if (ledgerEntry) {
     ledgerEntry.status = status;
   }
@@ -77,6 +180,24 @@ export function updateTask(
   if ((status === "completed" || status === "failed") && summary) {
     mission.delegationLedger.completedSummaries[taskId] = summary;
   }
+
+  touchMission(mission, status === "running" || status === "pending" ? "active" : undefined);
+}
+
+export function updateMissionMetadata(
+  missionId: string,
+  patch: Partial<Pick<Mission, "title" | "objective" | "status">>
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+
+  if (typeof patch.title === "string" && patch.title.trim()) {
+    mission.title = patch.title.trim();
+  }
+  if (typeof patch.objective === "string") {
+    mission.objective = patch.objective.trim() || undefined;
+  }
+  touchMission(mission, patch.status);
 }
 
 export function buildDelegationLedger(mission: Mission): string {

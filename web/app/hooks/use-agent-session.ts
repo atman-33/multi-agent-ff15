@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
 import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
 import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
+import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import {
   applyPartyUpdate,
   eventToPartyUpdate,
@@ -54,8 +55,72 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   },
 ];
 
+export interface MissionSummary {
+  missionId: string;
+  title: string;
+  objective?: string;
+  createdAt: string;
+  updatedAt: string;
+  status: "active" | "completed" | "archived";
+}
+
+type ResumePayload = {
+  missionId: string;
+  title: string;
+  objective?: string;
+  createdAt: string;
+  updatedAt: string;
+  status: "active" | "completed" | "archived";
+  sessions: {
+    noctis: string;
+    ignis: string | null;
+    gladiolus: string | null;
+    prompto: string | null;
+  };
+};
+
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function extractText(parts: MessagePart[]): string {
+  return parts
+    .filter((part) => part.type === "text" && typeof part.text === "string")
+    .map((part) => part.text ?? "")
+    .join("")
+    .trim();
+}
+
+function toChatMessages(messages: MessageInfo[]): ChatMessage[] {
+  return messages
+    .map((message) => {
+      const content = extractText(message.parts);
+      if (!content) {
+        return null;
+      }
+
+      return {
+        id: message.info.id,
+        role: message.info.role === "assistant" ? "noctis" : "user",
+        content,
+        timestamp: new Date(),
+      } satisfies ChatMessage;
+    })
+    .filter((message): message is ChatMessage => message !== null);
+}
+
+async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
+  const response = await fetch(`/api/session/${sessionId}`);
+  if (!response.ok) {
+    throw new Error(`session messages failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { messages?: MessageInfo[] };
+  return toChatMessages(data.messages ?? []);
+}
+
+export interface UseAgentSessionOptions {
+  activeMissionId: string | null;
 }
 
 export interface UseAgentSessionReturn {
@@ -63,14 +128,16 @@ export interface UseAgentSessionReturn {
   banterEntries: BanterEntry[];
   partyMembers: PartyMember[];
   isStreaming: boolean;
+  isLoadingHistory: boolean;
   send: (text: string) => Promise<void>;
 }
 
-export function useAgentSession(): UseAgentSessionReturn {
+export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): UseAgentSessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>(INITIAL_PARTY);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const missionIdRef = useRef<string | null>(null);
   const noctisSessionIdRef = useRef<string | null>(null);
@@ -168,6 +235,15 @@ export function useAgentSession(): UseAgentSessionReturn {
         }
 
         if (type === "session.idle") {
+          const sessionId = noctisSessionIdRef.current;
+          if (sessionId) {
+            void loadSessionMessages(sessionId)
+              .then((nextMessages) => {
+                setMessages(nextMessages.length > 0 ? nextMessages : INITIAL_MESSAGES);
+              })
+              .catch(() => undefined);
+          }
+          streamingMessageIdRef.current = null;
           handleAgentEvent({ type: "session.completed", message: "" });
           return;
         }
@@ -199,6 +275,51 @@ export function useAgentSession(): UseAgentSessionReturn {
     };
   }, []);
 
+  useEffect(() => {
+    const loadMission = async () => {
+      if (!activeMissionId) {
+        missionIdRef.current = null;
+        noctisSessionIdRef.current = null;
+        streamingMessageIdRef.current = null;
+        setMessages(INITIAL_MESSAGES);
+        setBanterEntries([]);
+        setPartyMembers(INITIAL_PARTY);
+        setIsStreaming(false);
+        eventSourceRef.current?.close();
+        eventSourceRef.current = null;
+        return;
+      }
+
+      setIsLoadingHistory(true);
+      try {
+        const missionRes = await fetch(`/api/noctis/missions/${activeMissionId}`);
+        if (!missionRes.ok) {
+          throw new Error(`mission fetch failed: ${missionRes.status}`);
+        }
+        const mission = (await missionRes.json()) as ResumePayload;
+
+        const chatMessages = await loadSessionMessages(mission.sessions.noctis);
+
+        missionIdRef.current = mission.missionId;
+        noctisSessionIdRef.current = mission.sessions.noctis;
+        streamingMessageIdRef.current = null;
+        setMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
+        setBanterEntries([]);
+        setPartyMembers(INITIAL_PARTY);
+        setIsStreaming(false);
+        subscribeToSession(mission.sessions.noctis);
+      } catch {
+        missionIdRef.current = null;
+        noctisSessionIdRef.current = null;
+        setMessages(INITIAL_MESSAGES);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    void loadMission();
+  }, [activeMissionId, subscribeToSession]);
+
   const send = useCallback(
     async (text: string) => {
       const userMessage: ChatMessage = {
@@ -219,6 +340,8 @@ export function useAgentSession(): UseAgentSessionReturn {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               message: text,
+              title: text.slice(0, 80),
+              objective: text,
               noctisModel: agentModels["noctis"] ?? null,
               workerModels: {
                 ignis: agentModels["ignis"] ?? null,
@@ -239,6 +362,10 @@ export function useAgentSession(): UseAgentSessionReturn {
           handleAgentEvent({ type: "session.created" });
           subscribeToSession(data.noctisSessionId);
         } else {
+          handleAgentEvent({ type: "session.created" });
+          if (noctisSessionIdRef.current) {
+            subscribeToSession(noctisSessionIdRef.current);
+          }
           const res = await fetch("/api/noctis/mission/continue", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -267,5 +394,5 @@ export function useAgentSession(): UseAgentSessionReturn {
     [handleAgentEvent, subscribeToSession]
   );
 
-  return { messages, banterEntries, partyMembers, isStreaming, send };
+  return { messages, banterEntries, partyMembers, isStreaming, isLoadingHistory, send };
 }
