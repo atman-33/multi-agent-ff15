@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SheetClose, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import type { Route } from "./+types/route";
 
 interface ReportsOutletContext {
   archiveReport: (filename: string, action: "archive" | "restore") => Promise<void>;
 }
 
-export default function ReportDetail() {
+const ReportDetail = (_props: Route.ComponentProps) => {
   const { filename } = useParams<{ filename: string }>();
   const [searchParams] = useSearchParams();
   const isArchived = searchParams.get("archived") === "true";
@@ -186,4 +187,6 @@ export default function ReportDetail() {
       </div>
     </div>
   );
-}
+};
+
+export default ReportDetail;

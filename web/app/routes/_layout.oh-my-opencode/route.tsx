@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { Route } from "./+types/route";
 
 interface ModelEntry {
   model: string;
@@ -39,7 +40,7 @@ interface OhMyOpenCodeData {
   version: string;
 }
 
-function LoadingGrid() {
+const LoadingGrid = () => {
   return (
     <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
       {[...new Array(6)].map((_, index) => (
@@ -54,9 +55,9 @@ function LoadingGrid() {
       ))}
     </div>
   );
-}
+};
 
-export default function OhMyOpenCodePage() {
+const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
   const [data, setData] = useState<OhMyOpenCodeData | null>(null);
   const [config, setConfig] = useState<OhMyOpenCodeConfig>({});
   const [search, setSearch] = useState("");
@@ -88,11 +89,7 @@ export default function OhMyOpenCodePage() {
     fetchData();
   }, [fetchData]);
 
-  const handleModelChange = (
-    type: "agents" | "categories",
-    key: string,
-    model: string
-  ) => {
+  const handleModelChange = (type: "agents" | "categories", key: string, model: string) => {
     setConfig((prev) => ({
       ...prev,
       [type]: {
@@ -153,7 +150,8 @@ export default function OhMyOpenCodePage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-4 p-4">
+    <div className="h-full min-h-0 overflow-hidden">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-4 p-4">
       <div className="flex items-center justify-between border-border/50 border-b pb-2">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-primary/10 p-2">
@@ -231,14 +229,17 @@ export default function OhMyOpenCodePage() {
           </div>
 
           {loading && (
-            <div className="pointer-events-none space-y-4 opacity-50">
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div className="pointer-events-none space-y-4 opacity-50">
               <LoadingGrid />
+              </div>
             </div>
           )}
 
           {!loading && (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-4 xl:grid-cols-2">
-              <section className="space-y-2">
+            <div className="min-h-0 flex-1">
+              <div className="grid h-full min-h-0 grid-cols-1 gap-x-8 gap-y-4 xl:grid-cols-2">
+              <section className="flex min-h-0 flex-col gap-2 overflow-hidden">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2 pl-1 font-bold text-[10px] text-muted-foreground uppercase tracking-widest">
                     <UserCircle2 className="h-3.5 w-3.5 text-primary/70" />
@@ -248,46 +249,44 @@ export default function OhMyOpenCodePage() {
                     {filteredAgents.length} items
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                  {filteredAgents.map(([key, value]) => (
+
+                <div className="min-h-0 overflow-y-auto pr-1">
+                  <div className="grid gap-1.5">
+                  {filteredAgents.map(([key, entry]) => (
                     <div
-                      className="group flex items-center gap-3 rounded-md border border-border/30 bg-card/30 p-1.5 px-3 transition-all duration-150 hover:border-primary/30 hover:bg-card/50"
+                      className="flex items-center gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2"
                       key={key}
                     >
-                      <div
-                        className="min-w-0 flex-1 truncate font-medium text-[12px] text-foreground/80"
-                        title={key}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-sm">{key}</div>
+                        {entry.variant ? (
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                            {entry.variant}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Select
+                        onValueChange={(value) => handleModelChange("agents", key, value)}
+                        value={entry.model}
                       >
-                        {key}
-                      </div>
-                      <div className="flex shrink-0 items-center">
-                        <Select
-                          onValueChange={(model) => handleModelChange("agents", key, model)}
-                          value={value.model}
-                        >
-                          <SelectTrigger className="h-7 w-[220px] border-border/50 bg-background/40 text-[11px] sm:w-[280px] 2xl:w-[320px]">
-                            <SelectValue placeholder="Model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {data.models.map((model) => (
-                              <SelectItem className="py-1 text-[11px]" key={model} value={model}>
-                                {model}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                        <SelectTrigger className="w-[220px] sm:w-[280px] 2xl:w-[320px]">
+                          <SelectValue placeholder="Select model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {data.models.map((model) => (
+                            <SelectItem key={model} value={model}>
+                              {model}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   ))}
-                  {filteredAgents.length === 0 && (
-                    <div className="col-span-full flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/5 p-4 text-[11px] italic opacity-40">
-                      No agents matching search
-                    </div>
-                  )}
+                  </div>
                 </div>
               </section>
 
-              <section className="space-y-2">
+              <section className="flex min-h-0 flex-col gap-2 overflow-hidden">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2 pl-1 font-bold text-[10px] text-muted-foreground uppercase tracking-widest">
                     <LayoutGrid className="h-3.5 w-3.5 text-primary/70" />
@@ -297,48 +296,50 @@ export default function OhMyOpenCodePage() {
                     {filteredCategories.length} items
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                  {filteredCategories.map(([key, value]) => (
+
+                <div className="min-h-0 overflow-y-auto pr-1">
+                  <div className="grid gap-1.5">
+                  {filteredCategories.map(([key, entry]) => (
                     <div
-                      className="group flex items-center gap-3 rounded-md border border-border/30 bg-card/30 p-1.5 px-3 transition-all duration-150 hover:border-primary/30 hover:bg-card/50"
+                      className="flex items-center gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2"
                       key={key}
                     >
-                      <div
-                        className="min-w-0 flex-1 truncate font-medium text-[12px] text-foreground/80"
-                        title={key}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-sm">{key}</div>
+                        {entry.variant ? (
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                            {entry.variant}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Select
+                        onValueChange={(value) => handleModelChange("categories", key, value)}
+                        value={entry.model}
                       >
-                        {key}
-                      </div>
-                      <div className="flex shrink-0 items-center">
-                        <Select
-                          onValueChange={(model) => handleModelChange("categories", key, model)}
-                          value={value.model}
-                        >
-                          <SelectTrigger className="h-7 w-[220px] border-border/50 bg-background/40 text-[11px] sm:w-[280px] 2xl:w-[320px]">
-                            <SelectValue placeholder="Model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {data.models.map((model) => (
-                              <SelectItem className="py-1 text-[11px]" key={model} value={model}>
-                                {model}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                        <SelectTrigger className="w-[220px] sm:w-[280px] 2xl:w-[320px]">
+                          <SelectValue placeholder="Select model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {data.models.map((model) => (
+                            <SelectItem key={model} value={model}>
+                              {model}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   ))}
-                  {filteredCategories.length === 0 && (
-                    <div className="col-span-full flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/5 p-4 text-[11px] italic opacity-40">
-                      No categories matching search
-                    </div>
-                  )}
+                  </div>
                 </div>
               </section>
+              </div>
             </div>
           )}
         </>
       )}
+      </div>
     </div>
   );
-}
+};
+
+export default OhMyOpenCodePage;

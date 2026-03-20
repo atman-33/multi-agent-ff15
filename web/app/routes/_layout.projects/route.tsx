@@ -14,6 +14,7 @@ import {
   type ProjectScope,
 } from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
+import type { Route } from "./+types/route";
 
 interface ProjectsApiData extends ActiveProjectsData {
   error?: string;
@@ -70,18 +71,18 @@ const readVSCodePreferences = (): Record<string, VSCodePreference> => {
   }
 };
 
-const formatPath = (p: string): string => {
-  if (!p) {
+const formatPath = (path: string): string => {
+  if (!path) {
     return "—";
   }
-  if (p.length <= 42) {
-    return p;
+  if (path.length <= 42) {
+    return path;
   }
-  const parts = p.split("/");
+  const parts = path.split("/");
   if (parts.length >= 3) {
     return `…/${parts.slice(-2).join("/")}`;
   }
-  return `…${p.slice(-39)}`;
+  return `…${path.slice(-39)}`;
 };
 
 const formatDate = (iso: string): string => {
@@ -100,7 +101,7 @@ const formatDate = (iso: string): string => {
   }
 };
 
-export default function ProjectsPage() {
+const ProjectsPage = (_props: Route.ComponentProps) => {
   const [serverData, setServerData] = useState<ProjectsApiData | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -186,7 +187,6 @@ export default function ProjectsPage() {
       return;
     }
 
-    // Optimistically update UI
     const prevProjectScopes = serverData.projectScopes;
     const prevActiveIds = prevProjectScopes[scope].activeProjectIds;
     const nextActiveIds = nextChecked
@@ -219,13 +219,11 @@ export default function ProjectsPage() {
           await fetchData();
           return;
         }
-        // Revert optimistic update
         setServerData((prev) => (prev ? { ...prev, projectScopes: prevProjectScopes } : prev));
         toast.error("Save failed", { description: result.error });
         return;
       }
 
-      // Sync configUpdatedAt from response if available
       if (result.updatedAt) {
         setServerData((prev) =>
           prev
@@ -239,11 +237,10 @@ export default function ProjectsPage() {
       }
 
       toast.success(nextChecked ? "Project activated" : "Project deactivated", {
-        description: `${PROJECT_SCOPE_LABELS[scope]} · ${serverData.projects.find((p) => p.id === projectId)?.displayName ?? projectId}`,
+        description: `${PROJECT_SCOPE_LABELS[scope]} · ${serverData.projects.find((project) => project.id === projectId)?.displayName ?? projectId}`,
       });
       window.dispatchEvent(new CustomEvent("active-projects-changed"));
     } catch (e) {
-      // Revert optimistic update
       setServerData((prev) => (prev ? { ...prev, projectScopes: prevProjectScopes } : prev));
       toast.error("Save failed", { description: String(e) });
     } finally {
@@ -254,8 +251,6 @@ export default function ProjectsPage() {
       });
     }
   };
-
-  // --- Render ---
 
   if (loading && !serverData) {
     return (
@@ -273,7 +268,6 @@ export default function ProjectsPage() {
 
   return (
     <div className="max-w-3xl space-y-5 p-6">
-      {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 font-semibold text-xl">
@@ -286,14 +280,12 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        {/* Refresh button */}
         <Button disabled={loading} onClick={fetchData} size="sm" title="Refresh" variant="outline">
           <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")} />
           Refresh
         </Button>
       </div>
 
-      {/* Fetch error */}
       {fetchError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -308,7 +300,6 @@ export default function ProjectsPage() {
         </Alert>
       )}
 
-      {/* Empty state */}
       {serverData && serverData.projects.length === 0 && (
         <Card>
           <CardContent className="space-y-3 py-10 text-center">
@@ -324,7 +315,6 @@ export default function ProjectsPage() {
         </Card>
       )}
 
-      {/* Project list */}
       {serverData && serverData.projects.length > 0 && (
         <div className="space-y-2">
           <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-4 py-1 text-[11px] text-muted-foreground/60 uppercase tracking-widest">
@@ -350,7 +340,6 @@ export default function ProjectsPage() {
                 key={project.id}
               >
                 <CardContent className="flex items-center gap-4 px-4 py-3.5">
-                  {/* Project info */}
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-center gap-2">
                       <span className="truncate font-medium text-sm">{project.displayName}</span>
@@ -371,13 +360,12 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  {/* Right side: launch actions + switch */}
                   <div className="flex shrink-0 items-center gap-3">
                     <div className="flex items-center gap-1">
                       <Button
                         className="h-8 w-8 text-muted-foreground hover:text-primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onClick={(event) => {
+                          event.stopPropagation();
                           openFolder(project.path).catch(() => undefined);
                         }}
                         size="icon"
@@ -389,8 +377,8 @@ export default function ProjectsPage() {
                       <div className="flex items-center">
                         <Button
                           className="h-8 gap-1 rounded-r-none border-r-0 px-2.5 text-[11px]"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={(event) => {
+                            event.stopPropagation();
                             openVSCode(project.path, vscodePreference).catch(() => undefined);
                           }}
                           size="sm"
@@ -407,7 +395,7 @@ export default function ProjectsPage() {
                           <PopoverTrigger asChild>
                             <Button
                               className="h-8 rounded-l-none px-2 text-muted-foreground"
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(event) => event.stopPropagation()}
                               size="sm"
                               title="Choose VS Code launch mode"
                               variant="outline"
@@ -418,7 +406,7 @@ export default function ProjectsPage() {
                           <PopoverContent
                             align="end"
                             className="w-60 p-1"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
                           >
                             <div className="px-2 py-1.5">
                               <p className="font-medium text-xs">Open in VS Code</p>
@@ -456,9 +444,7 @@ export default function ProjectsPage() {
                                   key={option.preference}
                                   onClick={() => {
                                     updateVSCodePreference(project.id, option.preference);
-                                    openVSCode(project.path, option.preference).catch(
-                                      () => undefined
-                                    );
+                                    openVSCode(project.path, option.preference).catch(() => undefined);
                                   }}
                                   type="button"
                                 >
@@ -510,7 +496,6 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Active count summary */}
       {serverData && serverData.projects.length > 0 && (
         <div className="flex items-center justify-end gap-4 text-right text-muted-foreground/50 text-xs">
           {scopeCounts.map(({ scope, count }) => (
@@ -522,4 +507,6 @@ export default function ProjectsPage() {
       )}
     </div>
   );
-}
+};
+
+export default ProjectsPage;

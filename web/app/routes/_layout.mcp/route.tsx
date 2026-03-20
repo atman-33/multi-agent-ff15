@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import type { Route } from "./+types/route";
 
 interface McpServerEntry {
   command?: string[];
@@ -31,7 +32,7 @@ interface McpConfigData {
   error?: string;
 }
 
-export default function McpPage() {
+const McpPage = (_props: Route.ComponentProps) => {
   const [data, setData] = useState<McpConfigData | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -160,7 +161,7 @@ export default function McpPage() {
   }
 
   const mcpEntries = Object.entries(data?.config?.mcp ?? {});
-  const enabledCount = mcpEntries.filter(([, v]) => v.enabled).length;
+  const enabledCount = mcpEntries.filter(([, value]) => value.enabled).length;
 
   return (
     <div className="max-w-3xl space-y-5 p-6">
@@ -248,103 +249,86 @@ export default function McpPage() {
                           className="border-border/40 bg-transparent px-1.5 py-0 text-[10px] text-muted-foreground/60"
                           variant="outline"
                         >
-                          disabled
+                          Disabled
+                        </Badge>
+                      )}
+                      {isSaving && (
+                        <Badge className="px-1.5 py-0 text-[10px]" variant="outline">
+                          Saving...
                         </Badge>
                       )}
                     </div>
 
-                    {entry.command && entry.command.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground/70 text-xs">
-                        <Terminal className="h-3 w-3 shrink-0" />
-                        <span className="truncate font-mono">{entry.command.join(" ")}</span>
-                      </div>
-                    )}
-                    {entry.url && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground/70 text-xs">
-                        <Terminal className="h-3 w-3 shrink-0" />
-                        <span className="truncate font-mono">{entry.url}</span>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-xs">
+                      {entry.command?.[0] ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Terminal className="h-3.5 w-3.5" />
+                          <span className="truncate">{entry.command[0]}</span>
+                        </span>
+                      ) : null}
+                      {entry.url ? <span className="truncate">{entry.url}</span> : null}
+                    </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {hasDetails && (
-                      <button
-                        aria-label={
-                          isExpanded ? `Collapse ${name} details` : `Expand ${name} details`
-                        }
-                        className="rounded p-1 text-muted-foreground/50 transition-colors hover:bg-white/5 hover:text-muted-foreground"
-                        onClick={() => toggleExpand(name)}
-                        type="button"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    )}
+                  {hasDetails ? (
+                    <Button
+                      aria-label={isExpanded ? `Collapse ${name}` : `Expand ${name}`}
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => toggleExpand(name)}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </Button>
+                  ) : null}
 
-                    <Switch
-                      aria-label={`Toggle ${name}`}
-                      checked={isEnabled}
-                      disabled={isSaving}
-                      onCheckedChange={(checked) => handleToggle(name, checked)}
-                    />
-                  </div>
+                  <Switch
+                    checked={isEnabled}
+                    disabled={isSaving}
+                    onCheckedChange={(nextEnabled) => handleToggle(name, nextEnabled)}
+                  />
                 </CardContent>
 
-                {isExpanded && hasDetails && (
-                  <div className="border-border/40 border-t bg-muted/30 px-4 py-3">
-                    <dl className="space-y-2 text-xs">
-                      {entry.type && (
-                        <div className="flex gap-3">
-                          <dt className="w-20 shrink-0 font-medium text-muted-foreground/70">
-                            Type
-                          </dt>
-                          <dd className="font-mono text-foreground/80">{entry.type}</dd>
+                {isExpanded && hasDetails ? (
+                  <div className="border-border/60 border-t bg-muted/30 px-4 py-3 text-xs">
+                    <div className="space-y-2">
+                      {entry.command && entry.command.length > 0 ? (
+                        <div>
+                          <div className="mb-1 font-medium text-foreground/80">Command</div>
+                          <code className="block overflow-x-auto rounded bg-background px-2 py-1.5 font-mono text-[11px]">
+                            {entry.command.join(" ")}
+                          </code>
                         </div>
-                      )}
-                      {entry.command && entry.command.length > 0 && (
-                        <div className="flex gap-3">
-                          <dt className="w-20 shrink-0 font-medium text-muted-foreground/70">
-                            Command
-                          </dt>
-                          <dd className="flex flex-wrap gap-1">
-                            {entry.command.map((arg, i) => (
-                              <code
-                                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]"
-                                // biome-ignore lint/suspicious/noArrayIndexKey: command args may contain duplicates (e.g. -y flag)
-                                key={`${arg}-${i}`}
-                              >
-                                {arg}
-                              </code>
-                            ))}
-                          </dd>
+                      ) : null}
+
+                      {entry.url ? (
+                        <div>
+                          <div className="mb-1 font-medium text-foreground/80">URL</div>
+                          <code className="block overflow-x-auto rounded bg-background px-2 py-1.5 font-mono text-[11px]">
+                            {entry.url}
+                          </code>
                         </div>
-                      )}
-                      {entry.url && (
-                        <div className="flex gap-3">
-                          <dt className="w-20 shrink-0 font-medium text-muted-foreground/70">
-                            URL
-                          </dt>
-                          <dd className="font-mono text-foreground/80">{entry.url}</dd>
-                        </div>
-                      )}
-                    </dl>
+                      ) : null}
+                    </div>
                   </div>
-                )}
+                ) : null}
               </Card>
             );
           })}
         </div>
       )}
 
-      {mcpEntries.length > 0 && (
-        <p className="text-right text-muted-foreground/50 text-xs">
-          {enabledCount} / {mcpEntries.length} enabled
-        </p>
-      )}
+      {mcpEntries.length > 0 ? (
+        <div className="text-muted-foreground text-xs">
+          {enabledCount} of {mcpEntries.length} servers enabled
+        </div>
+      ) : null}
     </div>
   );
-}
+};
+
+export default McpPage;

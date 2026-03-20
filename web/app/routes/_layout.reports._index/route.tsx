@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
+import type { Route } from "./+types/route";
 
-export default function ReportsIndex() {
+const ReportsIndex = (_props: Route.ComponentProps) => {
   return (
     <div className="fade-in flex h-full w-full animate-in flex-col items-center justify-center text-muted-foreground/60 duration-500">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/50">
@@ -12,4 +13,6 @@ export default function ReportsIndex() {
       </p>
     </div>
   );
-}
+};
+
+export default ReportsIndex;

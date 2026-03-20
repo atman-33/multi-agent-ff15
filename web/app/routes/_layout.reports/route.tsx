@@ -5,13 +5,14 @@ import { Alert, AlertCircle, AlertDescription, AlertTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import type { ReportMeta } from "./api.reports";
+import type { ReportMeta } from "../api.reports";
+import type { Route } from "./+types/route";
 
 type Tab = "active" | "archived";
 
 const SHEET_CLOSE_ANIMATION_MS = 300;
 
-export default function ReportsLayout() {
+const ReportsLayout = (_props: Route.ComponentProps) => {
   const [reports, setReports] = useState<ReportMeta[]>([]);
   const [tab, setTab] = useState<Tab>("active");
   const [loadingList, setLoadingList] = useState(false);
@@ -72,7 +73,7 @@ export default function ReportsLayout() {
     navigate("/reports");
   };
 
-  const handleSelect = (r: ReportMeta) => {
+  const handleSelect = (report: ReportMeta) => {
     if (closeTimeoutRef.current !== null) {
       window.clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -81,10 +82,11 @@ export default function ReportsLayout() {
     setIsSheetOpen(true);
 
     if (tab === "archived") {
-      navigate(`/reports/${encodeURIComponent(r.filename)}?archived=true`);
-    } else {
-      navigate(`/reports/${encodeURIComponent(r.filename)}`);
+      navigate(`/reports/${encodeURIComponent(report.filename)}?archived=true`);
+      return;
     }
+
+    navigate(`/reports/${encodeURIComponent(report.filename)}`);
   };
 
   const closeDetail = useCallback(() => {
@@ -190,28 +192,28 @@ export default function ReportsLayout() {
           )}
 
           <div className="flex flex-col">
-            {reports.map((r) => {
-              const isActive = decodeURIComponent(location.pathname) === `/reports/${r.filename}`;
+            {reports.map((report) => {
+              const isActive = decodeURIComponent(location.pathname) === `/reports/${report.filename}`;
               return (
                 <button
                   className={cn(
                     "group flex flex-col gap-1 border-border/50 border-b p-4 text-left transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none",
                     isActive && "bg-muted"
                   )}
-                  key={r.filename}
-                  onClick={() => handleSelect(r)}
+                  key={report.filename}
+                  onClick={() => handleSelect(report)}
                   type="button"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="line-clamp-2 font-medium text-foreground text-sm leading-tight">
-                      {r.title}
+                      {report.title}
                     </span>
                     <button
                       className="ml-1 shrink-0 rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                      onClick={async (e) => {
-                        e.stopPropagation();
+                      onClick={async (event) => {
+                        event.stopPropagation();
                         const archiveAction = tab === "archived" ? "restore" : "archive";
-                        await archiveReport(r.filename, archiveAction);
+                        await archiveReport(report.filename, archiveAction);
                         if (isActive) {
                           navigate("/reports");
                         }
@@ -229,11 +231,11 @@ export default function ReportsLayout() {
                   <div className="mt-2 flex items-center justify-between">
                     <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
                       <User className="h-3 w-3" />
-                      <span className="max-w-[80px] truncate font-medium">{r.author}</span>
+                      <span className="max-w-[80px] truncate font-medium">{report.author}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {new Date(r.date).toLocaleDateString([], {
+                      {new Date(report.date).toLocaleDateString([], {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
@@ -242,9 +244,9 @@ export default function ReportsLayout() {
                       })}
                     </span>
                   </div>
-                  {r.tags && r.tags.length > 0 && (
+                  {report.tags && report.tags.length > 0 && (
                     <div className="mt-2.5 flex flex-wrap gap-1">
-                      {r.tags.map((tag) => (
+                      {report.tags.map((tag) => (
                         <span
                           className="rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
                           key={tag}
@@ -260,39 +262,14 @@ export default function ReportsLayout() {
           </div>
         </div>
 
-        <Sheet
-          onOpenChange={(open) => {
-            if (open) {
-              if (closeTimeoutRef.current !== null) {
-                window.clearTimeout(closeTimeoutRef.current);
-                closeTimeoutRef.current = null;
-              }
-
-              setIsSheetOpen(true);
-            } else {
-              closeDetail();
-            }
-          }}
-          open={isSheetOpen}
-        >
-          {isDetailShowing ? (
-            <SheetContent
-              className="flex h-full w-screen max-w-none flex-col gap-0 border-border/50 border-l bg-background/98 p-0 backdrop-blur-xl sm:w-[92vw] sm:max-w-3xl lg:max-w-5xl"
-              overlayClassName="bg-black/20"
-              side="right"
-              showCloseButton={false}
-            >
-              <Outlet
-                context={
-                  { archiveReport } satisfies {
-                    archiveReport: typeof archiveReport;
-                  }
-                }
-              />
-            </SheetContent>
-          ) : null}
+        <Sheet onOpenChange={(open) => (!open ? closeDetail() : setIsSheetOpen(true))} open={isSheetOpen}>
+          <SheetContent className="w-full p-0 sm:max-w-3xl">
+            <Outlet context={{ archiveReport }} />
+          </SheetContent>
         </Sheet>
       </div>
     </div>
   );
-}
+};
+
+export default ReportsLayout;

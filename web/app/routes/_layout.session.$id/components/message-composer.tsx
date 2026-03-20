@@ -157,7 +157,7 @@ const ComposerSelectionControls = memo(
     const [modelComboboxOpen, setModelComboboxOpen] = useState(false);
 
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
           <PopoverAnchor asChild>
             <Button
@@ -235,7 +235,7 @@ const ComposerSelectionControls = memo(
               size="sm"
               role="combobox"
               aria-expanded={modelComboboxOpen}
-              className="h-8 w-[320px] justify-between gap-2 px-2 text-xs text-muted-foreground"
+              className="h-8 w-[280px] justify-between gap-2 px-2 text-xs text-muted-foreground"
               onClick={() => setModelComboboxOpen((open) => !open)}
             >
               <span className="flex min-w-0 items-center gap-2">
@@ -709,50 +709,12 @@ const MessageComposer = ({
                 disabled={disabled}
                 rows={MIN_ROWS}
                 className={cn(
-                  "w-full resize-none rounded-xl border border-border/40 bg-background/60 py-2 pl-3 pr-12 text-xs leading-relaxed",
-                  "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm",
-                  "focus:outline-none focus:ring-1 focus:ring-ring",
-                  "placeholder:text-muted-foreground/40"
+                  "w-full resize-none rounded-xl border border-transparent bg-transparent py-2 pl-3 pr-3 text-xs leading-relaxed text-foreground",
+                  "shadow-none backdrop-blur-0",
+                  "focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none",
+                  "placeholder:text-muted-foreground/75"
                 )}
               />
-
-              <button
-                type="button"
-                onClick={showAbortAction ? onAbort : handleSubmit}
-                disabled={showAbortAction ? disabled || isAborting || !onAbort : !canSubmit || disabled}
-                title={showAbortAction ? "Stop" : "Send"}
-                className={cn(
-                  "absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
-                  showAbortAction
-                    ? "border-red-500/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(239,68,68,0.16))] text-red-50 shadow-[0_10px_28px_rgba(2,6,23,0.32),0_0_0_1px_rgba(239,68,68,0.06),inset_0_1px_0_rgba(255,255,255,0.1)] hover:border-red-400/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(248,113,113,0.22))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.4),0_0_18px_rgba(239,68,68,0.12),inset_0_1px_0_rgba(255,255,255,0.14)] active:translate-y-[1px]"
-                    : !canSubmit || disabled
-                    ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                    : arrowState === "done"
-                      ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                      : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-[1px]"
-                )}
-              >
-                {showAbortAction ? (
-                  <Square className={cn("h-3.5 w-3.5", isAborting && "animate-pulse")} />
-                ) : arrowState === "done" ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  <div className="relative flex h-3.5 w-3.5 items-center justify-center overflow-hidden">
-                    <ArrowUp
-                      className={cn(
-                        "absolute h-3.5 w-3.5 transition-all duration-300",
-                        arrowState === "flying" ? "-translate-y-6 opacity-0" : "translate-y-0 opacity-100"
-                      )}
-                    />
-                    <ArrowUp
-                      className={cn(
-                        "absolute h-3.5 w-3.5 transition-all duration-300",
-                        arrowState === "flying" ? "-translate-y-3 opacity-100" : "translate-y-3 opacity-0"
-                      )}
-                    />
-                  </div>
-                )}
-              </button>
             </div>
           </div>
         </PopoverAnchor>
@@ -811,7 +773,7 @@ const MessageComposer = ({
         </PopoverContent>
       </Popover>
 
-      <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-2">
+      <div className="flex flex-wrap items-end gap-2 px-3 pb-3 pt-2">
         <ComposerSelectionControls
           agents={agents}
           modelItems={modelItems}
@@ -821,6 +783,44 @@ const MessageComposer = ({
           setSelectedAgent={setSelectedAgent}
           setSelectedModel={setSelectedModel}
         />
+
+        <button
+          type="button"
+          onClick={showAbortAction ? onAbort : handleSubmit}
+          disabled={showAbortAction ? disabled || isAborting || !onAbort : !canSubmit || disabled}
+          title={showAbortAction ? "Stop" : "Send"}
+          className={cn(
+            "ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-end rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
+            showAbortAction
+              ? "border-red-500/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(239,68,68,0.16))] text-red-50 shadow-[0_10px_28px_rgba(2,6,23,0.32),0_0_0_1px_rgba(239,68,68,0.06),inset_0_1px_0_rgba(255,255,255,0.1)] hover:border-red-400/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(248,113,113,0.22))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.4),0_0_18px_rgba(239,68,68,0.12),inset_0_1px_0_rgba(255,255,255,0.14)] active:translate-y-[1px]"
+              : !canSubmit || disabled
+                ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                : arrowState === "done"
+                  ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                  : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-[1px]"
+          )}
+        >
+          {showAbortAction ? (
+            <Square className={cn("h-3.5 w-3.5", isAborting && "animate-pulse")} />
+          ) : arrowState === "done" ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : (
+            <div className="relative flex h-3.5 w-3.5 items-center justify-center overflow-hidden">
+              <ArrowUp
+                className={cn(
+                  "absolute h-3.5 w-3.5 transition-all duration-300",
+                  arrowState === "flying" ? "-translate-y-6 opacity-0" : "translate-y-0 opacity-100"
+                )}
+              />
+              <ArrowUp
+                className={cn(
+                  "absolute h-3.5 w-3.5 transition-all duration-300",
+                  arrowState === "flying" ? "-translate-y-3 opacity-100" : "translate-y-3 opacity-0"
+                )}
+              />
+            </div>
+          )}
+        </button>
 
       </div>
     </div>
