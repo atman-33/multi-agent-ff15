@@ -271,7 +271,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   }, [value]);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card shadow-sm">
+    <div className="rounded-xl border border-transparent bg-card shadow-sm">
       <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
         <PopoverAnchor asChild>
           <div className="px-3 pt-3">
@@ -284,8 +284,8 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
               disabled={disabled}
               rows={1}
               className={cn(
-                "min-h-[36px] max-h-48 w-full resize-none border-0 bg-transparent p-0 shadow-none",
-                "focus-visible:ring-0 text-sm placeholder:text-muted-foreground/60"
+                "min-h-[36px] max-h-48 w-full resize-none border-0 border-transparent bg-transparent p-0 shadow-none outline-none ring-0",
+                "focus:border-transparent focus:outline-none focus:ring-0 focus-visible:border-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm placeholder:text-muted-foreground/60"
               )}
             />
           </div>
