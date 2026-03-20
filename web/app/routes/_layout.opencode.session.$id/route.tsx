@@ -12,6 +12,12 @@ type EventPayload = {
   type: string;
   properties: {
     sessionID?: string;
+    status?: {
+      type: "idle" | "busy" | "retry";
+      attempt?: number;
+      message?: string;
+      next?: number;
+    };
     part?: {
       type: string;
       text?: string;
@@ -36,11 +42,15 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
   const selectedModel = useChatStore((state) => state.selectedModel);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
+  const sessionStates = useChatStore((state) => state.sessionStates);
+  const setSessionState = useChatStore((state) => state.setSessionState);
   const streamingContent = useChatStore((state) => state.streamingContent);
   const streamingMessageId = useChatStore((state) => state.streamingMessageId);
   const appendStreamingContent = useChatStore((state) => state.appendStreamingContent);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
+
+  const isSessionRunning = sessionId ? (sessionStates[sessionId] ?? "idle") !== "idle" : false;
 
   const streamingMessageIdRef = useRef(streamingMessageId);
   useEffect(() => {
@@ -74,7 +84,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
+  }, [messages.length, streamingContent.length]);
 
   useEffect(() => {
     const source = new EventSource("/api/event-stream");
@@ -93,12 +103,24 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
         }
         const delta = actual.properties.delta ?? part.text ?? "";
         if (delta) {
+          if (sessionId) {
+            setSessionState(sessionId, "busy");
+          }
           appendStreamingContent(delta);
         }
       }
 
+      if (actual.type === "session.status") {
+        const eventSessionId = actual.properties.sessionID;
+        const nextStatus = actual.properties.status?.type;
+        if (eventSessionId && nextStatus) {
+          setSessionState(eventSessionId, nextStatus);
+        }
+      }
+
       if (actual.type === "session.idle") {
-        if (actual.properties.sessionID === sessionId) {
+        if (sessionId && actual.properties.sessionID === sessionId) {
+          setSessionState(sessionId, "idle");
           clearStreamingContent();
           setStreamingMessageId(null);
           loadMessages();
@@ -121,6 +143,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
     clearStreamingContent,
     loadMessages,
     sessionId,
+    setSessionState,
     setStreamingMessageId,
   ]);
 
@@ -156,6 +179,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
         if (!response.ok) {
           throw new Error("Failed to send message");
         }
+        setSessionState(sessionId, "busy");
         clearStreamingContent();
         setStreamingMessageId(null);
         await loadMessages();
@@ -174,6 +198,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
       selectedAgent,
       selectedModel,
       sessionId,
+      setSessionState,
       setStreamingMessageId,
     ]
   );
@@ -196,7 +221,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
           ) : (
             <MessageList messages={displayMessages} streamingContent={streamingContent} />
           )}
-          {isLoading && (
+          {isSessionRunning && (
             <div className="flex justify-start">
               <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
                 <div className="flex gap-1.5">

@@ -1,4 +1,4 @@
-import { MessagesSquare, Plus, RefreshCw } from "lucide-react";
+import { LoaderCircle, MessagesSquare, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const [sessions, setSessions] = useState<Session[]>(loaderData.sessions ?? []);
   const [isFetching, setIsFetching] = useState(false);
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
+  const sessionStates = useChatStore((state) => state.sessionStates);
   const activeSessionId = params.id;
 
   const loadSessions = useCallback(async () => {
@@ -142,6 +143,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
             ) : (
               sortedSessions.map((session) => {
                 const isActive = session.id === activeSessionId;
+                const isRunning = (sessionStates[session.id] ?? "idle") !== "idle";
                 return (
                   <NavLink
                     key={session.id}
@@ -156,7 +158,11 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                       )
                     }
                   >
-                    <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                    {isRunning ? (
+                      <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                    ) : (
+                      <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-xs text-foreground">
                         {session.title || "Untitled"}

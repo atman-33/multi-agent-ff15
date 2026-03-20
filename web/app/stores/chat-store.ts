@@ -12,6 +12,8 @@ type ChatStore = {
   setSelectedModel: (model: ModelSelection) => void;
   selectedAgent: string | null;
   setSelectedAgent: (agent: string | null) => void;
+  sessionStates: Record<string, "idle" | "busy" | "retry">;
+  setSessionState: (sessionId: string, state: "idle" | "busy" | "retry") => void;
   streamingMessageId: string | null;
   setStreamingMessageId: (id: string | null) => void;
   streamingContent: string;
@@ -69,6 +71,14 @@ export const useChatStore = create<ChatStore>((set) => ({
     }
     set({ selectedAgent: agent });
   },
+  sessionStates: {},
+  setSessionState: (sessionId, state) =>
+    set((current) => ({
+      sessionStates:
+        current.sessionStates[sessionId] === state
+          ? current.sessionStates
+          : { ...current.sessionStates, [sessionId]: state },
+    })),
   streamingMessageId: null,
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),
   streamingContent: "",
