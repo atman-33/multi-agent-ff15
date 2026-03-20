@@ -1,9 +1,11 @@
 import {
   readRegisteredProjectDefinition,
   readScopedProjectsConfig,
+  type RegisteredProjectDefinition,
 } from "@/lib/project-config.server";
 import {
   getProjectScopeForAgent,
+  PROJECT_SCOPES,
   type ProjectScopedAgentId,
 } from "@/lib/project-scopes";
 
@@ -22,6 +24,41 @@ function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | nul
   return null;
 }
 
+function collectActiveProjects(
+  appRoot: string,
+  agent: string | undefined
+): { projects: RegisteredProjectDefinition[]; scopeLabel: string } {
+  const { projectScopes } = readScopedProjectsConfig(appRoot);
+  const scopedAgent = parseScopedAgent(agent);
+
+  let targetScopes: string[];
+  let scopeLabel: string;
+
+  if (scopedAgent) {
+    const scope = getProjectScopeForAgent(scopedAgent);
+    targetScopes = scope ? [scope] : [...PROJECT_SCOPES];
+    scopeLabel = scope || "all";
+  } else {
+    targetScopes = [...PROJECT_SCOPES];
+    scopeLabel = "all";
+  }
+
+  const seen = new Set<string>();
+  const projects: RegisteredProjectDefinition[] = [];
+
+  for (const scope of targetScopes) {
+    const ids = projectScopes[scope as keyof typeof projectScopes]?.activeProjectIds ?? [];
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const def = readRegisteredProjectDefinition(appRoot, id);
+      if (def) projects.push(def);
+    }
+  }
+
+  return { projects, scopeLabel };
+}
+
 type BuildInjectedPromptContextOptions = {
   agent?: string;
   appRoot: string;
@@ -34,26 +71,9 @@ export function buildInjectedPromptContext({
   sessionId,
 }: BuildInjectedPromptContextOptions): string {
   const lines = ["<internal-context>", `session_id: ${sessionId}`];
-  const scopedAgent = parseScopedAgent(agent);
+  const { projects, scopeLabel } = collectActiveProjects(appRoot, agent);
 
-  if (!scopedAgent) {
-    lines.push("</internal-context>");
-    return lines.join("\n");
-  }
-
-  const projectScope = getProjectScopeForAgent(scopedAgent);
-  if (!projectScope) {
-    lines.push("</internal-context>");
-    return lines.join("\n");
-  }
-
-  const { projectScopes } = readScopedProjectsConfig(appRoot);
-  const activeProjectIds = projectScopes[projectScope].activeProjectIds;
-  const projects = activeProjectIds
-    .map((id) => readRegisteredProjectDefinition(appRoot, id))
-    .filter((project): project is NonNullable<typeof project> => project !== null);
-
-  lines.push(`project_scope: ${projectScope}`);
+  lines.push(`project_scope: ${scopeLabel}`);
   lines.push("active_projects:");
 
   if (projects.length === 0) {
