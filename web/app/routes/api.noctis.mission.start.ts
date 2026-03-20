@@ -1,0 +1,67 @@
+import type { Route } from "./+types/api.noctis.mission.start";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { createMission, buildDelegationLedger } from "@/lib/mission-store";
+
+export const action = async ({ request }: Route.ActionArgs) => {
+  if (request.method !== "POST") {
+    return Response.json({ error: "Method not allowed" }, { status: 405 });
+  }
+
+  const body = await request.json().catch(() => null) as { message?: unknown } | null;
+  if (!body || typeof body.message !== "string" || !body.message.trim()) {
+    return Response.json({ error: "Missing message" }, { status: 400 });
+  }
+
+  const message = body.message.trim();
+
+  try {
+    const client = getOpencodeClient();
+    const projectRoot = getProjectRoot();
+    const missionId = crypto.randomUUID();
+
+    const sessionResult = await client.session.create({
+      query: { directory: projectRoot },
+      body: { title: `mission:${missionId}` },
+    });
+
+    if (sessionResult.error) {
+      return Response.json({ error: sessionResult.error }, { status: 502 });
+    }
+
+    const sessionId = sessionResult.data?.id;
+    if (!sessionId) {
+      return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
+    }
+
+    const mission = createMission(missionId, sessionId);
+    const ledger = buildDelegationLedger(mission);
+
+    const injectedContext = buildInjectedPromptContext({
+      sessionId,
+      agent: "noctis",
+      appRoot: projectRoot,
+    });
+
+    const promptResult = await client.session.promptAsync({
+      path: { id: sessionId },
+      body: {
+        parts: [
+          { type: "text", text: injectedContext },
+          { type: "text", text: message },
+        ],
+        agent: "noctis",
+        system: ledger,
+      },
+    });
+
+    if (promptResult.error) {
+      return Response.json({ error: promptResult.error }, { status: 502 });
+    }
+
+    return Response.json({ missionId, noctisSessionId: sessionId });
+  } catch {
+    return Response.json({ error: "OpenCode server not available" }, { status: 503 });
+  }
+};
