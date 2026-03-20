@@ -1,4 +1,5 @@
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import type { Route } from "./+types/api.session.$id.prompt";
 
 type PromptPayload = {
@@ -23,7 +24,9 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
   try {
     const client = getOpencodeClient();
-    const payloadParts = body.parts.flatMap((part) => {
+    const injectedContext = buildInjectedPromptContext(sessionId);
+    const sourceParts = [{ type: "text" as const, text: injectedContext }, ...body.parts];
+    const payloadParts = sourceParts.flatMap((part) => {
       if (part.type === "text") {
         return [{ type: "text" as const, text: part.text }];
       }

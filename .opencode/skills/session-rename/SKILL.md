@@ -16,7 +16,8 @@ Use this skill when the user asks to:
 
 ## Default Behavior
 
-- Prefer the current session via `SESSION_ID`.
+- Prefer the injected `session_id` from the current prompt context and pass it with `--session-id`.
+- Fall back to `SESSION_ID` only when injected context is not available.
 - If the target session is not the current one, pass `--session-id <id>` explicitly.
 - Keep titles short and descriptive.
 - Do not rename a session unless the user asked for it or the active workflow explicitly requires it.
