@@ -68,7 +68,15 @@ async function openSessionTerminal(sessionId: string) {
 
   const opencodePath = await resolveOpencodePath();
   const projectRoot = getProjectRoot();
-  const resumeCommand = `cd ${quoteForBash(projectRoot)} && ${quoteForBash(opencodePath)} -s ${quoteForBash(sessionId)}`;
+  const resumeCommand = `cd ${quoteForBash(projectRoot)} && ${quoteForBash(opencodePath)} ${quoteForBash(projectRoot)} -s ${quoteForBash(sessionId)}`;
+
+  console.info("[OpenSessionTerminal] Launching resume terminal", {
+    sessionId,
+    distro,
+    projectRoot,
+    opencodePath,
+    resumeCommand,
+  });
 
   const launchInPowerShell = async (filePath: string, args: string[]) => {
     const encodedArgumentList = args.map((arg) => quoteForPowerShell(arg)).join(", ");
@@ -104,6 +112,14 @@ export const action = async ({ params }: Route.ActionArgs) => {
     if (!session?.directory) {
       return Response.json({ error: "Session directory not found" }, { status: 404 });
     }
+
+    const projectRoot = getProjectRoot();
+    console.info("[OpenSessionTerminal] Session lookup", {
+      sessionId,
+      sessionDirectory: session.directory,
+      resolvedProjectRoot: projectRoot,
+      matchesProjectRoot: session.directory === projectRoot,
+    });
 
     await openSessionTerminal(sessionId);
 
