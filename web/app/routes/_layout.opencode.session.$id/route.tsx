@@ -1,7 +1,10 @@
-import { Terminal } from "lucide-react";
+import { FolderGit2, GitBranch, Terminal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { useActiveProjects } from "@/hooks/use-active-projects";
+import { PROJECT_SCOPES } from "@/lib/project-scopes";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MessageComposer from "@/routes/_layout.session.$id/components/message-composer";
@@ -55,6 +58,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const appendStreamingContent = useChatStore((state) => state.appendStreamingContent);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
+  const { data: activeProjectsData, loading: activeProjectsLoading } = useActiveProjects();
 
   const isSessionRunning = sessionId ? (sessionStates[sessionId] ?? "idle") !== "idle" : false;
   const currentSessionTitle = useMemo(() => {
@@ -64,6 +68,44 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
     return sessions.find((session) => session.id === sessionId)?.title || "Untitled";
   }, [sessionId, sessions]);
+
+  const activeProjectSummary = useMemo(() => {
+    if (activeProjectsLoading && !activeProjectsData) {
+      return {
+        projects: [],
+        scopeLabel: "Checking project scope",
+        status: "loading" as const,
+      };
+    }
+
+    const projects = activeProjectsData?.projects ?? [];
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+
+    const activeProjectIds = activeProjectsData
+      ? Array.from(
+          new Set(
+            PROJECT_SCOPES.flatMap(
+              (projectScope) => activeProjectsData.projectScopes[projectScope].activeProjectIds
+            )
+          )
+        )
+      : [];
+
+    const activeProjects = activeProjectIds.map((id) => {
+      const project = projectById.get(id);
+      return {
+        branchName: project?.branchName,
+        displayName: project?.displayName ?? id,
+        id,
+      };
+    });
+
+    return {
+      projects: activeProjects,
+      scopeLabel: "All active projects",
+      status: activeProjects.length === 0 ? ("empty" as const) : ("ready" as const),
+    };
+  }, [activeProjectsData, activeProjectsLoading]);
 
   const streamingMessageIdRef = useRef(streamingMessageId);
   useEffect(() => {
@@ -290,6 +332,40 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
         <div className="min-w-0">
           <h1 className="truncate font-semibold text-sm">{currentSessionTitle}</h1>
           <p className="truncate text-muted-foreground text-xs">{sessionId}</p>
+          <div className="mt-1.5 rounded-lg border border-amber-500/15 bg-amber-500/6 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <Badge
+              variant="outline"
+              className="gap-1 border-amber-500/25 bg-amber-500/10 px-2 py-0.5 font-medium text-[10px] text-amber-100/85"
+            >
+              <FolderGit2 className="h-3 w-3" />
+              {activeProjectSummary.scopeLabel}
+            </Badge>
+            {activeProjectSummary.status === "loading" ? (
+              <span className="text-[11px] text-muted-foreground">Loading active projects...</span>
+            ) : activeProjectSummary.status === "empty" ? (
+              <span className="text-[11px] text-muted-foreground">No active project</span>
+            ) : (
+              <div className="flex min-w-0 flex-wrap gap-1.5">
+                {activeProjectSummary.projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-amber-500/18 bg-background/60 px-2.5 py-1 text-[11px] text-foreground/90"
+                    title={project.id}
+                  >
+                    <span className="truncate font-medium text-amber-50/95">{project.displayName}</span>
+                    {project.branchName ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-950/65 px-1.5 py-0.5 font-mono text-[9px] text-amber-300">
+                        <GitBranch className="h-2.5 w-2.5" />
+                        {project.branchName}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+            </div>
+          </div>
         </div>
 
         <Button

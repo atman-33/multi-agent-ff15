@@ -1,4 +1,4 @@
-import { Cpu, FileText, FolderGit2, Github, Terminal } from "lucide-react";
+import { Cpu, FileText, FolderGit2, Github, Settings2, Terminal } from "lucide-react";
 import { NavLink, Outlet, useNavigation } from "react-router";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
@@ -33,6 +33,7 @@ const Layout = (_props: Route.ComponentProps) => {
             { to: "/reports", icon: FileText, label: "Reports" },
             { to: "/projects", icon: FolderGit2, label: "Projects" },
             { to: "/mcp", icon: Cpu, label: "MCP" },
+            { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
           ].map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}

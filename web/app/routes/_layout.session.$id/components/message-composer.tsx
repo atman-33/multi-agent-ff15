@@ -81,6 +81,7 @@ type Suggestion = {
 type FindFileResult =
   | string
   | {
+      description?: string;
       path: string;
       label?: string;
       isFolder?: boolean;
@@ -408,9 +409,8 @@ const MessageComposer = ({
     }
 
     if (mention.trigger === "@") {
-      const response = await fetch(`/api/find-files?q=${encodeURIComponent(mention.query)}`).catch(
-        () => null
-      );
+      const params = new URLSearchParams({ q: mention.query });
+      const response = await fetch(`/api/find-files?${params.toString()}`).catch(() => null);
 
       if (requestId !== suggestionRequestIdRef.current) {
         return;
@@ -432,6 +432,7 @@ const MessageComposer = ({
 
           const value = item.path;
           return {
+            description: item.description,
             label: item.label ?? item.path,
             value,
             type: item.isFolder ? ("folder" as const) : ("file" as const),
