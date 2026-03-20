@@ -69,6 +69,8 @@ type Props = {
   disabled?: boolean;
   isSessionRunning?: boolean;
   isAborting?: boolean;
+  lockedAgent?: string;
+  placeholder?: string;
 };
 
 type Suggestion = {
@@ -138,6 +140,7 @@ type ComposerSelectionControlsProps = {
   agents: Agent[];
   modelItems: ModelItem[];
   currentModelLabel: string;
+  lockedAgent?: string;
   selectedAgent: string | null;
   selectedModel: { providerID: string; modelID: string } | null;
   setSelectedAgent: (agent: string | null) => void;
@@ -149,6 +152,7 @@ const ComposerSelectionControls = memo(
     agents,
     modelItems,
     currentModelLabel,
+    lockedAgent,
     selectedAgent,
     selectedModel,
     setSelectedAgent,
@@ -159,75 +163,85 @@ const ComposerSelectionControls = memo(
 
     return (
       <div className="flex flex-wrap items-center gap-1.5">
-        <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
-          <PopoverAnchor asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              role="combobox"
-              aria-expanded={agentComboboxOpen}
-              className="h-8 w-[220px] justify-between gap-2 px-2 text-xs text-muted-foreground"
-              onClick={() => setAgentComboboxOpen((open) => !open)}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <Bot className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{selectedAgent ?? "Default agent"}</span>
-              </span>
-              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-            </Button>
-          </PopoverAnchor>
+        {lockedAgent ? (
+          <div className="inline-flex h-8 items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-2.5 text-xs text-primary">
+            <Bot className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-medium">{lockedAgent}</span>
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.14em]">
+              Locked
+            </span>
+          </div>
+        ) : (
+          <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
+            <PopoverAnchor asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                role="combobox"
+                aria-expanded={agentComboboxOpen}
+                className="h-8 w-55 justify-between gap-2 px-2 text-xs text-muted-foreground"
+                onClick={() => setAgentComboboxOpen((open) => !open)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Bot className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{selectedAgent ?? "Default agent"}</span>
+                </span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverAnchor>
 
-          <PopoverContent align="start" className="w-[260px] p-0" side="top">
-            <Command>
-              <CommandInput placeholder="Search agents..." />
-              <CommandList>
-                <CommandEmpty>No agent found.</CommandEmpty>
-                <CommandGroup heading="Agents">
-                  <CommandItem
-                    value="default agent"
-                    onSelect={() => {
-                      setSelectedAgent(null);
-                      setAgentComboboxOpen(false);
-                    }}
-                  >
-                    <Check className={cn("h-4 w-4", !selectedAgent ? "opacity-100" : "opacity-0")} />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm">Default agent</div>
-                      <div className="truncate text-[10px] text-muted-foreground">
-                        Use the default agent
-                      </div>
-                    </div>
-                  </CommandItem>
-                  {agents.map((agent) => (
+            <PopoverContent align="start" className="w-65 p-0" side="top">
+              <Command>
+                <CommandInput placeholder="Search agents..." />
+                <CommandList>
+                  <CommandEmpty>No agent found.</CommandEmpty>
+                  <CommandGroup heading="Agents">
                     <CommandItem
-                      key={agent.name}
-                      value={`${agent.name} ${agent.description ?? ""}`}
+                      value="default agent"
                       onSelect={() => {
-                        setSelectedAgent(agent.name);
+                        setSelectedAgent(null);
                         setAgentComboboxOpen(false);
                       }}
                     >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          selectedAgent === agent.name ? "opacity-100" : "opacity-0"
-                        )}
-                      />
+                      <Check className={cn("h-4 w-4", !selectedAgent ? "opacity-100" : "opacity-0")} />
                       <div className="min-w-0">
-                        <div className="truncate text-sm">{agent.name}</div>
-                        {agent.description ? (
-                          <div className="truncate text-[10px] text-muted-foreground">
-                            {agent.description}
-                          </div>
-                        ) : null}
+                        <div className="truncate text-sm">Default agent</div>
+                        <div className="truncate text-[10px] text-muted-foreground">
+                          Use the default agent
+                        </div>
                       </div>
                     </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+                    {agents.map((agent) => (
+                      <CommandItem
+                        key={agent.name}
+                        value={`${agent.name} ${agent.description ?? ""}`}
+                        onSelect={() => {
+                          setSelectedAgent(agent.name);
+                          setAgentComboboxOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "h-4 w-4",
+                            selectedAgent === agent.name ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm">{agent.name}</div>
+                          {agent.description ? (
+                            <div className="truncate text-[10px] text-muted-foreground">
+                              {agent.description}
+                            </div>
+                          ) : null}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
 
         <Popover open={modelComboboxOpen} onOpenChange={setModelComboboxOpen}>
           <PopoverAnchor asChild>
@@ -236,7 +250,7 @@ const ComposerSelectionControls = memo(
               size="sm"
               role="combobox"
               aria-expanded={modelComboboxOpen}
-              className="h-8 w-[280px] justify-between gap-2 px-2 text-xs text-muted-foreground"
+              className="h-8 w-70 justify-between gap-2 px-2 text-xs text-muted-foreground"
               onClick={() => setModelComboboxOpen((open) => !open)}
             >
               <span className="flex min-w-0 items-center gap-2">
@@ -246,7 +260,7 @@ const ComposerSelectionControls = memo(
             </Button>
           </PopoverAnchor>
 
-          <PopoverContent align="start" className="w-[380px] p-0" side="top">
+          <PopoverContent align="start" className="w-95 p-0" side="top">
             <Command>
               <CommandInput placeholder="Search models..." />
               <CommandList>
@@ -295,6 +309,8 @@ const MessageComposer = ({
   disabled,
   isSessionRunning = false,
   isAborting = false,
+  lockedAgent,
+  placeholder,
 }: Props) => {
   const [value, setValue] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -354,6 +370,11 @@ const MessageComposer = ({
 
   useEffect(() => {
     const loadAgents = async () => {
+      if (lockedAgent) {
+        setAgents([]);
+        return;
+      }
+
       const response = await fetch("/api/agents").catch(() => null);
       if (!response?.ok) return;
       const data = (await response.json()) as { agents: Agent[] };
@@ -387,7 +408,7 @@ const MessageComposer = ({
     loadAgents();
     loadSlashSuggestions();
     loadProviders();
-  }, []);
+  }, [lockedAgent]);
 
   useEffect(() => {
     setSelectedSuggestionIndex(0);
@@ -596,7 +617,7 @@ const MessageComposer = ({
     try {
       const parts = parseParts();
       triggerSendAnimation();
-      onSend(parts, { agent: selectedAgent });
+      onSend(parts, { agent: lockedAgent ?? selectedAgent });
       setValue("");
       setFileMentions([]);
       setSlashMentions([]);
@@ -611,6 +632,7 @@ const MessageComposer = ({
     canSubmit,
     clearSessionDraft,
     disabled,
+    lockedAgent,
     onSend,
     parseParts,
     selectedAgent,
@@ -756,7 +778,10 @@ const MessageComposer = ({
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Send a message... Use @ for files/folders and / for commands/skills. Shift+Enter for new line"
+                placeholder={
+                  placeholder ??
+                  "Send a message... Use @ for files/folders and / for commands/skills. Shift+Enter for new line"
+                }
                 disabled={disabled}
                 rows={MIN_ROWS}
                 className={cn(
@@ -829,6 +854,7 @@ const MessageComposer = ({
           agents={agents}
           modelItems={modelItems}
           currentModelLabel={currentModelLabel}
+          lockedAgent={lockedAgent}
           selectedAgent={selectedAgent}
           selectedModel={selectedModel}
           setSelectedAgent={setSelectedAgent}

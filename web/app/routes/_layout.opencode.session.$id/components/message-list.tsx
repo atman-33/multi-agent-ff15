@@ -8,7 +8,7 @@ type Props = {
 
 const MessageList = ({ messages, streamingContent }: Props) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {messages.map((message) => (
         <MessageBubble key={message.info.id} role={message.info.role} parts={message.parts} />
       ))}

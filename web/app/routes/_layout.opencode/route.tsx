@@ -218,7 +218,6 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => b.time.updated - a.time.updated);
   }, [sessions]);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleRefresh = () => {

@@ -1,4 +1,4 @@
-import { Cpu, FileText, FolderGit2, Github, Settings2, Terminal } from "lucide-react";
+import { Cpu, Crown, FileText, FolderGit2, Github, Settings2, Terminal } from "lucide-react";
 import { NavLink, Outlet, useNavigation } from "react-router";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
@@ -33,15 +33,17 @@ const Layout = (_props: Route.ComponentProps) => {
 
         <nav className="flex-1 space-y-0.5 px-2 py-3">
           {[
-            { to: "/opencode", icon: Terminal, label: "OpenCode" },
-            { to: "/reports", icon: FileText, label: "Reports" },
-            { to: "/projects", icon: FolderGit2, label: "Projects" },
-            { to: "/mcp", icon: Cpu, label: "MCP" },
+            { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
+            { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
+            { to: "/reports", icon: FileText, label: "Reports", end: true },
+            { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
+            { to: "/mcp", icon: Cpu, label: "MCP", end: true },
             { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
-          ].map(({ to, icon: Icon, label }) => (
+          ].map(({ to, icon: Icon, label, end }) => (
             <NavLink
               key={to}
               to={to}
+              end={end}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-all",

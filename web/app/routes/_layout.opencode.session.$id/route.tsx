@@ -1,18 +1,15 @@
-import { FolderGit2, GitBranch, Terminal } from "lucide-react";
+import { ArrowDown, Terminal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { useActiveProjects } from "@/hooks/use-active-projects";
-import { PROJECT_SCOPES } from "@/lib/project-scopes";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import MessageComposer from "@/routes/_layout.session.$id/components/message-composer";
-import MessageList from "@/routes/_layout.session.$id/components/message-list";
-import type { MessageInfo } from "@/routes/_layout.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
-import type { OpenCodeOutletContext } from "../_layout.opencode/route";
+import MessageComposer from "./components/message-composer";
+import MessageList from "./components/message-list";
+import type { MessageInfo } from "./types";
 import type { Route } from "./+types/route";
+import type { OpenCodeOutletContext } from "../_layout.opencode/route";
 
 type EventPayload = {
   type: string;
@@ -31,14 +28,10 @@ type EventPayload = {
       sessionID?: string;
     };
     delta?: string;
-    info?: {
-      id: string;
-      sessionID: string;
-    };
   };
 };
 
-const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
+const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
   const sessionId = params.id;
   const { sessions } = useOutletContext<OpenCodeOutletContext>();
@@ -47,7 +40,9 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const [isAborting, setIsAborting] = useState(false);
   const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const selectedModel = useChatStore((state) => state.selectedModel);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
@@ -58,7 +53,6 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const appendStreamingContent = useChatStore((state) => state.appendStreamingContent);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
-  const { data: activeProjectsData, loading: activeProjectsLoading } = useActiveProjects();
 
   const isSessionRunning = sessionId ? (sessionStates[sessionId] ?? "idle") !== "idle" : false;
   const currentSessionTitle = useMemo(() => {
@@ -68,44 +62,6 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
     return sessions.find((session) => session.id === sessionId)?.title || "Untitled";
   }, [sessionId, sessions]);
-
-  const activeProjectSummary = useMemo(() => {
-    if (activeProjectsLoading && !activeProjectsData) {
-      return {
-        projects: [],
-        scopeLabel: "Checking project scope",
-        status: "loading" as const,
-      };
-    }
-
-    const projects = activeProjectsData?.projects ?? [];
-    const projectById = new Map(projects.map((project) => [project.id, project]));
-
-    const activeProjectIds = activeProjectsData
-      ? Array.from(
-          new Set(
-            PROJECT_SCOPES.flatMap(
-              (projectScope) => activeProjectsData.projectScopes[projectScope].activeProjectIds
-            )
-          )
-        )
-      : [];
-
-    const activeProjects = activeProjectIds.map((id) => {
-      const project = projectById.get(id);
-      return {
-        branchName: project?.branchName,
-        displayName: project?.displayName ?? id,
-        id,
-      };
-    });
-
-    return {
-      projects: activeProjects,
-      scopeLabel: "All active projects",
-      status: activeProjects.length === 0 ? ("empty" as const) : ("ready" as const),
-    };
-  }, [activeProjectsData, activeProjectsLoading]);
 
   const streamingMessageIdRef = useRef(streamingMessageId);
   useEffect(() => {
@@ -137,9 +93,62 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
     setMessages(loaderData.messages ?? []);
   }, [loaderData.messages]);
 
+  const syncScrollState = useCallback(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const nearBottom = distanceFromBottom < 72;
+
+    shouldStickToBottomRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom);
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  }, []);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingContent.length]);
+    shouldStickToBottomRef.current = true;
+    setShowScrollToBottom(false);
+    window.setTimeout(() => scrollToBottom("auto"), 0);
+  }, [scrollToBottom, sessionId]);
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    syncScrollState();
+
+    const handleScroll = () => {
+      syncScrollState();
+    };
+
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+    };
+  }, [syncScrollState]);
+
+  useEffect(() => {
+    if (shouldStickToBottomRef.current) {
+      scrollToBottom(messages.length > 0 ? "smooth" : "auto");
+      return;
+    }
+
+    syncScrollState();
+  }, [messages.length, scrollToBottom, streamingContent.length, syncScrollState]);
 
   useEffect(() => {
     const source = new EventSource("/api/event-stream");
@@ -216,11 +225,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
           if (part.type === "text") {
             return { type: "text", text: part.text };
           }
-          return {
-            type: "file",
-            path: part.path,
-            content: part.content,
-          };
+          return { type: "file", path: part.path, content: part.content };
         });
         const response = await fetch(`/api/session/${sessionId}/prompt`, {
           method: "POST",
@@ -324,48 +329,12 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
     }
   }, [isOpeningTerminal, sessionId]);
 
-  const displayMessages = useMemo(() => messages, [messages]);
-
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-start justify-between gap-3 border-border/50 border-b px-5 py-2.5">
+      <div className="flex items-start justify-between gap-3 border-border/50 border-b px-5 py-3">
         <div className="min-w-0">
           <h1 className="truncate font-semibold text-sm">{currentSessionTitle}</h1>
           <p className="truncate text-muted-foreground text-xs">{sessionId}</p>
-          <div className="mt-1.5 rounded-lg border border-amber-500/15 bg-amber-500/6 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <Badge
-              variant="outline"
-              className="gap-1 border-amber-500/25 bg-amber-500/10 px-2 py-0.5 font-medium text-[10px] text-amber-100/85"
-            >
-              <FolderGit2 className="h-3 w-3" />
-              {activeProjectSummary.scopeLabel}
-            </Badge>
-            {activeProjectSummary.status === "loading" ? (
-              <span className="text-[11px] text-muted-foreground">Loading active projects...</span>
-            ) : activeProjectSummary.status === "empty" ? (
-              <span className="text-[11px] text-muted-foreground">No active project</span>
-            ) : (
-              <div className="flex min-w-0 flex-wrap gap-1.5">
-                {activeProjectSummary.projects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-amber-500/18 bg-background/60 px-2.5 py-1 text-[11px] text-foreground/90"
-                    title={project.id}
-                  >
-                    <span className="truncate font-medium text-amber-50/95">{project.displayName}</span>
-                    {project.branchName ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-950/65 px-1.5 py-0.5 font-mono text-[9px] text-amber-300">
-                        <GitBranch className="h-2.5 w-2.5" />
-                        {project.branchName}
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-            </div>
-          </div>
         </div>
 
         <Button
@@ -381,29 +350,44 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-4 py-4">
-        <div className="mx-auto max-w-3xl space-y-4">
-          {errorMessage ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {errorMessage}
-            </div>
-          ) : (
-            <MessageList messages={displayMessages} streamingContent={streamingContent} />
-          )}
-          {isSessionRunning && (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
-                <div className="flex gap-1.5">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+      <div className="relative min-h-0 flex-1">
+        <ScrollArea className="h-full px-4 py-4" viewportRef={scrollViewportRef}>
+          <div className="mx-auto max-w-3xl space-y-4">
+            {errorMessage ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {errorMessage}
+              </div>
+            ) : (
+              <MessageList messages={messages} streamingContent={streamingContent} />
+            )}
+
+            {isSessionRunning ? (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
+                  <div className="flex gap-1.5">
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-      </ScrollArea>
+            ) : null}
+          </div>
+        </ScrollArea>
+
+        {showScrollToBottom ? (
+          <Button
+            className="absolute right-8 bottom-6 h-9 rounded-full border border-white/10 bg-slate-950/90 px-3 text-[11px] text-slate-100 shadow-lg backdrop-blur hover:bg-slate-900"
+            onClick={() => scrollToBottom()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            Latest
+          </Button>
+        ) : null}
+      </div>
 
       <div className="border-border/50 border-t px-4 py-4">
         <div className="mx-auto max-w-3xl">
@@ -438,4 +422,4 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
   }
 };
 
-export default OpenCodeSessionRoute;
+export default SessionRoute;
