@@ -2,8 +2,9 @@ import {
   ArrowUp,
   AtSign,
   Bot,
+  Check,
   CheckCircle2,
-  ChevronDown,
+  ChevronsUpDown,
   FileText,
   Folder,
   Slash,
@@ -15,13 +16,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -141,6 +142,8 @@ const MessageComposer = ({
   const [fileMentions, setFileMentions] = useState<string[]>([]);
   const [slashMentions, setSlashMentions] = useState<SlashSuggestion[]>([]);
   const [arrowState, setArrowState] = useState<"idle" | "flying" | "done">("idle");
+  const [agentComboboxOpen, setAgentComboboxOpen] = useState(false);
+  const [modelComboboxOpen, setModelComboboxOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionRequestIdRef = useRef(0);
   const arrowTimeoutsRef = useRef<number[]>([]);
@@ -650,81 +653,133 @@ const MessageComposer = ({
 
       <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-2">
         <div className="flex items-center gap-1.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
+            <PopoverAnchor asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+                role="combobox"
+                aria-expanded={agentComboboxOpen}
+                className="h-8 w-[220px] justify-between gap-2 px-2 text-xs text-muted-foreground"
+                onClick={() => setAgentComboboxOpen((open) => !open)}
               >
-                <Bot className="h-3.5 w-3.5" />
-                {selectedAgent ?? "Agent"}
-                <ChevronDown className="h-3 w-3 opacity-50" />
+                <span className="flex min-w-0 items-center gap-2">
+                  <Bot className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{selectedAgent ?? "Default agent"}</span>
+                </span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
               </Button>
-            </DropdownMenuTrigger>
+            </PopoverAnchor>
 
-            <DropdownMenuContent align="start" className="max-h-60 overflow-auto">
-              <DropdownMenuLabel>Agents</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setSelectedAgent(null)}>
-                <span className={cn(!selectedAgent && "font-medium text-primary")}>Default</span>
-              </DropdownMenuItem>
-              {agents.map((agent) => (
-                <DropdownMenuItem key={agent.name} onClick={() => setSelectedAgent(agent.name)}>
-                  <div>
-                    <div
-                      className={cn(
-                        "text-sm",
-                        selectedAgent === agent.name && "font-medium text-primary"
-                      )}
+            <PopoverContent align="start" className="w-[260px] p-0" side="top">
+              <Command>
+                <CommandInput placeholder="Search agents..." />
+                <CommandList>
+                  <CommandEmpty>No agent found.</CommandEmpty>
+                  <CommandGroup heading="Agents">
+                    <CommandItem
+                      value="default agent"
+                      onSelect={() => {
+                        setSelectedAgent(null);
+                        setAgentComboboxOpen(false);
+                      }}
                     >
-                      {agent.name}
-                    </div>
-                    {agent.description && (
-                      <div className="text-[10px] text-muted-foreground">{agent.description}</div>
-                    )}
-                  </div>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                      <Check
+                        className={cn(
+                          "h-4 w-4",
+                          !selectedAgent ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm">Default agent</div>
+                        <div className="truncate text-[10px] text-muted-foreground">
+                          Use the default agent
+                        </div>
+                      </div>
+                    </CommandItem>
+                    {agents.map((agent) => (
+                      <CommandItem
+                        key={agent.name}
+                        value={`${agent.name} ${agent.description ?? ""}`}
+                        onSelect={() => {
+                          setSelectedAgent(agent.name);
+                          setAgentComboboxOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "h-4 w-4",
+                            selectedAgent === agent.name ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm">{agent.name}</div>
+                          {agent.description ? (
+                            <div className="truncate text-[10px] text-muted-foreground">
+                              {agent.description}
+                            </div>
+                          ) : null}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <Popover open={modelComboboxOpen} onOpenChange={setModelComboboxOpen}>
+            <PopoverAnchor asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 max-w-[200px] gap-1 px-2 text-xs text-muted-foreground"
+                role="combobox"
+                aria-expanded={modelComboboxOpen}
+                className="h-8 w-[320px] justify-between gap-2 px-2 text-xs text-muted-foreground"
+                onClick={() => setModelComboboxOpen((open) => !open)}
               >
-                <span className="truncate">{currentModelLabel}</span>
-                <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{currentModelLabel}</span>
+                </span>
+                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
               </Button>
-            </DropdownMenuTrigger>
+            </PopoverAnchor>
 
-            <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
-              <DropdownMenuLabel>Models</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {modelItems.map((item) => (
-                <DropdownMenuItem
-                  key={`${item.providerID}-${item.modelID}`}
-                  onClick={() =>
-                    setSelectedModel({ providerID: item.providerID, modelID: item.modelID })
-                  }
-                >
-                  <span
-                    className={cn(
-                      selectedModel?.providerID === item.providerID &&
-                        selectedModel?.modelID === item.modelID
-                        ? "font-medium text-primary"
-                        : ""
-                    )}
-                  >
-                    {item.providerName} / {item.modelName}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <PopoverContent align="start" className="w-[380px] p-0" side="top">
+              <Command>
+                <CommandInput placeholder="Search models..." />
+                <CommandList>
+                  <CommandEmpty>No model found.</CommandEmpty>
+                  <CommandGroup heading="Models">
+                    {modelItems.map((item) => {
+                      const isSelected =
+                        selectedModel?.providerID === item.providerID &&
+                        selectedModel?.modelID === item.modelID;
+
+                      return (
+                        <CommandItem
+                          key={`${item.providerID}-${item.modelID}`}
+                          value={`${item.providerName} ${item.modelName} ${item.providerID} ${item.modelID}`}
+                          onSelect={() => {
+                            setSelectedModel({ providerID: item.providerID, modelID: item.modelID });
+                            setModelComboboxOpen(false);
+                          }}
+                        >
+                          <Check className={cn("h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm">{item.providerName} / {item.modelName}</div>
+                            <div className="truncate text-[10px] text-muted-foreground">
+                              {item.providerID} / {item.modelID}
+                            </div>
+                          </div>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
       </div>

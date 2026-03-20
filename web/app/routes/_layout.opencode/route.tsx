@@ -20,6 +20,10 @@ type Session = {
   directory: string;
 };
 
+export type OpenCodeOutletContext = {
+  sessions: Session[];
+};
+
 const formatRelativeTime = (value: number) => {
   const diffMs = Date.now() - value;
   const seconds = Math.floor(diffMs / 1000);
@@ -297,7 +301,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
 
       <ResizablePanel defaultSize="76%" minSize="45%">
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-          <Outlet />
+          <Outlet context={{ sessions } satisfies OpenCodeOutletContext} />
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>

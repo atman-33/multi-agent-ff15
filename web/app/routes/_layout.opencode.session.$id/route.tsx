@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MessageComposer from "@/routes/_layout.session.$id/components/message-composer";
 import MessageList from "@/routes/_layout.session.$id/components/message-list";
 import type { MessageInfo } from "@/routes/_layout.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
+import type { OpenCodeOutletContext } from "../_layout.opencode/route";
 import type { Route } from "./+types/route";
 
 type EventPayload = {
@@ -35,6 +36,7 @@ type EventPayload = {
 const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
   const sessionId = params.id;
+  const { sessions } = useOutletContext<OpenCodeOutletContext>();
   const [messages, setMessages] = useState<MessageInfo[]>(loaderData.messages ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [isAborting, setIsAborting] = useState(false);
@@ -52,6 +54,13 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
 
   const isSessionRunning = sessionId ? (sessionStates[sessionId] ?? "idle") !== "idle" : false;
+  const currentSessionTitle = useMemo(() => {
+    if (!sessionId) {
+      return "Session";
+    }
+
+    return sessions.find((session) => session.id === sessionId)?.title || "Untitled";
+  }, [sessionId, sessions]);
 
   const streamingMessageIdRef = useRef(streamingMessageId);
   useEffect(() => {
@@ -247,7 +256,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   return (
     <div className="flex h-full flex-col">
       <div className="border-border/50 border-b px-5 py-2.5">
-        <h1 className="font-semibold text-sm">Session</h1>
+        <h1 className="font-semibold text-sm">{currentSessionTitle}</h1>
         <p className="text-muted-foreground text-xs">{sessionId}</p>
       </div>
 
