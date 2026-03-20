@@ -1,5 +1,5 @@
 import { Check, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,13 +36,129 @@ const formatRelativeTime = (value: number) => {
   return `${days}d ago`;
 };
 
+type SessionNavItemProps = {
+  session: Session;
+  isActive: boolean;
+  isRunning: boolean;
+  isEditing: boolean;
+  isRenaming: boolean;
+  onBeginRename: (session: Session) => void;
+  onCancelRename: () => void;
+  onSubmitRename: (sessionId: string, title: string) => void;
+};
+
+const SessionNavItem = memo(
+  ({
+    session,
+    isActive,
+    isRunning,
+    isEditing,
+    isRenaming,
+    onBeginRename,
+    onCancelRename,
+    onSubmitRename,
+  }: SessionNavItemProps) => {
+    const [draftTitle, setDraftTitle] = useState(session.title || "Untitled");
+
+    useEffect(() => {
+      if (isEditing) {
+        setDraftTitle(session.title || "Untitled");
+      }
+    }, [isEditing, session.title]);
+
+    return (
+      <div
+        className={cn(
+          "group w-full min-w-0 overflow-hidden rounded-md text-sm transition-all",
+          isActive
+            ? "border border-primary/20 bg-primary/15 text-primary"
+            : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+        )}
+      >
+        {isEditing ? (
+          <div className="space-y-2 px-3 py-2">
+            <Textarea
+              value={draftTitle}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              rows={2}
+              disabled={isRenaming}
+              className="min-h-[56px] resize-none bg-transparent text-xs"
+            />
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={onCancelRename}
+                disabled={isRenaming}
+                title="Cancel rename"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onSubmitRename(session.id, draftTitle)}
+                disabled={isRenaming || !draftTitle.trim()}
+                title="Save title"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 overflow-hidden px-3 py-2">
+            <NavLink
+              to={`/opencode/session/${session.id}`}
+              className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden"
+            >
+              {isRunning ? (
+                <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-xs text-foreground">
+                  {session.title || "Untitled"}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {formatRelativeTime(session.time.updated)}
+                </div>
+              </div>
+            </NavLink>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                "bg-background/30 text-foreground/70 opacity-0",
+                "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                "focus-visible:opacity-100"
+              )}
+              onClick={() => onBeginRename(session)}
+              title="Rename session"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
+SessionNavItem.displayName = "SessionNavItem";
+
 const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>(loaderData.sessions ?? []);
   const [isFetching, setIsFetching] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
   const sessionStates = useChatStore((state) => state.sessionStates);
@@ -116,17 +232,15 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
 
   const beginRename = useCallback((session: Session) => {
     setEditingSessionId(session.id);
-    setEditingTitle(session.title || "Untitled");
   }, []);
 
   const cancelRename = useCallback(() => {
     setEditingSessionId(null);
-    setEditingTitle("");
   }, []);
 
   const submitRename = useCallback(
-    async (sessionId: string) => {
-      const title = editingTitle.trim();
+    async (sessionId: string, nextTitle: string) => {
+      const title = nextTitle.trim();
       if (!title) {
         toast.error("Session title cannot be empty");
         return;
@@ -148,7 +262,6 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
           current.map((session) => (session.id === sessionId ? { ...session, title } : session))
         );
         setEditingSessionId(null);
-        setEditingTitle("");
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("sessions:refresh"));
         }
@@ -160,7 +273,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
         setIsRenaming(false);
       }
     },
-    [editingTitle]
+    []
   );
 
   return (
@@ -208,87 +321,17 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                   const isRunning = (sessionStates[session.id] ?? "idle") !== "idle";
                   const isEditing = editingSessionId === session.id;
                   return (
-                    <div
+                    <SessionNavItem
                       key={session.id}
-                      className={cn(
-                        "group w-full min-w-0 overflow-hidden rounded-md text-sm transition-all",
-                        isActive
-                          ? "border border-primary/20 bg-primary/15 text-primary"
-                          : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                      )}
-                    >
-                      {isEditing ? (
-                        <div className="space-y-2 px-3 py-2">
-                          <Textarea
-                            value={editingTitle}
-                            onChange={(event) => setEditingTitle(event.target.value)}
-                            rows={2}
-                            disabled={isRenaming}
-                            className="min-h-[56px] resize-none bg-transparent text-xs"
-                          />
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={cancelRename}
-                              disabled={isRenaming}
-                              title="Cancel rename"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => submitRename(session.id)}
-                              disabled={isRenaming || !editingTitle.trim()}
-                              title="Save title"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 overflow-hidden px-3 py-2">
-                          <NavLink
-                            to={`/opencode/session/${session.id}`}
-                            className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden"
-                          >
-                            {isRunning ? (
-                              <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-                            ) : (
-                              <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium text-xs text-foreground">
-                                {session.title || "Untitled"}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground">
-                                {formatRelativeTime(session.time.updated)}
-                              </div>
-                            </div>
-                          </NavLink>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                              "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
-                              "bg-background/30 text-foreground/70 opacity-0",
-                              "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
-                              "focus-visible:opacity-100"
-                            )}
-                            onClick={() => beginRename(session)}
-                            title="Rename session"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                      session={session}
+                      isActive={isActive}
+                      isRunning={isRunning}
+                      isEditing={isEditing}
+                      isRenaming={isRenaming}
+                      onBeginRename={beginRename}
+                      onCancelRename={cancelRename}
+                      onSubmitRename={submitRename}
+                    />
                   );
                 })
               )}
