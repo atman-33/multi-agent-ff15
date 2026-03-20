@@ -259,6 +259,9 @@
 .markdown-body h3 {
   @apply text-base font-semibold mt-4 mb-2 text-foreground;
 }
+.markdown-body .markdown-heading-anchor {
+  scroll-margin-top: 24px;
+}
 .markdown-body p {
   @apply my-2 leading-relaxed text-foreground/90;
 }
@@ -303,4 +306,98 @@
 }
 .markdown-body em {
   @apply italic text-foreground/80;
+}
+
+.report-toc-list {
+  @apply relative m-0 list-none p-0;
+}
+
+.report-toc-list::before {
+  @apply absolute top-0 bottom-0 border-border/60 border-l;
+  content: "";
+  left: 5px;
+}
+
+.report-toc-list .report-toc-list {
+  @apply mt-0 border-l-0 pl-0;
+}
+
+.report-toc-list .report-toc-list::before {
+  content: none;
+}
+
+.report-toc-item {
+  @apply relative my-0;
+}
+
+.report-toc-link {
+  @apply relative block rounded-lg py-2 pr-2 pl-7 text-[13px] leading-5 text-muted-foreground no-underline transition-all duration-200;
+}
+
+.report-toc-link::before {
+  @apply absolute top-3 left-0 rounded-full border border-border/80 bg-background;
+  content: "";
+  height: 6px;
+  width: 6px;
+  transform: translateX(0);
+}
+
+.report-toc-link:hover {
+  @apply bg-muted/50 text-foreground;
+}
+
+.report-toc-link:hover::before {
+  @apply border-foreground/30 bg-foreground/80;
+}
+
+.report-toc-link.is-active-link {
+  @apply bg-primary/8 font-medium text-foreground;
+}
+
+.report-toc-link.is-active-link::before {
+  @apply border-primary bg-primary;
+}
+
+.report-toc-item.is-active-li > .report-toc-link {
+  @apply bg-primary/8 text-foreground;
+}
+
+.report-toc-list > .report-toc-item > .report-toc-link {
+  @apply text-[13px] font-medium;
+}
+
+.report-toc-list .report-toc-list > .report-toc-item > .report-toc-link {
+  @apply text-[12.5px] font-normal;
+}
+
+.report-toc-list .report-toc-list .report-toc-list > .report-toc-item > .report-toc-link {
+  @apply text-[12px] text-muted-foreground;
+}
+
+.report-toc-list > .report-toc-item > .report-toc-link::before {
+  height: 10px;
+  width: 10px;
+  left: 0;
+}
+
+.report-toc-list .report-toc-list > .report-toc-item > .report-toc-link::before {
+  height: 8px;
+  width: 8px;
+  left: 1px;
+}
+
+.report-toc-list .report-toc-list .report-toc-list > .report-toc-item > .report-toc-link::before {
+  height: 6px;
+  width: 6px;
+  left: 2px;
+}
+
+.report-detail-scroll {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-detail-scroll {
+    scroll-behavior: auto;
+  }
 }

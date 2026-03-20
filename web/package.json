@@ -37,6 +37,7 @@
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
+    "tocbot": "^4.36.4",
     "yaml": "^2.8.2",
     "zustand": "^5.0.12"
   },
