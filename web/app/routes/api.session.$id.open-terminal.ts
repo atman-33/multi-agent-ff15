@@ -70,14 +70,6 @@ async function openSessionTerminal(sessionId: string) {
   const projectRoot = getProjectRoot();
   const resumeCommand = `cd ${quoteForBash(projectRoot)} && ${quoteForBash(opencodePath)} ${quoteForBash(projectRoot)} -s ${quoteForBash(sessionId)}`;
 
-  console.info("[OpenSessionTerminal] Launching resume terminal", {
-    sessionId,
-    distro,
-    projectRoot,
-    opencodePath,
-    resumeCommand,
-  });
-
   const launchInPowerShell = async (filePath: string, args: string[]) => {
     const encodedArgumentList = args.map((arg) => quoteForPowerShell(arg)).join(", ");
     const script = `Start-Process -FilePath ${quoteForPowerShell(filePath)} -ArgumentList @(${encodedArgumentList})`;
@@ -114,12 +106,13 @@ export const action = async ({ params }: Route.ActionArgs) => {
     }
 
     const projectRoot = getProjectRoot();
-    console.info("[OpenSessionTerminal] Session lookup", {
-      sessionId,
-      sessionDirectory: session.directory,
-      resolvedProjectRoot: projectRoot,
-      matchesProjectRoot: session.directory === projectRoot,
-    });
+    if (session.directory !== projectRoot) {
+      console.warn("[OpenSessionTerminal] Session directory mismatch", {
+        sessionId,
+        sessionDirectory: session.directory,
+        resolvedProjectRoot: projectRoot,
+      });
+    }
 
     await openSessionTerminal(sessionId);
 

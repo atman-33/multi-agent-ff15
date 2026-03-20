@@ -21,10 +21,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const projectRoot = getProjectRoot();
     const body = await request.json().catch(() => ({}));
     const title = typeof body?.title === "string" && body.title.trim() ? body.title.trim() : undefined;
-    console.info("[SessionCreate] Creating session", {
-      title: title ?? null,
-      requestedDirectory: projectRoot,
-    });
     const result = await client.session.create({
       query: { directory: projectRoot },
       body: title ? { title } : {},
@@ -32,12 +28,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });
     }
-
-    console.info("[SessionCreate] Session created", {
-      id: result.data?.id ?? null,
-      directory: result.data?.directory ?? null,
-      title: result.data?.title ?? null,
-    });
 
     return Response.json({ session: result.data });
   } catch {
