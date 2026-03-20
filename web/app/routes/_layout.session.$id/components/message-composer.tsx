@@ -1,4 +1,4 @@
-import { ArrowUp, AtSign, Bot, ChevronDown, Slash } from "lucide-react";
+import { ArrowUp, AtSign, Bot, ChevronDown, FileText, Folder, Slash, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -48,33 +48,72 @@ type Props = {
 type Suggestion = {
   label: string;
   value: string;
-  type: "file" | "agent" | "command";
+  type: "file" | "folder" | "command";
+  description?: string;
 };
+
+type FindFileResult =
+  | string
+  | {
+      path: string;
+      label?: string;
+      isFolder?: boolean;
+    };
 
 const findMentionQuery = (value: string, cursor: number) => {
   const prefix = value.slice(0, cursor);
-  const atIndex = prefix.lastIndexOf("@");
-  const slashIndex = prefix.lastIndexOf("/");
-  const lastTrigger = Math.max(atIndex, slashIndex);
-  if (lastTrigger === -1) return null;
-  const trigger = prefix[lastTrigger];
-  const query = prefix.slice(lastTrigger + 1);
-  if (query.includes(" ") || query.includes("\n")) return null;
-  return { trigger, query, start: lastTrigger, end: cursor };
+
+  for (let index = prefix.length - 1; index >= 0; index -= 1) {
+    const trigger = prefix[index];
+    if (trigger !== "@" && trigger !== "/") {
+      continue;
+    }
+
+    const previous = index === 0 ? "" : prefix[index - 1];
+    if (previous && !/\s/.test(previous)) {
+      continue;
+    }
+
+    const query = prefix.slice(index + 1);
+    if (query.includes(" ") || query.includes("\n")) {
+      return null;
+    }
+
+    return { trigger, query, start: index, end: cursor };
+  }
+
+  return null;
+};
+
+const removeMentionQuery = (
+  currentValue: string,
+  mention: NonNullable<ReturnType<typeof findMentionQuery>>
+) => {
+  const before = currentValue.slice(0, mention.start);
+  const after = currentValue.slice(mention.end);
+
+  if (/\s$/.test(before) && /^\s/.test(after)) {
+    return `${before}${after.slice(1)}`;
+  }
+
+  if (before && after && !/\s$/.test(before) && !/^\s/.test(after)) {
+    return `${before} ${after}`;
+  }
+
+  return `${before}${after}`;
 };
 
 const MessageComposer = ({ onSend, disabled }: Props) => {
   const [value, setValue] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [commands, setCommands] = useState<Command[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [fileMentions, setFileMentions] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const agentNames = useMemo(
-    () => new Set(agents.map((agent) => agent.name.toLowerCase())),
-    [agents]
-  );
+  const suggestionRequestIdRef = useRef(0);
 
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
@@ -88,12 +127,14 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       const data = (await response.json()) as { agents: Agent[] };
       setAgents(data.agents ?? []);
     };
+
     const loadCommands = async () => {
       const response = await fetch("/api/commands").catch(() => null);
       if (!response?.ok) return;
       const data = (await response.json()) as { commands: Command[] };
       setCommands(data.commands ?? []);
     };
+
     const loadProviders = async () => {
       const response = await fetch("/api/providers").catch(() => null);
       if (!response?.ok) return;
@@ -110,10 +151,15 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
         }
       }
     };
+
     loadAgents();
     loadCommands();
     loadProviders();
   }, []);
+
+  useEffect(() => {
+    setSelectedSuggestionIndex(0);
+  }, [suggestions]);
 
   const modelItems = useMemo(() => {
     return providers.flatMap((provider) =>
@@ -129,7 +175,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   const currentModelLabel = useMemo(() => {
     const current = modelItems.find(
       (item) =>
-        item.providerID === selectedModel?.providerID && item.modelID === selectedModel.modelID
+        item.providerID === selectedModel?.providerID && item.modelID === selectedModel?.modelID
     );
     if (current) return `${current.providerName} / ${current.modelName}`;
     return "Model";
@@ -138,8 +184,12 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   const updateSuggestions = useCallback(async () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+
     const cursor = textarea.selectionStart ?? value.length;
     const mention = findMentionQuery(value, cursor);
+    const requestId = suggestionRequestIdRef.current + 1;
+    suggestionRequestIdRef.current = requestId;
+
     if (!mention) {
       setIsOpen(false);
       setSuggestions([]);
@@ -150,25 +200,36 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       const response = await fetch(`/api/find-files?q=${encodeURIComponent(mention.query)}`).catch(
         () => null
       );
-      if (!response?.ok) {
-        setSuggestions([]);
+
+      if (requestId !== suggestionRequestIdRef.current) {
         return;
       }
-      const data = (await response.json()) as { files: string[] };
-      const fileSuggestions = (data.files ?? []).map((file) => ({
-        label: file,
-        value: file,
-        type: "file" as const,
-      }));
-      const agentSuggestions = agents
-        .filter((agent) => agent.name.toLowerCase().includes(mention.query.toLowerCase()))
-        .map((agent) => ({
-          label: agent.name,
-          value: agent.name,
-          type: "agent" as const,
-        }));
-      setSuggestions([...fileSuggestions, ...agentSuggestions]);
-      setIsOpen(true);
+
+      const data = response?.ok
+        ? ((await response.json()) as { files: FindFileResult[] })
+        : { files: [] };
+      const selectedFiles = new Set(fileMentions);
+      const fileSuggestions = (data.files ?? [])
+        .map((item) => {
+          if (typeof item === "string") {
+            return {
+              label: item,
+              value: item,
+              type: "file" as const,
+            };
+          }
+
+          const value = item.path;
+          return {
+            label: item.label ?? item.path,
+            value,
+            type: item.isFolder ? ("folder" as const) : ("file" as const),
+          };
+        })
+        .filter((item) => !selectedFiles.has(item.value));
+
+      setSuggestions(fileSuggestions);
+      setIsOpen(fileSuggestions.length > 0);
       return;
     }
 
@@ -179,30 +240,52 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
           label: command.name,
           value: command.name,
           type: "command" as const,
+          description: command.description,
         }));
       setSuggestions(filtered);
-      setIsOpen(true);
+      setIsOpen(filtered.length > 0);
     }
-  }, [agents, commands, value]);
+  }, [commands, fileMentions, value]);
 
   useEffect(() => {
-    updateSuggestions();
+    void updateSuggestions();
   }, [updateSuggestions]);
 
   const handleSelectSuggestion = useCallback(
     (suggestion: Suggestion) => {
       const textarea = textareaRef.current;
       if (!textarea) return;
+
       const cursor = textarea.selectionStart ?? value.length;
       const mention = findMentionQuery(value, cursor);
       if (!mention) return;
-      const insert = `${mention.trigger}${suggestion.value}`;
-      const nextValue = `${value.slice(0, mention.start)}${insert} ${value.slice(mention.end)}`;
+
+      if (suggestion.type === "command") {
+        const insert = `${mention.trigger}${suggestion.value} `;
+        const nextValue = `${value.slice(0, mention.start)}${insert}${value.slice(mention.end)}`;
+        setValue(nextValue);
+        setIsOpen(false);
+        setSuggestions([]);
+        requestAnimationFrame(() => {
+          const nextPos = mention.start + insert.length;
+          textarea.setSelectionRange(nextPos, nextPos);
+          textarea.focus();
+        });
+        return;
+      }
+
+      if (suggestion.type === "file" || suggestion.type === "folder") {
+        setFileMentions((current) =>
+          current.includes(suggestion.value) ? current : [...current, suggestion.value]
+        );
+      }
+
+      const nextValue = removeMentionQuery(value, mention);
       setValue(nextValue);
       setIsOpen(false);
       setSuggestions([]);
       requestAnimationFrame(() => {
-        const nextPos = mention.start + insert.length + 1;
+        const nextPos = Math.min(mention.start, nextValue.length);
         textarea.setSelectionRange(nextPos, nextPos);
         textarea.focus();
       });
@@ -211,58 +294,97 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   );
 
   const parseParts = useCallback(() => {
-    const matches = Array.from(value.matchAll(/@([\w./-]+)/g));
-    if (!matches.length) {
-      return [{ type: "text" as const, text: value.trim() }];
-    }
     const parts: Array<
       { type: "text"; text: string } | { type: "file"; path: string; content?: string }
-    > = [];
-    let cursor = 0;
-    for (const match of matches) {
-      const start = match.index ?? 0;
-      const end = start + match[0].length;
-      const filePath = match[1];
-      if (start > cursor) {
-        parts.push({ type: "text" as const, text: value.slice(cursor, start) });
-      }
-      if (agentNames.has(filePath.toLowerCase())) {
-        parts.push({ type: "text" as const, text: value.slice(start, end) });
-      } else {
-        parts.push({ type: "file" as const, path: filePath });
-      }
-      cursor = end;
+    > = fileMentions.map((path) => ({ type: "file" as const, path }));
+    const text = value.trim();
+
+    if (text) {
+      parts.push({ type: "text" as const, text });
     }
-    if (cursor < value.length) {
-      parts.push({ type: "text" as const, text: value.slice(cursor) });
-    }
-    return parts.filter((part) => (part.type === "text" ? part.text.trim().length > 0 : true));
-  }, [agentNames, value]);
+
+    return parts;
+  }, [fileMentions, value]);
+
+  const canSubmit = value.trim().length > 0 || fileMentions.length > 0;
 
   const handleSubmit = useCallback(() => {
-    if (!value.trim() || disabled) return;
+    if (!canSubmit || disabled) return;
+
     try {
       const parts = parseParts();
       onSend(parts, { agent: selectedAgent });
       setValue("");
+      setFileMentions([]);
     } catch {
       toast.error("Unable to prepare message");
     }
-  }, [disabled, onSend, parseParts, selectedAgent, value]);
+  }, [canSubmit, disabled, onSend, parseParts, selectedAgent]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (isOpen && suggestions.length > 0) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setSelectedSuggestionIndex((current) => (current + 1) % suggestions.length);
+          return;
+        }
+
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setSelectedSuggestionIndex(
+            (current) => (current - 1 + suggestions.length) % suggestions.length
+          );
+          return;
+        }
+
+        if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
+          event.preventDefault();
+          handleSelectSuggestion(suggestions[selectedSuggestionIndex]);
+          return;
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setIsOpen(false);
+          setSuggestions([]);
+          return;
+        }
+      }
+
+      if (
+        event.key === "Backspace" &&
+        !value &&
+        (event.currentTarget.selectionStart ?? 0) === 0 &&
+        (event.currentTarget.selectionEnd ?? 0) === 0
+      ) {
+        if (fileMentions.length > 0) {
+          event.preventDefault();
+          setFileMentions((current) => current.slice(0, -1));
+          return;
+        }
+      }
+
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit]
+    [
+      fileMentions.length,
+      handleSelectSuggestion,
+      handleSubmit,
+      isOpen,
+      selectedSuggestionIndex,
+      suggestions,
+      value,
+    ]
   );
 
   const triggerIcon = useMemo(() => {
     const textarea = textareaRef.current;
     if (!textarea) return null;
+
     const mention = findMentionQuery(value, textarea.selectionStart ?? value.length);
     if (!mention) return null;
     if (mention.trigger === "@") return <AtSign className="h-4 w-4" />;
@@ -275,12 +397,36 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
         <PopoverAnchor asChild>
           <div className="px-3 pt-3">
+            {fileMentions.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {fileMentions.map((path) => (
+                  <span
+                    key={path}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-muted/60 px-2.5 py-1 text-xs text-foreground"
+                  >
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{path}</span>
+                    <button
+                      type="button"
+                      className="rounded-full p-0.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
+                      onClick={() =>
+                        setFileMentions((current) => current.filter((item) => item !== path))
+                      }
+                      aria-label={`Remove file ${path}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <Textarea
               ref={textareaRef}
               value={value}
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Send a message... (Shift+Enter for new line)"
+              placeholder="Send a message... Use @ for files and folders. Shift+Enter for new line"
               disabled={disabled}
               rows={1}
               className={cn(
@@ -290,21 +436,51 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
             />
           </div>
         </PopoverAnchor>
-        <PopoverContent align="start" className="w-80">
+
+        <PopoverContent
+          align="start"
+          className="w-80"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+          }}
+        >
           <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
             {triggerIcon}
             Suggestions
           </div>
+
           <div className="max-h-64 space-y-1 overflow-auto">
-            {suggestions.map((suggestion) => (
+            {suggestions.map((suggestion, index) => (
               <button
                 key={`${suggestion.type}-${suggestion.value}`}
                 type="button"
-                className="flex w-full items-start justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                onClick={() => handleSelectSuggestion(suggestion)}
+                tabIndex={-1}
+                className={cn(
+                  "flex w-full items-start justify-between rounded-md px-2 py-1.5 text-left text-sm",
+                  index === selectedSuggestionIndex ? "bg-accent" : "hover:bg-accent"
+                )}
+                onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  handleSelectSuggestion(suggestion);
+                }}
               >
-                <span className="font-medium">{suggestion.label}</span>
-                <span className="text-[10px] text-muted-foreground">{suggestion.type}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{suggestion.label}</span>
+                  {suggestion.description && (
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {suggestion.description}
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  {suggestion.type === "folder" ? (
+                    <Folder className="h-3 w-3" />
+                  ) : suggestion.type === "file" ? (
+                    <FileText className="h-3 w-3" />
+                  ) : null}
+                  {suggestion.type}
+                </span>
               </button>
             ))}
           </div>
@@ -325,6 +501,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
                 <ChevronDown className="h-3 w-3 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
+
             <DropdownMenuContent align="start" className="max-h-60 overflow-auto">
               <DropdownMenuLabel>Agents</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -362,6 +539,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
                 <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
+
             <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
               <DropdownMenuLabel>Models</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -391,7 +569,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
         <Button
           size="icon"
           onClick={handleSubmit}
-          disabled={!value.trim() || disabled}
+          disabled={!canSubmit || disabled}
           className="h-8 w-8 shrink-0 rounded-lg"
         >
           <ArrowUp className="h-4 w-4" />
