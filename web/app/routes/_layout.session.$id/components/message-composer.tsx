@@ -1,10 +1,19 @@
+import { ArrowUp, AtSign, Bot, ChevronDown, Slash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { ArrowUp, AtSign, Slash } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { useChatStore } from "@/stores/chat-store";
 
 type Agent = {
   name: string;
@@ -17,8 +26,22 @@ type Command = {
   template: string;
 };
 
+type Provider = {
+  id: string;
+  name: string;
+  models: Record<string, { id: string; name: string }>;
+};
+
+type ProvidersResponse = {
+  providers: Provider[];
+  default: Record<string, string>;
+};
+
 type Props = {
-  onSend: (parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }>) => void;
+  onSend: (
+    parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }>,
+    options?: { agent?: string | null }
+  ) => void;
   disabled?: boolean;
 };
 
@@ -46,8 +69,17 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [commands, setCommands] = useState<Command[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const agentNames = useMemo(() => new Set(agents.map((agent) => agent.name.toLowerCase())), [agents]);
+  const agentNames = useMemo(
+    () => new Set(agents.map((agent) => agent.name.toLowerCase())),
+    [agents]
+  );
+
+  const selectedModel = useChatStore((state) => state.selectedModel);
+  const setSelectedModel = useChatStore((state) => state.setSelectedModel);
+  const selectedAgent = useChatStore((state) => state.selectedAgent);
+  const setSelectedAgent = useChatStore((state) => state.setSelectedAgent);
 
   useEffect(() => {
     const loadAgents = async () => {
@@ -62,9 +94,46 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       const data = (await response.json()) as { commands: Command[] };
       setCommands(data.commands ?? []);
     };
+    const loadProviders = async () => {
+      const response = await fetch("/api/providers").catch(() => null);
+      if (!response?.ok) return;
+      const data = (await response.json()) as ProvidersResponse;
+      setProviders(data.providers ?? []);
+      const currentModel = useChatStore.getState().selectedModel;
+      if (!currentModel && data.providers?.length) {
+        const provider = data.providers[0];
+        const firstModel = Object.values(provider.models ?? {})[0];
+        if (provider && firstModel) {
+          useChatStore
+            .getState()
+            .setSelectedModel({ providerID: provider.id, modelID: firstModel.id });
+        }
+      }
+    };
     loadAgents();
     loadCommands();
+    loadProviders();
   }, []);
+
+  const modelItems = useMemo(() => {
+    return providers.flatMap((provider) =>
+      Object.values(provider.models ?? {}).map((model) => ({
+        providerID: provider.id,
+        providerName: provider.name,
+        modelID: model.id,
+        modelName: model.name,
+      }))
+    );
+  }, [providers]);
+
+  const currentModelLabel = useMemo(() => {
+    const current = modelItems.find(
+      (item) =>
+        item.providerID === selectedModel?.providerID && item.modelID === selectedModel.modelID
+    );
+    if (current) return `${current.providerName} / ${current.modelName}`;
+    return "Model";
+  }, [modelItems, selectedModel]);
 
   const updateSuggestions = useCallback(async () => {
     const textarea = textareaRef.current;
@@ -78,7 +147,9 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
     }
 
     if (mention.trigger === "@") {
-      const response = await fetch(`/api/find-files?q=${encodeURIComponent(mention.query)}`).catch(() => null);
+      const response = await fetch(`/api/find-files?q=${encodeURIComponent(mention.query)}`).catch(
+        () => null
+      );
       if (!response?.ok) {
         setSuggestions([]);
         return;
@@ -144,7 +215,9 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
     if (!matches.length) {
       return [{ type: "text" as const, text: value.trim() }];
     }
-    const parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }> = [];
+    const parts: Array<
+      { type: "text"; text: string } | { type: "file"; path: string; content?: string }
+    > = [];
     let cursor = 0;
     for (const match of matches) {
       const start = match.index ?? 0;
@@ -170,12 +243,12 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
     if (!value.trim() || disabled) return;
     try {
       const parts = parseParts();
-      onSend(parts);
+      onSend(parts, { agent: selectedAgent });
       setValue("");
-    } catch (error) {
+    } catch {
       toast.error("Unable to prepare message");
     }
-  }, [disabled, onSend, parseParts, value]);
+  }, [disabled, onSend, parseParts, selectedAgent, value]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -198,10 +271,10 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   }, [value]);
 
   return (
-    <div className="relative flex items-end gap-2 rounded-xl border border-border/60 bg-card p-3 shadow-sm">
+    <div className="rounded-xl border border-border/60 bg-card shadow-sm">
       <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
         <PopoverAnchor asChild>
-          <div className="flex-1">
+          <div className="px-3 pt-3">
             <Textarea
               ref={textareaRef}
               value={value}
@@ -211,7 +284,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
               disabled={disabled}
               rows={1}
               className={cn(
-                "min-h-[36px] max-h-48 flex-1 resize-none border-0 bg-transparent p-0 shadow-none",
+                "min-h-[36px] max-h-48 w-full resize-none border-0 bg-transparent p-0 shadow-none",
                 "focus-visible:ring-0 text-sm placeholder:text-muted-foreground/60"
               )}
             />
@@ -237,14 +310,93 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
           </div>
         </PopoverContent>
       </Popover>
-      <Button
-        size="icon"
-        onClick={handleSubmit}
-        disabled={!value.trim() || disabled}
-        className="h-8 w-8 shrink-0 rounded-lg"
-      >
-        <ArrowUp className="h-4 w-4" />
-      </Button>
+
+      <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-2">
+        <div className="flex items-center gap-1.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+              >
+                <Bot className="h-3.5 w-3.5" />
+                {selectedAgent ?? "Agent"}
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-60 overflow-auto">
+              <DropdownMenuLabel>Agents</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setSelectedAgent(null)}>
+                <span className={cn(!selectedAgent && "font-medium text-primary")}>Default</span>
+              </DropdownMenuItem>
+              {agents.map((agent) => (
+                <DropdownMenuItem key={agent.name} onClick={() => setSelectedAgent(agent.name)}>
+                  <div>
+                    <div
+                      className={cn(
+                        "text-sm",
+                        selectedAgent === agent.name && "font-medium text-primary"
+                      )}
+                    >
+                      {agent.name}
+                    </div>
+                    {agent.description && (
+                      <div className="text-[10px] text-muted-foreground">{agent.description}</div>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 max-w-[200px] gap-1 px-2 text-xs text-muted-foreground"
+              >
+                <span className="truncate">{currentModelLabel}</span>
+                <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
+              <DropdownMenuLabel>Models</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {modelItems.map((item) => (
+                <DropdownMenuItem
+                  key={`${item.providerID}-${item.modelID}`}
+                  onClick={() =>
+                    setSelectedModel({ providerID: item.providerID, modelID: item.modelID })
+                  }
+                >
+                  <span
+                    className={cn(
+                      selectedModel?.providerID === item.providerID &&
+                        selectedModel?.modelID === item.modelID
+                        ? "font-medium text-primary"
+                        : ""
+                    )}
+                  >
+                    {item.providerName} / {item.modelName}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <Button
+          size="icon"
+          onClick={handleSubmit}
+          disabled={!value.trim() || disabled}
+          className="h-8 w-8 shrink-0 rounded-lg"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 };

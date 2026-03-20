@@ -10,6 +10,8 @@ type ChatStore = {
   setCurrentSessionId: (id: string) => void;
   selectedModel: ModelSelection | null;
   setSelectedModel: (model: ModelSelection) => void;
+  selectedAgent: string | null;
+  setSelectedAgent: (agent: string | null) => void;
   streamingMessageId: string | null;
   setStreamingMessageId: (id: string | null) => void;
   streamingContent: string;
@@ -18,6 +20,7 @@ type ChatStore = {
 };
 
 const MODEL_STORAGE_KEY = "ff15.selectedModel";
+const AGENT_STORAGE_KEY = "ff15.selectedAgent";
 
 const getInitialModel = (): ModelSelection | null => {
   if (typeof window === "undefined") {
@@ -36,6 +39,15 @@ const getInitialModel = (): ModelSelection | null => {
   return null;
 };
 
+const getInitialAgent = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = window.localStorage.getItem(AGENT_STORAGE_KEY);
+  if (!raw) return null;
+  return raw;
+};
+
 export const useChatStore = create<ChatStore>((set) => ({
   currentSessionId: null,
   setCurrentSessionId: (id) => set({ currentSessionId: id }),
@@ -46,10 +58,22 @@ export const useChatStore = create<ChatStore>((set) => ({
     }
     set({ selectedModel: model });
   },
+  selectedAgent: getInitialAgent(),
+  setSelectedAgent: (agent) => {
+    if (typeof window !== "undefined") {
+      if (agent) {
+        window.localStorage.setItem(AGENT_STORAGE_KEY, agent);
+      } else {
+        window.localStorage.removeItem(AGENT_STORAGE_KEY);
+      }
+    }
+    set({ selectedAgent: agent });
+  },
   streamingMessageId: null,
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),
   streamingContent: "",
-  appendStreamingContent: (text) => set((state) => ({ streamingContent: state.streamingContent + text })),
+  appendStreamingContent: (text) =>
+    set((state) => ({ streamingContent: state.streamingContent + text })),
   clearStreamingContent: () => set({ streamingContent: "" }),
 }));
 

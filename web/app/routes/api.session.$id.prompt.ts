@@ -1,5 +1,5 @@
-import type { Route } from "./+types/api.session.$id.prompt";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import type { Route } from "./+types/api.session.$id.prompt";
 
 type PromptPayload = {
   parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }>;
@@ -7,6 +7,7 @@ type PromptPayload = {
     providerID: string;
     modelID: string;
   };
+  agent?: string;
 };
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -37,6 +38,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       body: {
         parts: payloadParts,
         model: body.model,
+        agent: body.agent,
       },
     });
 
