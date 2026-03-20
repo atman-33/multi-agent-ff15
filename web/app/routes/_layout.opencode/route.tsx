@@ -1,10 +1,11 @@
-import { LoaderCircle, MessagesSquare, Plus, RefreshCw } from "lucide-react";
+import { Check, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import type { Route } from "./+types/route";
@@ -36,6 +37,9 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>(loaderData.sessions ?? []);
   const [isFetching, setIsFetching] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
   const sessionStates = useChatStore((state) => state.sessionStates);
   const activeSessionId = params.id;
@@ -106,10 +110,62 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
     };
   }, [loadSessions]);
 
+  const beginRename = useCallback((session: Session) => {
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title || "Untitled");
+  }, []);
+
+  const cancelRename = useCallback(() => {
+    setEditingSessionId(null);
+    setEditingTitle("");
+  }, []);
+
+  const submitRename = useCallback(
+    async (sessionId: string) => {
+      const title = editingTitle.trim();
+      if (!title) {
+        toast.error("Session title cannot be empty");
+        return;
+      }
+
+      setIsRenaming(true);
+      try {
+        const response = await fetch(`/api/session/${sessionId}/rename`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to rename session");
+        }
+
+        setSessions((current) =>
+          current.map((session) => (session.id === sessionId ? { ...session, title } : session))
+        );
+        setEditingSessionId(null);
+        setEditingTitle("");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("sessions:refresh"));
+        }
+      } catch {
+        toast.error("Unable to rename session", {
+          description: "OpenCode server not available",
+        });
+      } finally {
+        setIsRenaming(false);
+      }
+    },
+    [editingTitle]
+  );
+
   return (
-    <ResizablePanelGroup orientation="horizontal" className="h-full min-h-[200px] min-w-0 overflow-hidden">
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="h-full min-h-[200px] min-w-0 overflow-hidden"
+    >
       <ResizablePanel defaultSize="24%" minSize="18%" maxSize="40%">
-        <aside className="flex h-full flex-col border-border/50 border-r bg-background">
+        <aside className="flex h-full min-w-0 flex-col overflow-hidden border-border/50 border-r bg-background">
           <div className="flex items-center justify-between border-border/50 border-b px-3 py-3">
             <span className="text-xs font-semibold text-muted-foreground">Sessions</span>
             <div className="flex items-center gap-1">
@@ -136,8 +192,8 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
             </div>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1 px-2 py-2">
-            <nav className="space-y-1">
+          <ScrollArea className="min-h-0 w-full min-w-0 flex-1 px-2 py-2">
+            <nav className="w-full min-w-0 space-y-1">
               {sortedSessions.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
                   No sessions yet. Create one to get started.
@@ -146,34 +202,90 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                 sortedSessions.map((session) => {
                   const isActive = session.id === activeSessionId;
                   const isRunning = (sessionStates[session.id] ?? "idle") !== "idle";
+                  const isEditing = editingSessionId === session.id;
                   return (
-                    <NavLink
+                    <div
                       key={session.id}
-                      to={`/opencode/session/${session.id}`}
-                      className={() =>
-                        cn(
-                          "flex items-start gap-2 rounded-md px-3 py-2 text-sm transition-all",
-                          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                          isActive
-                            ? "border border-primary/20 bg-primary/15 text-primary"
-                            : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                        )
-                      }
-                    >
-                      {isRunning ? (
-                        <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-                      ) : (
-                        <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                      className={cn(
+                        "group w-full min-w-0 overflow-hidden rounded-md text-sm transition-all",
+                        isActive
+                          ? "border border-primary/20 bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                       )}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium text-xs text-foreground">
-                          {session.title || "Untitled"}
+                    >
+                      {isEditing ? (
+                        <div className="space-y-2 px-3 py-2">
+                          <Textarea
+                            value={editingTitle}
+                            onChange={(event) => setEditingTitle(event.target.value)}
+                            rows={2}
+                            disabled={isRenaming}
+                            className="min-h-[56px] resize-none bg-transparent text-xs"
+                          />
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={cancelRename}
+                              disabled={isRenaming}
+                              title="Cancel rename"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => submitRename(session.id)}
+                              disabled={isRenaming || !editingTitle.trim()}
+                              title="Save title"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {formatRelativeTime(session.time.updated)}
+                      ) : (
+                        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 overflow-hidden px-3 py-2">
+                          <NavLink
+                            to={`/opencode/session/${session.id}`}
+                            className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden"
+                          >
+                            {isRunning ? (
+                              <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                            ) : (
+                              <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium text-xs text-foreground">
+                                {session.title || "Untitled"}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {formatRelativeTime(session.time.updated)}
+                              </div>
+                            </div>
+                          </NavLink>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                              "bg-background/30 text-foreground/70 opacity-60",
+                              "hover:bg-accent hover:text-foreground hover:opacity-100",
+                              "focus-visible:opacity-100",
+                              isActive && "opacity-100"
+                            )}
+                            onClick={() => beginRename(session)}
+                            title="Rename session"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
                         </div>
-                      </div>
-                    </NavLink>
+                      )}
+                    </div>
                   );
                 })
               )}
