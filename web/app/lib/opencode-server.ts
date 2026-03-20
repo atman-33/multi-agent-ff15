@@ -1,4 +1,5 @@
 import { createOpencodeServer } from "@opencode-ai/sdk/server";
+import { getProjectRoot } from "./get-project-root.server";
 
 const DEFAULT_URL = "http://127.0.0.1:4097";
 const HEALTH_CHECK_URL = `${DEFAULT_URL}/global/health`;
@@ -19,6 +20,9 @@ async function doStart(): Promise<string> {
   if (await isServerAlreadyRunning()) {
     return DEFAULT_URL;
   }
+
+  const projectRoot = getProjectRoot();
+  process.chdir(projectRoot);
 
   const server = await createOpencodeServer({
     hostname: "127.0.0.1",
