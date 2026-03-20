@@ -1,0 +1,9 @@
+{
+	"name": "multi-agent-ff15",
+	"scripts": {
+		"web:dev": "npm --prefix web run dev",
+		"web:build": "npm --prefix web run build",
+		"web:start": "npm --prefix web run start",
+		"web:typecheck": "npm --prefix web run typecheck"
+	}
+}
