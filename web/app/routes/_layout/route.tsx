@@ -1,4 +1,4 @@
-import { Github, Terminal } from "lucide-react";
+import { Cpu, FileText, FolderGit2, Github, Terminal } from "lucide-react";
 import { NavLink, Outlet, useNavigation } from "react-router";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
@@ -27,22 +27,30 @@ const Layout = (_props: Route.ComponentProps) => {
           </div>
         </div>
 
-        <nav className="flex-1 px-2 py-3">
-          <NavLink
-            to="/opencode"
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-all",
-                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                isActive
-                  ? "border border-primary/20 bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
-              )
-            }
-          >
-            <Terminal className="h-4 w-4 shrink-0" />
-            <span className="font-medium">OpenCode</span>
-          </NavLink>
+        <nav className="flex-1 space-y-0.5 px-2 py-3">
+          {[
+            { to: "/opencode", icon: Terminal, label: "OpenCode" },
+            { to: "/reports", icon: FileText, label: "Reports" },
+            { to: "/projects", icon: FolderGit2, label: "Projects" },
+            { to: "/mcp", icon: Cpu, label: "MCP" },
+          ].map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-all",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  isActive
+                    ? "border border-primary/20 bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                )
+              }
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="font-medium">{label}</span>
+            </NavLink>
+          ))}
         </nav>
 
         <div className="border-border/50 border-t px-4 py-3">

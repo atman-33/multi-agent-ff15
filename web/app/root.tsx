@@ -19,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <title>Multi-Agent FF15</title>
         <meta
           name="description"
-          content="Multi-agent parallel development framework powered by OpenCode + tmux, inspired by FINAL FANTASY XV."
+          content="Multi-agent parallel development framework powered by OpenCode, inspired by FINAL FANTASY XV."
         />
         <meta name="theme-color" content="#0f172a" />
         <Meta />
