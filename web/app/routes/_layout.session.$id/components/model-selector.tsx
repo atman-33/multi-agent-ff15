@@ -32,16 +32,17 @@ const ModelSelector = () => {
       if (!response.ok) return;
       const data = (await response.json()) as ProvidersResponse;
       setProviders(data.providers ?? []);
-      if (!selectedModel && data.providers?.length) {
+      const currentModel = useChatStore.getState().selectedModel;
+      if (!currentModel && data.providers?.length) {
         const provider = data.providers[0];
         const firstModel = Object.values(provider.models ?? {})[0];
         if (provider && firstModel) {
-          setSelectedModel({ providerID: provider.id, modelID: firstModel.id });
+          useChatStore.getState().setSelectedModel({ providerID: provider.id, modelID: firstModel.id });
         }
       }
     };
     loadProviders();
-  }, [selectedModel, setSelectedModel]);
+  }, []);
 
   const items = useMemo(() => {
     return providers.flatMap((provider) =>

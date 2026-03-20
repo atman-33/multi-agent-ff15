@@ -34,21 +34,18 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const {
-    selectedModel,
-    streamingContent,
-    appendStreamingContent,
-    clearStreamingContent,
-    streamingMessageId,
-    setStreamingMessageId,
-  } = useChatStore((state) => ({
-    selectedModel: state.selectedModel,
-    streamingContent: state.streamingContent,
-    appendStreamingContent: state.appendStreamingContent,
-    clearStreamingContent: state.clearStreamingContent,
-    streamingMessageId: state.streamingMessageId,
-    setStreamingMessageId: state.setStreamingMessageId,
-  }));
+
+  const selectedModel = useChatStore((state) => state.selectedModel);
+  const streamingContent = useChatStore((state) => state.streamingContent);
+  const streamingMessageId = useChatStore((state) => state.streamingMessageId);
+  const appendStreamingContent = useChatStore((state) => state.appendStreamingContent);
+  const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
+  const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
+
+  const streamingMessageIdRef = useRef(streamingMessageId);
+  useEffect(() => {
+    streamingMessageIdRef.current = streamingMessageId;
+  }, [streamingMessageId]);
 
   const loadMessages = useCallback(async () => {
     if (!sessionId) return;
@@ -61,7 +58,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       const data = (await response.json()) as { messages: MessageInfo[] };
       setMessages(data.messages ?? []);
       setErrorMessage(null);
-    } catch (error) {
+    } catch {
       setErrorMessage("OpenCode server not available");
       toast.error("Unable to load messages", {
         description: "OpenCode server not available",
@@ -74,10 +71,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   useEffect(() => {
     setMessages(loaderData.messages ?? []);
   }, [loaderData.messages]);
-
-  useEffect(() => {
-    loadMessages();
-  }, [loadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -94,7 +87,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         const part = actual.properties.part;
         if (!part || part.type !== "text") return;
         if (part.sessionID && part.sessionID !== sessionId) return;
-        if (part.messageID && part.messageID !== streamingMessageId) {
+        if (part.messageID && part.messageID !== streamingMessageIdRef.current) {
           setStreamingMessageId(part.messageID ?? null);
           clearStreamingContent();
         }
@@ -123,14 +116,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     return () => {
       source.close();
     };
-  }, [
-    appendStreamingContent,
-    clearStreamingContent,
-    loadMessages,
-    sessionId,
-    setStreamingMessageId,
-    streamingMessageId,
-  ]);
+  }, [appendStreamingContent, clearStreamingContent, loadMessages, sessionId, setStreamingMessageId]);
 
   const handleSend = useCallback(
     async (parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }>) => {
@@ -158,7 +144,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         clearStreamingContent();
         setStreamingMessageId(null);
         await loadMessages();
-      } catch (error) {
+      } catch {
         toast.error("Unable to send message", {
           description: "OpenCode server not available",
         });
