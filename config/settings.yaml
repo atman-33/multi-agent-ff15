@@ -1,0 +1,28 @@
+# multi-agent-ff15-re configuration file
+
+# Language setting
+# ja: Japanese only (FF15-style Japanese, no bilingual output)
+# en: English (FF15-style Japanese + English translation in parentheses)
+# Other language codes (es, zh, ko, fr, de, etc.) also supported
+language: ja
+
+# Shell setting
+# bash: bash prompt (default)
+# zsh: zsh prompt
+shell: bash
+
+# Skill settings
+skill:
+  # Skill storage path (project-specific - always save here)
+  path: "/home/atman/repos/multi-agent-ff15-re/.opencode/skills/"
+
+# Web app settings
+web:
+  # Port for the web app (react-router-serve)
+  # Change this if the default port is already in use by another application.
+  port: 13000
+
+# Logging settings
+logging:
+  level: info  # debug | info | warn | error
+  path: "/home/atman/repos/multi-agent-ff15-re/logs/"
