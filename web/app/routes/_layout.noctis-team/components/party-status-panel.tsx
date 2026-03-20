@@ -188,9 +188,9 @@ export const PartyStatusPanel = ({ members }: PartyStatusPanelProps) => {
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {members.map((member) => (
-          <div key={member.id} className="flex flex-col gap-1.5">
+          <div key={member.id} className="relative">
             <CharacterCard {...member} />
-            <div className="flex justify-end pr-1">
+            <div className="absolute top-1 right-1 z-10">
               <AgentModelPicker
                 agentId={member.id}
                 modelItems={modelItems}
