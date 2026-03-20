@@ -307,7 +307,6 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
               </Button>
             </div>
           </div>
-
           <ScrollArea className="min-h-0 w-full min-w-0 flex-1 px-2 py-2">
             <nav className="w-full min-w-0 space-y-1">
               {sortedSessions.length === 0 ? (
