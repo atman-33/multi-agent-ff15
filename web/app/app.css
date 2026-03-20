@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark theme — slate/blue palette */
+    --background: 222 47% 5%;
+    --foreground: 215 20% 93%;
+    --card: 222 38% 8%;
+    --card-foreground: 215 20% 93%;
+    --popover: 222 38% 8%;
+    --popover-foreground: 215 20% 93%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 32% 16%;
+    --secondary-foreground: 215 20% 93%;
+    --muted: 216 27% 12%;
+    --muted-foreground: 217 15% 55%;
+    --accent: 217 32% 16%;
+    --accent-foreground: 215 20% 93%;
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 28% 14%;
+    --input: 217 28% 14%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+    --sidebar-width: 220px;
+    /* Success / warning custom tokens */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 5%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  body {
+    font-family:
+      "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+      "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system,
+      sans-serif, "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
+    @apply bg-background text-foreground;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+}
+
+/* Markdown styling */
+.markdown-body {
+  @apply text-sm leading-relaxed;
+}
+.markdown-body h1 {
+  @apply text-2xl font-bold mt-6 mb-3 text-foreground;
+}
+.markdown-body h2 {
+  @apply text-xl font-semibold mt-5 mb-2 text-foreground;
+  @apply border-b border-border pb-1;
+}
+.markdown-body h3 {
+  @apply text-base font-semibold mt-4 mb-2 text-foreground;
+}
+.markdown-body p {
+  @apply my-2 leading-relaxed text-foreground/90;
+}
+.markdown-body ul {
+  @apply list-disc pl-6 my-2;
+}
+.markdown-body ol {
+  @apply list-decimal pl-6 my-2;
+}
+.markdown-body li {
+  @apply my-1;
+}
+.markdown-body table {
+  @apply w-full border-collapse my-4 text-sm;
+}
+.markdown-body th {
+  @apply border border-border bg-muted px-3 py-2 text-left font-semibold;
+}
+.markdown-body td {
+  @apply border border-border px-3 py-2;
+}
+.markdown-body code {
+  @apply bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono text-primary;
+}
+.markdown-body pre {
+  @apply bg-muted/60 border border-border/50 p-4 rounded-lg overflow-x-auto my-4;
+}
+.markdown-body pre code {
+  @apply bg-transparent p-0 text-foreground/90;
+}
+.markdown-body blockquote {
+  @apply border-l-4 border-primary/40 pl-4 italic my-4 text-muted-foreground bg-primary/5 py-1 rounded-r;
+}
+.markdown-body hr {
+  @apply border-border/50 my-6;
+}
+.markdown-body a {
+  @apply text-primary underline underline-offset-2 hover:text-primary/80 transition-colors;
+}
+.markdown-body strong {
+  @apply font-semibold text-foreground;
+}
+.markdown-body em {
+  @apply italic text-foreground/80;
+}
