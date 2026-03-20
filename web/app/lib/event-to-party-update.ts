@@ -15,6 +15,7 @@ export interface PartyUpdate {
   memberId: string;
   status: AgentStatus;
   task: string;
+  detail?: string;
   banterTemplate: BanterTemplate | null;
 }
 
@@ -92,6 +93,7 @@ export function eventToPartyUpdate(event: AgentEvent): PartyUpdate | null {
         memberId: agentId,
         status: "working",
         task,
+        detail: event.task,
         banterTemplate: message ? makeBanter(agentId, message) : null,
       };
     }
@@ -148,6 +150,7 @@ export function resetToIdle(members: PartyMember[]): PartyMember[] {
     ...m,
     status: "idle" as AgentStatus,
     task: m.id === "noctis" ? "On the road" : "Awaiting orders",
+    detail: undefined,
   }));
 }
 
@@ -157,6 +160,6 @@ export function applyPartyUpdate(
 ): PartyMember[] {
   return members.map((m) => {
     if (m.id !== update.memberId) return m;
-    return { ...m, status: update.status, task: update.task };
+    return { ...m, status: update.status, task: update.task, detail: update.detail };
   });
 }

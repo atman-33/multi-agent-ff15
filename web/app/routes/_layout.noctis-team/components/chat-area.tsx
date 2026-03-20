@@ -14,10 +14,17 @@ export interface ChatMessage {
 interface ChatAreaProps {
   messages: ChatMessage[];
   isResponding: boolean;
+  isStreaming?: boolean;
   onSend: (message: string) => void;
 }
 
-const MessageBubble = ({ message }: { message: ChatMessage }) => {
+const MessageBubble = ({
+  message,
+  showCursor,
+}: {
+  message: ChatMessage;
+  showCursor: boolean;
+}) => {
   const isNoctis = message.role === "noctis";
 
   return (
@@ -42,7 +49,12 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
             : "rounded-br-sm bg-primary text-primary-foreground"
         )}
       >
-        <p className="leading-relaxed">{message.content}</p>
+        <p className="leading-relaxed">
+          {message.content}
+          {showCursor && (
+            <span className="animate-pulse text-primary">▌</span>
+          )}
+        </p>
         <div
           className={cn(
             "mt-1 font-mono text-[9px]",
@@ -60,15 +72,15 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
   );
 };
 
-export const ChatArea = ({ messages, isResponding, onSend }: ChatAreaProps) => {
+export const ChatArea = ({ messages, isResponding, isStreaming = false, onSend }: ChatAreaProps) => {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messagesLength = messages.length;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messagesLength]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   const handleSend = () => {
     const trimmed = input.trim();
@@ -121,11 +133,21 @@ export const ChatArea = ({ messages, isResponding, onSend }: ChatAreaProps) => {
 
       <ScrollArea className="min-h-0 flex-1 px-4">
         <div className="space-y-4 py-4">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+          {messages.map((message, index) => {
+            const isLastNoctis =
+              isStreaming &&
+              message.role === "noctis" &&
+              index === messages.length - 1;
+            return (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                showCursor={isLastNoctis}
+              />
+            );
+          })}
 
-          {isResponding && (
+          {isResponding && !isStreaming && (
             <div className="flex items-end gap-2">
               <img
                 alt="Noctis"

@@ -8,6 +8,8 @@ export interface CharacterCardProps {
   imageSrc: string;
   status: AgentStatus;
   task: string;
+  detail?: string;
+  progress?: number;
 }
 
 const statusConfig: Record<
@@ -50,6 +52,8 @@ export const CharacterCard = ({
   imageSrc,
   status,
   task,
+  detail,
+  progress,
 }: CharacterCardProps) => {
   const config = statusConfig[status];
 
@@ -89,6 +93,17 @@ export const CharacterCard = ({
           <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
         </div>
         <p className="truncate font-mono text-[10px] text-muted-foreground/70">{task}</p>
+        {detail && (
+          <p className="truncate font-mono text-[9px] text-muted-foreground/50 mt-0.5">{detail}</p>
+        )}
+        {status === "working" && progress !== undefined && (
+          <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-border/40">
+            <div
+              className="h-full rounded-full bg-primary/70 transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
+          </div>
+        )}
       </div>
 
       <div

@@ -8,6 +8,8 @@ export interface PartyMember {
   imageSrc: string;
   status: AgentStatus;
   task: string;
+  detail?: string;
+  progress?: number;
 }
 
 interface PartyStatusPanelProps {
