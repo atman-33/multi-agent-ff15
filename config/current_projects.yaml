@@ -1,7 +1,10 @@
 project_scopes:
   noctis_team:
-    active_project_ids: []
+    active_project_ids:
+      - "multi-agent-ff15"
+      - "opencodian"
+      - "srms"
   lunafreya:
     active_project_ids: []
-updated_at: ""
-updated_by: ""
+updated_at: "2026-03-20T09:26:54Z"
+updated_by: "script"
