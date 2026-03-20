@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ActionFunctionArgs } from "react-router";
 
-const CONFIG_PATH = join(process.cwd(), "..", "opencode.json");
+import { getProjectRoot } from "@/lib/get-project-root.server";
 
 interface McpServerEntry {
   command?: string[];
@@ -16,12 +16,16 @@ interface OpencodeConfig {
   mcp?: Record<string, McpServerEntry>;
 }
 
+const getConfigPath = (): string => join(getProjectRoot(), "opencode.json");
+
 const readConfig = (): { config: OpencodeConfig | null; error?: string } => {
-  if (!existsSync(CONFIG_PATH)) {
-    return { config: null, error: `opencode.json not found at ${CONFIG_PATH}` };
-  }
   try {
-    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    const configPath = getConfigPath();
+    if (!existsSync(configPath)) {
+      return { config: null, error: `opencode.json not found at ${configPath}` };
+    }
+
+    const raw = readFileSync(configPath, "utf-8");
     const config: OpencodeConfig = JSON.parse(raw);
     return { config };
   } catch (e) {
@@ -63,7 +67,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     config.mcp[name] = { ...config.mcp[name], enabled };
-    writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+    writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), "utf-8");
     return Response.json({ success: true });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });

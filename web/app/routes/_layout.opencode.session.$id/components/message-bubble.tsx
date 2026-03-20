@@ -2,7 +2,7 @@ import { ArrowUpRight, BadgeInfo, Check, ChevronDown, Copy } from "lucide-react"
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import MessageDetailSheet from "./message-detail-sheet";
 import type { MessagePart } from "../types";
@@ -10,6 +10,7 @@ import type { MessagePart } from "../types";
 type Props = {
   role: "user" | "assistant";
   parts: MessagePart[];
+  viewportRef: React.RefObject<HTMLDivElement | null>;
 };
 
 type InternalContextViewModel = {
@@ -96,10 +97,14 @@ function buildMessageMarkdown(text: string, reasoning: string, tools: MessagePar
   return sections.join("\n\n").trim();
 }
 
-const MessageBubble = ({ role, parts }: Props) => {
+const MessageBubble = ({ role, parts, viewportRef }: Props) => {
   const [contextExpanded, setContextExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocusedWithin, setIsFocusedWithin] = useState(false);
+  const [isFullyVisible, setIsFullyVisible] = useState(true);
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const isUser = role === "user";
   const rawText = parts
     .filter((part) => part.type === "text")
@@ -113,10 +118,44 @@ const MessageBubble = ({ role, parts }: Props) => {
     .join("");
   const tools = parts.filter((part) => part.type === "tool");
   const messageMarkdown = useMemo(() => buildMessageMarkdown(text, reasoning, tools), [reasoning, text, tools]);
+  const showActions = isHovered || isFocusedWithin;
+  const useStickyActions = showActions && !isFullyVisible;
 
   if (!text && !reasoning && tools.length === 0 && !internalContext) {
     return null;
   }
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const bubble = bubbleRef.current;
+
+    if (!viewport || !bubble) {
+      setIsFullyVisible(true);
+      return;
+    }
+
+    const updateVisibility = () => {
+      const viewportRect = viewport.getBoundingClientRect();
+      const bubbleRect = bubble.getBoundingClientRect();
+      const topInset = 8;
+      const bottomInset = 12;
+      const fullyVisible =
+        bubbleRect.top >= viewportRect.top + topInset &&
+        bubbleRect.bottom <= viewportRect.bottom - bottomInset;
+
+      setIsFullyVisible(fullyVisible);
+    };
+
+    updateVisibility();
+
+    viewport.addEventListener("scroll", updateVisibility, { passive: true });
+    window.addEventListener("resize", updateVisibility);
+
+    return () => {
+      viewport.removeEventListener("scroll", updateVisibility);
+      window.removeEventListener("resize", updateVisibility);
+    };
+  }, [reasoning, text, tools.length, viewportRef]);
 
   const handleCopy = () => {
     if (!messageMarkdown) {
@@ -130,44 +169,29 @@ const MessageBubble = ({ role, parts }: Props) => {
   };
 
   return (
-    <div className={cn("group/message flex", isUser ? "justify-end" : "justify-start")}>
+    <div
+      className={cn("group/message flex", isUser ? "justify-end" : "justify-start")}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div
-        className={cn(
-          "relative max-w-[84%] rounded-xl border px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
-          isUser
-            ? "rounded-br-md border-sky-500/15 bg-sky-500/8 text-foreground/90"
-            : "rounded-bl-md border-border/40 bg-white/4.5 text-foreground"
-        )}
+        className={cn("flex max-w-[84%] flex-col", isUser ? "items-end" : "items-start")}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsFocusedWithin(false);
+          }
+        }}
+        onFocus={() => setIsFocusedWithin(true)}
       >
-        <div className="pointer-events-none absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity duration-200 group-hover/message:opacity-100 group-focus-within/message:opacity-100">
-          <button
-            className="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-md border border-white/10 bg-slate-950/85 px-2 text-[11px] text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-900 hover:text-white"
-            onClick={() => setDetailOpen(true)}
-            title="Open larger message view"
-            type="button"
-          >
-            <ArrowUpRight className="h-3 w-3" />
-            Open detail
-          </button>
-          <button
-            className="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-md border border-white/10 bg-slate-950/85 px-2 text-[11px] text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-900 hover:text-white"
-            onClick={handleCopy}
-            title="Copy as markdown"
-            type="button"
-          >
-            {copied ? (
-              <>
-                <Check className="h-3 w-3 text-emerald-400" />
-                <span className="text-emerald-400">Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy className="h-3 w-3" />
-                Copy
-              </>
-            )}
-          </button>
-        </div>
+        <div
+          ref={bubbleRef}
+          className={cn(
+            "relative w-full rounded-xl border px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
+            isUser
+              ? "rounded-br-md border-sky-500/15 bg-sky-500/8 text-foreground/90"
+              : "rounded-bl-md border-border/40 bg-white/4.5 text-foreground"
+          )}
+        >
 
         {internalContext ? (
           <div className="mb-3 rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
@@ -218,14 +242,14 @@ const MessageBubble = ({ role, parts }: Props) => {
 
         {text &&
           (isUser ? (
-            <p className="whitespace-pre-wrap pr-24 text-[13px] leading-5 text-foreground/90">{text}</p>
+            <p className="whitespace-pre-wrap text-[13px] leading-5 text-foreground/90">{text}</p>
           ) : (
-            <div className="markdown-body pr-24 text-[13px] leading-5 [&_li]:leading-5 [&_p]:leading-5 [&_pre]:text-[11px]">
+            <div className="markdown-body text-[13px] leading-5 [&_li]:leading-5 [&_p]:leading-5 [&_pre]:text-[11px]">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{text}</ReactMarkdown>
             </div>
           ))}
 
-        {reasoning && <p className="mt-2 pr-24 text-[11px] leading-4 italic text-muted-foreground">{reasoning}</p>}
+        {reasoning && <p className="mt-2 text-[11px] leading-4 italic text-muted-foreground">{reasoning}</p>}
 
         {tools.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -277,6 +301,48 @@ const MessageBubble = ({ role, parts }: Props) => {
           open={detailOpen}
           role={role}
         />
+        </div>
+
+        <div
+          className={cn(
+            "pointer-events-none z-20 w-full transition-[opacity,transform,height,margin] duration-200",
+            showActions ? "opacity-100" : "opacity-0",
+            showActions ? "mt-1 h-8" : "mt-0 h-0 overflow-hidden",
+            useStickyActions ? "sticky bottom-3 translate-y-0" : "relative"
+          )}
+        >
+          <div className="pointer-events-auto flex justify-start">
+            <div className="flex gap-1 rounded-lg bg-slate-950/35 p-1 shadow-sm backdrop-blur-sm">
+              <button
+                className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-slate-200 transition-colors hover:bg-slate-900 hover:text-white"
+                onClick={() => setDetailOpen(true)}
+                title="Open larger message view"
+                type="button"
+              >
+                <ArrowUpRight className="h-3 w-3" />
+                Open detail
+              </button>
+              <button
+                className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-slate-200 transition-colors hover:bg-slate-900 hover:text-white"
+                onClick={handleCopy}
+                title="Copy as markdown"
+                type="button"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3 w-3 text-emerald-400" />
+                    <span className="text-emerald-400">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

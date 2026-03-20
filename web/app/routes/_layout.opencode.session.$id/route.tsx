@@ -358,7 +358,11 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
                 {errorMessage}
               </div>
             ) : (
-              <MessageList messages={messages} streamingContent={streamingContent} />
+              <MessageList
+                messages={messages}
+                streamingContent={streamingContent}
+                viewportRef={scrollViewportRef}
+              />
             )}
 
             {isSessionRunning ? (
@@ -377,14 +381,15 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
         {showScrollToBottom ? (
           <Button
-            className="absolute right-8 bottom-6 h-9 rounded-full border border-white/10 bg-slate-950/90 px-3 text-[11px] text-slate-100 shadow-lg backdrop-blur hover:bg-slate-900"
+            aria-label="Scroll to latest message"
+            className="absolute right-8 bottom-6 h-10 w-10 rounded-full border border-white/10 bg-slate-950/90 p-0 text-slate-100 shadow-lg backdrop-blur hover:bg-slate-900"
             onClick={() => scrollToBottom()}
             size="sm"
+            title="Scroll to latest message"
             type="button"
             variant="outline"
           >
-            <ArrowDown className="h-3.5 w-3.5" />
-            Latest
+            <ArrowDown className="h-4 w-4" />
           </Button>
         ) : null}
       </div>
