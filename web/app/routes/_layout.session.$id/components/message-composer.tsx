@@ -1,4 +1,4 @@
-import { ArrowUp, AtSign, Bot, ChevronDown, FileText, Folder, Slash, X } from "lucide-react";
+import { ArrowUp, AtSign, Bot, ChevronDown, FileText, Folder, Slash, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,12 @@ type Agent = {
   description?: string;
 };
 
-type Command = {
-  name: string;
+type SlashSuggestion = {
   description?: string;
-  template: string;
+  insertText: string;
+  label: string;
+  type: "command" | "skill";
+  value: string;
 };
 
 type Provider = {
@@ -48,8 +50,9 @@ type Props = {
 type Suggestion = {
   label: string;
   value: string;
-  type: "file" | "folder" | "command";
+  type: "file" | "folder" | "command" | "skill";
   description?: string;
+  insertText?: string;
 };
 
 type FindFileResult =
@@ -109,9 +112,10 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [commands, setCommands] = useState<Command[]>([]);
+  const [slashSuggestions, setSlashSuggestions] = useState<SlashSuggestion[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [fileMentions, setFileMentions] = useState<string[]>([]);
+  const [slashMentions, setSlashMentions] = useState<SlashSuggestion[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionRequestIdRef = useRef(0);
 
@@ -128,11 +132,11 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       setAgents(data.agents ?? []);
     };
 
-    const loadCommands = async () => {
-      const response = await fetch("/api/commands").catch(() => null);
+    const loadSlashSuggestions = async () => {
+      const response = await fetch("/api/slash-suggestions").catch(() => null);
       if (!response?.ok) return;
-      const data = (await response.json()) as { commands: Command[] };
-      setCommands(data.commands ?? []);
+      const data = (await response.json()) as { suggestions: SlashSuggestion[] };
+      setSlashSuggestions(data.suggestions ?? []);
     };
 
     const loadProviders = async () => {
@@ -153,7 +157,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
     };
 
     loadAgents();
-    loadCommands();
+    loadSlashSuggestions();
     loadProviders();
   }, []);
 
@@ -234,18 +238,25 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
     }
 
     if (mention.trigger === "/") {
-      const filtered = commands
-        .filter((command) => command.name.toLowerCase().includes(mention.query.toLowerCase()))
-        .map((command) => ({
-          label: command.name,
-          value: command.name,
-          type: "command" as const,
-          description: command.description,
+      const keyword = mention.query.toLowerCase();
+      const selectedSlash = new Set(slashMentions.map((item) => `${item.type}:${item.value}`));
+      const filtered = slashSuggestions
+        .filter(
+          (item) =>
+            item.label.toLowerCase().includes(keyword) || item.value.toLowerCase().includes(keyword)
+        )
+        .filter((item) => !selectedSlash.has(`${item.type}:${item.value}`))
+        .map((item) => ({
+          label: item.label,
+          value: item.value,
+          type: item.type,
+          description: item.description,
+          insertText: item.insertText,
         }));
       setSuggestions(filtered);
       setIsOpen(filtered.length > 0);
     }
-  }, [commands, fileMentions, value]);
+  }, [fileMentions, slashMentions, slashSuggestions, value]);
 
   useEffect(() => {
     void updateSuggestions();
@@ -260,24 +271,24 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       const mention = findMentionQuery(value, cursor);
       if (!mention) return;
 
-      if (suggestion.type === "command") {
-        const insert = `${mention.trigger}${suggestion.value} `;
-        const nextValue = `${value.slice(0, mention.start)}${insert}${value.slice(mention.end)}`;
-        setValue(nextValue);
-        setIsOpen(false);
-        setSuggestions([]);
-        requestAnimationFrame(() => {
-          const nextPos = mention.start + insert.length;
-          textarea.setSelectionRange(nextPos, nextPos);
-          textarea.focus();
-        });
-        return;
-      }
-
       if (suggestion.type === "file" || suggestion.type === "folder") {
         setFileMentions((current) =>
           current.includes(suggestion.value) ? current : [...current, suggestion.value]
         );
+      }
+
+      if (suggestion.type === "command" || suggestion.type === "skill") {
+        const selected = slashSuggestions.find(
+          (item) => item.type === suggestion.type && item.value === suggestion.value
+        );
+
+        if (selected) {
+          setSlashMentions((current) =>
+            current.some((item) => item.type === selected.type && item.value === selected.value)
+              ? current
+              : [...current, selected]
+          );
+        }
       }
 
       const nextValue = removeMentionQuery(value, mention);
@@ -290,23 +301,25 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
         textarea.focus();
       });
     },
-    [value]
+    [slashSuggestions, value]
   );
 
   const parseParts = useCallback(() => {
+    const slashText = slashMentions.map((item) => item.insertText).join("");
     const parts: Array<
       { type: "text"; text: string } | { type: "file"; path: string; content?: string }
     > = fileMentions.map((path) => ({ type: "file" as const, path }));
     const text = value.trim();
+    const combinedText = `${slashText}${text}`.trim();
 
-    if (text) {
-      parts.push({ type: "text" as const, text });
+    if (combinedText) {
+      parts.push({ type: "text" as const, text: combinedText });
     }
 
     return parts;
-  }, [fileMentions, value]);
+  }, [fileMentions, slashMentions, value]);
 
-  const canSubmit = value.trim().length > 0 || fileMentions.length > 0;
+  const canSubmit = value.trim().length > 0 || fileMentions.length > 0 || slashMentions.length > 0;
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit || disabled) return;
@@ -316,6 +329,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       onSend(parts, { agent: selectedAgent });
       setValue("");
       setFileMentions([]);
+      setSlashMentions([]);
     } catch {
       toast.error("Unable to prepare message");
     }
@@ -363,6 +377,12 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
           setFileMentions((current) => current.slice(0, -1));
           return;
         }
+
+        if (slashMentions.length > 0) {
+          event.preventDefault();
+          setSlashMentions((current) => current.slice(0, -1));
+          return;
+        }
       }
 
       if (event.key === "Enter" && !event.shiftKey) {
@@ -376,6 +396,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       handleSubmit,
       isOpen,
       selectedSuggestionIndex,
+      slashMentions.length,
       suggestions,
       value,
     ]
@@ -397,8 +418,33 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
       <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
         <PopoverAnchor asChild>
           <div className="px-3 pt-3">
-            {fileMentions.length > 0 && (
+            {(fileMentions.length > 0 || slashMentions.length > 0) && (
               <div className="mb-2 flex flex-wrap gap-2">
+                {slashMentions.map((item) => (
+                  <span
+                    key={`${item.type}:${item.value}`}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-muted/60 px-2.5 py-1 text-xs text-foreground"
+                  >
+                    <Sparkles className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                    <button
+                      type="button"
+                      className="rounded-full p-0.5 text-muted-foreground transition hover:bg-background hover:text-foreground"
+                      onClick={() =>
+                        setSlashMentions((current) =>
+                          current.filter(
+                            (currentItem) =>
+                              !(currentItem.type === item.type && currentItem.value === item.value)
+                          )
+                        )
+                      }
+                      aria-label={`Remove ${item.type} ${item.label}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+
                 {fileMentions.map((path) => (
                   <span
                     key={path}
@@ -426,7 +472,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
               value={value}
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Send a message... Use @ for files and folders. Shift+Enter for new line"
+              placeholder="Send a message... Use @ for files/folders and / for commands/skills. Shift+Enter for new line"
               disabled={disabled}
               rows={1}
               className={cn(
@@ -478,6 +524,10 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
                     <Folder className="h-3 w-3" />
                   ) : suggestion.type === "file" ? (
                     <FileText className="h-3 w-3" />
+                  ) : suggestion.type === "skill" ? (
+                    <Sparkles className="h-3 w-3" />
+                  ) : suggestion.type === "command" ? (
+                    <Slash className="h-3 w-3" />
                   ) : null}
                   {suggestion.type}
                 </span>
