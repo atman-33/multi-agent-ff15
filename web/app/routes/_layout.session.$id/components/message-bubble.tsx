@@ -29,15 +29,15 @@ const MessageBubble = ({ role, parts }: Props) => {
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-2.5",
+          "max-w-[80%] rounded-xl border px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-sm",
           isUser
-            ? "rounded-br-sm bg-primary text-primary-foreground"
-            : "rounded-bl-sm border border-border/50 bg-card text-foreground"
+            ? "rounded-br-md border-sky-500/15 bg-sky-500/[0.08] text-foreground/90"
+            : "rounded-bl-md border-border/40 bg-white/[0.045] text-foreground"
         )}
       >
         {text &&
           (isUser ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{text}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{text}</p>
           ) : (
             <div className="markdown-body">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{text}</ReactMarkdown>
@@ -51,7 +51,7 @@ const MessageBubble = ({ role, parts }: Props) => {
             {tools.map((tool, index) => (
               <details
                 key={`${tool.tool ?? "tool"}-${index}`}
-                className="rounded-md border border-border/60 bg-muted/30 p-2"
+                className="rounded-md border border-border/40 bg-black/10 p-2"
               >
                 <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
                   {tool.tool ?? "Tool"}
@@ -72,12 +72,12 @@ const MessageBubble = ({ role, parts }: Props) => {
                     </div>
                   )}
                   {tool.state?.input && (
-                    <pre className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[11px]">
+                    <pre className="whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px]">
                       {JSON.stringify(tool.state.input, null, 2)}
                     </pre>
                   )}
                   {tool.state?.output && (
-                    <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[11px]">
+                    <pre className="mt-2 whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px]">
                       {tool.state.output}
                     </pre>
                   )}
