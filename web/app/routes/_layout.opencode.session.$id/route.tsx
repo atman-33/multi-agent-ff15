@@ -37,6 +37,7 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const sessionId = params.id;
   const [messages, setMessages] = useState<MessageInfo[]>(loaderData.messages ?? []);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAborting, setIsAborting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -203,6 +204,44 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
     ]
   );
 
+  const handleAbort = useCallback(async () => {
+    if (!sessionId || isAborting) return;
+
+    setIsAborting(true);
+    try {
+      const response = await fetch(`/api/session/${sessionId}/abort`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `HTTP ${response.status}`);
+      }
+
+      setSessionState(sessionId, "idle");
+      clearStreamingContent();
+      setStreamingMessageId(null);
+      await loadMessages();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sessions:refresh"));
+      }
+    } catch (error) {
+      toast.error("Unable to stop session", {
+        description: error instanceof Error ? error.message : "Abort request failed",
+      });
+    } finally {
+      setIsAborting(false);
+    }
+  }, [
+    clearStreamingContent,
+    isAborting,
+    loadMessages,
+    sessionId,
+    setSessionState,
+    setStreamingMessageId,
+  ]);
+
   const displayMessages = useMemo(() => messages, [messages]);
 
   return (
@@ -238,7 +277,13 @@ const OpenCodeSessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
       <div className="border-border/50 border-t px-4 py-4">
         <div className="mx-auto max-w-3xl">
-          <MessageComposer onSend={handleSend} disabled={isLoading} />
+          <MessageComposer
+            onSend={handleSend}
+            onAbort={handleAbort}
+            disabled={isLoading || isAborting}
+            isSessionRunning={isSessionRunning}
+            isAborting={isAborting}
+          />
         </div>
       </div>
     </div>

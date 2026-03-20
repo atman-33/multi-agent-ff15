@@ -1,4 +1,16 @@
-import { ArrowUp, AtSign, Bot, CheckCircle2, ChevronDown, FileText, Folder, Slash, Sparkles, X } from "lucide-react";
+import {
+  ArrowUp,
+  AtSign,
+  Bot,
+  CheckCircle2,
+  ChevronDown,
+  FileText,
+  Folder,
+  Slash,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -44,7 +56,10 @@ type Props = {
     parts: Array<{ type: "text"; text: string } | { type: "file"; path: string; content?: string }>,
     options?: { agent?: string | null }
   ) => void;
+  onAbort?: () => void;
   disabled?: boolean;
+  isSessionRunning?: boolean;
+  isAborting?: boolean;
 };
 
 type Suggestion = {
@@ -63,8 +78,8 @@ type FindFileResult =
       isFolder?: boolean;
     };
 
-  const MIN_ROWS = 2;
-  const MAX_HEIGHT_PX = 160;
+const MIN_ROWS = 2;
+const MAX_HEIGHT_PX = 160;
 
 const findMentionQuery = (value: string, cursor: number) => {
   const prefix = value.slice(0, cursor);
@@ -109,7 +124,13 @@ const removeMentionQuery = (
   return `${before}${after}`;
 };
 
-const MessageComposer = ({ onSend, disabled }: Props) => {
+const MessageComposer = ({
+  onSend,
+  onAbort,
+  disabled,
+  isSessionRunning = false,
+  isAborting = false,
+}: Props) => {
   const [value, setValue] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -344,6 +365,7 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
   }, [fileMentions, slashMentions, value]);
 
   const canSubmit = value.trim().length > 0 || fileMentions.length > 0 || slashMentions.length > 0;
+  const showAbortAction = isSessionRunning && !canSubmit;
 
   const triggerSendAnimation = useCallback(() => {
     for (const timeoutId of arrowTimeoutsRef.current) {
@@ -533,19 +555,23 @@ const MessageComposer = ({ onSend, disabled }: Props) => {
 
               <button
                 type="button"
-                onClick={handleSubmit}
-                disabled={!canSubmit || disabled}
-                title="Send"
+                onClick={showAbortAction ? onAbort : handleSubmit}
+                disabled={showAbortAction ? disabled || isAborting || !onAbort : !canSubmit || disabled}
+                title={showAbortAction ? "Stop" : "Send"}
                 className={cn(
                   "absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 ease-out",
-                  !canSubmit || disabled
+                  showAbortAction
+                    ? "border-red-500/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(239,68,68,0.16))] text-red-50 shadow-[0_10px_28px_rgba(2,6,23,0.32),0_0_0_1px_rgba(239,68,68,0.06),inset_0_1px_0_rgba(255,255,255,0.1)] hover:border-red-400/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(248,113,113,0.22))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.4),0_0_18px_rgba(239,68,68,0.12),inset_0_1px_0_rgba(255,255,255,0.14)] active:translate-y-[1px]"
+                    : !canSubmit || disabled
                     ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                     : arrowState === "done"
                       ? "border-emerald-400/30 bg-emerald-500/14 text-emerald-50 shadow-[0_10px_24px_rgba(6,78,59,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]"
                       : "border-indigo-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(99,102,241,0.14))] text-slate-100 shadow-[0_10px_28px_rgba(2,6,23,0.38),0_0_0_1px_rgba(99,102,241,0.06),inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-indigo-300/35 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(129,140,248,0.2))] hover:text-white hover:shadow-[0_14px_32px_rgba(2,6,23,0.45),0_0_18px_rgba(99,102,241,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] active:translate-y-[1px]"
                 )}
               >
-                {arrowState === "done" ? (
+                {showAbortAction ? (
+                  <Square className={cn("h-3.5 w-3.5", isAborting && "animate-pulse")} />
+                ) : arrowState === "done" ? (
                   <CheckCircle2 className="h-3.5 w-3.5" />
                 ) : (
                   <div className="relative flex h-3.5 w-3.5 items-center justify-center overflow-hidden">
