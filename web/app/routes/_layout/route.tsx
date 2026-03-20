@@ -16,7 +16,11 @@ const Layout = (_props: Route.ComponentProps) => {
         <div className="border-border/50 border-b px-4 py-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/20">
-              <span className="font-bold text-primary text-xs">FF</span>
+              <img
+                alt="FF15"
+                className="h-4 w-4 object-contain"
+                src="/favicons/favicon-32x32.png"
+              />
             </div>
             <div>
               <div className="font-semibold text-sm leading-none">FF15</div>
