@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentChatColumn from "@/components/agent-chat-column";
 import StatusBar from "@/components/status-bar";
 import { COMRADES, type ComradeId } from "@/constants/comrade-config";
+import type { RuntimeTargetSnapshot } from "@/lib/runtime-target-client";
 import {
   type AgentId,
   type MainAgentId,
+  type SessionHistoryThreadSummary,
   useAgentChatLog,
 } from "@/hooks/use-agent-chat-log";
 import { useAgentStatuses } from "@/hooks/use-agent-statuses";
@@ -17,11 +19,14 @@ const AGENTS: MainAgentId[] = ["noctis", "lunafreya"];
 export default function UnifiedChatRoute() {
   const {
     getRecordsForAgent,
+    getRuntimeTargetForAgent,
+    getSelectedThreadIdForAgent,
     getSessionSummariesForAgent,
     lastUpdated,
     error,
     isTauri,
     refresh: refreshChat,
+    setRuntimeTargetForAgent,
   } = useAgentChatLog();
   const [modelOptions, setModelOptions] = useState<string[]>([]);
 
@@ -77,7 +82,7 @@ export default function UnifiedChatRoute() {
     [getSessionSummariesForAgent]
   );
 
-  const sessionSummariesMap = useMemo(
+  const sessionSummariesMap = useMemo<Record<MainAgentId, SessionHistoryThreadSummary[]>>(
     () => ({
       noctis: noctisSessionSummaries,
       lunafreya: lunafreyaSessionSummaries,
@@ -92,6 +97,32 @@ export default function UnifiedChatRoute() {
     await Promise.all([refreshChat(), refreshInbox()]);
     setModelRefreshTrigger((prev) => prev + 1);
   }, [refreshChat, refreshInbox]);
+
+  const selectedThreadIdsMap = useMemo<
+    Record<AgentId, string | null>
+  >(
+    () => ({
+      noctis: getSelectedThreadIdForAgent("noctis"),
+      lunafreya: getSelectedThreadIdForAgent("lunafreya"),
+      ignis: getSelectedThreadIdForAgent("ignis"),
+      gladiolus: getSelectedThreadIdForAgent("gladiolus"),
+      prompto: getSelectedThreadIdForAgent("prompto"),
+      iris: getSelectedThreadIdForAgent("iris"),
+    }),
+    [getSelectedThreadIdForAgent]
+  );
+
+  const runtimeTargetsMap = useMemo<Record<AgentId, RuntimeTargetSnapshot | null>>(
+    () => ({
+      noctis: getRuntimeTargetForAgent("noctis"),
+      lunafreya: getRuntimeTargetForAgent("lunafreya"),
+      ignis: getRuntimeTargetForAgent("ignis"),
+      gladiolus: getRuntimeTargetForAgent("gladiolus"),
+      prompto: getRuntimeTargetForAgent("prompto"),
+      iris: getRuntimeTargetForAgent("iris"),
+    }),
+    [getRuntimeTargetForAgent]
+  );
 
   const [noctisPartyView, setNoctisPartyView] = useState<ComradeId | null>(
     () => {
@@ -133,7 +164,7 @@ export default function UnifiedChatRoute() {
     () =>
       Object.fromEntries(
         COMRADES.map((c) => [c, getSessionSummariesForAgent(c)])
-      ) as Record<ComradeId, ReturnType<typeof getSessionSummariesForAgent>>,
+      ) as Record<ComradeId, SessionHistoryThreadSummary[]>,
     [getSessionSummariesForAgent]
   );
 
@@ -248,9 +279,13 @@ export default function UnifiedChatRoute() {
               modelOptions={modelOptions}
               modelRefreshTrigger={modelRefreshTrigger}
               modeSwitchTrigger={modeSwitchTrigger}
+              onRuntimeTargetChange={setRuntimeTargetForAgent}
               onSent={handleCrystalSent}
+              onSessionHistoryChange={handleRefresh}
               optimisticMessages={optimisticMessages[agent]}
               records={recordsMap[agent]}
+              runtimeTarget={runtimeTargetsMap[agent]}
+              selectedThreadId={selectedThreadIdsMap[agent]}
               sessionHistoryReady={sessionHistoryReady}
               sessionSummaries={sessionSummariesMap[agent]}
               status={effectiveStatuses[agent]}
@@ -259,6 +294,16 @@ export default function UnifiedChatRoute() {
                 onPartyViewChange: setNoctisPartyView,
                 partyRecords: comradeRecords,
                 partyInboxMessages: comradeInboxMessages,
+                partySelectedThreadIds: {
+                  ignis: selectedThreadIdsMap.ignis,
+                  gladiolus: selectedThreadIdsMap.gladiolus,
+                  prompto: selectedThreadIdsMap.prompto,
+                },
+                partyRuntimeTargets: {
+                  ignis: runtimeTargetsMap.ignis,
+                  gladiolus: runtimeTargetsMap.gladiolus,
+                  prompto: runtimeTargetsMap.prompto,
+                },
                 partySessionSummaries: comradeSessionSummaries,
                 busyMap: effectiveStatuses as any,
               })}

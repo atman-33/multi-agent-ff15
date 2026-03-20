@@ -1,4 +1,5 @@
 import type { ChatLogRecord } from "@/lib/chat-timeline";
+import type { SessionThreadRecord } from "@/lib/session-threads";
 
 export interface SessionHistorySummary {
   agent: string;
@@ -8,6 +9,11 @@ export interface SessionHistorySummary {
   preview: string;
   sessionId: string;
   startedAt: string;
+}
+
+export interface SessionHistoryThreadSelection {
+  latestSessionId: string | null;
+  threadId: string;
 }
 
 const ACTIVE_STATES = new Set(["pending", "running"]);
@@ -178,6 +184,31 @@ export function filterChatLogRecordsBySession<T extends ChatLogRecord>(
   }
 
   return records.filter((record) => record.session_id === selectedSessionId);
+}
+
+export function filterChatLogRecordsByThread<T extends ChatLogRecord>(
+  records: readonly T[],
+  thread: Pick<SessionThreadRecord, "sessionIds"> | null | undefined
+): T[] {
+  if (!thread || thread.sessionIds.length === 0) {
+    return [...records];
+  }
+
+  const sessionIdSet = new Set(thread.sessionIds);
+  return records.filter((record) => sessionIdSet.has(record.session_id));
+}
+
+export function buildThreadSelectionFromRecord(
+  thread: SessionThreadRecord | null | undefined
+): SessionHistoryThreadSelection | null {
+  if (!thread) {
+    return null;
+  }
+
+  return {
+    latestSessionId: thread.binding.latestSessionId,
+    threadId: thread.threadId,
+  };
 }
 
 export function getSessionHistoryPrimaryLabel(

@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,12 +18,22 @@ import {
   readChatDraft,
   setStoredActiveChatTarget,
 } from "@/lib/chat-drafts";
+import {
+  isRuntimeTargetFallbackEligible,
+  isRuntimeTargetReady,
+  isRuntimeTargetResumeRequired,
+  type RuntimeTargetSnapshot,
+} from "@/lib/runtime-target-client";
 import { cn } from "@/lib/utils";
 
 const MIN_ROWS = 2;
 const MAX_HEIGHT_PX = 160;
 const SLASH_TRIGGER_REGEX = /(?:^|\s)\/(\S*)$/;
 const AT_TRIGGER_REGEX = /(?:^|\s)@(\S*)$/;
+
+function normalizeComposerContent(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 type SendStatus = "idle" | "sending" | "sent" | "failed";
 
@@ -48,6 +57,8 @@ export interface MessageComposerProps {
   compact?: boolean;
   isTauri: boolean;
   onSent?: (agent: AgentId, content: string, id?: string) => void;
+  selectedThreadId?: string | null;
+  runtimeTarget?: RuntimeTargetSnapshot | null;
   targetAgent: DraftTargetAgentId;
   targetAgentImageSrc?: string;
   targetAgentLabel?: string;
@@ -55,8 +66,9 @@ export interface MessageComposerProps {
 
 function MessageComposer({
   targetAgent,
-  isTauri,
   onSent,
+  selectedThreadId,
+  runtimeTarget,
   compact = false,
   targetAgentLabel,
   targetAgentImageSrc,
@@ -65,7 +77,7 @@ function MessageComposer({
   const storageKey = getChatDraftStorageKey(targetAgent);
   const [content, setContent] = useState(() => {
     if (typeof window !== "undefined") {
-      return readChatDraft(targetAgent);
+      return normalizeComposerContent(readChatDraft(targetAgent));
     }
     return "";
   });
@@ -75,17 +87,19 @@ function MessageComposer({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setContent(readChatDraft(targetAgent));
+      setContent(normalizeComposerContent(readChatDraft(targetAgent)));
     }
   }, [targetAgent]);
+
+  const safeContent = normalizeComposerContent(content);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    localStorage.setItem(storageKey, content);
-  }, [content, storageKey]);
+    localStorage.setItem(storageKey, safeContent);
+  }, [safeContent, storageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -103,7 +117,7 @@ function MessageComposer({
     const handleDraftUpdate = (event: Event) => {
       const agent = (event as CustomEvent<{ agent?: string }>).detail?.agent;
       if (agent === targetAgent) {
-        setContent(readChatDraft(targetAgent));
+        setContent(normalizeComposerContent(readChatDraft(targetAgent)));
       }
     };
 
@@ -157,7 +171,26 @@ function MessageComposer({
     : null;
   const showFormationSelector = isNoctisTarget;
 
-  const canSend = content.trim().length > 0 && status !== "sending";
+  const directReady = isRuntimeTargetReady(runtimeTarget);
+  const fallbackReady = isRuntimeTargetFallbackEligible(runtimeTarget);
+  const resumeRequired = isRuntimeTargetResumeRequired(runtimeTarget);
+  const unsupportedFallback =
+    runtimeTarget?.transportMode === "unsupported" ||
+    runtimeTarget?.switchStatus === "unsupported";
+  const hasSelectedThread =
+    typeof selectedThreadId === "string" && selectedThreadId.trim().length > 0;
+  const fallbackLabel = unsupportedFallback ? "Unsupported fallback" : "Inbox fallback";
+  const sendBlockReason =
+    resumeRequired
+      ? "Resume this thread first to create a confirmed runtime target before sending."
+      : hasSelectedThread
+        ? "Restoring the active runtime target… If this persists, reselect the thread once."
+      : runtimeTarget?.lastError ||
+        "Select and activate a runtime target before sending from Crystal chat.";
+  const canSend =
+    safeContent.trim().length > 0 &&
+    status !== "sending" &&
+    (directReady || fallbackReady);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -176,35 +209,40 @@ function MessageComposer({
       message: string,
       formation: NoctisFormationId = DEFAULT_NOCTIS_FORMATION
     ) => {
+      const normalized = normalizeComposerContent(message).trim();
+      if (!normalized) {
+        return;
+      }
+
       setStatus("sending");
       setArrowState("flying");
       setErrorMsg(null);
-      const normalized = message.trim();
       const preamble =
         target === "noctis" ? buildNoctisFormationPreamble(formation) : "";
       const outboundMessage = preamble
         ? `${preamble}\n\n${normalized}`
         : normalized;
       try {
-        let messageId: string | undefined;
-        if (isTauri) {
-          messageId = await invoke<string>("send_crystal_message", {
-            target,
-            message: outboundMessage,
-          });
-        } else {
-          const res = await fetch(`/api/inbox/${target}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ from: "crystal", content: outboundMessage }),
-          });
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || `HTTP ${res.status}`);
-          }
-          const data = await res.json();
-          messageId = data.id;
+        const res = await fetch("/api/agent-prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agent: target,
+            content: outboundMessage,
+            fallbackToInbox: true,
+            sessionId: runtimeTarget?.selectedSessionId ?? null,
+            threadId: runtimeTarget?.selectedThreadId ?? null,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
         }
+        const data = (await res.json()) as {
+          delivery?: "direct" | "fallback";
+          messageId?: string | null;
+        };
+        const messageId = data.messageId ?? undefined;
         setStatus("sent");
         setContent("");
         clearChatDraft(targetAgent);
@@ -221,10 +259,15 @@ function MessageComposer({
         setLastFormation(formation);
       }
     },
-    [isTauri, onSent, targetAgent]
+    [onSent, runtimeTarget, targetAgent]
   );
 
-  const handleSend = () => doSend(targetAgent, content, noctisFormation);
+  const handleSend = () => {
+    if (!canSend) {
+      return;
+    }
+    doSend(targetAgent, safeContent, noctisFormation);
+  };
   const handleRetry = () => doSend(lastAgent, lastContent, lastFormation);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -446,6 +489,26 @@ function MessageComposer({
             </span>
           </div>
         )}
+        {runtimeTarget?.selectedThreadId && (
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wide",
+              directReady
+                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
+                : fallbackReady
+                  ? unsupportedFallback
+                    ? "border-sky-500/25 bg-sky-500/10 text-sky-200"
+                    : "border-amber-500/25 bg-amber-500/10 text-amber-200"
+                  : "border-border/40 bg-background/40 text-muted-foreground/70"
+            )}
+          >
+            {directReady
+              ? `Live ${runtimeTarget.selectedSessionId}`
+              : fallbackReady
+                ? fallbackLabel
+                : runtimeTarget.switchStatus.replace(/_/g, " ")}
+          </span>
+        )}
         {status === "sent" && (
           <span className="ml-auto flex items-center gap-1 text-green-400">
             <CheckCircle2 className="h-3 w-3" />
@@ -508,6 +571,12 @@ function MessageComposer({
         </div>
       )}
 
+      {canSend ? null : (
+        <div className="mb-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-100/90">
+          {sendBlockReason}
+        </div>
+      )}
+
       <div className="relative">
         <textarea
           className={cn(
@@ -521,7 +590,7 @@ function MessageComposer({
           placeholder="Message… (Ctrl+Enter to send)"
           ref={textareaRef}
           rows={MIN_ROWS}
-          value={content}
+          value={safeContent}
         />
 
         <button

@@ -1,10 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChatLogMeta, ChatLogRecord } from "@/lib/chat-timeline";
 import {
   buildSessionHistorySummaries,
-  filterChatLogRecordsBySession,
+  type SessionHistorySummary,
 } from "@/lib/session-history";
-import type { ChatLogMeta, ChatLogRecord } from "@/lib/chat-timeline";
+import {
+  normalizeRuntimeTargetSnapshot,
+  resolveRuntimeTargetSnapshot,
+  type RuntimeTargetSnapshot,
+} from "@/lib/runtime-target-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,8 +22,40 @@ interface ChatLogPage {
   total_lines: number;
 }
 
+interface SessionHistoryResponse {
+  activeRuntimeTarget?: unknown;
+  selectedThreadId?: string | null;
+  summaries?: SessionHistorySummary[];
+  threadSummaries?: SessionHistorySummary[];
+  threads?: SessionHistorySummary[];
+}
+
+interface TauriBindingStateResponse {
+  runtimeTarget?: unknown;
+  selectedThreadId?: string | null;
+  threads?: SessionHistorySummary[];
+}
+
 type AgentRecordMap = Partial<Record<AgentId, ChatLogRecord[]>>;
 type AgentCursorMap = Partial<Record<AgentId, number | null>>;
+type AgentSessionSummaryMap = Partial<
+  Record<AgentId, SessionHistoryThreadSummary[]>
+>;
+type AgentSelectedThreadMap = Partial<Record<AgentId, string | null>>;
+type AgentRuntimeTargetMap = Partial<Record<AgentId, RuntimeTargetSnapshot | null>>;
+
+export type SessionHistoryBindingState =
+  | "active"
+  | "saved"
+  | "missing"
+  | "restored";
+
+export interface SessionHistoryThreadSummary extends SessionHistorySummary {
+  bindingState: SessionHistoryBindingState;
+  latestSessionId: string | null;
+  sessionIds: string[];
+  threadId: string;
+}
 
 export type AgentId =
   | "noctis"
@@ -44,6 +81,242 @@ const CHAT_LOG_AGENTS: AgentId[] = [
   "iris",
 ];
 
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => asString(item))
+    .filter((item): item is string => item !== null);
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim().length > 0))];
+}
+
+function resolveThreadIdFromSelection(
+  summaries: readonly SessionHistoryThreadSummary[],
+  selectionId: string | null | undefined
+): string | null {
+  const normalizedSelectionId = asString(selectionId);
+  if (!normalizedSelectionId) {
+    return null;
+  }
+
+  const matchedSummary =
+    summaries.find((summary) => summary.threadId === normalizedSelectionId) ??
+    summaries.find(
+      (summary) => summary.latestSessionId === normalizedSelectionId
+    ) ??
+    summaries.find((summary) => summary.sessionId === normalizedSelectionId) ??
+    summaries.find((summary) =>
+      summary.sessionIds.includes(normalizedSelectionId)
+    ) ??
+    null;
+
+  return matchedSummary?.threadId ?? null;
+}
+
+function normalizeBindingState(
+  value: unknown
+): SessionHistoryBindingState | null {
+  switch (value) {
+    case "active":
+    case "live":
+      return "active";
+    case "saved":
+    case "idle":
+      return "saved";
+    case "missing":
+      return "missing";
+    case "restored":
+      return "restored";
+    default:
+      return null;
+  }
+}
+
+function compareSummaryRecency(
+  left: Pick<SessionHistorySummary, "lastActivityAt" | "sessionId">,
+  right: Pick<SessionHistorySummary, "lastActivityAt" | "sessionId">
+): number {
+  const diff =
+    new Date(right.lastActivityAt).getTime() -
+    new Date(left.lastActivityAt).getTime();
+  if (diff !== 0) {
+    return diff;
+  }
+
+  return left.sessionId.localeCompare(right.sessionId);
+}
+
+function bindingStatePriority(state: SessionHistoryBindingState): number {
+  switch (state) {
+    case "active":
+      return 4;
+    case "restored":
+      return 3;
+    case "missing":
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function getMostRelevantBindingState(
+  left: SessionHistoryBindingState,
+  right: SessionHistoryBindingState
+): SessionHistoryBindingState {
+  return bindingStatePriority(right) > bindingStatePriority(left)
+    ? right
+    : left;
+}
+
+function normalizeSessionHistorySummary(
+  summary: SessionHistorySummary
+): SessionHistoryThreadSummary {
+  const record = summary as SessionHistorySummary & Record<string, unknown>;
+  const latestSessionId =
+    asString(record.latestSessionId) ??
+    asString(record.latest_session_id) ??
+    summary.sessionId;
+  const sessionIds = uniqueStrings([
+    ...asStringArray(record.sessionIds),
+    ...asStringArray(record.session_ids),
+    ...asStringArray(record.sessionLineage),
+    ...asStringArray(record.session_lineage),
+    latestSessionId,
+    summary.sessionId,
+  ]);
+  const bindingState =
+    normalizeBindingState(record.bindingState) ??
+    normalizeBindingState(record.binding_status) ??
+    (record.restored === true
+      ? "restored"
+      : record.missing === true
+        ? "missing"
+        : summary.isActive
+          ? "active"
+          : "saved");
+  const threadId =
+    asString(record.threadId) ??
+    asString(record.thread_id) ??
+    latestSessionId ??
+    summary.sessionId;
+
+  return {
+    ...summary,
+    bindingState,
+    isActive: bindingState === "active" || summary.isActive,
+    latestSessionId,
+    sessionIds,
+    sessionId: latestSessionId ?? summary.sessionId,
+    threadId,
+  };
+}
+
+function mergeSessionHistorySummaries(
+  summaries: readonly SessionHistorySummary[]
+): SessionHistoryThreadSummary[] {
+  const normalized = summaries
+    .map(normalizeSessionHistorySummary)
+    .sort(compareSummaryRecency);
+  const merged = new Map<string, SessionHistoryThreadSummary>();
+
+  for (const summary of normalized) {
+    const existing = merged.get(summary.threadId);
+    if (!existing) {
+      merged.set(summary.threadId, {
+        ...summary,
+        sessionIds: [...summary.sessionIds],
+      });
+      continue;
+    }
+
+    existing.messageCount += summary.messageCount;
+    existing.sessionIds = uniqueStrings([
+      ...existing.sessionIds,
+      ...summary.sessionIds,
+    ]);
+    existing.isActive =
+      existing.isActive ||
+      summary.isActive ||
+      summary.bindingState === "active";
+    existing.bindingState = getMostRelevantBindingState(
+      existing.bindingState,
+      summary.bindingState
+    );
+
+    if (
+      new Date(summary.startedAt).getTime() <
+      new Date(existing.startedAt).getTime()
+    ) {
+      existing.startedAt = summary.startedAt;
+    }
+
+    if (compareSummaryRecency(summary, existing) < 0) {
+      existing.lastActivityAt = summary.lastActivityAt;
+      existing.latestSessionId = summary.latestSessionId;
+      existing.preview = summary.preview || existing.preview;
+      existing.sessionId = summary.sessionId;
+    } else if (!existing.preview && summary.preview) {
+      existing.preview = summary.preview;
+    }
+  }
+
+  return [...merged.values()].sort(compareSummaryRecency);
+}
+
+function areSessionSummariesEqual(
+  left: readonly SessionHistoryThreadSummary[] | undefined,
+  right: readonly SessionHistoryThreadSummary[]
+): boolean {
+  if (!left || left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((summary, index) => {
+    const candidate = right[index];
+    return (
+      summary.threadId === candidate.threadId &&
+      summary.sessionId === candidate.sessionId &&
+      summary.latestSessionId === candidate.latestSessionId &&
+      summary.bindingState === candidate.bindingState &&
+      summary.lastActivityAt === candidate.lastActivityAt &&
+      summary.startedAt === candidate.startedAt &&
+      summary.messageCount === candidate.messageCount &&
+      summary.preview === candidate.preview &&
+      summary.isActive === candidate.isActive &&
+      summary.sessionIds.join("\u0000") === candidate.sessionIds.join("\u0000")
+    );
+  });
+}
+
+export function filterChatLogRecordsBySessionIds<T extends ChatLogRecord>(
+  records: readonly T[],
+  sessionIds?: readonly string[] | null
+): T[] {
+  if (!sessionIds || sessionIds.length === 0) {
+    return [...records];
+  }
+
+  const allowedSessionIds = new Set(
+    sessionIds.filter((sessionId) => sessionId.trim().length > 0)
+  );
+  if (allowedSessionIds.size === 0) {
+    return [...records];
+  }
+
+  return records.filter((record) => allowedSessionIds.has(record.session_id));
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -62,6 +335,12 @@ export function useAgentChatLog() {
     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
   const [recordsByAgent, setRecordsByAgent] = useState<AgentRecordMap>({});
+  const [sessionSummariesByAgent, setSessionSummariesByAgent] =
+    useState<AgentSessionSummaryMap>({});
+  const [selectedThreadIdsByAgent, setSelectedThreadIdsByAgent] =
+    useState<AgentSelectedThreadMap>({});
+  const [runtimeTargetByAgent, setRuntimeTargetByAgent] =
+    useState<AgentRuntimeTargetMap>({});
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -209,15 +488,200 @@ export function useAgentChatLog() {
     [isTauri, scheduleFlush]
   );
 
+  const fetchSessionHistoryForAgent = useCallback(
+    async (
+      agent: AgentId
+    ): Promise<{
+      activeRuntimeTarget: RuntimeTargetSnapshot | null;
+      selectedThreadId: string | null;
+      summaries: SessionHistoryThreadSummary[];
+    }> => {
+      if (isTauri) {
+        const [historyResponse, bindingStateResponse] = await Promise.all([
+          invoke<SessionHistorySummary[] | SessionHistoryResponse>(
+            "read_agent_session_history",
+            {
+              agent,
+            }
+          ),
+          invoke<TauriBindingStateResponse>(
+            "read_agent_session_binding_state",
+            {
+              agent,
+            }
+          ).catch(() => null),
+        ]);
+        const response = historyResponse;
+        const tauriThreads = bindingStateResponse?.threads ?? [];
+        const summaries =
+          tauriThreads.length > 0
+            ? tauriThreads
+            : Array.isArray(response)
+              ? response
+              : Array.isArray(response?.threadSummaries)
+                ? response.threadSummaries
+                : Array.isArray(response?.threads)
+                  ? response.threads
+                  : Array.isArray(response?.summaries)
+                    ? response.summaries
+                    : [];
+        const selectedThreadId =
+          typeof bindingStateResponse?.selectedThreadId === "string"
+            ? bindingStateResponse.selectedThreadId
+            : !Array.isArray(response) &&
+                typeof response?.selectedThreadId === "string"
+              ? response.selectedThreadId
+              : null;
+        const mergedSummaries = mergeSessionHistorySummaries(summaries);
+
+        const resolvedSelectedThreadId = resolveThreadIdFromSelection(
+          mergedSummaries,
+          selectedThreadId
+        );
+        const normalizedRuntimeTarget = normalizeRuntimeTargetSnapshot(
+          bindingStateResponse?.runtimeTarget
+        );
+
+        return {
+          activeRuntimeTarget: resolveRuntimeTargetSnapshot(
+            normalizedRuntimeTarget,
+            mergedSummaries,
+            resolvedSelectedThreadId
+          ),
+          selectedThreadId: resolvedSelectedThreadId,
+          summaries: mergedSummaries,
+        };
+      }
+
+      const params = new URLSearchParams({ agent });
+      const res = await fetch(`/api/session-history?${params}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const payload = (await res.json()) as SessionHistoryResponse & {
+        error?: string;
+      };
+      if (payload.error) {
+        throw new Error(payload.error);
+      }
+
+      const summaries = payload.threadSummaries ?? payload.summaries ?? [];
+      const mergedSummaries = mergeSessionHistorySummaries(summaries);
+
+      const resolvedSelectedThreadId = resolveThreadIdFromSelection(
+        mergedSummaries,
+        typeof payload.selectedThreadId === "string"
+          ? payload.selectedThreadId
+          : null
+      );
+      const normalizedRuntimeTarget = normalizeRuntimeTargetSnapshot(
+        payload.activeRuntimeTarget
+      );
+
+      return {
+        activeRuntimeTarget: resolveRuntimeTargetSnapshot(
+          normalizedRuntimeTarget,
+          mergedSummaries,
+          resolvedSelectedThreadId
+        ),
+        selectedThreadId: resolvedSelectedThreadId,
+        summaries: mergedSummaries,
+      };
+    },
+    [isTauri]
+  );
+
+  const fetchSessionHistories = useCallback(async () => {
+    const results = await Promise.all(
+      CHAT_LOG_AGENTS.map(async (agent) => {
+        const history = await fetchSessionHistoryForAgent(agent);
+        return [agent, history] as const;
+      })
+    );
+
+    let changed = false;
+    setSessionSummariesByAgent((prev) => {
+      const next: AgentSessionSummaryMap = { ...prev };
+
+      for (const [agent, history] of results) {
+        if (areSessionSummariesEqual(prev[agent], history.summaries)) {
+          continue;
+        }
+
+        next[agent] = history.summaries;
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+
+    setSelectedThreadIdsByAgent((prev) => {
+      let next: AgentSelectedThreadMap | null = null;
+
+      for (const [agent, history] of results) {
+        const selectedThreadId = history.selectedThreadId ?? null;
+        if ((prev[agent] ?? null) === selectedThreadId) {
+          continue;
+        }
+
+        if (next === null) {
+          next = { ...prev };
+        }
+        next[agent] = selectedThreadId;
+      }
+
+      return next ?? prev;
+    });
+
+    setRuntimeTargetByAgent((prev) => {
+      let next: AgentRuntimeTargetMap | null = null;
+
+      for (const [agent, history] of results) {
+        const previous = prev[agent] ?? null;
+        const normalized = history.activeRuntimeTarget;
+        const changedForAgent =
+          (previous?.selectedThreadId ?? null) !==
+            (normalized?.selectedThreadId ?? null) ||
+          (previous?.selectedSessionId ?? null) !==
+            (normalized?.selectedSessionId ?? null) ||
+          (previous?.switchStatus ?? null) !==
+            (normalized?.switchStatus ?? null) ||
+          (previous?.transportMode ?? null) !==
+            (normalized?.transportMode ?? null) ||
+          (previous?.lastError ?? null) !== (normalized?.lastError ?? null) ||
+          (previous?.updatedAt ?? null) !== (normalized?.updatedAt ?? null);
+
+        if (!changedForAgent) {
+          continue;
+        }
+
+        if (next === null) {
+          next = { ...prev };
+        }
+        next[agent] = normalized;
+      }
+
+      return next ?? prev;
+    });
+
+    return changed;
+  }, [fetchSessionHistoryForAgent]);
+
   /** Fetch records from Tauri IPC or web API. isInitial=true means full initial load. */
   const fetchRecords = useCallback(
     async (isInitial: boolean) => {
       try {
-        const results = await Promise.all(
-          CHAT_LOG_AGENTS.map((agent) => fetchRecordsForAgent(agent, isInitial))
-        );
+        const [results, sessionHistoryChanged] = await Promise.all([
+          Promise.all(
+            CHAT_LOG_AGENTS.map((agent) =>
+              fetchRecordsForAgent(agent, isInitial)
+            )
+          ),
+          fetchSessionHistories(),
+        ]);
 
-        if (isInitial || results.some(Boolean)) {
+        if (isInitial || results.some(Boolean) || sessionHistoryChanged) {
           setError(null);
           setLastUpdated(new Date());
         }
@@ -226,34 +690,23 @@ export function useAgentChatLog() {
         const msg = String(e);
         if (msg.includes("not found") || msg.includes("No such file")) {
           setRecordsByAgent({});
+          setSessionSummariesByAgent({});
           allRecordsRef.current = {};
           return;
         }
         setError(msg);
       }
     },
-    [fetchRecordsForAgent]
+    [fetchRecordsForAgent, fetchSessionHistories]
   );
 
-  // Initial load
-  useEffect(() => {
-    fetchRecords(true);
-  }, [fetchRecords]);
-
-  // Polling
-  useEffect(() => {
-    const timer = setInterval(() => fetchRecords(false), POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [fetchRecords]);
-
-  // Cleanup buffer timer on unmount
-  useEffect(() => {
-    return () => {
-      if (bufferTimerRef.current) {
-        clearTimeout(bufferTimerRef.current);
-      }
-    };
-  }, []);
+  const getFallbackSessionSummariesForAgent = useCallback(
+    (agent: AgentId) =>
+      mergeSessionHistorySummaries(
+        buildSessionHistorySummaries(agent, recordsByAgent[agent] ?? [])
+      ),
+    [recordsByAgent]
+  );
 
   /**
    * Returns records filtered by agent name (task 3.3).
@@ -262,31 +715,84 @@ export function useAgentChatLog() {
   const getRecordsForAgent = useCallback(
     (
       agent: AgentId,
-      selectedSessionId?: string | null
+      selectedSessionIds?: readonly string[] | null
     ): ChatLogRecord[] =>
-      filterChatLogRecordsBySession(
+      filterChatLogRecordsBySessionIds(
         recordsByAgent[agent] ?? [],
-        selectedSessionId
+        selectedSessionIds
       ),
     [recordsByAgent]
   );
 
   const getSessionSummariesForAgent = useCallback(
     (agent: AgentId) =>
-      buildSessionHistorySummaries(agent, recordsByAgent[agent] ?? []),
-    [recordsByAgent]
+      sessionSummariesByAgent[agent] ??
+      getFallbackSessionSummariesForAgent(agent),
+    [getFallbackSessionSummariesForAgent, sessionSummariesByAgent]
+  );
+
+  const getSelectedThreadIdForAgent = useCallback(
+    (agent: AgentId) => selectedThreadIdsByAgent[agent] ?? null,
+    [selectedThreadIdsByAgent]
+  );
+
+  const getRuntimeTargetForAgent = useCallback(
+    (agent: AgentId) => runtimeTargetByAgent[agent] ?? null,
+    [runtimeTargetByAgent]
+  );
+
+  const setRuntimeTargetForAgent = useCallback(
+    (agent: AgentId, target: RuntimeTargetSnapshot | null) => {
+      setRuntimeTargetByAgent((prev) => {
+        const previous = prev[agent] ?? null;
+        if (
+          (previous?.selectedThreadId ?? null) ===
+            (target?.selectedThreadId ?? null) &&
+          (previous?.selectedSessionId ?? null) ===
+            (target?.selectedSessionId ?? null) &&
+          (previous?.switchStatus ?? null) ===
+            (target?.switchStatus ?? null) &&
+          (previous?.transportMode ?? null) ===
+            (target?.transportMode ?? null)
+        ) {
+          return prev;
+        }
+        return { ...prev, [agent]: target };
+      });
+    },
+    []
   );
 
   const refresh = useCallback(() => fetchRecords(false), [fetchRecords]);
+
+  useEffect(() => {
+    fetchRecords(true);
+  }, [fetchRecords]);
+
+  useEffect(() => {
+    const timer = setInterval(() => fetchRecords(false), POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [fetchRecords]);
+
+  useEffect(() => {
+    return () => {
+      if (bufferTimerRef.current) {
+        clearTimeout(bufferTimerRef.current);
+      }
+    };
+  }, []);
 
   return {
     allRecords: flattenRecordMap(recordsByAgent),
     allRecordsRef,
     getRecordsForAgent,
+    getRuntimeTargetForAgent,
+    getSelectedThreadIdForAgent,
     getSessionSummariesForAgent,
     lastUpdated,
     error,
     isTauri,
     refresh,
+    setRuntimeTargetForAgent,
   };
 }

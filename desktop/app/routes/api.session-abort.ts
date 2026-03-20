@@ -4,6 +4,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { AGENT_PANE_INDEX, type ModelSwitchAgent } from "@/constants/agents";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getClientForAgent } from "@/lib/opencode-client.server";
+import { resolveAbortTarget } from "@/lib/session-binding";
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "POST") {
@@ -12,8 +13,10 @@ export async function action({ request }: ActionFunctionArgs) {
 
   try {
     const formData = await request.formData();
-    const agent = formData.get("agent") as string;
-    let sessionID = formData.get("sessionID") as string | null;
+    const agent = String(formData.get("agent") ?? "").trim();
+    const requestedSessionID =
+      String(formData.get("sessionID") ?? "").trim() || null;
+    const threadId = String(formData.get("threadId") ?? "").trim() || null;
 
     if (!agent) {
       return Response.json({ error: "Agent is required" }, { status: 400 });
@@ -27,77 +30,66 @@ export async function action({ request }: ActionFunctionArgs) {
       );
     }
 
-    // 1. If sessionID is missing, try to find the "busy" session for this agent
-    if (!sessionID) {
-      try {
-        const { data: statuses } = await client.session.status();
+    const root = getProjectRoot();
+    const resolution = await resolveAbortTarget(
+      root,
+      agent,
+      requestedSessionID,
+      threadId
+    );
 
-        if (statuses) {
-          const activeSessionEntry = Object.entries(statuses).find(
-            ([_, status]) => (status as any).type === "busy"
-          );
-
-          if (activeSessionEntry) {
-            sessionID = activeSessionEntry[0];
-            console.log(
-              `[Abort] Found active session for ${agent}: ${sessionID}`
-            );
-          }
-        }
-
-        if (!sessionID) {
-          // 2. Last resort: Get the most recent session
-          const { data: sessions } = await client.session.list({ limit: 1 });
-          if (sessions && (sessions as any).length > 0) {
-            sessionID = (sessions as any)[0].id;
-            console.log(
-              `[Abort] No busy session found for ${agent}, using most recent: ${sessionID}`
-            );
-          }
-        }
-      } catch (e) {
-        console.error(`[Abort] Failed to list sessions for ${agent}:`, e);
-      }
-    }
-
-    if (!sessionID) {
+    if (!resolution.sessionID) {
       return Response.json(
-        { error: "No active session found to abort" },
+        {
+          error: "No bound session found to abort",
+          status: resolution.thread?.binding.status ?? "missing",
+          thread: resolution.thread,
+        },
         { status: 404 }
       );
     }
 
-    await client.session.abort({ sessionID });
-
-    // 3. Append a status record to the chat log to clear the "busy" state in the UI
-    try {
-      const root = getProjectRoot();
-      const logPath = join(root, "runtime/logs/agent-chat-monitor.jsonl");
-      const pane = AGENT_PANE_INDEX[agent as ModelSwitchAgent];
-
-      const abortRecord = {
-        agent,
-        content: "Session aborted.",
-        id: `abort-${Date.now()}`,
-        kind: "status",
-        meta: {
-          pane: pane !== undefined ? String(pane) : "0",
-          event: "abort",
-        },
-        session_id: sessionID,
-        source: "system",
-        ts: new Date().toISOString(),
-      };
-
-      fs.appendFileSync(logPath, `${JSON.stringify(abortRecord)}\n`, "utf-8");
-      console.log(`[Abort] Appended abort status record for ${agent}`);
-    } catch (logError) {
-      console.error("[Abort] Failed to append abort status record:", logError);
+    const abortResponse = await client.session.abort({
+      directory: root,
+      sessionID: resolution.sessionID,
+    });
+    if (abortResponse.error) {
+      return Response.json({ error: abortResponse.error }, { status: 500 });
     }
 
-    return Response.json({ success: true, agent, sessionID });
+    appendAbortRecord(root, agent, resolution.sessionID);
+
+    return Response.json({
+      success: true,
+      agent,
+      sessionID: resolution.sessionID,
+      thread: resolution.thread,
+    });
   } catch (e) {
     console.error("[Abort] Error:", e);
     return Response.json({ error: String(e) }, { status: 500 });
+  }
+}
+
+function appendAbortRecord(root: string, agent: string, sessionID: string) {
+  try {
+    const logPath = join(root, "runtime/logs/agent-chat-monitor.jsonl");
+    const pane = AGENT_PANE_INDEX[agent as ModelSwitchAgent];
+    const abortRecord = {
+      agent,
+      content: "Session aborted.",
+      id: `abort-${Date.now()}`,
+      kind: "status",
+      meta: {
+        pane: pane !== undefined ? String(pane) : "0",
+        event: "abort",
+      },
+      session_id: sessionID,
+      source: "system",
+      ts: new Date().toISOString(),
+    };
+    fs.appendFileSync(logPath, `${JSON.stringify(abortRecord)}\n`, "utf-8");
+  } catch (logError) {
+    console.error("[Abort] Failed to append abort status record:", logError);
   }
 }

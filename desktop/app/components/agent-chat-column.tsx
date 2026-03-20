@@ -58,7 +58,12 @@ import {
 } from "@/constants/comrade-config";
 import { useActiveProjects } from "@/hooks/use-active-projects";
 import { useAgentActivity } from "@/hooks/use-agent-activity";
-import type { AgentId } from "@/hooks/use-agent-chat-log";
+import {
+  type AgentId,
+  filterChatLogRecordsBySessionIds,
+  type SessionHistoryBindingState,
+  type SessionHistoryThreadSummary,
+} from "@/hooks/use-agent-chat-log";
 import type { InboxLogRecord } from "@/hooks/use-inbox-log";
 import { useSessionHistorySelection } from "@/hooks/use-session-history-selection";
 import type { ChatDetailItem } from "@/lib/chat-detail";
@@ -73,12 +78,18 @@ import {
   PROJECT_SCOPE_LABELS,
 } from "@/lib/project-scopes";
 import {
-  filterChatLogRecordsBySession,
   getSessionHistoryFallbackLabel,
   getSessionHistoryPrimaryLabel,
   getSessionHistoryRelativeTimeLabel,
-  type SessionHistorySummary,
 } from "@/lib/session-history";
+import { appendToChatDraft } from "@/lib/chat-drafts";
+import {
+  isRuntimeTargetFallbackEligible,
+  isRuntimeTargetReady,
+  isRuntimeTargetResumeRequired,
+  normalizeRuntimeTargetSnapshot,
+  type RuntimeTargetSnapshot,
+} from "@/lib/runtime-target-client";
 import { cn } from "@/lib/utils";
 
 interface AgentChatColumnProps {
@@ -95,12 +106,20 @@ interface AgentChatColumnProps {
   optimisticMessages?: InboxLogRecord[];
   partyInboxMessages?: Partial<Record<ComradeId, InboxLogRecord[]>>;
   partyRecords?: Partial<Record<ComradeId, ChatLogRecord[]>>;
-  partySessionSummaries?: Partial<Record<ComradeId, SessionHistorySummary[]>>;
+  partyRuntimeTargets?: Partial<Record<ComradeId, RuntimeTargetSnapshot | null>>;
+  partySelectedThreadIds?: Partial<Record<ComradeId, string | null>>;
+  partySessionSummaries?: Partial<
+    Record<ComradeId, SessionHistoryThreadSummary[]>
+  >;
   /** Party props — only used when agent === "noctis" */
   partyView?: ComradeId | null;
   records: ChatLogRecord[];
+  onRuntimeTargetChange?: (agent: AgentId, target: RuntimeTargetSnapshot | null) => void;
+  onSessionHistoryChange?: () => Promise<void> | void;
+  runtimeTarget?: RuntimeTargetSnapshot | null;
+  selectedThreadId?: string | null;
   sessionHistoryReady?: boolean;
-  sessionSummaries?: SessionHistorySummary[];
+  sessionSummaries?: SessionHistoryThreadSummary[];
   status?: string;
 }
 
@@ -112,6 +131,14 @@ interface ProjectStatusChipProps {
     { branchName?: string | null; displayName: string; path: string }
   >;
   scopeLabel: string;
+}
+
+interface TauriThreadBindingResolution {
+  latestSessionId?: string | null;
+  previousSessionId?: string | null;
+  runtimeStatus?: string | null;
+  runtimeTarget?: RuntimeTargetSnapshot | null;
+  state?: "active" | "saved" | "missing" | "restored";
 }
 
 const AGENT_CONFIG = {
@@ -1154,56 +1181,138 @@ function formatSessionTimestamp(timestamp: string): string {
   }).format(date);
 }
 
+function getBindingStateLabel(state: SessionHistoryBindingState): string {
+  switch (state) {
+    case "active":
+      return "Active";
+    case "missing":
+      return "Missing";
+    case "restored":
+      return "New session";
+    default:
+      return "Saved";
+  }
+}
+
+function getBindingStateBadgeClass(state: SessionHistoryBindingState): string {
+  switch (state) {
+    case "active":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    case "missing":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-200/90";
+    case "restored":
+      return "border-blue-500/30 bg-blue-500/10 text-blue-200/90";
+    default:
+      return "border-border/40 bg-white/5 text-muted-foreground/80";
+  }
+}
+
+function getTriggerStatusLabel(
+  summary: SessionHistoryThreadSummary | null,
+  showDetachedBanner: boolean,
+  sessionHistoryReady: boolean,
+  hasSavedThreads: boolean
+): string {
+  if (!sessionHistoryReady) {
+    return "Loading";
+  }
+
+  if (!hasSavedThreads) {
+    return "No saved threads";
+  }
+
+  if (!summary) {
+    return "Saved";
+  }
+
+  if (showDetachedBanner && summary.bindingState === "saved") {
+    return "Viewing history";
+  }
+
+  switch (summary.bindingState) {
+    case "active":
+      return "Live now";
+    case "missing":
+      return "Missing";
+    case "restored":
+      return "New session";
+    default:
+      return "Saved";
+  }
+}
+
+function buildResumePrompt(summary: SessionHistoryThreadSummary): string {
+  return [
+    `A new runtime session was started for "${getSessionHistoryPrimaryLabel(summary)}" because the original session is no longer available.`,
+    "Before you continue, read the most recent messages in this thread.",
+    "If you still need context, inspect the earlier thread history as well.",
+    "Resume from the latest confirmed state only, and ask for clarification if anything remains ambiguous.",
+  ].join(" ");
+}
+
 function SessionHistoryTriggerBar({
   activeAgentName,
+  activeRuntimeTarget,
   onOpen,
-  selectedSummary,
+  pendingLabel,
+  selectedThread,
   sessionSummaries,
   sessionHistoryReady,
   staleSelectionDetected,
   showDetachedBanner,
 }: {
   activeAgentName: AgentId;
+  activeRuntimeTarget: RuntimeTargetSnapshot | null;
   onOpen: () => void;
-  selectedSummary: SessionHistorySummary | null;
-  sessionSummaries: readonly SessionHistorySummary[];
+  pendingLabel: string | null;
+  selectedThread: SessionHistoryThreadSummary | null;
+  sessionSummaries: readonly SessionHistoryThreadSummary[];
   sessionHistoryReady: boolean;
   staleSelectionDetected: boolean;
   showDetachedBanner: boolean;
 }) {
-  const hasSavedSessions = sessionSummaries.length > 0;
-  const statusLabel = sessionHistoryReady
-    ? hasSavedSessions
-      ? selectedSummary?.isActive
-        ? "Live now"
-        : showDetachedBanner
-          ? "Viewing history"
-          : "Saved"
-      : "No saved sessions"
-    : "Loading";
-  const statusClass = sessionHistoryReady
-    ? hasSavedSessions
-      ? selectedSummary?.isActive
-        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-        : showDetachedBanner
-          ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
-          : "border-border/40 bg-white/5 text-muted-foreground/80"
-      : "border-border/40 bg-white/5 text-muted-foreground/80"
+  const hasSavedThreads = sessionSummaries.length > 0;
+  const statusLabel = getTriggerStatusLabel(
+    selectedThread,
+    showDetachedBanner,
+    sessionHistoryReady,
+    hasSavedThreads
+  );
+  const statusClass = selectedThread
+    ? showDetachedBanner && selectedThread.bindingState === "saved"
+      ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+      : getBindingStateBadgeClass(selectedThread.bindingState)
     : "border-border/40 bg-white/5 text-muted-foreground/80";
   const headline = sessionHistoryReady
-    ? hasSavedSessions
-      ? selectedSummary
-        ? getSessionHistoryPrimaryLabel(selectedSummary)
-        : `Latest session for ${activeAgentName}`
-      : `No saved sessions for ${activeAgentName}`
+    ? hasSavedThreads
+      ? selectedThread
+        ? getSessionHistoryPrimaryLabel(selectedThread)
+        : `Latest thread for ${activeAgentName}`
+      : `No saved threads for ${activeAgentName}`
     : `Loading history for ${activeAgentName}`;
   const detail = sessionHistoryReady
-    ? hasSavedSessions
-      ? selectedSummary
-        ? `${getSessionHistoryRelativeTimeLabel(selectedSummary.lastActivityAt)} · ${selectedSummary.messageCount} records`
-        : "Read-only history is available."
-      : "Existing send and session controls remain unchanged."
-    : "Read-only history is still loading.";
+    ? hasSavedThreads
+      ? selectedThread
+        ? `${getSessionHistoryRelativeTimeLabel(selectedThread.lastActivityAt)} · ${selectedThread.messageCount} records · ${selectedThread.sessionIds.length} session${selectedThread.sessionIds.length === 1 ? "" : "s"}`
+        : "Choose a thread to switch this chat."
+      : "Create a session to begin tracking thread history."
+    : "Loading session history…";
+  const runtimeTargetReady = isRuntimeTargetReady(activeRuntimeTarget);
+  const runtimeTargetFallback = isRuntimeTargetFallbackEligible(activeRuntimeTarget);
+  const runtimeTargetUnsupported =
+    activeRuntimeTarget?.transportMode === "unsupported" ||
+    activeRuntimeTarget?.switchStatus === "unsupported";
+  const runtimeTargetLabel = activeRuntimeTarget?.selectedSessionId
+    ? runtimeTargetReady
+      ? `Live session ${activeRuntimeTarget.selectedSessionId}`
+      : runtimeTargetFallback
+        ? runtimeTargetUnsupported
+          ? `Unsupported fallback (${activeRuntimeTarget.selectedSessionId})`
+          : `Fallback via inbox (${activeRuntimeTarget.selectedSessionId})`
+        : `Target ${activeRuntimeTarget.selectedSessionId}`
+    : isRuntimeTargetResumeRequired(activeRuntimeTarget)
+      ? "Resume required before send"
+    : "No confirmed runtime target";
 
   return (
     <button
@@ -1235,13 +1344,16 @@ function SessionHistoryTriggerBar({
             {headline}
           </div>
           <div className="truncate text-[10px] text-muted-foreground/70">
-            {detail}
+            {pendingLabel ?? detail}
+          </div>
+          <div className="truncate text-[10px] text-muted-foreground/55">
+            {runtimeTargetLabel}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <span className="text-[10px] text-muted-foreground/55">
-            {sessionSummaries.length} sessions
+            {sessionSummaries.length} threads
           </span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70" />
         </div>
@@ -1251,34 +1363,44 @@ function SessionHistoryTriggerBar({
 }
 
 function SessionHistorySheet({
+  activeRuntimeTarget,
   activeAgentName,
   onOpenChange,
-  onSelectSession,
+  onResumeMissingThread,
+  onSelectThread,
   open,
-  selectedSessionId,
-  selectedSummary,
+  pendingThreadId,
+  resumePending,
+  selectedThread,
   sessionSummaries,
   sessionHistoryReady,
   staleSelectionDetected,
   showDetachedBanner,
 }: {
+  activeRuntimeTarget: RuntimeTargetSnapshot | null;
   activeAgentName: AgentId;
   onOpenChange: (open: boolean) => void;
-  onSelectSession: (sessionId: string | null) => void;
+  onResumeMissingThread: (thread: SessionHistoryThreadSummary) => Promise<void>;
+  onSelectThread: (threadId: string | null) => Promise<void> | void;
   open: boolean;
-  selectedSessionId: string | null;
-  selectedSummary: SessionHistorySummary | null;
-  sessionSummaries: readonly SessionHistorySummary[];
+  pendingThreadId: string | null;
+  resumePending: boolean;
+  selectedThread: SessionHistoryThreadSummary | null;
+  sessionSummaries: readonly SessionHistoryThreadSummary[];
   sessionHistoryReady: boolean;
   staleSelectionDetected: boolean;
   showDetachedBanner: boolean;
 }) {
-  const handleSelectSession = useCallback(
-    (sessionId: string) => {
-      onSelectSession(sessionId);
+  const handleSelectThread = useCallback(
+    (summary: SessionHistoryThreadSummary) => {
+      if (summary.bindingState === "missing") {
+        return;
+      }
+
+      onSelectThread(summary.threadId);
       onOpenChange(false);
     },
-    [onOpenChange, onSelectSession]
+    [onOpenChange, onSelectThread]
   );
 
   return (
@@ -1290,8 +1412,9 @@ function SessionHistorySheet({
         <SheetHeader className="border-white/10 border-b px-5 py-4 pr-12">
           <SheetTitle className="text-sm">Session History</SheetTitle>
           <SheetDescription className="text-xs">
-            Read-only view for {activeAgentName}. Timeline filtering stays bound
-            to the selected session.
+            Selecting an active or saved thread immediately switches this chat
+            to it. Missing threads require explicit confirmation before a new
+            runtime session starts.
           </SheetDescription>
         </SheetHeader>
 
@@ -1300,57 +1423,85 @@ function SessionHistorySheet({
             {sessionHistoryReady ? (
               sessionSummaries.length > 0 ? (
                 <>
-                  {selectedSummary ? (
+                  {selectedThread ? (
                     <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-3">
                       <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/80">
                         <span
                           className={cn(
                             "rounded-full border px-2 py-0.5",
-                            selectedSummary.isActive
-                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                              : "border-border/40 bg-white/5 text-muted-foreground/80"
+                            getBindingStateBadgeClass(
+                              selectedThread.bindingState
+                            )
                           )}
                         >
-                          {selectedSummary.isActive ? "Active" : "Saved"}
+                          {getBindingStateLabel(selectedThread.bindingState)}
                         </span>
-                        <span>{selectedSummary.messageCount} records</span>
+                        <span>{selectedThread.messageCount} records</span>
+                        <span>{selectedThread.sessionIds.length} sessions</span>
                         <span>
                           Started{" "}
-                          {formatSessionTimestamp(selectedSummary.startedAt)}
+                          {formatSessionTimestamp(selectedThread.startedAt)}
                         </span>
                       </div>
                       <div className="mt-2 truncate text-foreground/90 text-xs">
-                        {getSessionHistoryPrimaryLabel(selectedSummary)}
+                        {getSessionHistoryPrimaryLabel(selectedThread)}
                       </div>
                       <div className="mt-1 truncate text-[11px] text-muted-foreground/75">
                         {getSessionHistoryFallbackLabel(
-                          selectedSummary.lastActivityAt
+                          selectedThread.lastActivityAt
                         )}
                       </div>
                       <div className="mt-2 truncate font-mono text-[10px] text-muted-foreground/50">
-                        {selectedSummary.sessionId}
+                        Thread {selectedThread.threadId}
+                      </div>
+                      <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/45">
+                        Latest session{" "}
+                        {selectedThread.latestSessionId ?? "Unavailable"}
                       </div>
                     </div>
                   ) : null}
 
                   {staleSelectionDetected ? (
                     <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200/90">
-                      Previously selected session was unavailable, so the newest
-                      saved session was restored.
+                      Previously selected thread was unavailable, so the newest
+                      saved thread was restored.
+                    </div>
+                  ) : null}
+
+                  {selectedThread?.bindingState === "missing" ? (
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200/90">
+                      The original runtime session for this thread is gone. Use
+                      Resume below only if you want to start a new runtime
+                      session with instructions to review recent history first.
+                    </div>
+                  ) : null}
+
+                  {selectedThread?.bindingState === "restored" ? (
+                    <div className="rounded-md border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200/90">
+                      This thread is already running on a newer runtime session.
                     </div>
                   ) : null}
 
                   {showDetachedBanner ? (
                     <div className="rounded-md border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200/90">
-                      Another live session is active for {activeAgentName}. This
-                      sheet remains pinned to the selected saved session.
+                      Another live session is active for {activeAgentName}. Pick
+                      a saved thread here to switch immediately.
+                    </div>
+                  ) : null}
+
+                  {activeRuntimeTarget?.selectedSessionId ? (
+                    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-100/90">
+                      Crystal sends to session {activeRuntimeTarget.selectedSessionId}
+                      {activeRuntimeTarget.selectedThreadId
+                        ? ` on thread ${activeRuntimeTarget.selectedThreadId}.`
+                        : "."}
                     </div>
                   ) : null}
                 </>
               ) : (
                 <div className="rounded-md border border-border/40 border-dashed bg-background/30 px-3 py-3 text-[11px] text-muted-foreground/75">
-                  No saved sessions yet for {activeAgentName}. Existing send and
-                  session controls remain unchanged.
+                  No saved threads yet for {activeAgentName}. Start a session to
+                  create reusable thread history.
                 </div>
               )
             ) : (
@@ -1363,7 +1514,7 @@ function SessionHistorySheet({
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="font-medium text-[11px] text-foreground/90 uppercase tracking-wider">
-                Saved sessions
+                Saved threads
               </div>
               <div className="text-[10px] text-muted-foreground/55">
                 {sessionSummaries.length} total
@@ -1373,37 +1524,68 @@ function SessionHistorySheet({
             {sessionHistoryReady && sessionSummaries.length > 0 ? (
               <div className="space-y-2">
                 {sessionSummaries.map((summary) => {
-                  const isSelected = summary.sessionId === selectedSessionId;
+                  const isSelected =
+                    summary.threadId === selectedThread?.threadId;
 
                   return (
-                    <button
-                      aria-pressed={isSelected}
+                    <div
                       className={cn(
                         "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
                         isSelected
                           ? "border-primary/40 bg-primary/10"
-                          : "border-white/10 bg-black/10 hover:bg-white/5"
+                          : "border-white/10 bg-black/10"
                       )}
-                      key={summary.sessionId}
-                      onClick={() => handleSelectSession(summary.sessionId)}
-                      type="button"
+                      key={summary.threadId}
                     >
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="truncate font-medium text-foreground/90 text-xs">
-                            {getSessionHistoryPrimaryLabel(summary)}
-                          </span>
-                          {summary.isActive ? (
-                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
-                              Active
+                        {summary.bindingState === "missing" ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="truncate font-medium text-foreground/90 text-xs">
+                              {getSessionHistoryPrimaryLabel(summary)}
                             </span>
-                          ) : null}
-                          {isSelected ? (
-                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-                              Selected
+                            <span
+                              className={cn(
+                                "rounded-full border px-2 py-0.5 text-[10px]",
+                                getBindingStateBadgeClass(summary.bindingState)
+                              )}
+                            >
+                              {getBindingStateLabel(summary.bindingState)}
                             </span>
-                          ) : null}
-                        </div>
+                            {isSelected ? (
+                              <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                                Selected
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <button
+                            aria-pressed={isSelected}
+                            className="w-full text-left"
+                            onClick={() => {
+                              handleSelectThread(summary);
+                            }}
+                            type="button"
+                          >
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="truncate font-medium text-foreground/90 text-xs">
+                                {getSessionHistoryPrimaryLabel(summary)}
+                              </span>
+                              <span
+                                className={cn(
+                                  "rounded-full border px-2 py-0.5 text-[10px]",
+                                  getBindingStateBadgeClass(summary.bindingState)
+                                )}
+                              >
+                                {getBindingStateLabel(summary.bindingState)}
+                              </span>
+                              {isSelected ? (
+                                <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                                  Selected
+                                </span>
+                              ) : null}
+                            </div>
+                          </button>
+                        )}
                         <div className="mt-1 truncate text-[11px] text-muted-foreground/75">
                           {getSessionHistoryFallbackLabel(
                             summary.lastActivityAt
@@ -1416,12 +1598,42 @@ function SessionHistorySheet({
                             )}
                           </span>
                           <span>{summary.messageCount} records</span>
+                          <span>{summary.sessionIds.length} sessions</span>
                           <span>
                             Started {formatSessionTimestamp(summary.startedAt)}
                           </span>
                         </div>
+                        {summary.bindingState === "missing" ? (
+                          <div className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-[10px] text-amber-100/90">
+                            <div>
+                              The original runtime session is no longer
+                              reachable.
+                            </div>
+                            <div className="mt-1 text-amber-100/75">
+                              Resume starts a new session with instructions to
+                              read the latest thread history first.
+                            </div>
+                            <div className="mt-2 flex flex-wrap justify-end gap-2">
+                              <button
+                                className="rounded border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 font-medium text-[10px] text-amber-100 transition-colors hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={resumePending}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  onResumeMissingThread(summary).catch(() => undefined);
+                                }}
+                                type="button"
+                              >
+                                {resumePending &&
+                                pendingThreadId === summary.threadId
+                                  ? "Starting…"
+                                  : "Resume in new session"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1430,11 +1642,12 @@ function SessionHistorySheet({
 
           <div className="border-white/10 border-t bg-black/20 px-4 py-3">
             <div className="font-medium text-[11px] text-foreground/90 uppercase tracking-wider">
-              Future actions
+              Session notes
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground/70 leading-relaxed">
-              Resume, Fork, and New will appear here in a later phase. This
-              sheet stays read-only for now.
+              Saved and active threads switch immediately when they are
+              reachable. Missing threads require explicit confirmation before a
+              new runtime session starts.
             </div>
           </div>
         </div>
@@ -1454,6 +1667,8 @@ function AgentChatColumn({
   onPartyViewChange,
   partyRecords,
   partyInboxMessages,
+  partyRuntimeTargets,
+  partySelectedThreadIds,
   partySessionSummaries,
   busyMap,
   modelOptions = [],
@@ -1461,6 +1676,10 @@ function AgentChatColumn({
   modeSwitchTrigger,
   isTauri = false,
   optimisticMessages = [],
+  onRuntimeTargetChange,
+  onSessionHistoryChange,
+  runtimeTarget,
+  selectedThreadId: selectedThreadIdProp,
   contextPercent,
   sessionHistoryReady = false,
   sessionSummaries = [],
@@ -1486,6 +1705,13 @@ function AgentChatColumn({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [isHydratingTimeline, setIsHydratingTimeline] = useState(true);
+  const [historyActionLabel, setHistoryActionLabel] = useState<string | null>(
+    null
+  );
+  const [historyPendingThreadId, setHistoryPendingThreadId] = useState<
+    string | null
+  >(null);
+  const [resumePending, setResumePending] = useState(false);
   const [measuredRowHeights, setMeasuredRowHeights] = useState<
     Map<string, number>
   >(() => new Map());
@@ -1504,6 +1730,10 @@ function AgentChatColumn({
     viewingComrade && partyView
       ? (partySessionSummaries?.[partyView] ?? [])
       : sessionSummaries;
+  const activeRuntimeTarget =
+    viewingComrade && partyView
+      ? (partyRuntimeTargets?.[partyView] ?? null)
+      : (runtimeTarget ?? null);
   const activeLabel =
     viewingComrade && partyView ? COMRADE_CONFIG[partyView].label : label;
   const activeIsProcessing = viewingComrade
@@ -1520,44 +1750,49 @@ function AgentChatColumn({
 
   // Determine which agent to monitor for live activity
   const activeAgentName = viewingComrade && partyView ? partyView : agent;
-  const { selectedSessionId, setSelectedSessionId } =
-    useSessionHistorySelection(activeAgentName, activeSessionSummaries);
-  const staleSelectionDetected = useMemo(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    const persistedSelection = localStorage.getItem(
-      `chat_selected_session:${activeAgentName}`
-    );
-    return !!persistedSelection && persistedSelection !== selectedSessionId;
-  }, [activeAgentName, selectedSessionId]);
-  const selectedSessionSummary = useMemo(
-    () =>
-      activeSessionSummaries.find(
-        (summary) => summary.sessionId === selectedSessionId
-      ) ?? null,
-    [activeSessionSummaries, selectedSessionId]
+  const backendSelectedThreadId =
+    viewingComrade && partyView
+      ? (partySelectedThreadIds?.[partyView] ?? null)
+      : (selectedThreadIdProp ?? null);
+  const {
+    browsedSessionIds,
+    browsedThread,
+    selectedThread,
+    selectedThreadId,
+    setSelectedThreadId,
+    staleSelectionDetected,
+  } = useSessionHistorySelection(
+    activeAgentName,
+    activeSessionSummaries,
+    backendSelectedThreadId
   );
   const hasActiveSessionSummary = useMemo(
-    () => activeSessionSummaries.some((summary) => summary.isActive),
+    () =>
+      activeSessionSummaries.some(
+        (summary) => summary.bindingState === "active"
+      ),
     [activeSessionSummaries]
   );
   const showDetachedHistoryNotice =
-    !!selectedSessionSummary &&
+    !!browsedThread &&
     activeIsProcessing &&
     hasActiveSessionSummary &&
-    !selectedSessionSummary.isActive;
+    browsedThread.threadId !== activeRuntimeTarget?.selectedThreadId;
   const liveEvents = useAgentActivity(
     activeAgentName,
     activeIsProcessing,
-    selectedSessionId
+    activeRuntimeTarget?.transportMode === "direct_session" &&
+      activeRuntimeTarget.switchStatus === "ready" &&
+      activeRuntimeTarget.selectedSessionId
+      ? [activeRuntimeTarget.selectedSessionId]
+      : null
   );
   const showPendingIndicator = activeIsProcessing;
   const activeProjectScope = getProjectScopeForAgent(activeAgentName);
-  const scrollResetKey = `${activeAgentName}:${selectedSessionId ?? "__all__"}`;
+  const scrollResetKey = `${activeAgentName}:${selectedThreadId ?? "__all__"}`;
   const filteredRecords = useMemo(
-    () => filterChatLogRecordsBySession(activeRecords, selectedSessionId),
-    [activeRecords, selectedSessionId]
+    () => filterChatLogRecordsBySessionIds(activeRecords, browsedSessionIds),
+    [activeRecords, browsedSessionIds]
   );
 
   useEffect(() => {
@@ -1572,10 +1807,13 @@ function AgentChatColumn({
     hydrationAttemptsRef.current = 0;
     isAtBottomRef.current = true;
     setDetailItem(null);
+    setHistoryActionLabel(null);
     setIsAtBottom(true);
     setIsHydratingTimeline(true);
     setIsCurrentPlanExpanded(false);
+    setHistoryPendingThreadId(null);
     setMeasuredRowHeights(new Map());
+    setResumePending(false);
     setScrollTop(0);
     setUnreadCount(0);
 
@@ -1891,8 +2129,217 @@ function AgentChatColumn({
     [onSent]
   );
 
+  const activateThreadSelection = useCallback(
+    async (summary: SessionHistoryThreadSummary) => {
+      if (summary.bindingState === "missing") {
+        return;
+      }
+
+      setHistoryPendingThreadId(summary.threadId);
+      setHistoryActionLabel(`Switching to ${getSessionHistoryPrimaryLabel(summary)}…`);
+
+      try {
+        let resolvedRuntimeTarget: RuntimeTargetSnapshot | null = null;
+
+        if (isTauri) {
+          const resolution = await invoke<TauriThreadBindingResolution>(
+            "resolve_agent_thread_binding",
+            {
+              agent: activeAgentName,
+              threadId: summary.threadId,
+            }
+          );
+          if (
+            resolution?.state === "missing" ||
+            resolution?.runtimeStatus === "failed"
+          ) {
+            throw new Error("activation_mismatch");
+          }
+          resolvedRuntimeTarget = normalizeRuntimeTargetSnapshot(resolution?.runtimeTarget);
+        } else {
+          const res = await fetch("/api/session-binding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "activate",
+              agent: activeAgentName,
+              threadId: summary.threadId,
+            }),
+          });
+          const data = (await res.json().catch(() => ({}))) as {
+            activeRuntimeTarget?: {
+              selectedSessionId?: string | null;
+              selectedThreadId?: string | null;
+              switchStatus?: string | null;
+              transportMode?: string | null;
+            };
+            error?: string;
+            status?: string;
+          };
+          if (!res.ok) {
+            if (res.status === 409 || data.status === "missing") {
+              throw new Error("missing");
+            }
+            throw new Error(data.error ?? `HTTP ${res.status}`);
+          }
+          const activatedTarget = data.activeRuntimeTarget;
+          if (
+            (activatedTarget?.selectedThreadId &&
+              activatedTarget.selectedThreadId !== summary.threadId) ||
+            activatedTarget?.switchStatus === "failed" ||
+            activatedTarget?.switchStatus === "resume_required"
+          ) {
+            throw new Error("activation_mismatch");
+          }
+          resolvedRuntimeTarget = normalizeRuntimeTargetSnapshot(activatedTarget);
+        }
+
+        // Immediately sync runtime target state so MessageComposer has the
+        // correct sessionId before the next poll cycle.
+        if (resolvedRuntimeTarget) {
+          onRuntimeTargetChange?.(activeAgentName, resolvedRuntimeTarget);
+        }
+
+        setSelectedThreadId(summary.threadId);
+        await onSessionHistoryChange?.();
+        setHistoryActionLabel(
+          `Active runtime target: ${getSessionHistoryPrimaryLabel(summary)}`
+        );
+        toast.success(`Switched ${activeAgentName} to the selected thread`);
+      } catch (error) {
+        if (String(error) === "Error: missing" || String(error) === "missing") {
+          setHistoryActionLabel(
+            `${getSessionHistoryPrimaryLabel(summary)} needs an explicit resume in a new session.`
+          );
+          toast.message("Original session is unavailable", {
+            description:
+              "Use Resume in new session to start a fresh runtime session with history review instructions.",
+          });
+        } else if (
+          String(error) === "Error: activation_mismatch" ||
+          String(error) === "activation_mismatch"
+        ) {
+          setHistoryActionLabel(
+            `${getSessionHistoryPrimaryLabel(summary)} was not confirmed as the active runtime target.`
+          );
+          toast.error("Session switch was not confirmed", {
+            description:
+              "The runtime target did not report the selected thread as active, so the UI kept browsing and sending separate.",
+          });
+        } else {
+          setHistoryActionLabel(`Could not switch to ${getSessionHistoryPrimaryLabel(summary)}.`);
+          toast.error(`Thread switch failed: ${String(error)}`);
+        }
+      } finally {
+        setHistoryPendingThreadId((current) =>
+          current === summary.threadId ? null : current
+        );
+      }
+    },
+    [activeAgentName, isTauri, onRuntimeTargetChange, onSessionHistoryChange, setSelectedThreadId]
+  );
+
+  const handleSelectThread = useCallback(
+    async (threadId: string | null) => {
+      if (!threadId) {
+        setSelectedThreadId(null);
+        setHistoryActionLabel(null);
+        return;
+      }
+
+      const summary = activeSessionSummaries.find(
+        (item) => item.threadId === threadId
+      );
+      if (!summary) {
+        setHistoryActionLabel("Selected thread is no longer available.");
+        return;
+      }
+
+      await activateThreadSelection(summary);
+    },
+    [activateThreadSelection, activeSessionSummaries, setSelectedThreadId]
+  );
+
+  const handleResumeMissingThread = useCallback(
+    async (summary: SessionHistoryThreadSummary) => {
+      setResumePending(true);
+      setHistoryPendingThreadId(summary.threadId);
+      setHistoryActionLabel(`Starting a new runtime session for ${getSessionHistoryPrimaryLabel(summary)}…`);
+
+      try {
+        let resolvedRuntimeTarget: RuntimeTargetSnapshot | null = null;
+
+        if (isTauri) {
+          const resolution = await invoke<TauriThreadBindingResolution>(
+            "resume_agent_thread_binding",
+            {
+              agent: activeAgentName,
+              threadId: summary.threadId,
+            }
+          );
+          resolvedRuntimeTarget = normalizeRuntimeTargetSnapshot(resolution?.runtimeTarget);
+        } else {
+          const res = await fetch("/api/session-create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              agent: activeAgentName,
+              mode: "resume",
+              threadId: summary.threadId,
+            }),
+          });
+          const data = (await res.json().catch(() => ({}))) as {
+            activeRuntimeTarget?: unknown;
+            error?: string;
+          };
+          if (!res.ok) {
+            throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+          }
+          resolvedRuntimeTarget = normalizeRuntimeTargetSnapshot(data.activeRuntimeTarget);
+        }
+
+        if (resolvedRuntimeTarget) {
+          onRuntimeTargetChange?.(activeAgentName, resolvedRuntimeTarget);
+        }
+
+        setSelectedThreadId(summary.threadId);
+        appendToChatDraft(activeAgentName, buildResumePrompt(summary));
+        await onSessionHistoryChange?.();
+        setHistoryActionLabel(
+          `Runtime target now points to a new session for ${getSessionHistoryPrimaryLabel(summary)}.`
+        );
+        toast.success("New runtime session started", {
+          description:
+            "A resume prompt was added so the agent reviews recent history before continuing.",
+        });
+        setIsSessionHistorySheetOpen(false);
+      } catch (error) {
+        setHistoryActionLabel(`Could not start a new runtime session for ${getSessionHistoryPrimaryLabel(summary)}.`);
+        toast.error(`Resume failed: ${String(error)}`);
+      } finally {
+        setHistoryPendingThreadId((current) =>
+          current === summary.threadId ? null : current
+        );
+        setResumePending(false);
+      }
+    },
+    [activeAgentName, isTauri, onRuntimeTargetChange, onSessionHistoryChange, setSelectedThreadId]
+  );
+
   const totalCount = timeline.length + (showPendingIndicator ? 1 : 0);
-  const hasSessionSelection = selectedSessionId !== null;
+  const hasSessionSelection = selectedThreadId !== null;
+  const activeTargetReady = isRuntimeTargetReady(activeRuntimeTarget);
+  const activeTargetFallback = isRuntimeTargetFallbackEligible(activeRuntimeTarget);
+  const activeTargetResumeRequired = isRuntimeTargetResumeRequired(activeRuntimeTarget);
+  const activeTargetUnsupported =
+    activeRuntimeTarget?.transportMode === "unsupported" ||
+    activeRuntimeTarget?.switchStatus === "unsupported";
+  const activeTargetMismatch =
+    Boolean(
+      activeRuntimeTarget?.selectedThreadId &&
+        browsedThread?.threadId &&
+        activeRuntimeTarget.selectedThreadId !== browsedThread.threadId
+    );
   const showEmptyTimeline =
     timeline.length === 0 &&
     !activeIsProcessing &&
@@ -2060,10 +2507,69 @@ function AgentChatColumn({
         targetAgent={switchTargetAgent}
       />
 
+      <div className="border-white/5 border-b bg-black/10 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 text-[10px]">
+          <span className="font-medium text-muted-foreground/60 uppercase tracking-wide">
+            Runtime target
+          </span>
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5",
+              activeTargetReady
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                : activeTargetFallback
+                  ? activeTargetUnsupported
+                    ? "border-sky-500/30 bg-sky-500/10 text-sky-200/90"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-200/90"
+                  : activeTargetResumeRequired
+                    ? "border-blue-500/30 bg-blue-500/10 text-blue-200/90"
+                    : "border-border/40 bg-white/5 text-muted-foreground/80"
+            )}
+          >
+            {activeTargetReady
+              ? "Ready"
+              : activeTargetFallback
+                ? activeTargetUnsupported
+                  ? "Unsupported fallback"
+                  : "Inbox fallback"
+                : activeTargetResumeRequired
+                  ? "Resume required"
+                  : activeRuntimeTarget?.switchStatus
+                    ? activeRuntimeTarget.switchStatus.replace(/_/g, " ")
+                    : "Unset"}
+          </span>
+          <span className="truncate text-muted-foreground/75">
+            {activeRuntimeTarget?.selectedThreadId
+              ? `Thread ${activeRuntimeTarget.selectedThreadId}`
+              : "No confirmed runtime target"}
+          </span>
+          {activeRuntimeTarget?.selectedSessionId ? (
+            <span className="truncate font-mono text-muted-foreground/55">
+              Session {activeRuntimeTarget.selectedSessionId}
+            </span>
+          ) : null}
+        </div>
+        {activeTargetMismatch ? (
+          <div className="mt-1 text-[10px] text-blue-200/85">
+            Viewing saved history for{" "}
+            {browsedThread
+              ? getSessionHistoryPrimaryLabel(browsedThread)
+              : "the selected thread"}
+            while Crystal sends to the confirmed runtime target above.
+          </div>
+        ) : activeRuntimeTarget?.lastError ? (
+          <div className="mt-1 text-[10px] text-amber-200/85">
+            {activeRuntimeTarget.lastError}
+          </div>
+        ) : null}
+      </div>
+
       <SessionHistoryTriggerBar
         activeAgentName={activeAgentName}
+        activeRuntimeTarget={activeRuntimeTarget}
         onOpen={() => setIsSessionHistorySheetOpen(true)}
-        selectedSummary={selectedSessionSummary}
+        pendingLabel={historyActionLabel}
+        selectedThread={selectedThread}
         sessionHistoryReady={sessionHistoryReady}
         sessionSummaries={activeSessionSummaries}
         showDetachedBanner={showDetachedHistoryNotice}
@@ -2071,12 +2577,15 @@ function AgentChatColumn({
       />
 
       <SessionHistorySheet
+        activeRuntimeTarget={activeRuntimeTarget}
         activeAgentName={activeAgentName}
         onOpenChange={setIsSessionHistorySheetOpen}
-        onSelectSession={setSelectedSessionId}
+        onResumeMissingThread={handleResumeMissingThread}
+        onSelectThread={handleSelectThread}
         open={isSessionHistorySheetOpen}
-        selectedSessionId={selectedSessionId}
-        selectedSummary={selectedSessionSummary}
+        pendingThreadId={historyPendingThreadId}
+        resumePending={resumePending}
+        selectedThread={selectedThread}
         sessionHistoryReady={sessionHistoryReady}
         sessionSummaries={activeSessionSummaries}
         showDetachedBanner={showDetachedHistoryNotice}
@@ -2109,11 +2618,11 @@ function AgentChatColumn({
           ) : showSelectedSessionEmptyState ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
               <div className="text-muted-foreground/70 text-sm">
-                No records found for the selected session.
+                No records found for the selected thread.
               </div>
               <div className="max-w-xs text-[11px] text-muted-foreground/55 leading-relaxed">
-                Open History to switch to another saved session. Message sending
-                and session controls are unchanged in this phase.
+                Open History to browse another saved thread or activate a
+                confirmed runtime target before sending.
               </div>
             </div>
           ) : (
@@ -2356,6 +2865,8 @@ function AgentChatColumn({
         compact
         isTauri={isTauri}
         onSent={handleComposerSent}
+        selectedThreadId={selectedThreadId}
+        runtimeTarget={activeRuntimeTarget}
         targetAgent={viewingComrade && partyView ? partyView : agent}
         targetAgentImageSrc={
           viewingComrade && partyView
