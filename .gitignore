@@ -8,6 +8,10 @@
 # Projects
 projects/*
 
+# Config
+config/current_projects.yaml
+!config/models.yaml
+
 # OpenSpec
 openspec/*
 
