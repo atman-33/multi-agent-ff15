@@ -1,0 +1,19 @@
+# VSCode
+*.code-workspace
+
+# GitHub
+.github/*
+!.github/workflows
+
+# OpenCode
+.opencode/command/*
+.opencode/skills/*
+
+# OpenSpec
+openspec/*
+
+# Misc files
+.skillportrc
+
+# Temporary files
+.tmp
