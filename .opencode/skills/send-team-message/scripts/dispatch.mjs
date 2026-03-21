@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
-import { postTeamMessage } from "./_shared.mjs";
+const [, , missionId, fromAgent, toAgent, type, taskId, ...bodyParts] = process.argv;
 
-const [, , missionId, fromAgent, toAgent, type, ...bodyParts] = process.argv;
-
-if (!missionId || !fromAgent || !toAgent || !type || bodyParts.length === 0) {
+if (!missionId || !fromAgent || !toAgent || !type || !taskId || bodyParts.length === 0) {
   console.error(
-    "Usage: node .opencode/skills/send-team-message/scripts/dispatch.mjs <missionId> <fromAgent> <toAgent> <instruction|handoff> <body>"
+    "Usage: node .opencode/skills/send-team-message/scripts/dispatch.mjs <missionId> <fromAgent> <toAgent> <instruction|handoff> <taskId> <body>"
   );
+  process.exit(1);
+}
+
+if (fromAgent !== "noctis") {
+  console.error("dispatch.mjs only allows fromAgent=noctis");
   process.exit(1);
 }
 
@@ -17,17 +20,28 @@ if (type !== "instruction" && type !== "handoff") {
 }
 
 const origin = process.env.FF15_WEB_ORIGIN || "http://localhost:5173";
-const body = bodyParts.join(" ").trim();
+const message = bodyParts.join(" ").trim();
 
 try {
-  const result = await postTeamMessage(origin, missionId, {
-    fromAgent,
-    toAgent,
-    type,
-    body,
-    replyRequested: false,
+  const response = await fetch(`${origin}/api/task/dispatch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      missionId,
+      agentId: toAgent,
+      taskId,
+      message,
+      missionObjective: message,
+      outputSchema: "WorkerResult JSON",
+    }),
   });
-  console.log(result);
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  console.log(text || "{}");
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

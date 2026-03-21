@@ -3,13 +3,14 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import {
+  addTask,
   getMission,
   setWorkerSession,
   updateTask,
   buildDelegationLedger,
 } from "@/lib/mission-store";
 import { buildTaskContext } from "@/lib/types/mission";
-import type { WorkerAgentId } from "@/lib/types/mission";
+import type { Task, WorkerAgentId } from "@/lib/types/mission";
 
 const WORKER_AGENT_IDS: ReadonlySet<string> = new Set<WorkerAgentId>([
   "ignis",
@@ -63,7 +64,19 @@ export const action = async ({ request }: Route.ActionArgs) => {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
 
-  const task = mission.taskGraph.find((t) => t.id === taskId);
+  let task = mission.taskGraph.find((t) => t.id === taskId);
+  if (!task) {
+    const nextTask: Task = {
+      id: taskId,
+      assignedTo: agentId,
+      dependencies: [],
+      status: "pending",
+      message,
+    };
+    addTask(missionId, nextTask);
+    task = nextTask;
+  }
+
   const completedDepResults = (task?.dependencies ?? [])
     .map((depId) => {
       const summary = mission.delegationLedger.completedSummaries[depId];

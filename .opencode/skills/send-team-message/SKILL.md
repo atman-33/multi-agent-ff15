@@ -9,7 +9,7 @@ Use this skill to deliver a structured Noctis-team message through the repositor
 
 Use one skill, but choose one of three intents:
 
-- `dispatch` — one-way instruction or handoff from Noctis to a worker
+- `dispatch` — structured worker dispatch from Noctis to a worker
 - `query` — question with `replyRequested=true`; delivery is guaranteed, response is not guaranteed
 - `report` — worker-to-Noctis report or update tied to a `taskId`
 
@@ -19,7 +19,7 @@ Use one skill, but choose one of three intents:
 - `missionId`
 - agent IDs required by the chosen intent
 - `body`
-- `taskId` when the intent is `report`
+- `taskId` when the intent is `dispatch` or `report`
 
 ## MVP Guardrails
 
@@ -42,7 +42,7 @@ Use one skill, but choose one of three intents:
 
 | Intent | Direction | Internal type | Reply |
 |---|---|---|---|
-| `dispatch` | `noctis -> worker` | `instruction` or `handoff` | no |
+| `dispatch` | `noctis -> worker` | task dispatch | no |
 | `query` | `noctis -> worker` or `worker -> noctis` | `question` | best effort |
 | `report` | `worker -> noctis` | `report` or `update` | no |
 
@@ -51,7 +51,7 @@ Use one skill, but choose one of three intents:
 ### Dispatch
 
 ```bash
-node .opencode/skills/send-team-message/scripts/dispatch.mjs <missionId> <fromAgent> <toAgent> <instruction|handoff> <body>
+node .opencode/skills/send-team-message/scripts/dispatch.mjs <missionId> <fromAgent> <toAgent> <instruction|handoff> <taskId> <body>
 ```
 
 ### Query
@@ -77,5 +77,5 @@ All scripts resolve mission-bound sessions and record delivery in the mission lo
 ## Example
 
 ```bash
-node .opencode/skills/send-team-message/scripts/dispatch.mjs mis_123 noctis ignis instruction "Analyze the current routing logic and summarize the failure points."
+node .opencode/skills/send-team-message/scripts/dispatch.mjs mis_123 noctis ignis instruction task_001 "Analyze the current routing logic and summarize the failure points."
 ```

@@ -47,7 +47,7 @@ Assign tasks to Comrades via the task API. Each assignment triggers a task-scope
 ## Team Messaging
 
 - Use `send-team-message` for mission-scoped agent communication
-- `dispatch` = one-way instruction/handoff to a Comrade
+- `dispatch` = structured worker dispatch with `taskId`
 - `query` = best-effort question; do not assume guaranteed reply
 - If a reply must be tracked, prefer task-based flow over freeform waiting
 
