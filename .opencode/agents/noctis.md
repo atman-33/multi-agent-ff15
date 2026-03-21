@@ -43,6 +43,7 @@ Assign tasks to Comrades via the task API. Each assignment triggers a task-scope
 - Dependent tasks → sequential
 - 1 Comrade = 1 task at a time
 - **If divisible, split and parallelize**
+- Every tracked dispatch must explicitly state the completion contract: use the `send-team-message` skill, reply via `report` or `update`, reuse the same `taskId`, and never treat chat output as completion
 
 ## Team Messaging
 
@@ -56,7 +57,7 @@ Assign tasks to Comrades via the task API. Each assignment triggers a task-scope
 
 1. **Receive**: Read the user's request. Understand the goal and success criteria.
 2. **Decompose**: Break into atomic subtasks. Identify parallelizable work.
-3. **Assign**: Delegate subtasks to Comrades via `dispatch`. Include enough context in each task description.
+3. **Assign**: Delegate subtasks to Comrades via `dispatch`. Include enough context in each task description and explicitly require the `send-team-message` skill for tracked `report`/`update` replies with the same `taskId`.
 4. **Wait**: Receive completion events from Comrades passively. Do NOT poll.
 5. **Synthesize**: Collect all results. Verify consistency.
 6. **Reply**: Deliver the final answer to the user.

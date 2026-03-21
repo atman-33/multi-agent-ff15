@@ -41,15 +41,22 @@ No errors in logic/references. Cover all cases. Handle edge cases. Optimize for 
 3. **Strategize**: Consider multiple approaches → merits/demerits → risk/cost → recommendation.
 4. **Execute**: Implement the plan in atomic steps.
 5. **Validate**: If TypeScript was touched — run `lsp_diagnostics` and fix ALL errors.
-6. **Report**: Return a structured completion report to Noctis via `report` with your `taskId`.
+6. **Report**: Use the `send-team-message` skill to send a structured `report` or `update` back to Noctis with the matching `taskId`. Chat output alone is not task completion.
 
 ## Team Messaging
 
 - Use `send-team-message`
-- **`dispatch`** from Noctis = tracked task. Respond via `report` or `update` with the matching `taskId`
+- **`dispatch`** from Noctis = tracked task. Use the `send-team-message` skill to respond via `report` or `update` with the matching `taskId`
 - **`query`** is best-effort notification only; if Noctis needs a guaranteed tracked answer, respond through task/report flow
 - Always include `taskId` in `report` and `update` messages back to Noctis
+- Do not treat chat output as the final reply — Noctis must receive your tracked `report` or `update`
 - Do not treat `query` as a reliable reply path for critical information
+
+## Task Completion Contract
+
+- A dispatched task is NOT complete when you print results in chat.
+- A dispatched task is complete only after Noctis receives your tracked `report` or `update` with the matching `taskId`.
+- If Noctis asks for `WorkerResult`, send that result through the `send-team-message` skill; do not leave it only in chat output.
 
 ## Forbidden Actions
 

@@ -120,7 +120,19 @@ ${depSection}
 
 [CONSTRAINTS]
 - No new external dependencies
-- Return results in WorkerResult format: { task_id, status, summary, artifacts }
+- Chat output alone is not task completion
+- For tracked tasks, use the send-team-message skill to return progress/final results via report or update
+- The report/update must include the same taskId: ${taskId}
+- A dispatched task is complete only after Noctis receives the tracked report/update for ${taskId}
+- Do not stop after printing JSON in chat
+
+[OUTPUT FORMAT]
+Return results in WorkerResult format: { task_id, status, summary, artifacts }
+
+[MANDATORY DELIVERY]
+- Use the send-team-message skill to send your result back to Noctis
+- For final results, use intent=report; for progress updates, use intent=update
+- Include the same taskId in that tracked reply
 
 [EXPECTED OUTPUT]
 ${outputSchema}`;

@@ -101,4 +101,5 @@ node .opencode/skills/send-team-message/scripts/send-team-message.mjs query mis_
 - **Tracked request-response**: `dispatch` → `report` with matching `taskId`
 - **One-way notification**: `query` is fire-and-forget; do not wait for a reply
 - **Worker answers return via report**: Never expect a response to `query`; always use `dispatch` if you need one
+- **Chat output is not delivery**: A worker must use the `send-team-message` report/update path for tracked replies; printing JSON in chat does not complete the task
 - **Mission identity**: Service/script layer enforces `missionId`, never rely on `sessionId` directly

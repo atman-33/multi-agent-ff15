@@ -57,7 +57,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const taskId = body.taskId.trim();
   const message = body.message.trim();
   const missionObjective = typeof body.missionObjective === "string" ? body.missionObjective : "";
-  const outputSchema = typeof body.outputSchema === "string" ? body.outputSchema : "WorkerResult JSON";
+  const outputSchema =
+    typeof body.outputSchema === "string" && body.outputSchema.trim()
+      ? body.outputSchema.trim()
+      : "WorkerResult JSON delivered to Noctis via send-team-message report/update";
 
   const mission = getMission(missionId);
   if (!mission) {
@@ -86,11 +89,20 @@ export const action = async ({ request }: Route.ActionArgs) => {
     })
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
+  const trackedReplyContract = [
+    "[TRACKED REPLY CONTRACT]",
+    "- This dispatch is a tracked task request.",
+    "- Chat output is not completion.",
+    "- Use send-team-message skill to respond via report/update.",
+    `- taskId is mandatory and must match exactly: ${taskId}`,
+    "- Task completes only when Noctis receives that tracked reply.",
+  ].join("\n");
+
   const taskPrompt = buildTaskContext({
     missionId,
     missionObjective,
     taskId,
-    taskInstruction: message,
+    taskInstruction: `${message}\n\n${trackedReplyContract}`,
     dependencyResults: completedDepResults,
     outputSchema,
   });
