@@ -4,6 +4,7 @@ import { NavLink, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentSession, type MissionResumePayload, type MissionSummary } from "@/hooks/use-agent-session";
+import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import { BanterLog } from "./banter-log";
 import { ChatArea } from "./chat-area";
@@ -78,8 +79,8 @@ export function NoctisTeamScreen({
   }, [loadMissions]);
 
   const handleSend = useCallback(
-    async (text: string) => {
-      const missionId = await send(text);
+    async (parts: PromptPart[]) => {
+      const missionId = await send(parts);
       if (!effectiveMissionId && missionId) {
         await loadMissions();
         navigate(`/noctis-team/mission/${missionId}`, { replace: true });

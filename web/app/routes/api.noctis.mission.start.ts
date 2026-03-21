@@ -1,6 +1,11 @@
 import type { Route } from "./+types/api.noctis.mission.start";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import {
+  buildPromptPayloadParts,
+  stringifyPromptParts,
+  type PromptPart,
+} from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { createMission, buildDelegationLedger, setAgentModels } from "@/lib/mission-store";
 import type { ModelSelection, AgentId } from "@/lib/types/mission";
@@ -18,16 +23,37 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   const body = await request.json().catch(() => null) as {
     message?: unknown;
+    parts?: unknown;
     noctisModel?: unknown;
     workerModels?: unknown;
     title?: unknown;
     objective?: unknown;
   } | null;
-  if (!body || typeof body.message !== "string" || !body.message.trim()) {
+  const rawParts = Array.isArray(body?.parts)
+    ? body.parts.filter(
+        (part): part is PromptPart =>
+          !!part &&
+          typeof part === "object" &&
+          (((part as Record<string, unknown>).type === "text" &&
+            typeof (part as Record<string, unknown>).text === "string") ||
+            ((part as Record<string, unknown>).type === "file" &&
+              typeof (part as Record<string, unknown>).path === "string" &&
+              ((part as Record<string, unknown>).content === undefined ||
+                typeof (part as Record<string, unknown>).content === "string")))
+      )
+    : [];
+  const fallbackMessage = typeof body?.message === "string" ? body.message.trim() : "";
+  const promptParts: PromptPart[] = rawParts.length > 0
+    ? rawParts
+    : fallbackMessage
+      ? [{ type: "text" as const, text: fallbackMessage }]
+      : [];
+
+  if (!body || promptParts.length === 0) {
     return Response.json({ error: "Missing message" }, { status: 400 });
   }
 
-  const message = body.message.trim();
+  const message = stringifyPromptParts(promptParts);
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
@@ -78,10 +104,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const promptResult = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [
-          { type: "text", text: injectedContext },
-          { type: "text", text: message },
-        ],
+        parts: buildPromptPayloadParts(injectedContext, promptParts),
         agent: "noctis",
         system: ledger,
         ...(noctisModel ? { model: noctisModel } : {}),

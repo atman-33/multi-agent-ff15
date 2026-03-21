@@ -1,6 +1,12 @@
 import type { Route } from "./+types/api.noctis.mission.continue";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getMission } from "@/lib/mission-store";
+import {
+  buildPromptPayloadParts,
+  type PromptPart,
+} from "@/lib/prompt-parts";
+import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import type { ModelSelection } from "@/lib/types/mission";
 
 function isModelSelection(value: unknown): value is ModelSelection {
@@ -17,18 +23,38 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const body = await request.json().catch(() => null) as {
     missionId?: unknown;
     message?: unknown;
+    parts?: unknown;
     noctisModel?: unknown;
   } | null;
 
   if (!body || typeof body.missionId !== "string" || !body.missionId.trim()) {
     return Response.json({ error: "Missing missionId" }, { status: 400 });
   }
-  if (typeof body.message !== "string" || !body.message.trim()) {
+  const rawParts = Array.isArray(body.parts)
+    ? body.parts.filter(
+        (part): part is PromptPart =>
+          !!part &&
+          typeof part === "object" &&
+          (((part as Record<string, unknown>).type === "text" &&
+            typeof (part as Record<string, unknown>).text === "string") ||
+            ((part as Record<string, unknown>).type === "file" &&
+              typeof (part as Record<string, unknown>).path === "string" &&
+              ((part as Record<string, unknown>).content === undefined ||
+                typeof (part as Record<string, unknown>).content === "string")))
+      )
+    : [];
+  const fallbackMessage = typeof body.message === "string" ? body.message.trim() : "";
+  const promptParts: PromptPart[] = rawParts.length > 0
+    ? rawParts
+    : fallbackMessage
+      ? [{ type: "text" as const, text: fallbackMessage }]
+      : [];
+
+  if (promptParts.length === 0) {
     return Response.json({ error: "Missing message" }, { status: 400 });
   }
 
   const missionId = body.missionId.trim();
-  const message = body.message.trim();
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
 
   const mission = getMission(missionId);
@@ -40,10 +66,16 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   try {
     const client = getOpencodeClient();
+    const injectedContext = buildInjectedPromptContext({
+      missionId,
+      sessionId: mission.noctisSessionId,
+      agent: "noctis",
+      appRoot: getProjectRoot(),
+    });
     const result = await client.session.promptAsync({
       path: { id: mission.noctisSessionId },
       body: {
-        parts: [{ type: "text", text: message }],
+        parts: buildPromptPayloadParts(injectedContext, promptParts),
         agent: "noctis",
         ...(effectiveModel ? { model: effectiveModel } : {}),
       },

@@ -10,6 +10,7 @@ import {
   resetToIdle,
   type AgentEvent,
 } from "@/lib/event-to-party-update";
+import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import { useChatStore } from "@/stores/chat-store";
 
 type SessionState = "idle" | "busy" | "retry";
@@ -149,7 +150,7 @@ export interface UseAgentSessionReturn {
   isStreaming: boolean;
   isLoadingHistory: boolean;
   isAwaitingReply: boolean;
-  send: (text: string) => Promise<string | null>;
+  send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
 }
 
@@ -484,7 +485,8 @@ export function useAgentSession({
   }, [activeMissionId, initialMessageInfos, initialMissionData, subscribeToSession]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (parts: PromptPart[]) => {
+      const text = stringifyPromptParts(parts);
       const userMessage: ChatMessage = {
         id: createId(),
         role: "user",
@@ -504,7 +506,7 @@ export function useAgentSession({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              message: text,
+              parts,
               title: text.slice(0, 80),
               objective: text,
               noctisModel: agentModels["noctis"] ?? null,
@@ -540,7 +542,7 @@ export function useAgentSession({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               missionId: missionIdRef.current,
-              message: text,
+              parts,
               noctisModel: agentModels["noctis"] ?? null,
             }),
           });
