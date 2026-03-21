@@ -28,11 +28,94 @@ interface ChatAreaProps {
   showAbortAction?: boolean;
 }
 
+interface RenderedChatMessage extends ChatMessage {
+  displayContent: string;
+  intermediateOnly?: boolean;
+}
+
+function toMessageParts(message: ChatMessage): MessagePart[] {
+  if (message.parts && message.parts.length > 0) {
+    return message.parts;
+  }
+
+  if (!message.content) {
+    return [];
+  }
+
+  return [{ type: "text", text: message.content } as MessagePart];
+}
+
+function getMessageRawText(message: ChatMessage): string {
+  return message.parts && message.parts.length > 0 ? extractText(message.parts) : message.content;
+}
+
+function getMessageDisplayText(message: ChatMessage): string {
+  return removeInternalContext(getMessageRawText(message)).trim();
+}
+
+function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
+  const rendered: RenderedChatMessage[] = [];
+  let pendingNoctis: ChatMessage[] = [];
+
+  const flushPendingNoctis = () => {
+    if (pendingNoctis.length === 0) {
+      return;
+    }
+
+    const parts = pendingNoctis.flatMap((message) => toMessageParts(message));
+
+    rendered.push({
+      id: pendingNoctis.map((message) => message.id).join(":"),
+      role: "noctis",
+      content: "",
+      parts: parts.length > 0 ? parts : undefined,
+      timestamp: pendingNoctis[pendingNoctis.length - 1].timestamp,
+      displayContent: "",
+      intermediateOnly: true,
+    });
+
+    pendingNoctis = [];
+  };
+
+  messages.forEach((message) => {
+    if (message.role === "user") {
+      flushPendingNoctis();
+      rendered.push({
+        ...message,
+        displayContent: getMessageDisplayText(message),
+      });
+      return;
+    }
+
+    const displayContent = getMessageDisplayText(message);
+
+    if (!displayContent) {
+      pendingNoctis.push(message);
+      return;
+    }
+
+    const groupedMessages = [...pendingNoctis, message];
+    const parts = groupedMessages.flatMap((entry) => toMessageParts(entry));
+
+    rendered.push({
+      ...message,
+      parts: parts.length > 0 ? parts : undefined,
+      displayContent,
+    });
+
+    pendingNoctis = [];
+  });
+
+  flushPendingNoctis();
+
+  return rendered;
+}
+
 const MessageBubble = ({
   message,
   showCursor,
 }: {
-  message: ChatMessage;
+  message: RenderedChatMessage;
   showCursor: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
@@ -40,21 +123,41 @@ const MessageBubble = ({
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const isNoctis = message.role === "noctis";
-  const rawText = useMemo(
+  const detailRawText = useMemo(
     () => (message.parts && message.parts.length > 0 ? extractText(message.parts) : message.content),
     [message.content, message.parts]
   );
-  const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
-  const displayContent = useMemo(() => removeInternalContext(rawText), [rawText]);
+  const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);
   const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
   const messageMarkdown = useMemo(
-    () => buildMessageMarkdown(displayContent, reasoning, tools),
-    [displayContent, reasoning, tools]
+    () => buildMessageMarkdown(message.displayContent, reasoning, tools),
+    [message.displayContent, reasoning, tools]
   );
-  const copyContent = messageMarkdown.trim() ? messageMarkdown : displayContent.trim() ? displayContent : rawText;
-  const hasDetails = reasoning.trim().length > 0 || tools.length > 0;
-  const hasVisibleBody = displayContent.trim().length > 0 || showCursor;
+  const copyContent = messageMarkdown.trim()
+    ? messageMarkdown
+    : message.displayContent.trim()
+      ? message.displayContent
+      : detailRawText;
+  const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+  const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
+  const detailSummary = useMemo(() => {
+    const segments: string[] = [];
+
+    if (tools.length > 0) {
+      segments.push(`${tools.length} tool activit${tools.length === 1 ? "y" : "ies"}`);
+    }
+
+    if (reasoning.trim()) {
+      segments.push("commentary");
+    }
+
+    if (internalContext) {
+      segments.push("context");
+    }
+
+    return segments.join(" · ") || "Additional context";
+  }, [internalContext, reasoning, tools.length]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(copyContent).then(() => {
@@ -100,69 +203,22 @@ const MessageBubble = ({
               : "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
           )}
         >
-          {internalContext ? (
-            <div className="mb-3 rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
-              <button
-                className="flex w-full min-w-0 items-center gap-2 text-left"
-                onClick={() => setContextExpanded((value) => !value)}
-                type="button"
-              >
-                <BadgeInfo className="h-3.5 w-3.5 shrink-0 text-sky-300" />
-                <span className="shrink-0 text-[11px] font-medium text-sky-100">
-                  Internal Context
-                </span>
-                <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
-                  Injected
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[11px] text-sky-100/80">
-                  {internalContext.summary}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "ml-auto h-3 w-3 text-sky-200/70 transition-transform duration-300 ease-out",
-                    contextExpanded ? "rotate-180" : "rotate-0"
-                  )}
-                />
-              </button>
-
-              <div
-                className={cn(
-                  "grid transition-all duration-300 ease-out",
-                  contextExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
-                )}
-              >
-                <div className="overflow-hidden">
-                  <div
-                    className={cn(
-                      "grid gap-2 border-t border-sky-500/10 pt-2 text-[11px] text-sky-50/85 transition-all duration-300 ease-out",
-                      contextExpanded ? "translate-y-0" : "-translate-y-1"
-                    )}
-                  >
-                    <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap wrap-break-word text-sky-50/85">
-                      {internalContext.raw}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
           {hasVisibleBody ? (
             isNoctis ? (
               <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
                 <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                  {`${displayContent}${showCursor ? "▌" : ""}`}
+                  {`${message.displayContent}${showCursor ? "▌" : ""}`}
                 </ReactMarkdown>
               </div>
             ) : (
               <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-                {displayContent}
+                {message.displayContent}
                 {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
               </p>
             )
           ) : (
             <div className="rounded-md border border-dashed border-border/40 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
-              No final answer text was captured for this message.
+              Intermediate activity only.
             </div>
           )}
 
@@ -181,12 +237,10 @@ const MessageBubble = ({
                     )}
                   />
                   <span className="font-medium">
-                    {detailsExpanded ? "Hide message details" : "Show message details"}
+                    {detailsExpanded ? "Hide intermediate details" : "Show intermediate details"}
                   </span>
                   <span className="text-[10px] text-muted-foreground/70">
-                    {tools.length > 0
-                      ? `${tools.length} tool activit${tools.length === 1 ? "y" : "ies"}`
-                      : "Reasoning only"}
+                    {detailSummary}
                   </span>
                 </button>
               </div>
@@ -204,11 +258,58 @@ const MessageBubble = ({
                       detailsExpanded ? "translate-y-0" : "-translate-y-1"
                     )}
                   >
+                    {internalContext ? (
+                      <section className="rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
+                        <button
+                          className="flex w-full min-w-0 items-center gap-2 text-left"
+                          onClick={() => setContextExpanded((value) => !value)}
+                          type="button"
+                        >
+                          <BadgeInfo className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                          <span className="shrink-0 text-[11px] font-medium text-sky-100">
+                            Internal Context
+                          </span>
+                          <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
+                            Injected
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[11px] text-sky-100/80">
+                            {internalContext.summary}
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "ml-auto h-3 w-3 text-sky-200/70 transition-transform duration-300 ease-out",
+                              contextExpanded ? "rotate-180" : "rotate-0"
+                            )}
+                          />
+                        </button>
+
+                        <div
+                          className={cn(
+                            "grid transition-all duration-300 ease-out",
+                            contextExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+                          )}
+                        >
+                          <div className="overflow-hidden">
+                            <div
+                              className={cn(
+                                "grid gap-2 border-t border-sky-500/10 pt-2 text-[11px] text-sky-50/85 transition-all duration-300 ease-out",
+                                contextExpanded ? "translate-y-0" : "-translate-y-1"
+                              )}
+                            >
+                              <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap wrap-break-word text-sky-50/85">
+                                {internalContext.raw}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    ) : null}
+
                     {reasoning ? (
                       <section className="space-y-2">
                         <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
                           <Sparkles className="h-3.5 w-3.5" />
-                          Noctis Commentary
+                          Commentary
                         </div>
                         <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
                           {reasoning}
@@ -292,7 +393,7 @@ const MessageBubble = ({
         </div>
 
         <MessageDetailSheet
-          content={message.content}
+          content={message.displayContent}
           parts={message.parts}
           onOpenChange={setDetailOpen}
           open={detailOpen}
@@ -316,6 +417,7 @@ export const ChatArea = ({
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const renderedMessages = useMemo(() => buildRenderedMessages(messages), [messages]);
 
   const syncScrollState = useCallback(() => {
     const viewport = scrollViewportRef.current;
@@ -342,9 +444,9 @@ export const ChatArea = ({
 
   useEffect(() => {
     if (shouldStickToBottomRef.current) {
-      window.setTimeout(() => scrollToBottom(messages.length > 1 ? "smooth" : "auto"), 0);
+      window.setTimeout(() => scrollToBottom(renderedMessages.length > 1 ? "smooth" : "auto"), 0);
     }
-  }, [messages, scrollToBottom]);
+  }, [renderedMessages, scrollToBottom]);
 
   useEffect(() => {
     const viewport = scrollViewportRef.current;
@@ -433,11 +535,11 @@ export const ChatArea = ({
       <div className="relative min-h-0 flex-1">
         <ScrollArea className="h-full px-4 py-4" viewportRef={scrollViewportRef}>
           <div className="mx-auto max-w-3xl space-y-5">
-          {messages.map((message, index) => {
+          {renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&
               message.role === "noctis" &&
-              index === messages.length - 1;
+              index === renderedMessages.length - 1;
             return (
               <MessageBubble
                 key={message.id}

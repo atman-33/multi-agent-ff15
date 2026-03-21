@@ -37,6 +37,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
     [displayContent, reasoning, tools]
   );
   const hasVisibleBody = displayContent.trim().length > 0;
+  const hasIntermediateDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
 
   const handleCopy = () => {
     if (!copyContent.trim()) {
@@ -89,7 +90,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-300">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/3 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-300">
             <ArrowUpRight className="h-3.5 w-3.5" />
             {role === "user" ? "You" : "Noctis"}
           </div>
@@ -132,7 +133,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
           ) : null}
 
           {hasVisibleBody ? (
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
               {role === "user" ? (
                 <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
                   {displayContent}
@@ -144,15 +145,15 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
               )}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-[12px] text-slate-400 sm:p-5">
-              No final answer text was captured for this message.
+            <div className="rounded-xl border border-dashed border-white/10 bg-white/3 p-4 text-[12px] text-slate-400 sm:p-5">
+              {hasIntermediateDetails ? "Intermediate activity only." : "No final answer text was captured for this message."}
             </div>
           )}
 
           {reasoning ? (
-            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
               <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
-                Noctis Commentary
+                Commentary
               </div>
               <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">
                 {reasoning}
@@ -167,7 +168,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
               </div>
               {tools.map((tool, index) => (
                 <div
-                  className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
+                  className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5"
                   key={`${tool.tool ?? "tool"}-${index}`}
                 >
                   <div className="flex items-center justify-between gap-3">
