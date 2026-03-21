@@ -8,9 +8,20 @@ const Layout = (_props: Route.ComponentProps) => {
   const isLoading = navigation.state !== "idle";
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden">
+    <div className="relative flex h-full min-h-0 overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: "url('/images/backgrounds/background-1.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-background/80" />
+
       <aside
-        className="flex shrink-0 flex-col border-border/50 border-r"
+        className="relative z-10 flex shrink-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm"
         style={{ width: "var(--sidebar-width)" }}
       >
         <div className="border-border/50 border-b px-4 py-4">
@@ -74,7 +85,7 @@ const Layout = (_props: Route.ComponentProps) => {
         </div>
       </aside>
 
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {isLoading && (
           <div className="absolute top-0 right-0 left-0 z-50 h-0.5 overflow-hidden bg-primary/20">
             <div className="h-full w-1/3 animate-pulse bg-primary" />

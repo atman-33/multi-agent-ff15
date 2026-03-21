@@ -9,6 +9,8 @@ import { BanterLog } from "./banter-log";
 import { ChatArea } from "./chat-area";
 import { PartyStatusPanel } from "./party-status-panel";
 
+const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
+
 export interface NoctisTeamScreenProps {
   activeMissionId: string | null;
   initialMissionData?: MissionResumePayload | null;
@@ -24,6 +26,18 @@ export function NoctisTeamScreen({
   const params = useParams();
   const routeMissionId = params.id ?? null;
   const effectiveMissionId = activeMissionId ?? routeMissionId;
+
+  useEffect(() => {
+    if (!effectiveMissionId) {
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(LAST_MISSION_STORAGE_KEY, effectiveMissionId);
+  }, [effectiveMissionId]);
 
   const [missions, setMissions] = useState<MissionSummary[]>([]);
   const [isLoadingMissions, setIsLoadingMissions] = useState(true);
@@ -76,17 +90,6 @@ export function NoctisTeamScreen({
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: "url('/images/backgrounds/background-1.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center center",
-          backgroundRepeat: "no-repeat",
-        }}
-      />
-      <div className="pointer-events-none absolute inset-0 bg-background/80" />
-
       <div className="relative flex h-full min-h-0 w-full gap-0">
         <div className="flex min-h-0 w-70 shrink-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
           <div className="w-full border-border/50 border-b p-3">
