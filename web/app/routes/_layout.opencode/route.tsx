@@ -1,5 +1,5 @@
 import { Check, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, X } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import type { Route } from "./+types/route";
+
+type SessionStatus = "idle" | "busy" | "retry";
+
+type EventPayload = {
+  type: string;
+  properties: {
+    sessionID?: string;
+    status?: {
+      type: SessionStatus;
+      attempt?: number;
+      message?: string;
+      next?: number;
+    };
+    part?: {
+      type: string;
+      text?: string;
+      messageID?: string;
+      sessionID?: string;
+    };
+    delta?: string;
+  };
+};
 
 type Session = {
   id: string;
@@ -162,6 +184,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
   const sessionStates = useChatStore((state) => state.sessionStates);
+  const setSessionState = useChatStore((state) => state.setSessionState);
   const activeSessionId = params.id;
 
   const loadSessions = useCallback(async () => {
@@ -228,6 +251,80 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
       window.removeEventListener("sessions:refresh", handleRefresh);
     };
   }, [loadSessions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const source = new EventSource("/api/event-stream");
+    source.onmessage = (event) => {
+      const payload = JSON.parse(event.data as string) as { payload?: EventPayload } | EventPayload;
+      const actual = ("payload" in payload ? payload.payload : payload) as EventPayload;
+      if (!actual?.type) return;
+
+      if (actual.type === "message.part.updated") {
+        const part = actual.properties.part;
+        if (!part || part.type !== "text") return;
+        const partSessionId = part.sessionID;
+        if (partSessionId) {
+          setSessionState(partSessionId, "busy");
+        }
+      }
+
+      if (actual.type === "session.status") {
+        const eventSessionId = actual.properties.sessionID;
+        const nextStatus = actual.properties.status?.type;
+        if (eventSessionId && nextStatus) {
+          setSessionState(eventSessionId, nextStatus);
+        }
+      }
+
+      if (actual.type === "session.idle") {
+        const eventSessionId = actual.properties.sessionID;
+        if (eventSessionId) {
+          setSessionState(eventSessionId, "idle");
+          loadSessions();
+        }
+      }
+    };
+    source.onerror = () => {
+      source.close();
+    };
+    return () => {
+      source.close();
+    };
+  }, [loadSessions, setSessionState]);
+
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const hasBusy = Object.values(sessionStates).some((s) => s !== "idle");
+
+    if (hasBusy && !pollingIntervalRef.current) {
+      pollingIntervalRef.current = setInterval(async () => {
+        try {
+          const response = await fetch("/api/session-status");
+          if (!response.ok) return;
+          const data = (await response.json()) as { statuses: Record<string, SessionStatus> };
+          for (const [id, status] of Object.entries(data.statuses)) {
+            setSessionState(id, status);
+          }
+        } catch (_) {
+          void _;
+        }
+      }, 3000);
+    }
+
+    if (!hasBusy && pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [sessionStates, setSessionState]);
 
   const beginRename = useCallback((session: Session) => {
     setEditingSessionId(session.id);

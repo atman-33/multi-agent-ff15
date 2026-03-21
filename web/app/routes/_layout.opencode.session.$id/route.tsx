@@ -11,25 +11,6 @@ import type { MessageInfo } from "./types";
 import type { Route } from "./+types/route";
 import type { OpenCodeOutletContext } from "../_layout.opencode/route";
 
-type EventPayload = {
-  type: string;
-  properties: {
-    sessionID?: string;
-    status?: {
-      type: "idle" | "busy" | "retry";
-      attempt?: number;
-      message?: string;
-      next?: number;
-    };
-    part?: {
-      type: string;
-      text?: string;
-      messageID?: string;
-      sessionID?: string;
-    };
-    delta?: string;
-  };
-};
 
 const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
@@ -49,8 +30,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setSessionState = useChatStore((state) => state.setSessionState);
   const streamingContent = useChatStore((state) => state.streamingContent);
-  const streamingMessageId = useChatStore((state) => state.streamingMessageId);
-  const appendStreamingContent = useChatStore((state) => state.appendStreamingContent);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
 
@@ -62,11 +41,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
     return sessions.find((session) => session.id === sessionId)?.title || "Untitled";
   }, [sessionId, sessions]);
-
-  const streamingMessageIdRef = useRef(streamingMessageId);
-  useEffect(() => {
-    streamingMessageIdRef.current = streamingMessageId;
-  }, [streamingMessageId]);
 
   const loadMessages = useCallback(async () => {
     if (!sessionId) return;
@@ -140,76 +114,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       viewport.removeEventListener("scroll", handleScroll);
     };
   }, [syncScrollState]);
-
-  useEffect(() => {
-    if (shouldStickToBottomRef.current) {
-      scrollToBottom(messages.length > 0 ? "smooth" : "auto");
-      return;
-    }
-
-    syncScrollState();
-  }, [messages.length, scrollToBottom, streamingContent.length, syncScrollState]);
-
-  useEffect(() => {
-    const source = new EventSource("/api/event-stream");
-    source.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as { payload?: EventPayload } | EventPayload;
-      const actual = ("payload" in payload ? payload.payload : payload) as EventPayload;
-      if (!actual?.type) return;
-
-      if (actual.type === "message.part.updated") {
-        const part = actual.properties.part;
-        if (!part || part.type !== "text") return;
-        if (part.sessionID && part.sessionID !== sessionId) return;
-        if (part.messageID && part.messageID !== streamingMessageIdRef.current) {
-          setStreamingMessageId(part.messageID ?? null);
-          clearStreamingContent();
-        }
-        const delta = actual.properties.delta ?? part.text ?? "";
-        if (delta) {
-          if (sessionId) {
-            setSessionState(sessionId, "busy");
-          }
-          appendStreamingContent(delta);
-        }
-      }
-
-      if (actual.type === "session.status") {
-        const eventSessionId = actual.properties.sessionID;
-        const nextStatus = actual.properties.status?.type;
-        if (eventSessionId && nextStatus) {
-          setSessionState(eventSessionId, nextStatus);
-        }
-      }
-
-      if (actual.type === "session.idle") {
-        if (sessionId && actual.properties.sessionID === sessionId) {
-          setSessionState(sessionId, "idle");
-          clearStreamingContent();
-          setStreamingMessageId(null);
-          loadMessages();
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new Event("sessions:refresh"));
-          }
-        }
-      }
-    };
-
-    source.onerror = () => {
-      source.close();
-    };
-
-    return () => {
-      source.close();
-    };
-  }, [
-    appendStreamingContent,
-    clearStreamingContent,
-    loadMessages,
-    sessionId,
-    setSessionState,
-    setStreamingMessageId,
-  ]);
 
   const handleSend = useCallback(
     async (
