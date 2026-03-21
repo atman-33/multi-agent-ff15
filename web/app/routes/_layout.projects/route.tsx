@@ -10,7 +10,6 @@ import type { ActiveProjectsData } from "@/hooks/use-active-projects";
 import {
   PROJECT_SCOPE_DESCRIPTIONS,
   PROJECT_SCOPE_LABELS,
-  PROJECT_SCOPES,
   type ProjectScope,
 } from "@/lib/project-scopes";
 import { cn } from "@/lib/utils";
@@ -24,6 +23,10 @@ type VSCodePreference = "auto" | "wsl" | "windows";
 
 const VSCODE_PREFERENCE_STORAGE_KEY = "projects_vscode_preferences";
 const WINDOWS_MOUNTED_PATH_REGEX = /^\/mnt\/[a-z]\//i;
+const VISIBLE_PROJECT_SCOPES: ProjectScope[] = [
+  "noctis_team",
+  // "lunafreya",
+];
 
 const isWindowsMountedPath = (path: string): boolean => WINDOWS_MOUNTED_PATH_REGEX.test(path);
 
@@ -260,7 +263,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
     );
   }
 
-  const scopeCounts = PROJECT_SCOPES.map((scope) => ({
+  const scopeCounts = VISIBLE_PROJECT_SCOPES.map((scope) => ({
     scope,
     count: serverData?.projectScopes[scope].activeProjectIds.length ?? 0,
   }));
@@ -275,7 +278,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
             Project Settings
           </h1>
           <p className="mt-1 text-muted-foreground text-sm">
-            Manage scoped project injection for the Noctis team and Lunafreya. Iris is excluded from
+            Manage scoped project injection for the Noctis team. Iris is excluded from
             project settings.
           </p>
         </div>
@@ -317,16 +320,23 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
 
       {serverData && serverData.projects.length > 0 && (
         <div className="space-y-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-4 py-1 text-[11px] text-muted-foreground/60 uppercase tracking-widest">
+          <div
+            className={cn(
+              "grid gap-3 px-4 py-1 text-[11px] text-muted-foreground/60 uppercase tracking-widest",
+              VISIBLE_PROJECT_SCOPES.length === 1
+                ? "grid-cols-[minmax(0,1fr)_120px]"
+                : "grid-cols-[minmax(0,1fr)_120px_120px]"
+            )}
+          >
             <span>Project</span>
-            {PROJECT_SCOPES.map((scope) => (
+            {VISIBLE_PROJECT_SCOPES.map((scope) => (
               <div className="text-center" key={scope} title={PROJECT_SCOPE_DESCRIPTIONS[scope]}>
                 {PROJECT_SCOPE_LABELS[scope]}
               </div>
             ))}
           </div>
           {serverData.projects.map((project) => {
-            const isActiveInAnyScope = PROJECT_SCOPES.some((scope) =>
+            const isActiveInAnyScope = VISIBLE_PROJECT_SCOPES.some((scope) =>
               serverData.projectScopes[scope].activeProjectIds.includes(project.id)
             );
             const vscodePreference = vscodePreferences[project.id] ?? "auto";
@@ -465,8 +475,13 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      {PROJECT_SCOPES.map((scope) => {
+                    <div
+                      className={cn(
+                        "grid gap-3",
+                        VISIBLE_PROJECT_SCOPES.length === 1 ? "grid-cols-1" : "grid-cols-2"
+                      )}
+                    >
+                      {VISIBLE_PROJECT_SCOPES.map((scope) => {
                         const checked = serverData.projectScopes[scope].activeProjectIds.includes(
                           project.id
                         );
