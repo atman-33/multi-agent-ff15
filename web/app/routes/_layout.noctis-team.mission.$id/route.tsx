@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { readAppLanguage } from "@/lib/app-language.server";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import type { Route } from "./+types/route";
 import { NoctisTeamScreen } from "../_layout.noctis-team/components/noctis-team-screen";
@@ -24,6 +25,7 @@ const NoctisTeamMissionPage = ({ loaderData }: Route.ComponentProps) => {
   return (
     <NoctisTeamScreen
       activeMissionId={loaderData.exists ? loaderData.requestedMissionId : null}
+      language={loaderData.language}
       initialMessageInfos={loaderData.messages}
       initialMissionData={loaderData.mission}
     />
@@ -31,9 +33,10 @@ const NoctisTeamMissionPage = ({ loaderData }: Route.ComponentProps) => {
 };
 
 export const loader = async ({ params, request }: Route.LoaderArgs) => {
+  const language = readAppLanguage();
   const requestedMissionId = params.id ?? null;
   if (!requestedMissionId) {
-    return { exists: false, requestedMissionId };
+    return { exists: false, requestedMissionId, language };
   }
 
   try {
@@ -42,6 +45,7 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
     if (!response.ok) {
       return {
         exists: false,
+        language,
         requestedMissionId,
         mission: null,
         messages: null,
@@ -57,6 +61,7 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
 
     return {
       exists: true,
+      language,
       requestedMissionId,
       mission,
       messages,
@@ -64,6 +69,7 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
   } catch {
     return {
       exists: false,
+      language,
       requestedMissionId,
       mission: null,
       messages: null,

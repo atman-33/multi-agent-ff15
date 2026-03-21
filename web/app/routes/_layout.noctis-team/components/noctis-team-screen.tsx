@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentSession, type MissionResumePayload, type MissionSummary } from "@/hooks/use-agent-session";
+import type { AppLanguage } from "@/lib/app-language.server";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import { BanterLog } from "./banter-log";
@@ -19,12 +20,14 @@ const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
 
 export interface NoctisTeamScreenProps {
   activeMissionId: string | null;
+  language?: AppLanguage;
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
 }
 
 export function NoctisTeamScreen({
   activeMissionId,
+  language = "other",
   initialMissionData,
   initialMessageInfos,
 }: NoctisTeamScreenProps) {
@@ -59,6 +62,7 @@ export function NoctisTeamScreen({
     abort,
   } = useAgentSession({
     activeMissionId: effectiveMissionId,
+    language,
     initialMissionData,
     initialMessageInfos,
   });

@@ -1,6 +1,7 @@
 import type { AgentStatus } from "@/routes/_layout.noctis-team/components/character-card";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
 import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
+import type { AppLanguage } from "@/lib/app-language.server";
 
 export type AgentEvent =
   | { type: "session.created" }
@@ -33,10 +34,17 @@ const AGENT_DISPLAY: Record<string, { name: string; avatar: string }> = {
   prompto: { name: "Prompto", avatar: "/images/prompto.png" },
 };
 
-const TASK_ASSIGNED_BANTER: Record<string, string> = {
-  ignis: "Running analysis... this may take a moment.",
-  gladiolus: "Executing task. Don't get in my way.",
-  prompto: "On it! Gathering data as we speak.",
+const TASK_ASSIGNED_BANTER: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    ignis: "分析を開始する。少し時間をくれ。",
+    gladiolus: "任務を実行する。邪魔はするな。",
+    prompto: "了解！ 今すぐ情報を集めるよ。",
+  },
+  other: {
+    ignis: "Running analysis... this may take a moment.",
+    gladiolus: "Executing task. Don't get in my way.",
+    prompto: "On it! Gathering data as we speak.",
+  },
 };
 
 const TASK_ASSIGNED_LABEL: Record<string, string> = {
@@ -45,22 +53,43 @@ const TASK_ASSIGNED_LABEL: Record<string, string> = {
   prompto: "Gathering data…",
 };
 
-const TASK_COMPLETED_BANTER: Record<string, string> = {
-  ignis: "Analysis complete. Results transmitted to Noctis.",
-  gladiolus: "Task done. Clean as a blade.",
-  prompto: "Report filed! And I got some sick shots too.",
+const TASK_COMPLETED_BANTER: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    ignis: "分析完了。結果を Noctis に送った。",
+    gladiolus: "任務完了だ。きれいに片付けた。",
+    prompto: "報告完了！ ついでにいい絵も拾えたよ。",
+  },
+  other: {
+    ignis: "Analysis complete. Results transmitted to Noctis.",
+    gladiolus: "Task done. Clean as a blade.",
+    prompto: "Report filed! And I got some sick shots too.",
+  },
 };
 
-const TASK_FAILED_BANTER: Record<string, string> = {
-  ignis: "...Something's off. Running diagnostics.",
-  gladiolus: "Hit a wall. Not backing down.",
-  prompto: "Ugh, can't get a clear shot. Regrouping.",
+const TASK_FAILED_BANTER: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    ignis: "...何かおかしい。診断を回す。",
+    gladiolus: "壁に当たったか。だがまだ終わりじゃない。",
+    prompto: "うわ、うまく掴めない。立て直すよ。",
+  },
+  other: {
+    ignis: "...Something's off. Running diagnostics.",
+    gladiolus: "Hit a wall. Not backing down.",
+    prompto: "Ugh, can't get a clear shot. Regrouping.",
+  },
 };
 
-const RUNTIME_RECOVERED_BANTER: Record<string, string> = {
-  ignis: "Recalibrating. Back on it.",
-  gladiolus: "Tch. Shaking it off — try again.",
-  prompto: "Take two! Let's do this.",
+const RUNTIME_RECOVERED_BANTER: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    ignis: "再調整完了。作業に戻る。",
+    gladiolus: "...立て直した。もう一度いくぞ。",
+    prompto: "仕切り直しだね！ もう一回いこう。",
+  },
+  other: {
+    ignis: "Recalibrating. Back on it.",
+    gladiolus: "Tch. Shaking it off — try again.",
+    prompto: "Take two! Let's do this.",
+  },
 };
 
 function makeBanter(agentId: string, message: string): BanterTemplate | null {
@@ -74,21 +103,27 @@ function makeBanter(agentId: string, message: string): BanterTemplate | null {
   };
 }
 
-export function eventToPartyUpdate(event: AgentEvent): PartyUpdate | null {
+export function eventToPartyUpdate(
+  event: AgentEvent,
+  language: AppLanguage = "other"
+): PartyUpdate | null {
   switch (event.type) {
     case "session.created": {
       return {
         memberId: "noctis",
         status: "working",
         task: "Coordinating…",
-        banterTemplate: makeBanter("noctis", "Alright. Everyone, listen up."),
+        banterTemplate: makeBanter(
+          "noctis",
+          language === "ja" ? "よし、みんな聞け。" : "Alright. Everyone, listen up."
+        ),
       };
     }
 
     case "task.assigned": {
       const { agentId } = event;
       const task = TASK_ASSIGNED_LABEL[agentId] ?? "Working…";
-      const message = TASK_ASSIGNED_BANTER[agentId];
+      const message = TASK_ASSIGNED_BANTER[language][agentId];
       return {
         memberId: agentId,
         status: "working",
@@ -100,7 +135,7 @@ export function eventToPartyUpdate(event: AgentEvent): PartyUpdate | null {
 
     case "task.completed": {
       const { agentId } = event;
-      const message = TASK_COMPLETED_BANTER[agentId];
+      const message = TASK_COMPLETED_BANTER[language][agentId];
       return {
         memberId: agentId,
         status: "success",
@@ -111,7 +146,7 @@ export function eventToPartyUpdate(event: AgentEvent): PartyUpdate | null {
 
     case "task.failed": {
       const { agentId } = event;
-      const message = TASK_FAILED_BANTER[agentId];
+      const message = TASK_FAILED_BANTER[language][agentId];
       return {
         memberId: agentId,
         status: "blocked",
@@ -132,7 +167,7 @@ export function eventToPartyUpdate(event: AgentEvent): PartyUpdate | null {
 
     case "runtime.recovered": {
       const { agentId } = event;
-      const message = RUNTIME_RECOVERED_BANTER[agentId];
+      const message = RUNTIME_RECOVERED_BANTER[language][agentId];
       return {
         memberId: agentId,
         status: "working",

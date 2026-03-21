@@ -4,6 +4,7 @@ import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-a
 import { extractReasoning, extractText, extractTools } from "@/routes/_layout.noctis-team/components/message-parts";
 import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
 import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import type { AppLanguage } from "@/lib/app-language.server";
 import {
   applyPartyUpdate,
   eventToPartyUpdate,
@@ -138,6 +139,7 @@ async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
 
 export interface UseAgentSessionOptions {
   activeMissionId: string | null;
+  language?: AppLanguage;
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
 }
@@ -156,6 +158,7 @@ export interface UseAgentSessionReturn {
 
 export function useAgentSession({
   activeMissionId,
+  language = "other",
   initialMissionData,
   initialMessageInfos,
 }: UseAgentSessionOptions): UseAgentSessionReturn {
@@ -280,7 +283,7 @@ export function useAgentSession({
         scheduleIdleReset();
       }
 
-      const update = eventToPartyUpdate(event);
+      const update = eventToPartyUpdate(event, language);
       if (update) {
         setPartyMembers((prev) => applyPartyUpdate(prev, update));
         if (update.banterTemplate) {
@@ -288,7 +291,7 @@ export function useAgentSession({
         }
       }
     },
-    [addBanter, scheduleIdleReset, setSessionState]
+    [addBanter, language, scheduleIdleReset, setSessionState]
   );
 
   const subscribeToSession = useCallback(
