@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUpRight, BadgeInfo, Check, ChevronDown, Copy, Radio, Se
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,13 @@ interface ChatAreaProps {
 interface RenderedChatMessage extends ChatMessage {
   displayContent: string;
   intermediateOnly?: boolean;
+}
+
+interface MessageComposerProps {
+  isResponding: boolean;
+  onAbort?: () => void;
+  onSend: (message: string) => void;
+  showAbortAction?: boolean;
 }
 
 function toMessageParts(message: ChatMessage): MessagePart[] {
@@ -111,7 +118,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   return rendered;
 }
 
-const MessageBubble = ({
+const MessageBubble = memo(({
   message,
   showCursor,
 }: {
@@ -397,17 +404,118 @@ const MessageBubble = ({
           </button>
         </div>
 
-        <MessageDetailSheet
-          content={message.displayContent}
-          parts={message.parts}
-          onOpenChange={setDetailOpen}
-          open={detailOpen}
-          role={message.role}
-        />
+        {detailOpen ? (
+          <MessageDetailSheet
+            content={message.displayContent}
+            parts={message.parts}
+            onOpenChange={setDetailOpen}
+            open={detailOpen}
+            role={message.role}
+          />
+        ) : null}
       </div>
     </div>
   );
-};
+});
+
+MessageBubble.displayName = "MessageBubble";
+
+const MessageComposer = memo(({
+  isResponding,
+  onAbort,
+  onSend,
+  showAbortAction = false,
+}: MessageComposerProps) => {
+  const [input, setInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, 160);
+    textarea.style.height = `${Math.max(nextHeight, 40)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 160 ? "auto" : "hidden";
+  }, [input]);
+
+  const handleSend = useCallback(() => {
+    const trimmed = input.trim();
+    if (!trimmed || isResponding) {
+      return;
+    }
+
+    onSend(trimmed);
+    setInput("");
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "40px";
+      textareaRef.current.style.overflowY = "hidden";
+      textareaRef.current.focus();
+    }
+  }, [input, isResponding, onSend]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [handleSend]
+  );
+
+  return (
+    <div className="shrink-0 border-border/50 border-t px-4 py-4">
+      <div className="mx-auto max-w-3xl rounded-xl border border-transparent bg-card shadow-xs">
+        <div className="px-3 pt-3">
+          <textarea
+            ref={textareaRef}
+            className={cn(
+              "min-h-10 w-full resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 text-sm leading-relaxed text-foreground",
+              "shadow-none outline-hidden",
+              "placeholder:text-muted-foreground/65",
+              "focus-visible:ring-0 focus-visible:ring-offset-0",
+              "disabled:opacity-60"
+            )}
+            disabled={isResponding && !showAbortAction}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Send a message to Noctis... Shift+Enter for new line"
+            rows={1}
+            value={input}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 px-3 pb-3 pt-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+            Enter sends · Shift+Enter adds a new line
+          </p>
+          <button
+            type="button"
+            onClick={showAbortAction ? onAbort : handleSend}
+            disabled={showAbortAction ? !onAbort : !input.trim() || isResponding}
+            title={showAbortAction ? "Stop" : "Send"}
+            className={cn(
+              "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",
+              showAbortAction
+                ? "border-red-500/25 bg-red-500/15 text-red-50 hover:border-red-400/35 hover:bg-red-500/20"
+                : !input.trim() || isResponding
+                  ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35"
+                  : "border-primary/25 bg-primary/12 text-foreground hover:border-primary/40 hover:bg-primary/18"
+            )}
+          >
+            {showAbortAction ? <Square className="h-3.5 w-3.5" /> : <Send className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+MessageComposer.displayName = "MessageComposer";
 
 export const ChatArea = ({
   messages,
@@ -417,8 +525,6 @@ export const ChatArea = ({
   onSend,
   showAbortAction = false,
 }: ChatAreaProps) => {
-  const [input, setInput] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -471,37 +577,6 @@ export const ChatArea = ({
       viewport.removeEventListener("scroll", handleScroll);
     };
   }, [syncScrollState]);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = "auto";
-    const nextHeight = Math.min(textarea.scrollHeight, 160);
-    textarea.style.height = `${Math.max(nextHeight, 40)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > 160 ? "auto" : "hidden";
-  }, [input]);
-
-  const handleSend = () => {
-    const trimmed = input.trim();
-    if (!trimmed || isResponding) return;
-    onSend(trimmed);
-    setInput("");
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "40px";
-      textareaRef.current.style.overflowY = "hidden";
-    }
-    textareaRef.current?.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
@@ -600,50 +675,12 @@ export const ChatArea = ({
         ) : null}
       </div>
 
-      <div className="shrink-0 border-border/50 border-t px-4 py-4">
-        <div className="mx-auto max-w-3xl rounded-xl border border-transparent bg-card shadow-xs">
-          <div className="px-3 pt-3">
-            <textarea
-              ref={textareaRef}
-              className={cn(
-                "min-h-10 w-full resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 text-sm leading-relaxed text-foreground",
-                "shadow-none outline-hidden",
-                "placeholder:text-muted-foreground/65",
-                "focus-visible:ring-0 focus-visible:ring-offset-0",
-                "disabled:opacity-60"
-              )}
-              disabled={isResponding && !showAbortAction}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Send a message to Noctis... Shift+Enter for new line"
-              rows={1}
-              value={input}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 px-3 pb-3 pt-2">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
-              Enter sends · Shift+Enter adds a new line
-            </p>
-            <button
-              type="button"
-              onClick={showAbortAction ? onAbort : handleSend}
-              disabled={showAbortAction ? !onAbort : !input.trim() || isResponding}
-              title={showAbortAction ? "Stop" : "Send"}
-              className={cn(
-                "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",
-                showAbortAction
-                  ? "border-red-500/25 bg-red-500/15 text-red-50 hover:border-red-400/35 hover:bg-red-500/20"
-                  : !input.trim() || isResponding
-                    ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35"
-                    : "border-primary/25 bg-primary/12 text-foreground hover:border-primary/40 hover:bg-primary/18"
-              )}
-            >
-              {showAbortAction ? <Square className="h-3.5 w-3.5" /> : <Send className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
-      </div>
+      <MessageComposer
+        isResponding={isResponding}
+        onAbort={onAbort}
+        onSend={onSend}
+        showAbortAction={showAbortAction}
+      />
     </div>
   );
 };
