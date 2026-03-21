@@ -37,6 +37,7 @@ type ChatStore = {
   streamingMessageId: string | null;
   setStreamingMessageId: (id: string | null) => void;
   streamingContent: string;
+  setStreamingContent: (text: string) => void;
   appendStreamingContent: (text: string) => void;
   clearStreamingContent: () => void;
 };
@@ -264,6 +265,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   streamingMessageId: null,
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),
   streamingContent: "",
+  setStreamingContent: (text) => set({ streamingContent: text }),
   appendStreamingContent: (text) =>
     set((state) => ({ streamingContent: state.streamingContent + text })),
   clearStreamingContent: () => set({ streamingContent: "" }),

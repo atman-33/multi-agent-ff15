@@ -14,9 +14,14 @@ import {
   type AgentEvent,
 } from "@/lib/event-to-party-update";
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
+import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
 
 type SessionState = "idle" | "busy" | "retry";
+
+type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
+  messageId?: string;
+};
 
 const PROGRESS_BANTER_DELAYS = {
   early: 4500,
@@ -254,6 +259,21 @@ export function useAgentSession({
     }, 2500);
   }, []);
 
+  const syncSessionMessages = useCallback(
+    async (sessionId: string, options?: { trackStreamingMessage?: boolean }) => {
+      const nextMessages = await loadSessionMessages(sessionId);
+      setMessages(nextMessages.length > 0 ? nextMessages : INITIAL_MESSAGES);
+
+      if (!options?.trackStreamingMessage) {
+        return;
+      }
+
+      const latestAssistant = [...nextMessages].reverse().find((message) => message.role === "noctis");
+      streamingMessageIdRef.current = latestAssistant?.id ?? null;
+    },
+    []
+  );
+
   useEffect(() => {
     setPartyMembers((prev) =>
       prev.map((member) => {
@@ -288,9 +308,10 @@ export function useAgentSession({
   }, [isSessionActive]);
 
   const handleAgentEvent = useCallback(
-    (event: AgentEvent) => {
+    (event: AgentEvent | StreamAgentEvent) => {
       if (event.type === "message.part.updated") {
         const { text } = event;
+        const eventMessageId = "messageId" in event ? event.messageId : undefined;
         if (!text) return;
 
         setIsStreaming(true);
@@ -300,14 +321,15 @@ export function useAgentSession({
           setSessionState(noctisSessionIdRef.current, "busy");
         }
         setMessages((prev) => {
-          const streamId = streamingMessageIdRef.current;
+          const streamId = eventMessageId ?? streamingMessageIdRef.current;
           if (streamId) {
+            streamingMessageIdRef.current = streamId;
             return prev.map((m) => {
               if (m.id !== streamId) {
                 return m;
               }
 
-              const nextContent = m.content + text;
+              const nextContent = mergeStreamingText(m.content, text);
               return {
                 ...m,
                 content: nextContent,
@@ -316,11 +338,12 @@ export function useAgentSession({
             });
           }
           const newId = createId();
-          streamingMessageIdRef.current = newId;
+          const resolvedId = eventMessageId ?? newId;
+          streamingMessageIdRef.current = resolvedId;
           return [
             ...prev,
             {
-              id: newId,
+              id: resolvedId,
               role: "noctis" as const,
               content: text,
               parts: [{ type: "text", text }],
@@ -397,28 +420,25 @@ export function useAgentSession({
           return;
         }
 
-        const type = parsed.type;
-        if (typeof type !== "string") return;
-
-        if (type === "message.part.updated") {
-          const props = parsed.properties as Record<string, unknown> | undefined;
-          const part = props?.part as Record<string, unknown> | undefined;
-          if (part?.type === "text" && typeof part.text === "string") {
-            handleAgentEvent({ type: "message.part.updated", text: part.text });
-          }
+        const textPartEvent = parseSessionTextPartEvent(parsed);
+        if (textPartEvent) {
+          handleAgentEvent({
+            type: "message.part.updated",
+            text: textPartEvent.text,
+            messageId: textPartEvent.messageId ?? undefined,
+          });
           return;
         }
+
+        const type = parsed.type;
+        if (typeof type !== "string") return;
 
         if (type === "session.idle") {
           const sessionId = noctisSessionIdRef.current;
           if (sessionId) {
             setSessionState(sessionId, "idle");
             lastSessionStateRef.current = "idle";
-            void loadSessionMessages(sessionId)
-              .then((nextMessages) => {
-                setMessages(nextMessages.length > 0 ? nextMessages : INITIAL_MESSAGES);
-              })
-              .catch(() => undefined);
+            void syncSessionMessages(sessionId).catch(() => undefined);
           }
           streamingMessageIdRef.current = null;
           handleAgentEvent({ type: "session.completed", message: "" });
@@ -460,7 +480,7 @@ export function useAgentSession({
         clearProgressBanter();
       };
     },
-    [clearProgressBanter, handleAgentEvent, scheduleProgressBanter, setSessionState]
+    [clearProgressBanter, handleAgentEvent, scheduleProgressBanter, setSessionState, syncSessionMessages]
   );
 
   useEffect(() => {
@@ -641,6 +661,9 @@ export function useAgentSession({
           handleAgentEvent({ type: "session.created" });
           scheduleProgressBanter("noctis");
           subscribeToSession(data.noctisSessionId);
+          void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
+            () => undefined
+          );
           return data.missionId;
         } else {
           handleAgentEvent({ type: "session.created" });
@@ -662,6 +685,12 @@ export function useAgentSession({
 
           if (!res.ok) {
             throw new Error(`mission/continue failed: ${res.status}`);
+          }
+
+          if (noctisSessionIdRef.current) {
+            void syncSessionMessages(noctisSessionIdRef.current, {
+              trackStreamingMessage: true,
+            }).catch(() => undefined);
           }
         }
         return missionIdRef.current;
@@ -690,7 +719,14 @@ export function useAgentSession({
         return null;
       }
     },
-    [clearProgressBanter, handleAgentEvent, scheduleProgressBanter, setSessionState, subscribeToSession]
+    [
+      clearProgressBanter,
+      handleAgentEvent,
+      scheduleProgressBanter,
+      setSessionState,
+      subscribeToSession,
+      syncSessionMessages,
+    ]
   );
 
   const abort = useCallback(async () => {

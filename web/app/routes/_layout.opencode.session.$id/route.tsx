@@ -4,6 +4,7 @@ import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { mergeMessageInfoText, mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
 import MessageComposer from "./components/message-composer";
 import MessageList from "./components/message-list";
@@ -30,7 +31,9 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setSessionState = useChatStore((state) => state.setSessionState);
   const streamingContent = useChatStore((state) => state.streamingContent);
+  const streamingMessageId = useChatStore((state) => state.streamingMessageId);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
+  const setStreamingContent = useChatStore((state) => state.setStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
 
   const isSessionRunning = sessionId ? (sessionStates[sessionId] ?? "idle") !== "idle" : false;
@@ -66,6 +69,106 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   useEffect(() => {
     setMessages(loaderData.messages ?? []);
   }, [loaderData.messages]);
+
+  useEffect(() => {
+    if (!sessionId || typeof window === "undefined") {
+      return;
+    }
+
+    const source = new EventSource(`/api/session/${sessionId}/events`);
+
+    source.onmessage = (event) => {
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(event.data as string) as Record<string, unknown>;
+      } catch {
+        return;
+      }
+
+      const textPartEvent = parseSessionTextPartEvent(parsed);
+      if (textPartEvent && (!textPartEvent.sessionId || textPartEvent.sessionId === sessionId)) {
+        const currentStore = useChatStore.getState();
+        setSessionState(sessionId, "busy");
+
+        if (textPartEvent.messageId) {
+          let matchedExistingMessage = false;
+          setMessages((current) =>
+            current.map((message) => {
+              if (message.info.id !== textPartEvent.messageId) {
+                return message;
+              }
+
+              matchedExistingMessage = true;
+              return mergeMessageInfoText(message, textPartEvent.text);
+            })
+          );
+
+          if (matchedExistingMessage) {
+            setStreamingMessageId(null);
+            setStreamingContent("");
+            return;
+          }
+        }
+
+        setStreamingMessageId(textPartEvent.messageId);
+        setStreamingContent(
+          mergeStreamingText(
+            textPartEvent.messageId === currentStore.streamingMessageId
+              ? currentStore.streamingContent
+              : "",
+            textPartEvent.text
+          )
+        );
+        return;
+      }
+
+      const type = typeof parsed.type === "string" ? parsed.type : null;
+      if (!type) {
+        return;
+      }
+
+      if (type === "session.status") {
+        const properties = parsed.properties as
+          | {
+              status?: {
+                type?: "idle" | "busy" | "retry";
+              };
+            }
+          | undefined;
+        const nextStatus = properties?.status?.type;
+        if (nextStatus) {
+          setSessionState(sessionId, nextStatus);
+        }
+        return;
+      }
+
+      if (type === "session.idle") {
+        setSessionState(sessionId, "idle");
+        clearStreamingContent();
+        setStreamingMessageId(null);
+        void loadMessages();
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("sessions:refresh"));
+        }
+      }
+    };
+
+    source.onerror = () => {
+      source.close();
+    };
+
+    return () => {
+      source.close();
+    };
+  }, [
+    clearStreamingContent,
+    loadMessages,
+    sessionId,
+    setSessionState,
+    setStreamingContent,
+    setStreamingMessageId,
+  ]);
 
   const syncScrollState = useCallback(() => {
     const viewport = scrollViewportRef.current;
