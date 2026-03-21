@@ -1,5 +1,22 @@
 # multi-agent-ff15-re
 
+## Agent Hierarchy
+
+```text
+Crystal (User)
+	|
+	v
+Noctis (King)
+	|
+	+-- Ignis (Strategist)
+	+-- Gladiolus (Shield)
+	`-- Prompto (Gun / Recon)
+```
+
+- `Crystal` is the canonical name for the user. All agents should refer to the user as Crystal.
+- The primary user-facing path is `Crystal -> Noctis`.
+- Ignis, Gladiolus, and Prompto work under Noctis and report back to Noctis.
+
 ## Reports
 
 - Use `.opencode/skills/report-writer/` when the user asks to create, update, or summarize into a report.
