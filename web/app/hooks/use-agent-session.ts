@@ -345,7 +345,6 @@ export function useAgentSession({
           }
           if (nextStatus === "busy" || nextStatus === "retry") {
             setIsAwaitingReply(true);
-            handleAgentEvent({ type: "session.created" });
           }
           return;
         }

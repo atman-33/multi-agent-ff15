@@ -121,11 +121,12 @@ export function eventToPartyUpdate(event: AgentEvent): PartyUpdate | null {
     }
 
     case "session.completed": {
+      const message = event.message.trim();
       return {
         memberId: "noctis",
         status: "success",
         task: "Message sent",
-        banterTemplate: makeBanter("noctis", event.message),
+        banterTemplate: message ? makeBanter("noctis", message) : null,
       };
     }
 
