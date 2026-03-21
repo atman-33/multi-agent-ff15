@@ -72,6 +72,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       agent: "noctis",
       appRoot: getProjectRoot(),
     });
+
     const result = await client.session.promptAsync({
       path: { id: mission.noctisSessionId },
       body: {

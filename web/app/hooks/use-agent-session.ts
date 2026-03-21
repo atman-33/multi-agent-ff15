@@ -192,7 +192,12 @@ export function useAgentSession({
 
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setSessionState = useChatStore((state) => state.setSessionState);
-  const isSessionActive = noctisSessionId ? (sessionStates[noctisSessionId] ?? "idle") !== "idle" : false;
+  const storeSessionState = noctisSessionId ? (sessionStates[noctisSessionId] ?? "idle") : "idle";
+  const isSessionActive = Boolean(noctisSessionId) && (
+    storeSessionState !== "idle" ||
+    isAwaitingReply ||
+    isStreaming
+  );
 
   const addBanter = useCallback(
     (template: { speakerId: string; speakerName: string; speakerAvatar: string; message: string }) => {
