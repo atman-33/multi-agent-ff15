@@ -57,8 +57,10 @@ node .opencode/skills/send-team-message/scripts/dispatch.mjs <missionId> <fromAg
 
 ### Query
 
+Internally uses `notify.mjs` and the `notify` message type.
+
 ```bash
-node .opencode/skills/send-team-message/scripts/query.mjs <missionId> <fromAgent> <toAgent> <body>
+node .opencode/skills/send-team-message/scripts/notify.mjs <missionId> <fromAgent> <toAgent> <body>
 ```
 
 ### Report
@@ -85,7 +87,13 @@ node .opencode/skills/send-team-message/scripts/dispatch.mjs mis_123 noctis igni
 node .opencode/skills/send-team-message/scripts/report.mjs mis_123 ignis task_001 report "Analysis complete: failure is in the queue resolver logic."
 
 # Query: Noctis shares info with Ignis (no guaranteed reply expected).
-node .opencode/skills/send-team-message/scripts/query.mjs mis_123 noctis ignis "New requirement: prioritize read-only mode support."
+node .opencode/skills/send-team-message/scripts/notify.mjs mis_123 noctis ignis "New requirement: prioritize read-only mode support."
+```
+
+Or using the unified entry:
+
+```bash
+node .opencode/skills/send-team-message/scripts/send-team-message.mjs query mis_123 noctis ignis "New requirement: prioritize read-only mode support."
 ```
 
 ## Key Principles

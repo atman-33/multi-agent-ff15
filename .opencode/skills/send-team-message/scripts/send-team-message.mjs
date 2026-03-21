@@ -11,7 +11,7 @@ if (!intent) {
 
 const intentMap = {
   dispatch: "./dispatch.mjs",
-  query: "./query.mjs",
+  query: "./notify.mjs",
   report: "./report.mjs",
 };
 

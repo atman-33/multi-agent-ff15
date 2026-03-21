@@ -31,7 +31,7 @@ function assertHubSafe(fromAgent: AgentId, toAgent: AgentId): void {
 
 /**
  * Validate intent contract against policy:
- * - notify (query intent): best-effort one-way notification; no reply expected
+ * - notify: best-effort one-way notification; no reply expected
  * - dispatch flow uses task API, not team messages
  * - report/update MUST include taskId for tracking
  */

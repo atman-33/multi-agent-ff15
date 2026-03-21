@@ -6,7 +6,7 @@ const [, , missionId, fromAgent, toAgent, ...bodyParts] = process.argv;
 
 if (!missionId || !fromAgent || !toAgent || bodyParts.length === 0) {
   console.error(
-    "Usage: node .opencode/skills/send-team-message/scripts/query.mjs <missionId> <fromAgent> <toAgent> <body>"
+    "Usage: node .opencode/skills/send-team-message/scripts/notify.mjs <missionId> <fromAgent> <toAgent> <body>"
   );
   process.exit(1);
 }

@@ -25,7 +25,7 @@ function isTeamMessageType(value: unknown): value is TeamMessageType {
  * Sends a team message within a mission.
  * 
  * Semantics per policy:
- * - notify (query): best-effort one-way notification; no reply expected
+ * - notify: best-effort one-way notification; no reply expected
  * - report/update: tracked answers, MUST include taskId
  * - instruction/handoff: informational, no taskId required
  */
