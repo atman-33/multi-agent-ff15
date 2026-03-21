@@ -28,6 +28,7 @@ type ChatStore = {
   setSelectedAgent: (agent: string | null) => void;
   agentModels: Record<string, ModelSelection | null>;
   setAgentModel: (agentId: string, model: ModelSelection | null) => void;
+  setAgentModels: (models: Record<string, ModelSelection | null>) => void;
   sessionDrafts: Record<string, SessionDraft>;
   setSessionDraft: (sessionId: string, draft: SessionDraft) => void;
   clearSessionDraft: (sessionId: string) => void;
@@ -44,6 +45,33 @@ const MODEL_STORAGE_KEY = "ff15.selectedModel";
 const AGENT_STORAGE_KEY = "ff15.selectedAgent";
 const AGENT_MODELS_STORAGE_KEY = "ff15.agentModels";
 const SESSION_DRAFTS_STORAGE_KEY = "ff15.sessionDrafts";
+
+const normalizeAgentModelKey = (agentId: string): string => {
+  return agentId === "gladio" ? "gladiolus" : agentId;
+};
+
+const sanitizeAgentModels = (
+  agentModels: Record<string, ModelSelection | null>
+): Record<string, ModelSelection | null> => {
+  const normalized: Record<string, ModelSelection | null> = {};
+
+  for (const [agentId, model] of Object.entries(agentModels)) {
+    normalized[normalizeAgentModelKey(agentId)] = model;
+  }
+
+  return normalized;
+};
+
+const persistAgentModels = (agentModels: Record<string, ModelSelection | null>): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    AGENT_MODELS_STORAGE_KEY,
+    JSON.stringify(sanitizeAgentModels(agentModels))
+  );
+};
 
 const isSessionDraftSlashMention = (value: unknown): value is SessionDraftSlashMention => {
   if (!value || typeof value !== "object") {
@@ -95,16 +123,17 @@ const getInitialAgentModels = (): Record<string, ModelSelection | null> => {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const result: Record<string, ModelSelection | null> = {};
     for (const [agentId, value] of Object.entries(parsed)) {
+      const normalizedAgentId = normalizeAgentModelKey(agentId);
       if (!value || typeof value !== "object") {
-        result[agentId] = null;
+        result[normalizedAgentId] = null;
         continue;
       }
       const v = value as Record<string, unknown>;
       if (typeof v.providerID === "string" && typeof v.modelID === "string") {
-        result[agentId] = { providerID: v.providerID, modelID: v.modelID };
+        result[normalizedAgentId] = { providerID: v.providerID, modelID: v.modelID };
       }
     }
-    return result;
+    return sanitizeAgentModels(result);
   } catch {
     return {};
   }
@@ -191,10 +220,18 @@ export const useChatStore = create<ChatStore>((set) => ({
   agentModels: getInitialAgentModels(),
   setAgentModel: (agentId, model) => {
     set((current) => {
-      const next = { ...current.agentModels, [agentId]: model };
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(AGENT_MODELS_STORAGE_KEY, JSON.stringify(next));
-      }
+      const next = sanitizeAgentModels({
+        ...current.agentModels,
+        [normalizeAgentModelKey(agentId)]: model,
+      });
+      persistAgentModels(next);
+      return { agentModels: next };
+    });
+  },
+  setAgentModels: (models) => {
+    set((current) => {
+      const next = sanitizeAgentModels({ ...current.agentModels, ...models });
+      persistAgentModels(next);
       return { agentModels: next };
     });
   },
