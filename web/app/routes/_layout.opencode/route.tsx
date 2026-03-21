@@ -375,9 +375,9 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   return (
     <ResizablePanelGroup
       orientation="horizontal"
-      className="h-full min-h-[200px] min-w-0 overflow-hidden"
+      className="h-full min-h-50 min-w-0 overflow-hidden"
     >
-      <ResizablePanel defaultSize="24%" minSize="18%" maxSize="40%">
+      <ResizablePanel defaultSize={30}>
         <aside className="flex h-full min-w-0 flex-col overflow-hidden border-border/50 border-r bg-background">
           <div className="flex items-center justify-between border-border/50 border-b px-3 py-3">
             <span className="text-xs font-semibold text-muted-foreground">Sessions</span>
@@ -435,9 +435,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
         </aside>
       </ResizablePanel>
 
-      <ResizableHandle withHandle />
-
-      <ResizablePanel defaultSize="76%" minSize="45%">
+      <ResizablePanel defaultSize={70}>
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
           <Outlet context={{ sessions } satisfies OpenCodeOutletContext} />
         </div>
