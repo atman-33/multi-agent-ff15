@@ -59,7 +59,9 @@ const AgentModelPicker = memo(
       const found = modelItems.find(
         (m) => m.providerID === selectedModel.providerID && m.modelID === selectedModel.modelID
       );
-      return found ? `${found.providerName} / ${found.modelName}` : selectedModel.modelID;
+      if (found) return found.modelName;
+      const fallback = selectedModel.modelID.split("/").pop();
+      return fallback && fallback.length > 0 ? fallback : selectedModel.modelID;
     }, [modelItems, selectedModel]);
 
     return (
@@ -80,7 +82,7 @@ const AgentModelPicker = memo(
             onClick={() => setOpen((v) => !v)}
           >
             <Cpu className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">{label ?? "model"}</span>
+            <span className="min-w-0 flex-1 truncate text-left">{label ?? "model"}</span>
             <ChevronsUpDown className="h-2.5 w-2.5 shrink-0 opacity-50" />
           </Button>
         </PopoverAnchor>
@@ -91,21 +93,6 @@ const AgentModelPicker = memo(
             <CommandList>
               <CommandEmpty>No model found.</CommandEmpty>
               <CommandGroup heading="Models">
-                <CommandItem
-                  value="default model"
-                  onSelect={() => {
-                    onSelect(null);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={cn("h-4 w-4", !selectedModel ? "opacity-100" : "opacity-0")} />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm">Default</div>
-                    <div className="truncate text-[10px] text-muted-foreground">
-                      Use OpenCode default model
-                    </div>
-                  </div>
-                </CommandItem>
                 {modelItems.map((item) => {
                   const isSelected =
                     selectedModel?.providerID === item.providerID &&
