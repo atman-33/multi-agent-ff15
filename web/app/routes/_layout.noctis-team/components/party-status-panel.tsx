@@ -72,7 +72,7 @@ const AgentModelPicker = memo(
             aria-expanded={open}
             aria-label={`Select model for ${agentId}`}
             className={cn(
-              "h-7 w-[240px] justify-between gap-1.5 px-2 font-mono text-[10px] uppercase tracking-widest",
+              "h-6 w-full justify-between gap-1 rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
               selectedModel
                 ? "text-primary/80 hover:text-primary"
                 : "text-muted-foreground/50 hover:text-muted-foreground"
@@ -188,16 +188,18 @@ export const PartyStatusPanel = ({ members }: PartyStatusPanelProps) => {
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {members.map((member) => (
-          <div key={member.id} className="relative">
-            <CharacterCard {...member} />
-            <div className="absolute top-1 right-1 z-10">
-              <AgentModelPicker
-                agentId={member.id}
-                modelItems={modelItems}
-                selectedModel={agentModels[member.id] ?? null}
-                onSelect={(model) => setAgentModel(member.id, model)}
-              />
-            </div>
+          <div key={member.id}>
+            <CharacterCard
+              {...member}
+              metaAccessory={
+                <AgentModelPicker
+                  agentId={member.id}
+                  modelItems={modelItems}
+                  selectedModel={agentModels[member.id] ?? null}
+                  onSelect={(model) => setAgentModel(member.id, model)}
+                />
+              }
+            />
           </div>
         ))}
       </div>

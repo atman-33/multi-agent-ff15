@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export type AgentStatus = "idle" | "working" | "success" | "blocked";
@@ -10,6 +11,7 @@ export interface CharacterCardProps {
   task: string;
   detail?: string;
   progress?: number;
+  metaAccessory?: ReactNode;
 }
 
 const statusConfig: Record<
@@ -54,13 +56,14 @@ export const CharacterCard = ({
   task,
   detail,
   progress,
+  metaAccessory,
 }: CharacterCardProps) => {
   const config = statusConfig[status];
 
   return (
     <div
       className={cn(
-        "flex flex-row items-center gap-3 rounded-xl border border-border/50 bg-card/60 px-3 py-2",
+        "flex flex-col gap-2 rounded-xl border border-border/50 bg-card/60 px-3 py-2",
         "transition-all duration-500 backdrop-blur-sm",
         status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
         status === "success" &&
@@ -68,57 +71,60 @@ export const CharacterCard = ({
         status === "blocked" && "border-destructive/30"
       )}
     >
-      <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
-        {status === "working" ? (
-          <span className="pointer-events-none absolute inset-x-1 bottom-1 h-8 animate-ping rounded-full bg-primary/20" />
-        ) : null}
-        <div
-          className="pointer-events-none absolute bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full blur-lg"
-          style={{
-            background: statusGlowColor[status],
-            animation: "agent-glow 2s ease-in-out infinite",
-          }}
-        />
-        <img
-          alt={name}
-          src={imageSrc}
-          className={cn(
-            "relative z-10 h-full w-full object-contain object-bottom",
-            status === "working" && "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]"
-          )}
-          style={{
-            animation: status === "working" ? undefined : config.animation,
-            filter: "drop-shadow(0 0 3px rgba(255,255,255,0.6)) drop-shadow(0 0 6px rgba(255,255,255,0.25))",
-          }}
-        />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-sm tracking-wider text-foreground uppercase">{name}</span>
-          <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
+      <div className="flex min-w-0 flex-row items-center gap-3">
+        <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
+          {status === "working" ? (
+            <span className="pointer-events-none absolute inset-x-1 bottom-1 h-8 animate-ping rounded-full bg-primary/20" />
+          ) : null}
+          <div
+            className="pointer-events-none absolute bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full blur-lg"
+            style={{
+              background: statusGlowColor[status],
+              animation: "agent-glow 2s ease-in-out infinite",
+            }}
+          />
+          <img
+            alt={name}
+            src={imageSrc}
+            className={cn(
+              "relative z-10 h-full w-full object-contain object-bottom",
+              status === "working" && "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]"
+            )}
+            style={{
+              animation: status === "working" ? undefined : config.animation,
+              filter: "drop-shadow(0 0 3px rgba(255,255,255,0.6)) drop-shadow(0 0 6px rgba(255,255,255,0.25))",
+            }}
+          />
         </div>
-        <p className="truncate font-mono text-[10px] text-muted-foreground/70">{task}</p>
-        {detail && (
-          <p className="truncate font-mono text-[9px] text-muted-foreground/50 mt-0.5">{detail}</p>
-        )}
-        {status === "working" && progress !== undefined && (
-          <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-border/40">
-            <div
-              className="h-full rounded-full bg-primary/70 transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-            />
-          </div>
-        )}
-      </div>
 
-      <div
-        className={cn(
-          "shrink-0 rounded-full border px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest",
-          config.badgeClass
-        )}
-      >
-        {config.label}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm tracking-wider text-foreground uppercase">{name}</span>
+            <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
+          </div>
+          <p className="truncate font-mono text-[10px] text-muted-foreground/70">{task}</p>
+          {detail && (
+            <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/50">{detail}</p>
+          )}
+          {metaAccessory ? <div className="mt-1 min-w-0 max-w-60">{metaAccessory}</div> : null}
+          {status === "working" && progress !== undefined && (
+            <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-border/40">
+              <div
+                className="h-full rounded-full bg-primary/70 transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            "shrink-0 rounded-full border px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest",
+            config.badgeClass
+          )}
+        >
+          {config.label}
+        </div>
       </div>
     </div>
   );
