@@ -1,11 +1,12 @@
-import { ArrowDown, ArrowUpRight, Check, Copy, Radio, Send, Square } from "lucide-react";
+import { ArrowDown, ArrowUpRight, BadgeInfo, Check, ChevronDown, Copy, Radio, Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { parseInternalContext, removeInternalContext } from "./internal-context";
 import MessageDetailSheet from "./message-detail-sheet";
 
 export interface ChatMessage {
@@ -32,11 +33,15 @@ const MessageBubble = ({
   showCursor: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
+  const [contextExpanded, setContextExpanded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const isNoctis = message.role === "noctis";
+  const internalContext = useMemo(() => parseInternalContext(message.content), [message.content]);
+  const displayContent = useMemo(() => removeInternalContext(message.content), [message.content]);
+  const copyContent = displayContent.trim() ? displayContent : message.content;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content).then(() => {
+    navigator.clipboard.writeText(copyContent).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     });
@@ -79,15 +84,62 @@ const MessageBubble = ({
               : "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
           )}
         >
+          {internalContext ? (
+            <div className="mb-3 rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
+              <button
+                className="flex w-full min-w-0 items-center gap-2 text-left"
+                onClick={() => setContextExpanded((value) => !value)}
+                type="button"
+              >
+                <BadgeInfo className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                <span className="shrink-0 text-[11px] font-medium text-sky-100">
+                  Internal Context
+                </span>
+                <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
+                  Injected
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-sky-100/80">
+                  {internalContext.summary}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "ml-auto h-3 w-3 text-sky-200/70 transition-transform duration-300 ease-out",
+                    contextExpanded ? "rotate-180" : "rotate-0"
+                  )}
+                />
+              </button>
+
+              <div
+                className={cn(
+                  "grid transition-all duration-300 ease-out",
+                  contextExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div
+                    className={cn(
+                      "grid gap-2 border-t border-sky-500/10 pt-2 text-[11px] text-sky-50/85 transition-all duration-300 ease-out",
+                      contextExpanded ? "translate-y-0" : "-translate-y-1"
+                    )}
+                  >
+                    <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap wrap-break-word text-sky-50/85">
+                      {internalContext.raw}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {isNoctis ? (
             <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                {`${message.content}${showCursor ? "▌" : ""}`}
+                {`${displayContent}${showCursor ? "▌" : ""}`}
               </ReactMarkdown>
             </div>
           ) : (
             <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-              {message.content}
+              {displayContent}
               {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
             </p>
           )}
