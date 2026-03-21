@@ -125,6 +125,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     setWorkerSession(missionId, agentId, sessionId);
 
     const injectedContext = buildInjectedPromptContext({
+      missionId,
       sessionId,
       agent: agentId,
       appRoot: projectRoot,

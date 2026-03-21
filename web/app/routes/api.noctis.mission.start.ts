@@ -69,6 +69,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const ledger = buildDelegationLedger(mission);
 
     const injectedContext = buildInjectedPromptContext({
+      missionId,
       sessionId,
       agent: "noctis",
       appRoot: projectRoot,

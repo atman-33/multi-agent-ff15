@@ -5,6 +5,7 @@ import type {
   AgentId,
   DelegationLedger,
   Mission,
+  MissionMessageLogEntry,
   MissionStatus,
   MissionSummary,
   ModelSelection,
@@ -88,6 +89,7 @@ export function createMission(
     title: options?.title?.trim() || `Mission ${now}`,
     objective: options?.objective?.trim() || undefined,
     status: "active",
+    messageLog: [],
   };
   store.set(id, mission);
   persistMission(mission);
@@ -198,6 +200,16 @@ export function updateMissionMetadata(
     mission.objective = patch.objective.trim() || undefined;
   }
   touchMission(mission, patch.status);
+}
+
+export function appendMissionMessage(
+  missionId: string,
+  message: MissionMessageLogEntry
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.messageLog.push(message);
+  touchMission(mission);
 }
 
 export function buildDelegationLedger(mission: Mission): string {

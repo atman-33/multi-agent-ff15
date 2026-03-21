@@ -62,15 +62,21 @@ function collectActiveProjects(
 type BuildInjectedPromptContextOptions = {
   agent?: string;
   appRoot: string;
+  missionId?: string;
   sessionId: string;
 };
 
 export function buildInjectedPromptContext({
   agent,
   appRoot,
+  missionId,
   sessionId,
 }: BuildInjectedPromptContextOptions): string {
-  const lines = ["<internal-context>", `session_id: ${sessionId}`];
+  const lines = ["<internal-context>"];
+  if (missionId) {
+    lines.push(`mission_id: ${missionId}`);
+  }
+  lines.push(`session_id: ${sessionId}`);
   const { projects, scopeLabel } = collectActiveProjects(appRoot, agent);
 
   lines.push(`project_scope: ${scopeLabel}`);

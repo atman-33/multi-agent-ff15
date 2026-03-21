@@ -1,5 +1,6 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
+export type TeamMessageType = "instruction" | "question" | "update" | "report" | "handoff";
 
 export interface ModelSelection {
   providerID: string;
@@ -52,6 +53,26 @@ export interface Mission {
   title: string;
   objective?: string;
   status: MissionStatus;
+  messageLog: MissionMessageLogEntry[];
+}
+
+export interface TeamMessage {
+  id: string;
+  missionId: string;
+  fromAgent: AgentId;
+  toAgent: AgentId;
+  type: TeamMessageType;
+  body: string;
+  taskId?: string;
+  replyRequested?: boolean;
+  artifacts?: string[];
+  createdAt: string;
+}
+
+export interface MissionMessageLogEntry extends TeamMessage {
+  deliveredToSessionId: string;
+  deliveryStatus: "sent" | "failed";
+  error?: string;
 }
 
 export interface MissionSummary {

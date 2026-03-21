@@ -10,6 +10,7 @@ type PromptPayload = {
     modelID: string;
   };
   agent?: string;
+  missionId?: string;
 };
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -26,6 +27,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const injectedContext = buildInjectedPromptContext({
+      missionId: typeof body.missionId === "string" ? body.missionId : undefined,
       sessionId,
       agent: body.agent,
       appRoot: getProjectRoot(),
