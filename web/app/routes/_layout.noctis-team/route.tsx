@@ -50,9 +50,9 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
       <div className="pointer-events-none absolute inset-0 bg-background/80" />
 
       <div className="relative flex h-full min-h-0 w-full gap-0">
-        <div className="flex min-h-0 w-[280px] shrink-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
-          <div className="border-border/50 border-b p-3">
-            <div className="mb-3 flex items-center gap-2">
+        <div className="flex min-h-0 w-70 shrink-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
+          <div className="border-border/50 border-b p-3 w-full">
+            <div className="mb-3 flex items-center gap-2 w-full">
               <History className="h-4 w-4 text-primary/80" />
               <div>
                 <h2 className="font-semibold text-sm">Mission History</h2>
@@ -72,8 +72,11 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
             </Button>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-2 p-3">
+          <ScrollArea
+            className="min-h-0 w-full min-w-0 flex-1"
+            viewportClassName="[&>div]:!block [&>div]:!w-full"
+          >
+            <div className="w-full min-w-0 max-w-full space-y-2 overflow-x-hidden p-3 pr-4">
               {isLoadingMissions ? (
                 <div className="rounded-lg border border-border/50 bg-card/40 p-3 font-mono text-[11px] text-muted-foreground/70">
                   Loading missions...
@@ -86,7 +89,7 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
                 missions.map((mission) => (
                   <button
                     key={mission.missionId}
-                    className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                    className={`block w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 text-left transition-colors ${
                       activeMissionId === mission.missionId
                         ? "border-primary/40 bg-primary/10"
                         : "border-border/50 bg-card/40 hover:bg-card/70"
@@ -94,9 +97,11 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
                     onClick={() => setActiveMissionId(mission.missionId)}
                     type="button"
                   >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="truncate font-semibold text-sm">{mission.title}</span>
-                      <span className="shrink-0 rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
+                    <div className="mb-1 flex min-w-0 items-center gap-2">
+                      <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-sm">
+                        {mission.title}
+                      </span>
+                      <span className="max-w-28 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
                         {mission.status}
                       </span>
                     </div>
