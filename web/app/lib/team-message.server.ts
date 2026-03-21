@@ -30,18 +30,20 @@ function assertHubSafe(fromAgent: AgentId, toAgent: AgentId): void {
   }
 }
 
+/**
+ * Validate intent contract against policy:
+ * - query (question type) is best-effort one-way; replyRequested is optional
+ * - dispatch flow uses task API, not team messages
+ * - report/update MUST include taskId for tracking
+ * - only question type can have replyRequested=true
+ */
 function assertIntentContract(message: SendTeamMessageInput): void {
-  if (message.type === "question") {
-    if (!message.replyRequested) {
-      throw new Error("Question messages must set replyRequested=true");
-    }
-    return;
-  }
-
-  if (message.replyRequested) {
+  // replyRequested is only valid with question type (policy: query is optional-response)
+  if (message.replyRequested && message.type !== "question") {
     throw new Error("Only question messages may request a reply");
   }
 
+  // report/update must include taskId for tracking
   if ((message.type === "report" || message.type === "update") && !message.taskId) {
     throw new Error("Report/update messages must include taskId");
   }

@@ -9,9 +9,9 @@ Use this skill to deliver a structured Noctis-team message through the repositor
 
 Use one skill, but choose one of three intents:
 
-- `dispatch` — structured worker dispatch from Noctis to a worker
-- `query` — question with `replyRequested=true`; delivery is guaranteed, response is not guaranteed
-- `report` — worker-to-Noctis report or update tied to a `taskId`
+- **`dispatch`** — Noctis initiates a tracked request-response flow. Worker must return answer via `report/update` with matching `taskId`
+- **`query`** — Best-effort one-way notification/share. Delivery is guaranteed, **response is not guaranteed and must not be relied upon**
+- **`report`** — Worker returns answer to Noctis, tied to a `taskId` from a prior `dispatch`
 
 ## Required Inputs
 
@@ -27,8 +27,9 @@ Use one skill, but choose one of three intents:
 - Never send `worker -> worker`
 - Never call raw `/api/session/:id/prompt` for this workflow
 - Never route by `sessionId` manually when `missionId` is available
-- Use `report` only when a concrete `taskId` exists
-- Treat `query` as best-effort reply, not a guaranteed callback
+- Use `report` only when a concrete `taskId` exists from a prior `dispatch`
+- **Treat `query` as best-effort notification only; never expect a guaranteed reply**
+- **When Noctis needs a tracked answer, use `dispatch` + `report`, not `query`**
 
 ## Workflow
 
@@ -40,11 +41,11 @@ Use one skill, but choose one of three intents:
 
 ## Intent Mapping
 
-| Intent | Direction | Internal type | Reply |
-|---|---|---|---|
-| `dispatch` | `noctis -> worker` | task dispatch | no |
-| `query` | `noctis -> worker` or `worker -> noctis` | `question` | best effort |
-| `report` | `worker -> noctis` | `report` or `update` | no |
+| Intent | Direction | Internal type | Purpose | Reply Expectation |
+|---|---|---|---|---|
+| `dispatch` | `noctis -> worker` | task dispatch | Noctis requests tracked answer | Worker must respond via `report/update` with `taskId` |
+| `query` | `noctis -> worker` or `worker -> noctis` | `question` | Best-effort notification/share | Best effort only; **no guarantee** |
+| `report` | `worker -> noctis` | `report` or `update` | Worker returns answer to tracked dispatch | No reply expected |
 
 ## Command
 
@@ -77,5 +78,19 @@ All scripts resolve mission-bound sessions and record delivery in the mission lo
 ## Example
 
 ```bash
+# Dispatch: Noctis asks Ignis for analysis. Ignis must respond with report + taskId.
 node .opencode/skills/send-team-message/scripts/dispatch.mjs mis_123 noctis ignis instruction task_001 "Analyze the current routing logic and summarize the failure points."
+
+# Report: Ignis returns answer to Noctis with the taskId from dispatch.
+node .opencode/skills/send-team-message/scripts/report.mjs mis_123 ignis task_001 report "Analysis complete: failure is in the queue resolver logic."
+
+# Query: Noctis shares info with Ignis (no guaranteed reply expected).
+node .opencode/skills/send-team-message/scripts/query.mjs mis_123 noctis ignis "New requirement: prioritize read-only mode support."
 ```
+
+## Key Principles
+
+- **Tracked request-response**: `dispatch` → `report` with matching `taskId`
+- **One-way notification**: `query` is fire-and-forget; do not wait for a reply
+- **Worker answers return via report**: Never expect a response to `query`; always use `dispatch` if you need one
+- **Mission identity**: Service/script layer enforces `missionId`, never rely on `sessionId` directly

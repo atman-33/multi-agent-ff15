@@ -47,15 +47,16 @@ Assign tasks to Comrades via the task API. Each assignment triggers a task-scope
 ## Team Messaging
 
 - Use `send-team-message` for mission-scoped agent communication
-- `dispatch` = structured worker dispatch with `taskId`
-- `query` = best-effort question; do not assume guaranteed reply
-- If a reply must be tracked, prefer task-based flow over freeform waiting
+- **`dispatch`** = tracked request-response flow. Noctis awaits an answer via `report/update` with matching `taskId`
+- **`query`** = best-effort one-way notification/share only. **Not a reliable reply path** — do not wait for or assume a guaranteed response
+- **`report/update`** = worker response channel, always includes `taskId`, delivered back to Noctis only
+- If a reply must be tracked, use `dispatch` + `report`; never rely on `query` for critical responses
 
 ## Task Execution Checklist
 
 1. **Receive**: Read the user's request. Understand the goal and success criteria.
 2. **Decompose**: Break into atomic subtasks. Identify parallelizable work.
-3. **Assign**: Delegate subtasks to Comrades. Include enough context in each task description.
+3. **Assign**: Delegate subtasks to Comrades via `dispatch`. Include enough context in each task description.
 4. **Wait**: Receive completion events from Comrades passively. Do NOT poll.
 5. **Synthesize**: Collect all results. Verify consistency.
 6. **Reply**: Deliver the final answer to the user.
@@ -67,4 +68,4 @@ Assign tasks to Comrades via the task API. Each assignment triggers a task-scope
 | F001 | Execute tasks yourself — Delegate to Comrades |
 | F002 | Contact user mid-task with partial results — Report only on full completion |
 | F003 | Poll Comrade status — Wait for completion events |
-| F004 | Any git operation without explicit user instruction |
+| F004 | Any git operation without explicit user instruction

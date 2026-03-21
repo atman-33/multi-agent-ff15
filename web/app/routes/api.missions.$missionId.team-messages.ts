@@ -19,6 +19,16 @@ function isTeamMessageType(value: unknown): value is TeamMessageType {
   return typeof value === "string" && TYPES.has(value);
 }
 
+/**
+ * POST /api/missions/{missionId}/team-messages
+ * 
+ * Sends a team message within a mission.
+ * 
+ * Semantics per policy:
+ * - question (query): best-effort one-way notification; replyRequested is optional
+ * - report/update: tracked answers, MUST include taskId
+ * - instruction/handoff: informational, no taskId required
+ */
 export const action = async ({ request, params }: Route.ActionArgs) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
@@ -52,12 +62,12 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   const taskId = typeof body.taskId === "string" && body.taskId.trim() ? body.taskId.trim() : undefined;
   const replyRequested = typeof body.replyRequested === "boolean" ? body.replyRequested : undefined;
 
-  if (body.type === "question" && replyRequested !== true) {
-    return Response.json({ error: "Question messages must set replyRequested=true" }, { status: 400 });
-  }
+  // Only question type can have replyRequested; it is optional (policy: query is best-effort one-way)
   if (body.type !== "question" && replyRequested === true) {
     return Response.json({ error: "Only question messages may request a reply" }, { status: 400 });
   }
+  
+  // report/update must include taskId for tracking
   if ((body.type === "report" || body.type === "update") && !taskId) {
     return Response.json({ error: "Report/update messages require taskId" }, { status: 400 });
   }
