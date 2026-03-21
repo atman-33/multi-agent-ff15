@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUpRight, BadgeInfo, Check, ChevronDown, Copy, Radio, Send, Square } from "lucide-react";
+import { ArrowDown, ArrowUpRight, BadgeInfo, Check, ChevronDown, Copy, Radio, Send, Sparkles, Square, Wrench } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -6,13 +6,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
+import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 import MessageDetailSheet from "./message-detail-sheet";
 
 export interface ChatMessage {
   id: string;
   role: "noctis" | "user";
   content: string;
+  parts?: MessagePart[];
   timestamp: Date;
 }
 
@@ -34,11 +37,24 @@ const MessageBubble = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [contextExpanded, setContextExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const isNoctis = message.role === "noctis";
-  const internalContext = useMemo(() => parseInternalContext(message.content), [message.content]);
-  const displayContent = useMemo(() => removeInternalContext(message.content), [message.content]);
-  const copyContent = displayContent.trim() ? displayContent : message.content;
+  const rawText = useMemo(
+    () => (message.parts && message.parts.length > 0 ? extractText(message.parts) : message.content),
+    [message.content, message.parts]
+  );
+  const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
+  const displayContent = useMemo(() => removeInternalContext(rawText), [rawText]);
+  const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
+  const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
+  const messageMarkdown = useMemo(
+    () => buildMessageMarkdown(displayContent, reasoning, tools),
+    [displayContent, reasoning, tools]
+  );
+  const copyContent = messageMarkdown.trim() ? messageMarkdown : displayContent.trim() ? displayContent : rawText;
+  const hasDetails = reasoning.trim().length > 0 || tools.length > 0;
+  const hasVisibleBody = displayContent.trim().length > 0 || showCursor;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(copyContent).then(() => {
@@ -131,18 +147,129 @@ const MessageBubble = ({
             </div>
           ) : null}
 
-          {isNoctis ? (
-            <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                {`${displayContent}${showCursor ? "▌" : ""}`}
-              </ReactMarkdown>
-            </div>
+          {hasVisibleBody ? (
+            isNoctis ? (
+              <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                  {`${displayContent}${showCursor ? "▌" : ""}`}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
+                {displayContent}
+                {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
+              </p>
+            )
           ) : (
-            <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-              {displayContent}
-              {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
-            </p>
+            <div className="rounded-md border border-dashed border-border/40 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
+              No final answer text was captured for this message.
+            </div>
           )}
+
+          {hasDetails ? (
+            <>
+              <div className="mt-3 border-t border-white/10 pt-3">
+                <button
+                  className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  onClick={() => setDetailsExpanded((value) => !value)}
+                  type="button"
+                >
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 transition-transform duration-300 ease-out",
+                      detailsExpanded ? "rotate-180" : "rotate-0"
+                    )}
+                  />
+                  <span className="font-medium">
+                    {detailsExpanded ? "Hide message details" : "Show message details"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/70">
+                    {tools.length > 0
+                      ? `${tools.length} tool activit${tools.length === 1 ? "y" : "ies"}`
+                      : "Reasoning only"}
+                  </span>
+                </button>
+              </div>
+
+              <div
+                className={cn(
+                  "grid transition-all duration-300 ease-out",
+                  detailsExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div
+                    className={cn(
+                      "space-y-3 pt-3 transition-all duration-300 ease-out",
+                      detailsExpanded ? "translate-y-0" : "-translate-y-1"
+                    )}
+                  >
+                    {reasoning ? (
+                      <section className="space-y-2">
+                        <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Noctis Commentary
+                        </div>
+                        <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
+                          {reasoning}
+                        </div>
+                      </section>
+                    ) : null}
+
+                    {tools.length > 0 ? (
+                      <section className="space-y-2">
+                        <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
+                          <Wrench className="h-3.5 w-3.5" />
+                          Tool Activity
+                        </div>
+                        <div className="space-y-2">
+                          {tools.map((tool, index) => (
+                            <details
+                              key={`${tool.tool ?? "tool"}-${index}`}
+                              className="rounded-md border border-border/30 bg-black/10 p-2"
+                            >
+                              <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+                                {tool.tool ?? "Tool"}
+                              </summary>
+                              <div className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                                {tool.state?.status ? (
+                                  <div className="mb-1">
+                                    Status:{" "}
+                                    <span
+                                      className={cn(
+                                        "font-semibold",
+                                        tool.state.status === "completed" && "text-emerald-400",
+                                        tool.state.status === "error" && "text-destructive"
+                                      )}
+                                    >
+                                      {tool.state.status}
+                                    </span>
+                                  </div>
+                                ) : null}
+                                {tool.state?.input ? (
+                                  <pre className="whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+                                    {JSON.stringify(tool.state.input, null, 2)}
+                                  </pre>
+                                ) : null}
+                                {tool.state?.output ? (
+                                  <pre className="mt-2 whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+                                    {tool.state.output}
+                                  </pre>
+                                ) : null}
+                                {tool.state?.error ? (
+                                  <div className="mt-2 text-xs text-destructive">{tool.state.error}</div>
+                                ) : null}
+                              </div>
+                            </details>
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div className="mt-1 flex h-7 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
@@ -166,6 +293,7 @@ const MessageBubble = ({
 
         <MessageDetailSheet
           content={message.content}
+          parts={message.parts}
           onOpenChange={setDetailOpen}
           open={detailOpen}
           role={message.role}

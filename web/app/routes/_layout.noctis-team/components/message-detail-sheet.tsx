@@ -12,21 +12,31 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
+import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 
 type Props = {
   content: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  parts?: MessagePart[];
   role: "noctis" | "user";
 };
 
-const MessageDetailSheet = ({ content, onOpenChange, open, role }: Props) => {
+const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props) => {
   const [copied, setCopied] = useState(false);
   const [contextExpanded, setContextExpanded] = useState(false);
-  const internalContext = useMemo(() => parseInternalContext(content), [content]);
-  const displayContent = useMemo(() => removeInternalContext(content), [content]);
-  const copyContent = displayContent.trim() ? displayContent : content;
+  const rawText = useMemo(() => (parts && parts.length > 0 ? extractText(parts) : content), [content, parts]);
+  const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
+  const tools = useMemo(() => extractTools(parts ?? []), [parts]);
+  const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
+  const displayContent = useMemo(() => removeInternalContext(rawText), [rawText]);
+  const copyContent = useMemo(
+    () => buildMessageMarkdown(displayContent, reasoning, tools),
+    [displayContent, reasoning, tools]
+  );
+  const hasVisibleBody = displayContent.trim().length > 0;
 
   const handleCopy = () => {
     if (!copyContent.trim()) {
@@ -121,17 +131,71 @@ const MessageDetailSheet = ({ content, onOpenChange, open, role }: Props) => {
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-            {role === "user" ? (
-              <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
-                {displayContent}
-              </p>
-            ) : (
-              <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{displayContent}</ReactMarkdown>
+          {hasVisibleBody ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              {role === "user" ? (
+                <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
+                  {displayContent}
+                </p>
+              ) : (
+                <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{displayContent}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-[12px] text-slate-400 sm:p-5">
+              No final answer text was captured for this message.
+            </div>
+          )}
+
+          {reasoning ? (
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
+                Noctis Commentary
               </div>
-            )}
-          </div>
+              <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">
+                {reasoning}
+              </p>
+            </div>
+          ) : null}
+
+          {tools.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400">
+                Tool Activity
+              </div>
+              {tools.map((tool, index) => (
+                <div
+                  className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
+                  key={`${tool.tool ?? "tool"}-${index}`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium text-slate-100">{tool.tool ?? "Tool"}</div>
+                    {tool.state?.status ? (
+                      <div className="text-[11px] text-slate-400">{tool.state.status}</div>
+                    ) : null}
+                  </div>
+
+                  {tool.state?.input ? (
+                    <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
+                      {JSON.stringify(tool.state.input, null, 2)}
+                    </pre>
+                  ) : null}
+
+                  {tool.state?.output ? (
+                    <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
+                      {tool.state.output}
+                    </pre>
+                  ) : null}
+
+                  {tool.state?.error ? (
+                    <div className="mt-3 text-sm text-red-300">{tool.state.error}</div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </SheetContent>
     </Sheet>

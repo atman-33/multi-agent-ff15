@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
 import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
+import { extractReasoning, extractText, extractTools } from "@/routes/_layout.noctis-team/components/message-parts";
 import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
 import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import {
@@ -83,19 +84,14 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function extractText(parts: MessagePart[]): string {
-  return parts
-    .filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text ?? "")
-    .join("")
-    .trim();
-}
-
 function toChatMessages(messages: MessageInfo[]): ChatMessage[] {
   return messages
     .map((message) => {
       const content = extractText(message.parts);
-      if (!content) {
+      const reasoning = extractReasoning(message.parts);
+      const tools = extractTools(message.parts);
+
+      if (!content && !reasoning && tools.length === 0) {
         return null;
       }
 
@@ -103,6 +99,7 @@ function toChatMessages(messages: MessageInfo[]): ChatMessage[] {
         id: message.info.id,
         role: message.info.role === "assistant" ? "noctis" : "user",
         content,
+        parts: message.parts,
         timestamp: new Date(),
       } satisfies ChatMessage;
     })
@@ -178,15 +175,30 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         setMessages((prev) => {
           const streamId = streamingMessageIdRef.current;
           if (streamId) {
-            return prev.map((m) =>
-              m.id === streamId ? { ...m, content: m.content + text } : m
-            );
+            return prev.map((m) => {
+              if (m.id !== streamId) {
+                return m;
+              }
+
+              const nextContent = m.content + text;
+              return {
+                ...m,
+                content: nextContent,
+                parts: [{ type: "text", text: nextContent }],
+              };
+            });
           }
           const newId = createId();
           streamingMessageIdRef.current = newId;
           return [
             ...prev,
-            { id: newId, role: "noctis" as const, content: text, timestamp: new Date() },
+            {
+              id: newId,
+              role: "noctis" as const,
+              content: text,
+              parts: [{ type: "text", text }],
+              timestamp: new Date(),
+            },
           ];
         });
         return;
@@ -336,6 +348,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         id: createId(),
         role: "user",
         content: text,
+        parts: [{ type: "text", text }],
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, userMessage]);
@@ -396,6 +409,12 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
           id: createId(),
           role: "noctis",
           content: `Something went wrong. ${err instanceof Error ? err.message : String(err)}`,
+          parts: [
+            {
+              type: "text",
+              text: `Something went wrong. ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
@@ -436,6 +455,12 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         id: createId(),
         role: "noctis",
         content: `Unable to stop the current response. ${err instanceof Error ? err.message : String(err)}`,
+        parts: [
+          {
+            type: "text",
+            text: `Unable to stop the current response. ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
