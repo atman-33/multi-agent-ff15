@@ -374,7 +374,6 @@ export const ChatArea = ({
                 "disabled:opacity-60"
               )}
               disabled={isResponding && !showAbortAction}
-              maxLength={500}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Send a message to Noctis... Shift+Enter for new line"
