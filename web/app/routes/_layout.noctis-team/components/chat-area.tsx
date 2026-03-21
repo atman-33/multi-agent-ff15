@@ -25,7 +25,7 @@ interface ChatAreaProps {
   isSessionActive?: boolean;
   isStreaming?: boolean;
   onAbort?: () => void;
-  onSend: (message: string) => void;
+  onSend: (message: string) => void | Promise<unknown>;
   showAbortAction?: boolean;
 }
 
@@ -37,7 +37,7 @@ interface RenderedChatMessage extends ChatMessage {
 interface MessageComposerProps {
   isResponding: boolean;
   onAbort?: () => void;
-  onSend: (message: string) => void;
+  onSend: (message: string) => void | Promise<unknown>;
   showAbortAction?: boolean;
 }
 
@@ -54,7 +54,12 @@ function toMessageParts(message: ChatMessage): MessagePart[] {
 }
 
 function getMessageRawText(message: ChatMessage): string {
-  return message.parts && message.parts.length > 0 ? extractText(message.parts) : message.content;
+  if (message.parts && message.parts.length > 0) {
+    const extracted = extractText(message.parts);
+    return extracted || message.content;
+  }
+
+  return message.content;
 }
 
 function getMessageDisplayText(message: ChatMessage): string {
@@ -132,7 +137,14 @@ const MessageBubble = memo(({
   const [detailOpen, setDetailOpen] = useState(false);
   const isNoctis = message.role === "noctis";
   const detailRawText = useMemo(
-    () => (message.parts && message.parts.length > 0 ? extractText(message.parts) : message.content),
+    () => {
+      if (message.parts && message.parts.length > 0) {
+        const extracted = extractText(message.parts);
+        return extracted || message.content;
+      }
+
+      return message.content;
+    },
     [message.content, message.parts]
   );
   const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);

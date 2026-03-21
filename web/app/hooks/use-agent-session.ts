@@ -67,7 +67,7 @@ export interface MissionSummary {
   status: "active" | "completed" | "archived";
 }
 
-type ResumePayload = {
+export type MissionResumePayload = {
   missionId: string;
   title: string;
   objective?: string;
@@ -86,26 +86,40 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function extractLooseText(parts: MessagePart[]): string {
+  return parts
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .join("")
+    .trim();
+}
+
 function toChatMessages(messages: MessageInfo[]): ChatMessage[] {
-  return messages
-    .map((message) => {
-      const content = extractText(message.parts);
-      const reasoning = extractReasoning(message.parts);
-      const tools = extractTools(message.parts);
+  return messages.reduce<ChatMessage[]>((accumulator, message, index) => {
+    const messageRecord = message as unknown as Record<string, unknown>;
+    const info = (messageRecord.info as Record<string, unknown> | undefined) ?? {};
+    const parts = Array.isArray(messageRecord.parts) ? (messageRecord.parts as MessagePart[]) : [];
 
-      if (!content && !reasoning && tools.length === 0) {
-        return null;
-      }
+    const content = extractText(parts);
+    const reasoning = extractReasoning(parts);
+    const tools = extractTools(parts);
+    const looseText = extractLooseText(parts);
+    const fallbackContent = content || looseText;
 
-      return {
-        id: message.info.id,
-        role: message.info.role === "assistant" ? "noctis" : "user",
-        content,
-        parts: message.parts,
-        timestamp: new Date(),
-      } satisfies ChatMessage;
-    })
-    .filter((message): message is ChatMessage => message !== null);
+    const rawId = info.id;
+    const id = typeof rawId === "string" && rawId.length > 0 ? rawId : `restored-${index}-${createId()}`;
+    const rawRole = info.role;
+    const role = rawRole === "assistant" ? "noctis" : "user";
+
+    accumulator.push({
+      id,
+      role,
+      content: fallbackContent,
+      parts,
+      timestamp: new Date(),
+    });
+
+    return accumulator;
+  }, []);
 }
 
 async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
@@ -115,11 +129,16 @@ async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
   }
 
   const data = (await response.json()) as { messages?: MessageInfo[] };
-  return toChatMessages(data.messages ?? []);
+  const rawMessages = data.messages ?? [];
+  const convertedMessages = toChatMessages(rawMessages);
+
+  return convertedMessages;
 }
 
 export interface UseAgentSessionOptions {
   activeMissionId: string | null;
+  initialMissionData?: MissionResumePayload | null;
+  initialMessageInfos?: MessageInfo[] | null;
 }
 
 export interface UseAgentSessionReturn {
@@ -130,11 +149,15 @@ export interface UseAgentSessionReturn {
   isStreaming: boolean;
   isLoadingHistory: boolean;
   isAwaitingReply: boolean;
-  send: (text: string) => Promise<void>;
+  send: (text: string) => Promise<string | null>;
   abort: () => Promise<void>;
 }
 
-export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): UseAgentSessionReturn {
+export function useAgentSession({
+  activeMissionId,
+  initialMissionData,
+  initialMessageInfos,
+}: UseAgentSessionOptions): UseAgentSessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>(INITIAL_PARTY);
@@ -413,13 +436,28 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
 
       setIsLoadingHistory(true);
       try {
-        const missionRes = await fetch(`/api/noctis/missions/${activeMissionId}`);
-        if (!missionRes.ok) {
-          throw new Error(`mission fetch failed: ${missionRes.status}`);
-        }
-        const mission = (await missionRes.json()) as ResumePayload;
+        const mission = initialMissionData?.missionId === activeMissionId
+          ? initialMissionData
+          : await (async () => {
+              const missionRes = await fetch(`/api/noctis/missions/${activeMissionId}`);
+              if (!missionRes.ok) {
+                throw new Error(`mission fetch failed: ${missionRes.status}`);
+              }
+              return (await missionRes.json()) as MissionResumePayload;
+            })();
 
-        const chatMessages = await loadSessionMessages(mission.sessions.noctis);
+        const hasPreloadedMessages =
+          initialMissionData?.missionId === activeMissionId &&
+          Array.isArray(initialMessageInfos) &&
+          initialMessageInfos.length > 0;
+
+        let chatMessages = hasPreloadedMessages
+          ? toChatMessages(initialMessageInfos)
+          : [];
+
+        if (chatMessages.length === 0) {
+          chatMessages = await loadSessionMessages(mission.sessions.noctis);
+        }
 
         missionIdRef.current = mission.missionId;
         noctisSessionIdRef.current = mission.sessions.noctis;
@@ -443,7 +481,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
     };
 
     void loadMission();
-  }, [activeMissionId, subscribeToSession]);
+  }, [activeMissionId, initialMessageInfos, initialMissionData, subscribeToSession]);
 
   const send = useCallback(
     async (text: string) => {
@@ -490,6 +528,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
 
           handleAgentEvent({ type: "session.created" });
           subscribeToSession(data.noctisSessionId);
+          return data.missionId;
         } else {
           handleAgentEvent({ type: "session.created" });
           if (noctisSessionIdRef.current) {
@@ -510,6 +549,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
             throw new Error(`mission/continue failed: ${res.status}`);
           }
         }
+        return missionIdRef.current;
       } catch (err) {
         const errorMessage: ChatMessage = {
           id: createId(),
@@ -529,6 +569,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         }
         setIsStreaming(false);
         setIsAwaitingReply(false);
+        return null;
       }
     },
     [handleAgentEvent, setSessionState, subscribeToSession]
