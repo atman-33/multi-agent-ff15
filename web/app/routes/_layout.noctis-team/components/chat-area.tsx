@@ -1,4 +1,4 @@
-import { ArrowDown, Check, Copy, Radio, Send, Square } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, Copy, Radio, Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import MessageDetailSheet from "./message-detail-sheet";
 
 export interface ChatMessage {
   id: string;
@@ -31,6 +32,7 @@ const MessageBubble = ({
   showCursor: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const isNoctis = message.role === "noctis";
 
   const handleCopy = () => {
@@ -94,6 +96,14 @@ const MessageBubble = ({
         <div className="mt-1 flex h-7 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            onClick={() => setDetailOpen(true)}
+            type="button"
+          >
+            <ArrowUpRight className="h-3 w-3" />
+            Open detail
+          </button>
+          <button
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
             onClick={handleCopy}
             type="button"
           >
@@ -101,6 +111,13 @@ const MessageBubble = ({
             {copied ? "Copied" : "Copy"}
           </button>
         </div>
+
+        <MessageDetailSheet
+          content={message.content}
+          onOpenChange={setDetailOpen}
+          open={detailOpen}
+          role={message.role}
+        />
       </div>
     </div>
   );
