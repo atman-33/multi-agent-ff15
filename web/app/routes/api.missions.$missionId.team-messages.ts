@@ -49,6 +49,19 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     return Response.json({ error: "Missing body" }, { status: 400 });
   }
 
+  const taskId = typeof body.taskId === "string" && body.taskId.trim() ? body.taskId.trim() : undefined;
+  const replyRequested = typeof body.replyRequested === "boolean" ? body.replyRequested : undefined;
+
+  if (body.type === "question" && replyRequested !== true) {
+    return Response.json({ error: "Question messages must set replyRequested=true" }, { status: 400 });
+  }
+  if (body.type !== "question" && replyRequested === true) {
+    return Response.json({ error: "Only question messages may request a reply" }, { status: 400 });
+  }
+  if ((body.type === "report" || body.type === "update") && !taskId) {
+    return Response.json({ error: "Report/update messages require taskId" }, { status: 400 });
+  }
+
   try {
     const result = await sendTeamMessage({
       missionId,
@@ -56,8 +69,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       toAgent: body.toAgent,
       type: body.type,
       body: body.body.trim(),
-      taskId: typeof body.taskId === "string" ? body.taskId : undefined,
-      replyRequested: typeof body.replyRequested === "boolean" ? body.replyRequested : undefined,
+      taskId,
+      replyRequested,
       artifacts: Array.isArray(body.artifacts)
         ? body.artifacts.filter((item): item is string => typeof item === "string")
         : undefined,

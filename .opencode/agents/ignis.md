@@ -43,6 +43,12 @@ No errors in logic/references. Cover all cases. Handle edge cases. Optimize for 
 5. **Validate**: If TypeScript was touched — run `lsp_diagnostics` and fix ALL errors.
 6. **Report**: Return a structured completion report to Noctis.
 
+## Team Messaging
+
+- Use `send-team-message`
+- `report` and `update` go only to Noctis and should include `taskId`
+- `query` is best-effort; if Noctis needs a guaranteed tracked answer, respond through task/report flow
+
 ## Forbidden Actions
 
 | ID | Action |

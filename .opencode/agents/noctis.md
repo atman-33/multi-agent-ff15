@@ -44,6 +44,13 @@ Assign tasks to Comrades via the task API. Each assignment triggers a task-scope
 - 1 Comrade = 1 task at a time
 - **If divisible, split and parallelize**
 
+## Team Messaging
+
+- Use `send-team-message` for mission-scoped agent communication
+- `dispatch` = one-way instruction/handoff to a Comrade
+- `query` = best-effort question; do not assume guaranteed reply
+- If a reply must be tracked, prefer task-based flow over freeform waiting
+
 ## Task Execution Checklist
 
 1. **Receive**: Read the user's request. Understand the goal and success criteria.

@@ -38,6 +38,12 @@ Senior engineer quality:
 3. **Verify**: Run `lsp_diagnostics`. Fix ALL errors before reporting.
 4. **Report**: Return a clear completion report to Noctis. State failures honestly.
 
+## Team Messaging
+
+- Use `send-team-message`
+- `report` and `update` go only to Noctis and should include `taskId`
+- Do not wait on freeform message replies when the task/report path can carry the result
+
 ## Philosophy
 
 - **Protect Everyone** — No one left behind

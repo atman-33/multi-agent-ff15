@@ -1,30 +1,24 @@
 #!/usr/bin/env node
 
-const [, , missionId, fromAgent, toAgent, type, ...bodyParts] = process.argv;
+const [, , intent] = process.argv;
 
-if (!missionId || !fromAgent || !toAgent || !type || bodyParts.length === 0) {
+if (!intent) {
   console.error(
-    "Usage: node .opencode/skills/send-team-message/scripts/send-team-message.mjs <missionId> <fromAgent> <toAgent> <type> <body>"
+    "Usage: node .opencode/skills/send-team-message/scripts/send-team-message.mjs <dispatch|query|report> ..."
   );
   process.exit(1);
 }
 
-const body = bodyParts.join(" ").trim();
-const origin = process.env.FF15_WEB_ORIGIN || "http://localhost:5173";
+const intentMap = {
+  dispatch: "./dispatch.mjs",
+  query: "./query.mjs",
+  report: "./report.mjs",
+};
 
-const response = await fetch(
-  `${origin}/api/missions/${encodeURIComponent(missionId)}/team-messages`,
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fromAgent, toAgent, type, body }),
-  }
-);
-
-const text = await response.text();
-if (!response.ok) {
-  console.error(text || `HTTP ${response.status}`);
+const target = intentMap[intent];
+if (!target) {
+  console.error("Intent must be one of: dispatch, query, report");
   process.exit(1);
 }
 
-console.log(text || "{}");
+await import(target);

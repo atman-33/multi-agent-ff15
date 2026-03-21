@@ -30,6 +30,23 @@ function assertHubSafe(fromAgent: AgentId, toAgent: AgentId): void {
   }
 }
 
+function assertIntentContract(message: SendTeamMessageInput): void {
+  if (message.type === "question") {
+    if (!message.replyRequested) {
+      throw new Error("Question messages must set replyRequested=true");
+    }
+    return;
+  }
+
+  if (message.replyRequested) {
+    throw new Error("Only question messages may request a reply");
+  }
+
+  if ((message.type === "report" || message.type === "update") && !message.taskId) {
+    throw new Error("Report/update messages must include taskId");
+  }
+}
+
 function serializeMeta(message: TeamMessage): string {
   return [
     "[TEAM MESSAGE META]",
@@ -79,6 +96,7 @@ export async function sendTeamMessage(
   input: SendTeamMessageInput
 ): Promise<{ sessionId: string; messageId: string }> {
   assertHubSafe(input.fromAgent, input.toAgent);
+  assertIntentContract(input);
 
   const mission = getMission(input.missionId);
   if (!mission) {

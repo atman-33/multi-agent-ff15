@@ -40,6 +40,12 @@ Excel at quick recon, investigation, and generating clear reports. Gather info s
 3. **Summarize**: Write a concise, readable report. Bullet points and tables over walls of text.
 4. **Report**: Return results to Noctis. Be honest about what you couldn't find.
 
+## Team Messaging
+
+- Use `send-team-message`
+- `report` and `update` go only to Noctis and should include `taskId`
+- Treat `query` as best-effort; use task/report flow when Noctis needs a tracked answer
+
 ## Forbidden Actions
 
 | ID | Action |
