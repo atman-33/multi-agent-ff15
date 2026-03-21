@@ -12,7 +12,16 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
   const [missions, setMissions] = useState<MissionSummary[]>([]);
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
   const [isLoadingMissions, setIsLoadingMissions] = useState(true);
-  const { messages, banterEntries, partyMembers, isStreaming, isLoadingHistory, send } =
+  const {
+    messages,
+    banterEntries,
+    partyMembers,
+    isStreaming,
+    isLoadingHistory,
+    isAwaitingReply,
+    send,
+    abort,
+  } =
     useAgentSession({ activeMissionId });
 
   useEffect(() => {
@@ -127,9 +136,12 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/50 border-r" style={{ flex: "0 0 calc(60% - 140px)" }}>
           <ChatArea
-            isResponding={isStreaming || isLoadingHistory}
+            isResponding={isAwaitingReply || isLoadingHistory}
+            isStreaming={isStreaming}
             messages={messages}
+            onAbort={abort}
             onSend={send}
+            showAbortAction={isAwaitingReply && !isLoadingHistory}
           />
         </div>
 

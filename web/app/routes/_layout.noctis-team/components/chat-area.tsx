@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { ArrowDown, Check, Copy, Radio, Send, Square } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Send, Radio } from "lucide-react";
 
 export interface ChatMessage {
   id: string;
@@ -15,7 +18,9 @@ interface ChatAreaProps {
   messages: ChatMessage[];
   isResponding: boolean;
   isStreaming?: boolean;
+  onAbort?: () => void;
   onSend: (message: string) => void;
+  showAbortAction?: boolean;
 }
 
 const MessageBubble = ({
@@ -25,12 +30,20 @@ const MessageBubble = ({
   message: ChatMessage;
   showCursor: boolean;
 }) => {
+  const [copied, setCopied] = useState(false);
   const isNoctis = message.role === "noctis";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   return (
     <div
       className={cn(
-        "flex items-end gap-2",
+        "group flex items-end gap-2",
         isNoctis ? "justify-start" : "justify-end"
       )}
     >
@@ -41,52 +54,141 @@ const MessageBubble = ({
           className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-primary/30"
         />
       )}
-      <div
-        className={cn(
-          "max-w-[75%] rounded-xl px-3 py-2 text-sm",
-          isNoctis
-            ? "rounded-bl-sm bg-card border border-border/50 text-foreground"
-            : "rounded-br-sm bg-primary text-primary-foreground"
-        )}
-      >
-        <p className="leading-relaxed">
-          {message.content}
-          {showCursor && (
-            <span className="animate-pulse text-primary">▌</span>
-          )}
-        </p>
+      <div className={cn("flex max-w-[84%] flex-col", isNoctis ? "items-start" : "items-end")}>
         <div
           className={cn(
-            "mt-1 font-mono text-[9px]",
-            isNoctis ? "text-muted-foreground/50" : "text-primary-foreground/60"
+            "mb-1 flex items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-widest",
+            isNoctis ? "text-muted-foreground/65" : "text-primary/70"
           )}
         >
+          <span className="font-semibold">{isNoctis ? "Noctis" : "You"}</span>
           {message.timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
           })}
         </div>
+
+        <div
+          className={cn(
+            "relative w-full rounded-2xl border px-4 py-3 text-sm shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
+            isNoctis
+              ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
+              : "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
+          )}
+        >
+          {isNoctis ? (
+            <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                {`${message.content}${showCursor ? "▌" : ""}`}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
+              {message.content}
+              {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-1 flex h-7 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <button
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            onClick={handleCopy}
+            type="button"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
-export const ChatArea = ({ messages, isResponding, isStreaming = false, onSend }: ChatAreaProps) => {
+export const ChatArea = ({
+  messages,
+  isResponding,
+  isStreaming = false,
+  onAbort,
+  onSend,
+  showAbortAction = false,
+}: ChatAreaProps) => {
   const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  const syncScrollState = useCallback(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const nearBottom = distanceFromBottom < 72;
+
+    shouldStickToBottomRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom);
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+    if (shouldStickToBottomRef.current) {
+      window.setTimeout(() => scrollToBottom(messages.length > 1 ? "smooth" : "auto"), 0);
+    }
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    syncScrollState();
+
+    const handleScroll = () => {
+      syncScrollState();
+    };
+
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+    };
+  }, [syncScrollState]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, 160);
+    textarea.style.height = `${Math.max(nextHeight, 40)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 160 ? "auto" : "hidden";
+  }, [input]);
 
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed || isResponding) return;
     onSend(trimmed);
     setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "40px";
+      textareaRef.current.style.overflowY = "hidden";
+    }
     textareaRef.current?.focus();
   };
 
@@ -131,8 +233,9 @@ export const ChatArea = ({ messages, isResponding, isStreaming = false, onSend }
         )}
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 px-4">
-        <div className="space-y-4 py-4">
+      <div className="relative min-h-0 flex-1">
+        <ScrollArea className="h-full px-4 py-4" viewportRef={scrollViewportRef}>
+          <div className="mx-auto max-w-3xl space-y-5">
           {messages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&
@@ -171,41 +274,68 @@ export const ChatArea = ({ messages, isResponding, isStreaming = false, onSend }
             </div>
           )}
 
-          <div ref={bottomRef} />
-        </div>
-      </ScrollArea>
+          </div>
+        </ScrollArea>
 
-      <div className="shrink-0 border-border/50 border-t p-3">
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={textareaRef}
-            className={cn(
-              "min-h-[40px] flex-1 resize-none rounded-lg border border-border/50 bg-muted/20 px-3 py-2",
-              "text-sm text-foreground placeholder:text-muted-foreground/40",
-              "ring-1 ring-border/50 transition-all",
-              "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50",
-              "disabled:opacity-50"
-            )}
-            disabled={isResponding}
-            maxLength={500}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Send a message to Noctis..."
-            rows={1}
-            value={input}
-          />
+        {showScrollToBottom ? (
           <Button
-            className="shrink-0"
-            disabled={!input.trim() || isResponding}
-            onClick={handleSend}
-            size="icon"
+            aria-label="Scroll to latest message"
+            className="absolute right-8 bottom-6 h-10 w-10 rounded-full border border-white/10 bg-slate-950/90 p-0 text-slate-100 shadow-lg backdrop-blur hover:bg-slate-900"
+            onClick={() => scrollToBottom()}
+            size="sm"
+            title="Scroll to latest message"
+            type="button"
+            variant="outline"
           >
-            <Send className="h-4 w-4" />
+            <ArrowDown className="h-4 w-4" />
           </Button>
+        ) : null}
+      </div>
+
+      <div className="shrink-0 border-border/50 border-t px-4 py-4">
+        <div className="mx-auto max-w-3xl rounded-xl border border-transparent bg-card shadow-xs">
+          <div className="px-3 pt-3">
+            <textarea
+              ref={textareaRef}
+              className={cn(
+                "min-h-10 w-full resize-none rounded-xl border border-transparent bg-transparent px-3 py-2 text-sm leading-relaxed text-foreground",
+                "shadow-none outline-hidden",
+                "placeholder:text-muted-foreground/65",
+                "focus-visible:ring-0 focus-visible:ring-offset-0",
+                "disabled:opacity-60"
+              )}
+              disabled={isResponding && !showAbortAction}
+              maxLength={500}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Send a message to Noctis... Shift+Enter for new line"
+              rows={1}
+              value={input}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 px-3 pb-3 pt-2">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+              Enter sends · Shift+Enter adds a new line
+            </p>
+            <button
+              type="button"
+              onClick={showAbortAction ? onAbort : handleSend}
+              disabled={showAbortAction ? !onAbort : !input.trim() || isResponding}
+              title={showAbortAction ? "Stop" : "Send"}
+              className={cn(
+                "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",
+                showAbortAction
+                  ? "border-red-500/25 bg-red-500/15 text-red-50 hover:border-red-400/35 hover:bg-red-500/20"
+                  : !input.trim() || isResponding
+                    ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35"
+                    : "border-primary/25 bg-primary/12 text-foreground hover:border-primary/40 hover:bg-primary/18"
+              )}
+            >
+              {showAbortAction ? <Square className="h-3.5 w-3.5" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
-        <p className="mt-1.5 font-mono text-[9px] text-muted-foreground/40">
-          Press Enter to send · Shift+Enter for new line
-        </p>
       </div>
     </div>
   );

@@ -129,7 +129,9 @@ export interface UseAgentSessionReturn {
   partyMembers: PartyMember[];
   isStreaming: boolean;
   isLoadingHistory: boolean;
+  isAwaitingReply: boolean;
   send: (text: string) => Promise<void>;
+  abort: () => Promise<void>;
 }
 
 export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): UseAgentSessionReturn {
@@ -138,6 +140,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>(INITIAL_PARTY);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isAwaitingReply, setIsAwaitingReply] = useState(false);
 
   const missionIdRef = useRef<string | null>(null);
   const noctisSessionIdRef = useRef<string | null>(null);
@@ -171,6 +174,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         if (!text) return;
 
         setIsStreaming(true);
+        setIsAwaitingReply(true);
         setMessages((prev) => {
           const streamId = streamingMessageIdRef.current;
           if (streamId) {
@@ -190,6 +194,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
 
       if (event.type === "session.completed") {
         setIsStreaming(false);
+        setIsAwaitingReply(false);
         streamingMessageIdRef.current = null;
         scheduleIdleReset();
       }
@@ -261,6 +266,8 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
       es.onerror = () => {
         es.close();
         eventSourceRef.current = null;
+        setIsStreaming(false);
+        setIsAwaitingReply(false);
       };
     },
     [handleAgentEvent]
@@ -285,6 +292,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         setBanterEntries([]);
         setPartyMembers(INITIAL_PARTY);
         setIsStreaming(false);
+        setIsAwaitingReply(false);
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
         return;
@@ -307,11 +315,13 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         setBanterEntries([]);
         setPartyMembers(INITIAL_PARTY);
         setIsStreaming(false);
+        setIsAwaitingReply(false);
         subscribeToSession(mission.sessions.noctis);
       } catch {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
         setMessages(INITIAL_MESSAGES);
+        setIsAwaitingReply(false);
       } finally {
         setIsLoadingHistory(false);
       }
@@ -330,6 +340,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
       };
       setMessages((prev) => [...prev, userMessage]);
       streamingMessageIdRef.current = null;
+      setIsAwaitingReply(true);
 
       const agentModels = useChatStore.getState().agentModels;
 
@@ -389,10 +400,56 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         };
         setMessages((prev) => [...prev, errorMessage]);
         setIsStreaming(false);
+        setIsAwaitingReply(false);
       }
     },
     [handleAgentEvent, subscribeToSession]
   );
 
-  return { messages, banterEntries, partyMembers, isStreaming, isLoadingHistory, send };
+  const abort = useCallback(async () => {
+    const sessionId = noctisSessionIdRef.current;
+    if (!sessionId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/session/${sessionId}/abort`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`abort failed: ${response.status}`);
+      }
+
+      const nextMessages = await loadSessionMessages(sessionId).catch(() => null);
+
+      if (nextMessages && nextMessages.length > 0) {
+        setMessages(nextMessages);
+      }
+
+      streamingMessageIdRef.current = null;
+      setIsStreaming(false);
+      setIsAwaitingReply(false);
+      setPartyMembers((prev) => resetToIdle(prev));
+    } catch (err) {
+      const errorMessage: ChatMessage = {
+        id: createId(),
+        role: "noctis",
+        content: `Unable to stop the current response. ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+  }, []);
+
+  return {
+    messages,
+    banterEntries,
+    partyMembers,
+    isStreaming,
+    isLoadingHistory,
+    isAwaitingReply,
+    send,
+    abort,
+  };
 }
