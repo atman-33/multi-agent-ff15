@@ -69,6 +69,9 @@ export const CharacterCard = ({
       )}
     >
       <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
+        {status === "working" ? (
+          <span className="pointer-events-none absolute inset-x-1 bottom-1 h-8 animate-ping rounded-full bg-primary/20" />
+        ) : null}
         <div
           className="pointer-events-none absolute bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full blur-lg"
           style={{
@@ -79,9 +82,12 @@ export const CharacterCard = ({
         <img
           alt={name}
           src={imageSrc}
-          className="relative z-10 h-full w-full object-contain object-bottom"
+          className={cn(
+            "relative z-10 h-full w-full object-contain object-bottom",
+            status === "working" && "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]"
+          )}
           style={{
-            animation: config.animation,
+            animation: status === "working" ? undefined : config.animation,
             filter: "drop-shadow(0 0 3px rgba(255,255,255,0.6)) drop-shadow(0 0 6px rgba(255,255,255,0.25))",
           }}
         />

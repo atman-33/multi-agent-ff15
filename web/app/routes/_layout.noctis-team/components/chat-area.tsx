@@ -647,10 +647,10 @@ export const ChatArea = ({
                   {[0, 1, 2].map((i) => (
                     <div
                       key={i}
-                      className="h-1.5 w-1.5 rounded-full bg-primary/60"
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary/70"
                       style={{
-                        animation: `agent-active 1s ease-in-out infinite`,
-                        animationDelay: `${i * 0.2}s`,
+                        animationDelay: `${i * 0.15}s`,
+                        animationDuration: "0.9s",
                       }}
                     />
                   ))}
