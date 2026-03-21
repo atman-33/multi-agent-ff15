@@ -18,9 +18,8 @@ try {
   const result = await postTeamMessage(origin, missionId, {
     fromAgent,
     toAgent,
-    type: "question",
+    type: "notify",
     body,
-    replyRequested: true,
   });
   console.log(result);
 } catch (error) {

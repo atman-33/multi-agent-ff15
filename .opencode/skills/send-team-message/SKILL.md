@@ -44,7 +44,7 @@ Use one skill, but choose one of three intents:
 | Intent | Direction | Internal type | Purpose | Reply Expectation |
 |---|---|---|---|---|
 | `dispatch` | `noctis -> worker` | task dispatch | Noctis requests tracked answer | Worker must respond via `report/update` with `taskId` |
-| `query` | `noctis -> worker` or `worker -> noctis` | `question` | Best-effort notification/share | Best effort only; **no guarantee** |
+| `query` | `noctis -> worker` or `worker -> noctis` | `notify` | Best-effort notification/share | **No guarantee** — do not rely on reply |
 | `report` | `worker -> noctis` | `report` or `update` | Worker returns answer to tracked dispatch | No reply expected |
 
 ## Command

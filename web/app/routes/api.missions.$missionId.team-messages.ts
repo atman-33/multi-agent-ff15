@@ -5,7 +5,7 @@ import type { Route } from "./+types/api.missions.$missionId.team-messages";
 const AGENTS: ReadonlySet<string> = new Set(["noctis", "ignis", "gladiolus", "prompto"]);
 const TYPES: ReadonlySet<string> = new Set([
   "instruction",
-  "question",
+  "notify",
   "update",
   "report",
   "handoff",
@@ -25,7 +25,7 @@ function isTeamMessageType(value: unknown): value is TeamMessageType {
  * Sends a team message within a mission.
  * 
  * Semantics per policy:
- * - question (query): best-effort one-way notification; replyRequested is optional
+ * - notify (query): best-effort one-way notification; no reply expected
  * - report/update: tracked answers, MUST include taskId
  * - instruction/handoff: informational, no taskId required
  */
@@ -45,7 +45,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     type?: unknown;
     body?: unknown;
     taskId?: unknown;
-    replyRequested?: unknown;
     artifacts?: unknown;
   } | null;
 
@@ -60,12 +59,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   }
 
   const taskId = typeof body.taskId === "string" && body.taskId.trim() ? body.taskId.trim() : undefined;
-  const replyRequested = typeof body.replyRequested === "boolean" ? body.replyRequested : undefined;
-
-  // Only question type can have replyRequested; it is optional (policy: query is best-effort one-way)
-  if (body.type !== "question" && replyRequested === true) {
-    return Response.json({ error: "Only question messages may request a reply" }, { status: 400 });
-  }
   
   // report/update must include taskId for tracking
   if ((body.type === "report" || body.type === "update") && !taskId) {
@@ -80,7 +73,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       type: body.type,
       body: body.body.trim(),
       taskId,
-      replyRequested,
       artifacts: Array.isArray(body.artifacts)
         ? body.artifacts.filter((item): item is string => typeof item === "string")
         : undefined,

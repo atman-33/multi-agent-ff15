@@ -26,7 +26,6 @@ try {
     type,
     body,
     taskId,
-    replyRequested: false,
   });
   console.log(result);
 } catch (error) {

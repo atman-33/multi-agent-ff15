@@ -1,6 +1,6 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
-export type TeamMessageType = "instruction" | "question" | "update" | "report" | "handoff";
+export type TeamMessageType = "instruction" | "notify" | "update" | "report" | "handoff";
 
 export interface ModelSelection {
   providerID: string;
@@ -64,7 +64,6 @@ export interface TeamMessage {
   type: TeamMessageType;
   body: string;
   taskId?: string;
-  replyRequested?: boolean;
   artifacts?: string[];
   createdAt: string;
 }

@@ -16,7 +16,6 @@ export interface SendTeamMessageInput {
   type: TeamMessageType;
   body: string;
   taskId?: string;
-  replyRequested?: boolean;
   artifacts?: string[];
 }
 
@@ -32,17 +31,11 @@ function assertHubSafe(fromAgent: AgentId, toAgent: AgentId): void {
 
 /**
  * Validate intent contract against policy:
- * - query (question type) is best-effort one-way; replyRequested is optional
+ * - notify (query intent): best-effort one-way notification; no reply expected
  * - dispatch flow uses task API, not team messages
  * - report/update MUST include taskId for tracking
- * - only question type can have replyRequested=true
  */
 function assertIntentContract(message: SendTeamMessageInput): void {
-  // replyRequested is only valid with question type (policy: query is optional-response)
-  if (message.replyRequested && message.type !== "question") {
-    throw new Error("Only question messages may request a reply");
-  }
-
   // report/update must include taskId for tracking
   if ((message.type === "report" || message.type === "update") && !message.taskId) {
     throw new Error("Report/update messages must include taskId");
@@ -58,7 +51,6 @@ function serializeMeta(message: TeamMessage): string {
     `to_agent: ${message.toAgent}`,
     `message_type: ${message.type}`,
     `task_id: ${message.taskId ?? ""}`,
-    `reply_requested: ${message.replyRequested ? "true" : "false"}`,
     `artifacts: ${JSON.stringify(message.artifacts ?? [])}`,
   ].join("\n");
 }
@@ -113,7 +105,6 @@ export async function sendTeamMessage(
     type: input.type,
     body: input.body,
     taskId: input.taskId,
-    replyRequested: input.replyRequested,
     artifacts: input.artifacts,
     createdAt: new Date().toISOString(),
   };
