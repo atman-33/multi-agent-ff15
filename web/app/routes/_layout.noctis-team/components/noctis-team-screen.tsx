@@ -198,7 +198,7 @@ export function NoctisTeamScreen({
 
         <ResizablePanel defaultSize={30}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-            <div className="min-h-0 flex-1 overflow-hidden border-border/50 border-b p-3">
+            <div className="shrink-0 border-border/50 border-b p-3">
               <PartyStatusPanel members={partyMembers} />
             </div>
 

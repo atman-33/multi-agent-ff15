@@ -291,7 +291,7 @@ export const PartyStatusPanel = ({ members }: PartyStatusPanelProps) => {
   }, [agentModels, presets]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+    <div className="flex flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2 border-border/50 border-b pb-2">
         <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
         <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -317,7 +317,7 @@ export const PartyStatusPanel = ({ members }: PartyStatusPanelProps) => {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      <div className="flex flex-col gap-2">
         {members.map((member) => {
           const normalizedAgentId = normalizePartyAgentId(member.id);
 
