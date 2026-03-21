@@ -1,18 +1,28 @@
 import type { Route } from "./+types/route";
 import { useEffect } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { readAppLanguage } from "@/lib/app-language.server";
 import { NoctisTeamScreen } from "./components/noctis-team-screen";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
 
 const NoctisTeamPage = ({ loaderData }: Route.ComponentProps) => {
+  const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
   const activeMissionId = params.id ?? null;
+  const shouldSkipMissionRestore =
+    location.state !== null &&
+    typeof location.state === "object" &&
+    "skipMissionRestore" in location.state &&
+    location.state.skipMissionRestore === true;
 
   useEffect(() => {
     if (activeMissionId) {
+      return;
+    }
+
+    if (shouldSkipMissionRestore) {
       return;
     }
 
@@ -38,7 +48,7 @@ const NoctisTeamPage = ({ loaderData }: Route.ComponentProps) => {
         return;
       }
     })();
-  }, [activeMissionId, navigate]);
+  }, [activeMissionId, navigate, shouldSkipMissionRestore]);
 
   return <NoctisTeamScreen activeMissionId={activeMissionId} language={loaderData.language} />;
 };

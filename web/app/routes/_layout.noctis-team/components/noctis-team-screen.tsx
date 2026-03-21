@@ -120,7 +120,7 @@ export function NoctisTeamScreen({
                 className="w-full justify-start gap-2"
                 type="button"
                 variant={effectiveMissionId === null ? "default" : "outline"}
-                onClick={() => navigate("/noctis-team")}
+                onClick={() => navigate("/noctis-team", { state: { skipMissionRestore: true } })}
               >
                 <Plus className="h-4 w-4" />
                 New Mission
