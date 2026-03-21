@@ -22,6 +22,7 @@ export interface ChatMessage {
 interface ChatAreaProps {
   messages: ChatMessage[];
   isResponding: boolean;
+  isSessionActive?: boolean;
   isStreaming?: boolean;
   onAbort?: () => void;
   onSend: (message: string) => void;
@@ -520,6 +521,7 @@ MessageComposer.displayName = "MessageComposer";
 export const ChatArea = ({
   messages,
   isResponding,
+  isSessionActive = false,
   isStreaming = false,
   onAbort,
   onSend,
@@ -599,7 +601,7 @@ export const ChatArea = ({
           </div>
         </div>
 
-        {isResponding && (
+        {isSessionActive && (
           <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
             <Radio
               className="h-3 w-3 text-primary"
@@ -633,7 +635,7 @@ export const ChatArea = ({
             );
           })}
 
-          {isResponding && (
+          {isSessionActive && (
             <div className="flex items-end gap-2">
               <img
                 alt="Noctis"

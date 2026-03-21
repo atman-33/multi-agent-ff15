@@ -16,6 +16,7 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
     messages,
     banterEntries,
     partyMembers,
+    isSessionActive,
     isStreaming,
     isLoadingHistory,
     isAwaitingReply,
@@ -137,11 +138,12 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border/50 border-r" style={{ flex: "0 0 calc(60% - 140px)" }}>
           <ChatArea
             isResponding={isAwaitingReply || isLoadingHistory}
+            isSessionActive={isSessionActive}
             isStreaming={isStreaming}
             messages={messages}
             onAbort={abort}
             onSend={send}
-            showAbortAction={isAwaitingReply && !isLoadingHistory}
+            showAbortAction={isSessionActive && !isLoadingHistory}
           />
         </div>
 

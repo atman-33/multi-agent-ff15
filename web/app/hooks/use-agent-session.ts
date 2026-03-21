@@ -12,6 +12,8 @@ import {
 } from "@/lib/event-to-party-update";
 import { useChatStore } from "@/stores/chat-store";
 
+type SessionState = "idle" | "busy" | "retry";
+
 const INITIAL_PARTY: PartyMember[] = [
   {
     id: "noctis",
@@ -124,6 +126,7 @@ export interface UseAgentSessionReturn {
   messages: ChatMessage[];
   banterEntries: BanterEntry[];
   partyMembers: PartyMember[];
+  isSessionActive: boolean;
   isStreaming: boolean;
   isLoadingHistory: boolean;
   isAwaitingReply: boolean;
@@ -135,6 +138,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>(INITIAL_PARTY);
+  const [noctisSessionId, setNoctisSessionId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isAwaitingReply, setIsAwaitingReply] = useState(false);
@@ -144,6 +148,11 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
   const streamingMessageIdRef = useRef<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const sessionStates = useChatStore((state) => state.sessionStates);
+  const setSessionState = useChatStore((state) => state.setSessionState);
+  const isSessionActive = noctisSessionId ? (sessionStates[noctisSessionId] ?? "idle") !== "idle" : false;
 
   const addBanter = useCallback(
     (template: { speakerId: string; speakerName: string; speakerAvatar: string; message: string }) => {
@@ -164,6 +173,39 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
     }, 2500);
   }, []);
 
+  useEffect(() => {
+    setPartyMembers((prev) =>
+      prev.map((member) => {
+        if (member.id !== "noctis") {
+          return member;
+        }
+
+        if (isSessionActive) {
+          if (member.status === "working" && member.task === "Coordinating…") {
+            return member;
+          }
+
+          return {
+            ...member,
+            status: "working",
+            task: "Coordinating…",
+          };
+        }
+
+        if (member.status === "working") {
+          return {
+            ...member,
+            status: "idle",
+            task: "On the road",
+            detail: undefined,
+          };
+        }
+
+        return member;
+      })
+    );
+  }, [isSessionActive]);
+
   const handleAgentEvent = useCallback(
     (event: AgentEvent) => {
       if (event.type === "message.part.updated") {
@@ -172,6 +214,9 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
 
         setIsStreaming(true);
         setIsAwaitingReply(true);
+        if (noctisSessionIdRef.current) {
+          setSessionState(noctisSessionIdRef.current, "busy");
+        }
         setMessages((prev) => {
           const streamId = streamingMessageIdRef.current;
           if (streamId) {
@@ -219,7 +264,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         }
       }
     },
-    [addBanter, scheduleIdleReset]
+    [addBanter, scheduleIdleReset, setSessionState]
   );
 
   const subscribeToSession = useCallback(
@@ -254,6 +299,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         if (type === "session.idle") {
           const sessionId = noctisSessionIdRef.current;
           if (sessionId) {
+            setSessionState(sessionId, "idle");
             void loadSessionMessages(sessionId)
               .then((nextMessages) => {
                 setMessages(nextMessages.length > 0 ? nextMessages : INITIAL_MESSAGES);
@@ -268,7 +314,13 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         if (type === "session.status") {
           const props = parsed.properties as Record<string, unknown> | undefined;
           const status = props?.status as Record<string, unknown> | undefined;
-          if (status?.type === "busy") {
+          const nextStatus = status?.type;
+          if (typeof nextStatus === "string" && noctisSessionIdRef.current) {
+            const mappedStatus: SessionState = nextStatus === "idle" ? "idle" : nextStatus === "retry" ? "retry" : "busy";
+            setSessionState(noctisSessionIdRef.current, mappedStatus);
+          }
+          if (nextStatus === "busy" || nextStatus === "retry") {
+            setIsAwaitingReply(true);
             handleAgentEvent({ type: "session.created" });
           }
           return;
@@ -278,16 +330,22 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
       es.onerror = () => {
         es.close();
         eventSourceRef.current = null;
+        if (noctisSessionIdRef.current) {
+          setSessionState(noctisSessionIdRef.current, "idle");
+        }
         setIsStreaming(false);
         setIsAwaitingReply(false);
       };
     },
-    [handleAgentEvent]
+    [handleAgentEvent, setSessionState]
   );
 
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
@@ -295,16 +353,59 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
   }, []);
 
   useEffect(() => {
+    if (!noctisSessionId || !isSessionActive) {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    if (pollingIntervalRef.current) {
+      return;
+    }
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch("/api/session-status");
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { statuses?: Record<string, SessionState> };
+        const nextStatus = data.statuses?.[noctisSessionId];
+        if (nextStatus) {
+          setSessionState(noctisSessionId, nextStatus);
+        }
+      } catch {
+        return;
+      }
+    }, 3000);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isSessionActive, noctisSessionId, setSessionState]);
+
+  useEffect(() => {
     const loadMission = async () => {
       if (!activeMissionId) {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
+        setNoctisSessionId(null);
         streamingMessageIdRef.current = null;
         setMessages(INITIAL_MESSAGES);
         setBanterEntries([]);
         setPartyMembers(INITIAL_PARTY);
         setIsStreaming(false);
         setIsAwaitingReply(false);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
         return;
@@ -322,6 +423,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
 
         missionIdRef.current = mission.missionId;
         noctisSessionIdRef.current = mission.sessions.noctis;
+        setNoctisSessionId(mission.sessions.noctis);
         streamingMessageIdRef.current = null;
         setMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
         setBanterEntries([]);
@@ -332,6 +434,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
       } catch {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
+        setNoctisSessionId(null);
         setMessages(INITIAL_MESSAGES);
         setIsAwaitingReply(false);
       } finally {
@@ -382,12 +485,15 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
           const data = (await res.json()) as { missionId: string; noctisSessionId: string };
           missionIdRef.current = data.missionId;
           noctisSessionIdRef.current = data.noctisSessionId;
+          setNoctisSessionId(data.noctisSessionId);
+          setSessionState(data.noctisSessionId, "busy");
 
           handleAgentEvent({ type: "session.created" });
           subscribeToSession(data.noctisSessionId);
         } else {
           handleAgentEvent({ type: "session.created" });
           if (noctisSessionIdRef.current) {
+            setSessionState(noctisSessionIdRef.current, "busy");
             subscribeToSession(noctisSessionIdRef.current);
           }
           const res = await fetch("/api/noctis/mission/continue", {
@@ -418,11 +524,14 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
+        if (noctisSessionIdRef.current) {
+          setSessionState(noctisSessionIdRef.current, "idle");
+        }
         setIsStreaming(false);
         setIsAwaitingReply(false);
       }
     },
-    [handleAgentEvent, subscribeToSession]
+    [handleAgentEvent, setSessionState, subscribeToSession]
   );
 
   const abort = useCallback(async () => {
@@ -446,6 +555,7 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
         setMessages(nextMessages);
       }
 
+      setSessionState(sessionId, "idle");
       streamingMessageIdRef.current = null;
       setIsStreaming(false);
       setIsAwaitingReply(false);
@@ -465,12 +575,13 @@ export function useAgentSession({ activeMissionId }: UseAgentSessionOptions): Us
       };
       setMessages((prev) => [...prev, errorMessage]);
     }
-  }, []);
+  }, [setSessionState]);
 
   return {
     messages,
     banterEntries,
     partyMembers,
+    isSessionActive,
     isStreaming,
     isLoadingHistory,
     isAwaitingReply,
