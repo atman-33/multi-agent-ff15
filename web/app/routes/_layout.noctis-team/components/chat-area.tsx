@@ -558,7 +558,7 @@ export const ChatArea = ({
             );
           })}
 
-          {isResponding && !isStreaming && (
+          {isResponding && (
             <div className="flex items-end gap-2">
               <img
                 alt="Noctis"

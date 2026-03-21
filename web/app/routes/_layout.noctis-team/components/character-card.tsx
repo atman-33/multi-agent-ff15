@@ -24,7 +24,7 @@ const statusConfig: Record<
   working: {
     label: "ACTIVE",
     badgeClass: "bg-primary/20 text-primary border-primary/40",
-    animation: "agent-active 0.6s ease-in-out infinite",
+    animation: "agent-active 0.52s cubic-bezier(0.42, 0, 0.28, 1) infinite",
   },
   success: {
     label: "DONE",
