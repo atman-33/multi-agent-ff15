@@ -169,7 +169,7 @@ const MessageBubble = ({
   return (
     <div
       className={cn(
-        "group flex items-end gap-2",
+        "group flex min-w-0 max-w-full items-end gap-2",
         isNoctis ? "justify-start" : "justify-end"
       )}
     >
@@ -180,7 +180,12 @@ const MessageBubble = ({
           className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-primary/30"
         />
       )}
-      <div className={cn("flex max-w-[84%] flex-col", isNoctis ? "items-start" : "items-end")}>
+      <div
+        className={cn(
+          "flex min-w-0 max-w-[84%] flex-col",
+          isNoctis ? "items-start" : "items-end"
+        )}
+      >
         <div
           className={cn(
             "mb-1 flex items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-widest",
@@ -197,7 +202,7 @@ const MessageBubble = ({
 
         <div
           className={cn(
-            "relative w-full rounded-2xl border px-4 py-3 text-sm shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
+            "relative min-w-0 max-w-full overflow-x-hidden rounded-2xl border px-4 py-3 text-sm shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
             isNoctis
               ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
               : "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
@@ -211,7 +216,7 @@ const MessageBubble = ({
                 </ReactMarkdown>
               </div>
             ) : (
-              <p className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
+              <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
                 {message.displayContent}
                 {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
               </p>
@@ -499,7 +504,7 @@ export const ChatArea = ({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-border/50 border-b px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
@@ -532,9 +537,13 @@ export const ChatArea = ({
         )}
       </div>
 
-      <div className="relative min-h-0 flex-1">
-        <ScrollArea className="h-full px-4 py-4" viewportRef={scrollViewportRef}>
-          <div className="mx-auto max-w-3xl space-y-5">
+      <div className="relative min-h-0 min-w-0 flex-1">
+        <ScrollArea
+          className="h-full min-w-0 px-4 py-4"
+          viewportClassName="[&>div]:!block [&>div]:!w-full"
+          viewportRef={scrollViewportRef}
+        >
+          <div className="mx-auto w-full min-w-0 max-w-3xl space-y-5 overflow-x-hidden">
           {renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&

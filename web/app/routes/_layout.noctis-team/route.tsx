@@ -134,7 +134,7 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
           </ScrollArea>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/50 border-r" style={{ flex: "0 0 calc(60% - 140px)" }}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border/50 border-r" style={{ flex: "0 0 calc(60% - 140px)" }}>
           <ChatArea
             isResponding={isAwaitingReply || isLoadingHistory}
             isStreaming={isStreaming}
@@ -145,7 +145,7 @@ const NoctisTeamPage = (_props: Route.ComponentProps) => {
           />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden border-border/50 border-b p-3">
             <PartyStatusPanel members={partyMembers} />
           </div>
