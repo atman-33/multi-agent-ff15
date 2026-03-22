@@ -17,12 +17,12 @@ import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import {
   coerceSessionStatus,
-  fetchSessionStatuses,
   isSessionStatusActive,
   type SessionStatus,
 } from "@/lib/session-status";
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
+import type { DelegationLedger } from "@/lib/types/mission";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
   messageId?: string;
@@ -156,6 +156,12 @@ export type MissionResumePayload = {
   };
 };
 
+type MissionRuntimeSnapshot = MissionResumePayload & {
+  delegationLedger: DelegationLedger;
+  sessionStatuses: Record<string, SessionStatus>;
+  noctisMessages: MessageInfo[];
+};
+
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -176,6 +182,50 @@ function coerceMessageTimestamp(rawValue: unknown, fallback: Date): Date {
   }
 
   return fallback;
+}
+
+async function loadMissionRuntimeSnapshot(missionId: string): Promise<MissionRuntimeSnapshot> {
+  const response = await fetch(`/api/noctis/missions/${missionId}/runtime`);
+  if (!response.ok) {
+    throw new Error(`mission runtime failed: ${response.status}`);
+  }
+
+  return (await response.json()) as MissionRuntimeSnapshot;
+}
+
+function mergeRuntimeSessionMessages(current: ChatMessage[], next: ChatMessage[]): ChatMessage[] {
+  if (current.length === 0) {
+    return next;
+  }
+
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  const merged = next.map((message) => {
+    const existing = currentById.get(message.id);
+    if (!existing || existing.sender !== "noctis" || message.sender !== "noctis") {
+      return message;
+    }
+
+    const currentContentLength = existing.content.trim().length;
+    const nextContentLength = message.content.trim().length;
+    if (currentContentLength <= nextContentLength) {
+      return message;
+    }
+
+    return {
+      ...message,
+      content: existing.content,
+      detailContent: existing.detailContent ?? message.detailContent,
+      rawText: existing.rawText ?? message.rawText,
+      parts: existing.parts && existing.parts.length > 0 ? existing.parts : message.parts,
+    };
+  });
+
+  const mergedIds = new Set(merged.map((message) => message.id));
+  const optimisticTail = current.filter(
+    (message) => message.sender === "noctis" && !mergedIds.has(message.id)
+  );
+
+  return optimisticTail.length > 0 ? [...merged, ...optimisticTail] : merged;
 }
 
 function toSessionChatMessages(messages: MessageInfo[]): ChatMessage[] {
@@ -285,6 +335,7 @@ export function useAgentSession({
   const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(createInitialPartyRuntimeState);
+  const [delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [workerSessionIds, setWorkerSessionIds] = useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -293,6 +344,8 @@ export function useAgentSession({
   const missionIdRef = useRef<string | null>(null);
   const noctisSessionIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const lastIncomingNoctisMessageIdRef = useRef<string | null>(null);
+  const hasHydratedRuntimeRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -331,8 +384,16 @@ export function useAgentSession({
           const workerSessionId = workerSessionIds[member.id as WorkerMemberId];
           const workerSessionStatus = workerSessionId ? (sessionStates[workerSessionId] ?? null) : null;
           const isWorkerActive = isSessionStatusActive(workerSessionStatus);
+          const memberSessionKey = "sessionKey" in member ? member.sessionKey : null;
+          const hasAssignedActiveTask = memberSessionKey
+            ? (delegationLedger?.activeTasks ?? []).some(
+                (task) =>
+                  task.assignedTo === memberSessionKey &&
+                  (task.status === "pending" || task.status === "running")
+              )
+            : false;
 
-          if (isWorkerActive) {
+          if (isWorkerActive || hasAssignedActiveTask) {
             return {
               id: member.id,
               name: member.name,
@@ -370,6 +431,19 @@ export function useAgentSession({
           };
         }
 
+        if (member.id === "noctis" && isStreaming) {
+          return {
+            id: member.id,
+            name: member.name,
+            role: member.role,
+            imageSrc: member.imageSrc,
+            status: "working",
+            task: member.activeTask,
+            detail: runtime.detail,
+            progress: runtime.progress,
+          };
+        }
+
         return {
           id: member.id,
           name: member.name,
@@ -381,7 +455,7 @@ export function useAgentSession({
           progress: runtime.progress,
         };
       }),
-    [isSessionActive, partyRuntime, sessionStates, workerSessionIds]
+    [delegationLedger, isSessionActive, isStreaming, partyRuntime, sessionStates, workerSessionIds]
   );
 
   useEffect(() => {
@@ -521,6 +595,9 @@ export function useAgentSession({
         if (!text) return;
 
         setIsStreaming(true);
+        if (noctisSessionIdRef.current) {
+          setOptimisticSessionState(noctisSessionIdRef.current, "busy", 4000);
+        }
         setSessionMessages((prev) => {
           const streamId = eventMessageId ?? streamingMessageIdRef.current;
           if (streamId) {
@@ -578,7 +655,7 @@ export function useAgentSession({
         }
       }
     },
-    [addBanter, clearProgressBanter, language, scheduleIdleReset]
+    [addBanter, clearProgressBanter, language, scheduleIdleReset, setOptimisticSessionState]
   );
 
   const scheduleProgressBanter = useCallback(
@@ -745,6 +822,90 @@ export function useAgentSession({
     [closeWorkerEventSources, handleAgentEvent, setServerSessionState]
   );
 
+  const applyMissionRuntimeSnapshot = useCallback(
+    (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
+      missionIdRef.current = runtime.missionId;
+      clearPendingMissionSession(runtime.missionId);
+
+      const nextNoctisSessionId = runtime.sessions.noctis;
+      if (noctisSessionIdRef.current !== nextNoctisSessionId) {
+        noctisSessionIdRef.current = nextNoctisSessionId;
+        setNoctisSessionId(nextNoctisSessionId);
+        streamingMessageIdRef.current = null;
+        subscribeToSession(nextNoctisSessionId);
+      } else {
+        setNoctisSessionId((current) => current ?? nextNoctisSessionId);
+      }
+
+      setWorkerSessionIds((current) => {
+        const nextWorkerSessionIds = toWorkerSessionIds(runtime.sessions);
+        return areWorkerSessionIdsEqual(current, nextWorkerSessionIds) ? current : nextWorkerSessionIds;
+      });
+      setDelegationLedger(runtime.delegationLedger);
+
+      const nextNoctisStatus = runtime.sessionStatuses[nextNoctisSessionId];
+      const currentEffectiveNoctisStatus =
+        useChatStore.getState().sessionStates[nextNoctisSessionId] ?? null;
+      const shouldPreserveNoctisActive =
+        isSessionStatusActive(currentEffectiveNoctisStatus) ||
+        isSessionStatusActive(sessionStatusRef.current) ||
+        pendingMissionSessionId === nextNoctisSessionId ||
+        isStreaming;
+
+      if (nextNoctisStatus) {
+        setServerSessionState(nextNoctisSessionId, nextNoctisStatus);
+        sessionStatusRef.current = nextNoctisStatus;
+      } else if (shouldPreserveNoctisActive) {
+      } else {
+        setServerSessionState(nextNoctisSessionId, "idle");
+        sessionStatusRef.current = "idle";
+      }
+
+      const nextWorkerSessionIds = toWorkerSessionIds(runtime.sessions);
+      for (const worker of WORKER_PARTY_MEMBERS) {
+        const sessionId = nextWorkerSessionIds[worker.id];
+        if (!sessionId) {
+          continue;
+        }
+
+        const nextStatus = runtime.sessionStatuses[sessionId];
+        setServerSessionState(sessionId, nextStatus ?? "idle");
+      }
+
+      const nextMessages = toSessionChatMessages(runtime.noctisMessages);
+      const latestIncomingMessage = [...nextMessages]
+        .reverse()
+        .find((message) => message.sender !== "noctis");
+
+      if (!hasHydratedRuntimeRef.current) {
+        lastIncomingNoctisMessageIdRef.current = latestIncomingMessage?.id ?? null;
+        hasHydratedRuntimeRef.current = true;
+      } else if (
+        latestIncomingMessage?.id &&
+        latestIncomingMessage.id !== lastIncomingNoctisMessageIdRef.current
+      ) {
+        lastIncomingNoctisMessageIdRef.current = latestIncomingMessage.id;
+        setOptimisticSessionState(nextNoctisSessionId, "busy", 4000);
+      }
+
+      if (nextMessages.length > 0) {
+        setSessionMessages((current) =>
+          options?.preserveStreaming ? mergeRuntimeSessionMessages(current, nextMessages) : nextMessages
+        );
+      } else if (!options?.preserveStreaming) {
+        setSessionMessages(INITIAL_MESSAGES);
+      }
+    },
+    [
+      clearPendingMissionSession,
+      isStreaming,
+      pendingMissionSessionId,
+      setOptimisticSessionState,
+      setServerSessionState,
+      subscribeToSession,
+    ]
+  );
+
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
@@ -767,43 +928,38 @@ export function useAgentSession({
 
     let cancelled = false;
 
-    const refreshMissionSessions = async () => {
+    const refreshMissionRuntime = async () => {
       try {
-        const response = await fetch(`/api/noctis/missions/${activeMissionId}`);
-        if (!response.ok) {
+        const runtime = await loadMissionRuntimeSnapshot(activeMissionId);
+        if (cancelled || runtime.missionId !== activeMissionId) {
           return;
         }
 
-        const mission = (await response.json()) as MissionResumePayload;
-        if (cancelled || mission.missionId !== activeMissionId) {
-          return;
-        }
-
-        const nextWorkerSessionIds = toWorkerSessionIds(mission.sessions);
-        setWorkerSessionIds((current) =>
-          areWorkerSessionIdsEqual(current, nextWorkerSessionIds) ? current : nextWorkerSessionIds
-        );
+        applyMissionRuntimeSnapshot(runtime, { preserveStreaming: true });
       } catch {
-        // Ignore transient mission refresh failures.
+        // Ignore transient mission runtime failures.
       }
     };
 
-    void refreshMissionSessions();
-    const intervalId = window.setInterval(refreshMissionSessions, 2000);
+    void refreshMissionRuntime();
+    const intervalId = window.setInterval(refreshMissionRuntime, 2000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeMissionId]);
+  }, [activeMissionId, applyMissionRuntimeSnapshot]);
 
   useEffect(() => {
     const loadMission = async () => {
       if (!activeMissionId) {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
+        lastIncomingNoctisMessageIdRef.current = null;
+        hasHydratedRuntimeRef.current = false;
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
+        setDelegationLedger(null);
         streamingMessageIdRef.current = null;
         setSessionMessages(INITIAL_MESSAGES);
         clearBanterEntries();
@@ -813,11 +969,7 @@ export function useAgentSession({
         lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
         sessionStatusRef.current = null;
         clearProgressBanter();
-        void fetchSessionStatuses()
-          .then((statuses) => {
-            replaceServerSessionStates(statuses);
-          })
-          .catch(() => undefined);
+        replaceServerSessionStates({});
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
         closeWorkerEventSources();
@@ -826,36 +978,25 @@ export function useAgentSession({
 
       setIsLoadingHistory(true);
       try {
-        const mission = initialMissionData?.missionId === activeMissionId
-          ? initialMissionData
-          : await (async () => {
-              const missionRes = await fetch(`/api/noctis/missions/${activeMissionId}`);
-              if (!missionRes.ok) {
-                throw new Error(`mission fetch failed: ${missionRes.status}`);
-              }
-              return (await missionRes.json()) as MissionResumePayload;
-            })();
-
         const hasPreloadedMessages =
           initialMissionData?.missionId === activeMissionId &&
           Array.isArray(initialMessageInfos) &&
           initialMessageInfos.length > 0;
 
-        let chatMessages = hasPreloadedMessages
-          ? toSessionChatMessages(initialMessageInfos)
-          : [];
-
-        if (chatMessages.length === 0) {
-          chatMessages = await loadSessionMessages(mission.sessions.noctis);
+        if (initialMissionData?.missionId === activeMissionId) {
+          missionIdRef.current = initialMissionData.missionId;
+          clearPendingMissionSession(initialMissionData.missionId);
+          noctisSessionIdRef.current = initialMissionData.sessions.noctis;
+          setNoctisSessionId(initialMissionData.sessions.noctis);
+          setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
+          streamingMessageIdRef.current = null;
+          if (hasPreloadedMessages) {
+            const preloadedMessages = toSessionChatMessages(initialMessageInfos ?? []);
+            setSessionMessages(preloadedMessages.length > 0 ? preloadedMessages : INITIAL_MESSAGES);
+          }
+          subscribeToSession(initialMissionData.sessions.noctis);
         }
 
-        missionIdRef.current = mission.missionId;
-  clearPendingMissionSession(mission.missionId);
-        noctisSessionIdRef.current = mission.sessions.noctis;
-        setNoctisSessionId(mission.sessions.noctis);
-        setWorkerSessionIds(toWorkerSessionIds(mission.sessions));
-        streamingMessageIdRef.current = null;
-        setSessionMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
         clearBanterEntries();
         setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
@@ -863,21 +1004,21 @@ export function useAgentSession({
         lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
         sessionStatusRef.current = null;
         clearProgressBanter();
-        replaceServerSessionStates(await fetchSessionStatuses().catch(() => ({})));
-        subscribeToSession(mission.sessions.noctis);
+
+        const runtime = await loadMissionRuntimeSnapshot(activeMissionId);
+        applyMissionRuntimeSnapshot(runtime, { preserveStreaming: false });
       } catch {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
+        lastIncomingNoctisMessageIdRef.current = null;
+        hasHydratedRuntimeRef.current = false;
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
+        setDelegationLedger(null);
         setSessionMessages(INITIAL_MESSAGES);
         sessionStatusRef.current = null;
         clearProgressBanter();
-        void fetchSessionStatuses()
-          .then((statuses) => {
-            replaceServerSessionStates(statuses);
-          })
-          .catch(() => undefined);
+        replaceServerSessionStates({});
         closeWorkerEventSources();
       } finally {
         setIsLoadingHistory(false);
@@ -894,6 +1035,7 @@ export function useAgentSession({
     initialMessageInfos,
     initialMissionData,
     pendingMissionSessionId,
+    applyMissionRuntimeSnapshot,
     replaceServerSessionStates,
     subscribeToSession,
   ]);
