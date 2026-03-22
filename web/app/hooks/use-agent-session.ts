@@ -8,8 +8,10 @@ import type { AppLanguage } from "@/lib/app-language.server";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
 import type { RecentBanterEntry } from "@/lib/banter/types";
 import {
+  applyPartyRuntimeUpdate,
   eventToPartyUpdate,
   type AgentEvent,
+  type PartyRuntimeState,
 } from "@/lib/event-to-party-update";
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import {
@@ -60,9 +62,6 @@ const PARTY_MEMBER_META = [
   },
 ] as const;
 
-type PartyRuntimeEntry = Pick<PartyMember, "status" | "task" | "detail" | "progress">;
-type PartyRuntimeState = Record<string, PartyRuntimeEntry>;
-
 function createInitialPartyRuntimeState(): PartyRuntimeState {
   return Object.fromEntries(
     PARTY_MEMBER_META.map((member) => [
@@ -75,27 +74,6 @@ function createInitialPartyRuntimeState(): PartyRuntimeState {
       },
     ])
   ) as PartyRuntimeState;
-}
-
-function applyPartyRuntimeUpdate(
-  current: PartyRuntimeState,
-  update: { memberId: string; status: PartyMember["status"]; task: string; detail?: string }
-): PartyRuntimeState {
-  const existing = current[update.memberId];
-  if (!existing) {
-    return current;
-  }
-
-  return {
-    ...current,
-    [update.memberId]: {
-      ...existing,
-      status: update.status,
-      task: update.task,
-      detail: update.detail,
-      progress: undefined,
-    },
-  };
 }
 
 const INITIAL_MESSAGES: ChatMessage[] = [

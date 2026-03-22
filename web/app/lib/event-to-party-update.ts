@@ -1,5 +1,4 @@
 import type { AgentStatus } from "@/routes/_layout.noctis-team/components/character-card";
-import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
 import type { AppLanguage } from "@/lib/app-language.server";
 import {
   createBanterTemplate,
@@ -20,11 +19,17 @@ export type AgentEvent =
   | { type: "runtime.recovered"; agentId: string }
   | { type: "message.part.updated"; agentId?: string; text?: string };
 
-export interface PartyUpdate {
-  memberId: string;
+export interface PartyRuntimeEntry {
   status: AgentStatus;
   task: string;
   detail?: string;
+  progress?: number;
+}
+
+export type PartyRuntimeState = Record<string, PartyRuntimeEntry>;
+
+export interface PartyRuntimeUpdate extends PartyRuntimeEntry {
+  memberId: string;
   banterTemplate: BanterTemplate | null;
 }
 
@@ -43,7 +48,7 @@ const TASK_ASSIGNED_LABEL: Record<string, string> = {
 export function eventToPartyUpdate(
   event: AgentEvent,
   options: EventToPartyUpdateOptions = {}
-): PartyUpdate | null {
+): PartyRuntimeUpdate | null {
   const language = options.language ?? "other";
   const recentEntries = options.recentEntries ?? [];
 
@@ -140,21 +145,23 @@ export function eventToPartyUpdate(
   }
 }
 
-export function resetToIdle(members: PartyMember[]): PartyMember[] {
-  return members.map((m) => ({
-    ...m,
-    status: "idle" as AgentStatus,
-    task: m.id === "noctis" ? "On the road" : "Awaiting orders",
-    detail: undefined,
-  }));
-}
+export function applyPartyRuntimeUpdate(
+  current: PartyRuntimeState,
+  update: PartyRuntimeUpdate
+): PartyRuntimeState {
+  const existing = current[update.memberId];
+  if (!existing) {
+    return current;
+  }
 
-export function applyPartyUpdate(
-  members: PartyMember[],
-  update: PartyUpdate
-): PartyMember[] {
-  return members.map((m) => {
-    if (m.id !== update.memberId) return m;
-    return { ...m, status: update.status, task: update.task, detail: update.detail };
-  });
+  return {
+    ...current,
+    [update.memberId]: {
+      ...existing,
+      status: update.status,
+      task: update.task,
+      detail: update.detail,
+      progress: update.progress,
+    },
+  };
 }
