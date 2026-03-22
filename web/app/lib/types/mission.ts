@@ -1,6 +1,7 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
-export type TeamMessageType = "instruction" | "notify" | "update" | "report" | "handoff";
+export type TeamMessageType = "task" | "report" | "message";
+export type ReportStatus = "running" | "blocked" | "completed" | "failed";
 
 export interface ModelSelection {
   providerID: string;
@@ -11,12 +12,12 @@ export type MissionStatus = "active" | "completed" | "archived";
 
 export interface WorkerResult {
   task_id: string;
-  status: "completed" | "failed";
+  status: ReportStatus;
   summary: string;
   artifacts: string[];
 }
 
-export type TaskStatus = "pending" | "running" | "completed" | "failed";
+export type TaskStatus = "pending" | "running" | "blocked" | "completed" | "failed";
 
 export interface Task {
   id: string;
@@ -64,6 +65,7 @@ export interface TeamMessage {
   type: TeamMessageType;
   body: string;
   taskId?: string;
+  reportStatus?: ReportStatus;
   artifacts?: string[];
   createdAt: string;
 }
@@ -121,18 +123,18 @@ ${depSection}
 [CONSTRAINTS]
 - No new external dependencies
 - Chat output alone is not task completion
-- For tracked tasks, use the send-team-message skill to return progress/final results via report or update
-- The report/update must include the same taskId: ${taskId}
-- A dispatched task is complete only after Noctis receives the tracked report/update for ${taskId}
+- Workers return to Noctis only through scripts/send_report.sh
+- The report must include the same taskId: ${taskId}
+- A task is complete only after Noctis receives the report for ${taskId}
 - Do not stop after printing JSON in chat
 
 [OUTPUT FORMAT]
 Return results in WorkerResult format: { task_id, status, summary, artifacts }
 
 [MANDATORY DELIVERY]
-- Use the send-team-message skill to send your result back to Noctis
-- For final results, use intent=report; for progress updates, use intent=update
-- Include the same taskId in that tracked reply
+- Use scripts/send_report.sh to send your result back to Noctis
+- Use status=running for progress, status=blocked for blockers, status=completed for final success, status=failed for final failure
+- Include the same taskId in the report command
 
 [EXPECTED OUTPUT]
 ${outputSchema}`;

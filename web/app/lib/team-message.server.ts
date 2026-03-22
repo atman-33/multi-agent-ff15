@@ -5,6 +5,7 @@ import { appendMissionMessage, getMission, setWorkerSession } from "@/lib/missio
 import type {
   AgentId,
   MissionMessageLogEntry,
+  ReportStatus,
   TeamMessage,
   TeamMessageType,
 } from "@/lib/types/mission";
@@ -16,6 +17,7 @@ export interface SendTeamMessageInput {
   type: TeamMessageType;
   body: string;
   taskId?: string;
+  reportStatus?: ReportStatus;
   artifacts?: string[];
 }
 
@@ -30,15 +32,30 @@ function assertHubSafe(fromAgent: AgentId, toAgent: AgentId): void {
 }
 
 /**
- * Validate intent contract against policy:
- * - notify: best-effort one-way notification; no reply expected
- * - dispatch flow uses task API, not team messages
- * - report/update MUST include taskId for tracking
+ * Validate simple protocol contract:
+ * - task: Noctis -> worker only
+ * - message: one-way supplemental message
+ * - report: worker -> Noctis only, MUST include taskId and reportStatus
  */
 function assertIntentContract(message: SendTeamMessageInput): void {
-  // report/update must include taskId for tracking
-  if ((message.type === "report" || message.type === "update") && !message.taskId) {
-    throw new Error("Report/update messages must include taskId");
+  if (message.type === "task" && message.fromAgent !== "noctis") {
+    throw new Error("Task messages must originate from Noctis");
+  }
+
+  if (message.type === "message" && message.fromAgent !== "noctis") {
+    throw new Error("Only Noctis can send plain team messages in the simple protocol");
+  }
+
+  if (message.type === "report") {
+    if (!message.taskId) {
+      throw new Error("Report messages must include taskId");
+    }
+    if (!message.reportStatus) {
+      throw new Error("Report messages must include reportStatus");
+    }
+    if (message.toAgent !== "noctis") {
+      throw new Error("Report messages must target Noctis");
+    }
   }
 }
 
@@ -51,6 +68,7 @@ function serializeMeta(message: TeamMessage): string {
     `to_agent: ${message.toAgent}`,
     `message_type: ${message.type}`,
     `task_id: ${message.taskId ?? ""}`,
+    `report_status: ${message.reportStatus ?? ""}`,
     `artifacts: ${JSON.stringify(message.artifacts ?? [])}`,
   ].join("\n");
 }
@@ -86,7 +104,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
   return sessionId;
 }
 
-export async function sendTeamMessage(
+async function deliverMissionMessage(
   input: SendTeamMessageInput
 ): Promise<{ sessionId: string; messageId: string }> {
   assertHubSafe(input.fromAgent, input.toAgent);
@@ -105,6 +123,7 @@ export async function sendTeamMessage(
     type: input.type,
     body: input.body,
     taskId: input.taskId,
+    reportStatus: input.reportStatus,
     artifacts: input.artifacts,
     createdAt: new Date().toISOString(),
   };
@@ -151,4 +170,45 @@ export async function sendTeamMessage(
     appendMissionMessage(input.missionId, failedEntry);
     throw error;
   }
+}
+
+export async function sendSimpleMessage(input: {
+  missionId: string;
+  toAgent: AgentId;
+  body: string;
+}): Promise<{ sessionId: string; messageId: string }> {
+  return deliverMissionMessage({
+    missionId: input.missionId,
+    fromAgent: "noctis",
+    toAgent: input.toAgent,
+    type: "message",
+    body: input.body,
+  });
+}
+
+export async function sendWorkerReport(input: {
+  missionId: string;
+  fromAgent: AgentId;
+  taskId: string;
+  status: ReportStatus;
+  summary: string;
+  details?: string;
+  artifacts?: string[];
+}): Promise<{ sessionId: string; messageId: string }> {
+  const sections = [`summary: ${input.summary}`];
+  if (input.details?.trim()) {
+    sections.push("details:");
+    sections.push(input.details.trim());
+  }
+
+  return deliverMissionMessage({
+    missionId: input.missionId,
+    fromAgent: input.fromAgent,
+    toAgent: "noctis",
+    type: "report",
+    body: sections.join("\n"),
+    taskId: input.taskId,
+    reportStatus: input.status,
+    artifacts: input.artifacts,
+  });
 }

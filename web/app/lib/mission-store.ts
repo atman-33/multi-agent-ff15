@@ -11,6 +11,7 @@ import type {
   ModelSelection,
   Task,
   TaskStatus,
+  WorkerResult,
   WorkerAgentId,
 } from "./types/mission";
 
@@ -164,7 +165,8 @@ export function updateTask(
   missionId: string,
   taskId: string,
   status: TaskStatus,
-  summary?: string
+  summary?: string,
+  result?: WorkerResult
 ): void {
   const mission = getMission(missionId);
   if (!mission) return;
@@ -172,6 +174,9 @@ export function updateTask(
   const task = mission.taskGraph.find((t) => t.id === taskId);
   if (task) {
     task.status = status;
+    if (result) {
+      task.result = result;
+    }
   }
 
   const ledgerEntry = mission.delegationLedger.activeTasks.find((t) => t.id === taskId);
@@ -179,11 +184,14 @@ export function updateTask(
     ledgerEntry.status = status;
   }
 
-  if ((status === "completed" || status === "failed") && summary) {
+  if ((status === "completed" || status === "failed" || status === "blocked") && summary) {
     mission.delegationLedger.completedSummaries[taskId] = summary;
   }
 
-  touchMission(mission, status === "running" || status === "pending" ? "active" : undefined);
+  touchMission(
+    mission,
+    status === "running" || status === "pending" || status === "blocked" ? "active" : undefined
+  );
 }
 
 export function updateMissionMetadata(

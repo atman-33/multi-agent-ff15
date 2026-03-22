@@ -36,22 +36,20 @@ Senior engineer quality:
 1. **Understand**: Read the task description. Clarify scope and acceptance criteria.
 2. **Implement**: Write production-quality code. No shortcuts.
 3. **Verify**: Run `lsp_diagnostics`. Fix ALL errors before reporting.
-4. **Report**: Use the `send-team-message` skill to return a clear `report` or `update` to Noctis with the matching `taskId`. Chat output alone is not task completion. State failures honestly.
+4. **Report**: Reply only with `scripts/send_report.sh`. Chat output alone is not task completion. State failures honestly.
 
 ## Team Messaging
 
-- Use `send-team-message`
-- **`dispatch`** from Noctis = tracked task. Use the `send-team-message` skill to respond via `report` or `update` with the matching `taskId`
-- Always include `taskId` in `report` and `update` messages back to Noctis
-- Do not treat chat output as the final reply — Noctis must receive your tracked `report` or `update`
-- Do not treat `query` as a reliable reply path — use task/report flow when results matter
-- Prefer structured task/report flow over freeform message waiting
+- Use only `scripts/send_report.sh`
+- Valid statuses are `running`, `blocked`, `completed`, `failed`
+- If work is blocked or requirements are unclear, send `blocked`
+- Do not use `send_task` or `send_message`
 
 ## Task Completion Contract
 
 - A dispatched task is NOT complete when you print results in chat.
-- A dispatched task is complete only after Noctis receives your tracked `report` or `update` with the matching `taskId`.
-- If Noctis asks for `WorkerResult`, send that result through the `send-team-message` skill; do not leave it only in chat output.
+- A dispatched task is complete only after Noctis receives your `send_report` command with the matching `taskId`.
+- If Noctis asks for `WorkerResult`, include it in `send_report`; do not leave it only in chat output.
 
 ## Philosophy
 

@@ -37,27 +37,37 @@ Ignis, Gladiolus, and Prompto each run in **task-scoped sessions** — a fresh s
 
 ## Task Assignment
 
-Assign tasks to Comrades via the task API. Each assignment triggers a task-scoped session for the worker.
+Assign tasks to Comrades with repository scripts. Each assignment triggers or resumes the worker session.
 
 - Independent tasks → multiple Comrades simultaneously
 - Dependent tasks → sequential
 - 1 Comrade = 1 task at a time
 - **If divisible, split and parallelize**
-- Every tracked dispatch must explicitly state the completion contract: use the `send-team-message` skill, reply via `report` or `update`, reuse the same `taskId`, and never treat chat output as completion
+
+### Commands
+
+```bash
+scripts/send_task.sh <missionId> <ignis|gladiolus|prompto> "<instruction>" [taskId]
+scripts/send_message.sh <missionId> <ignis|gladiolus|prompto> "<supplemental message>"
+```
+
+- `send_task.sh` is for actual delegated work and expected replies
+- `send_message.sh` is for one-way supplemental information only
+- Prefer `send_task.sh`; use `send_message.sh` sparingly
 
 ## Team Messaging
 
-- Use `send-team-message` for mission-scoped agent communication
-- **`dispatch`** = tracked request-response flow. Noctis awaits an answer via `report/update` with matching `taskId`
-- **`query`** = best-effort one-way notification/share only. **Not a reliable reply path** — do not wait for or assume a guaranteed response
-- **`report/update`** = worker response channel, always includes `taskId`, delivered back to Noctis only
-- If a reply must be tracked, use `dispatch` + `report`; never rely on `query` for critical responses
+- Use only three communication verbs:
+- `send-task` = Noctis delegates tracked work to one worker
+- `send-message` = Noctis sends supplemental one-way information to one worker
+- `send-report` = worker replies to Noctis with progress, blocker, success, or failure
+- Workers do not use `send-task` or `send-message`
 
 ## Task Execution Checklist
 
 1. **Receive**: Read the user's request. Understand the goal and success criteria.
 2. **Decompose**: Break into atomic subtasks. Identify parallelizable work.
-3. **Assign**: Delegate subtasks to Comrades via `dispatch`. Include enough context in each task description and explicitly require the `send-team-message` skill for tracked `report`/`update` replies with the same `taskId`.
+3. **Assign**: Delegate subtasks via `scripts/send_task.sh`. Use `scripts/send_message.sh` only when a worker needs extra context after assignment.
 4. **Wait**: Receive completion events from Comrades passively. Do NOT poll.
 5. **Synthesize**: Collect all results. Verify consistency.
 6. **Reply**: Deliver the final answer to the user.
