@@ -195,10 +195,7 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
                 }}
               >
                 <div className="flex items-baseline gap-1.5">
-                  <span
-                    className="shrink-0 font-mono text-[10px] font-semibold uppercase"
-                    style={{ color: theme?.text ?? "rgba(226, 232, 240, 0.88)" }}
-                  >
+                  <span className="shrink-0 font-mono text-[10px] font-semibold text-foreground uppercase">
                     {entry.speakerName}
                   </span>
                   {showLiveBadge ? (

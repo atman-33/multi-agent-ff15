@@ -67,7 +67,7 @@ const statusConfig: Record<
   },
 };
 
-const statusGlowColor: Record<AgentStatus, string> = {
+const statusGlowColorFallback: Record<AgentStatus, string> = {
   idle: "rgba(100,120,180,0.15)",
   working: "rgba(59,130,246,0.3)",
   success: "rgba(34,197,94,0.25)",
@@ -89,6 +89,16 @@ export const CharacterCard = ({
 }: CharacterCardProps) => {
   const config = statusConfig[status];
   const theme = getAgentTheme(agentId ?? name);
+  const imageFilter = [
+    "drop-shadow(0 0 3px rgba(255,255,255,0.6))",
+    "drop-shadow(0 0 6px rgba(255,255,255,0.25))",
+    status === "working" && !isSpeaking
+      ? `drop-shadow(0 0 8px ${theme?.glow ?? "rgba(99,102,241,0.6)"})`
+      : null,
+    isSpeaking ? `drop-shadow(0 0 10px ${theme?.glow ?? "rgba(125,211,252,0.55)"})` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -98,9 +108,17 @@ export const CharacterCard = ({
         status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
         status === "success" &&
           "border-[hsl(var(--success)/0.3)] shadow-lg shadow-[hsl(var(--success)/0.08)]",
-        status === "blocked" && "border-destructive/30",
-        isSpeaking && "border-sky-300/45 bg-sky-500/8 shadow-[0_0_26px_rgba(125,211,252,0.18)]"
+        status === "blocked" && "border-destructive/30"
       )}
+      style={
+        isSpeaking
+          ? {
+              borderColor: theme?.ring ?? "rgba(125,211,252,0.45)",
+              background: theme?.surface ?? "rgba(14,165,233,0.08)",
+              boxShadow: `0 0 26px ${theme?.glowSoft ?? "rgba(125,211,252,0.18)"}`,
+            }
+          : undefined
+      }
     >
       {theme ? (
         <div
@@ -111,26 +129,37 @@ export const CharacterCard = ({
       <div className="flex min-w-0 flex-row items-center gap-3">
         <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
           {status === "working" ? (
-            <span className="pointer-events-none absolute inset-x-1 bottom-1 h-8 animate-ping rounded-full bg-primary/20" />
+            <span
+              className="pointer-events-none absolute inset-x-1 bottom-1 h-8 animate-ping rounded-full"
+              style={{ background: theme?.surfaceStrong ?? "rgba(59,130,246,0.2)" }}
+            />
           ) : null}
           <div
             className="pointer-events-none absolute bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full blur-lg"
             style={{
-              background: isSpeaking
-                ? theme?.glow ?? "rgba(125, 211, 252, 0.32)"
-                : theme
-                  ? `radial-gradient(circle, ${theme.glowSoft} 0%, ${statusGlowColor[status]} 72%)`
-                  : statusGlowColor[status],
+              background: theme
+                ? `radial-gradient(circle, ${theme.glow} 0%, ${theme.glowSoft} 68%, rgba(0,0,0,0) 100%)`
+                : statusGlowColorFallback[status],
               animation: isSpeaking ? "agent-speaking-glow 0.9s ease-in-out infinite" : "agent-glow 2s ease-in-out infinite",
             }}
           />
           {isSpeaking ? (
-            <div className="pointer-events-none absolute -top-1 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-sky-300/40 bg-sky-500/18 px-1.5 py-0.5 shadow-[0_0_16px_rgba(125,211,252,0.2)] backdrop-blur-sm">
+            <div
+              className="pointer-events-none absolute -top-1 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full border px-1.5 py-0.5 backdrop-blur-sm"
+              style={{
+                borderColor: theme?.ring ?? "rgba(125,211,252,0.4)",
+                background: theme?.surfaceStrong ?? "rgba(14,165,233,0.18)",
+                boxShadow: `0 0 16px ${theme?.glowSoft ?? "rgba(125,211,252,0.2)"}`,
+              }}
+            >
               {[0, 1, 2].map((dot) => (
                 <span
                   key={dot}
-                  className="h-1 w-1 rounded-full bg-sky-100/90"
-                  style={{ animation: `banter-dot 0.9s ease-in-out ${dot * 0.12}s infinite` }}
+                  className="h-1 w-1 rounded-full"
+                  style={{
+                    background: theme?.text ?? "rgba(224,242,254,0.9)",
+                    animation: `banter-dot 0.9s ease-in-out ${dot * 0.12}s infinite`,
+                  }}
                 />
               ))}
             </div>
@@ -140,8 +169,7 @@ export const CharacterCard = ({
             src={imageSrc}
             className={cn(
               "relative z-10 h-full w-full object-contain object-bottom",
-              status === "working" && !isSpeaking && "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]",
-              isSpeaking && "drop-shadow-[0_0_10px_rgba(125,211,252,0.55)]"
+              status === "working" && !isSpeaking && "animate-bounce"
             )}
             style={{
               animation: isSpeaking
@@ -149,7 +177,7 @@ export const CharacterCard = ({
                 : status === "working"
                   ? undefined
                   : config.animation,
-              filter: "drop-shadow(0 0 3px rgba(255,255,255,0.6)) drop-shadow(0 0 6px rgba(255,255,255,0.25))",
+              filter: imageFilter,
             }}
           />
         </div>
@@ -157,13 +185,10 @@ export const CharacterCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-bold text-sm tracking-wider uppercase" style={{ color: theme?.text ?? undefined }}>
+              <span className="truncate font-bold text-sm tracking-wider text-foreground uppercase">
                 {name}
               </span>
-              <span
-                className="shrink-0 font-mono text-[9px] uppercase tracking-widest"
-                style={{ color: theme?.accentStrong ?? "rgba(148, 163, 184, 0.8)" }}
-              >
+              <span className="shrink-0 font-mono text-[9px] text-muted-foreground uppercase tracking-widest">
                 {role}
               </span>
               {isSpeaking ? (

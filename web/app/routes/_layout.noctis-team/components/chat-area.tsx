@@ -12,6 +12,7 @@ import {
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Button } from "@/components/ui/button";
+import { getAgentTheme } from "@/lib/agent-theme";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
@@ -59,6 +60,19 @@ const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
 
 function getSenderAvatar(sender: ActivityActorId): string | null {
   return SENDER_AVATARS[sender] ?? null;
+}
+
+function getAvatarThemeStyle(sender: ActivityActorId): React.CSSProperties | undefined {
+  const theme = getAgentTheme(sender);
+  if (!theme) {
+    return undefined;
+  }
+
+  return {
+    borderColor: theme.ring,
+    background: theme.portraitBg,
+    boxShadow: `0 0 14px ${theme.glowSoft}`,
+  };
 }
 
 function toMessageParts(message: ChatMessage): MessagePart[] {
@@ -266,7 +280,8 @@ const MessageBubble = memo(({
           <img
             alt={senderLabel}
             src={avatarSrc}
-            className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-primary/30"
+            className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
+            style={getAvatarThemeStyle(message.sender)}
           />
         ) : undefined
       }
@@ -411,7 +426,8 @@ export const ChatArea = ({
               <img
                 alt="Noctis"
                 src="/images/noctis.png"
-                className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-primary/30"
+                className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
+                style={getAvatarThemeStyle("noctis")}
               />
               <div className="rounded-xl rounded-bl-sm border border-border/50 bg-card px-3 py-2">
                 <div className="flex items-center gap-1">
