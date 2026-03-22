@@ -11,8 +11,9 @@ import {
   ServerCrash,
   Terminal,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigation } from "react-router";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useActiveProjects, type ProjectEntry } from "@/hooks/use-active-projects";
@@ -121,6 +122,22 @@ function getServerStatusLabel(status: HeaderServerStatus | null) {
   return "OpenCode: down";
 }
 
+function areServerStatusesEqual(left: HeaderServerStatus | null, right: HeaderServerStatus) {
+  if (!left) {
+    return false;
+  }
+
+  return (
+    left.checkedAt === right.checkedAt &&
+    left.error === right.error &&
+    left.isRunning === right.isRunning &&
+    left.lastStartedAt === right.lastStartedAt &&
+    left.managedByApp === right.managedByApp &&
+    left.state === right.state &&
+    left.url === right.url
+  );
+}
+
 const Layout = (_props: Route.ComponentProps) => {
   const navigation = useNavigation();
   const location = useLocation();
@@ -128,6 +145,7 @@ const Layout = (_props: Route.ComponentProps) => {
   const { data: activeProjectsData, loading: activeProjectsLoading, error: activeProjectsError } =
     useActiveProjects();
   const [serverStatus, setServerStatus] = useState<HeaderServerStatus | null>(null);
+  const [isRecoveringServer, setIsRecoveringServer] = useState(false);
 
   const isNavItemActive = (to: string, end?: boolean) => {
     if (end) {
@@ -146,44 +164,74 @@ const Layout = (_props: Route.ComponentProps) => {
     return (activeProjectsData?.projects ?? []).filter((project) => activeIdSet.has(project.id));
   }, [activeProjectsData]);
 
-  useEffect(() => {
-    let isDisposed = false;
+  const fetchServerStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/opencode/server");
+      const data = (await response.json()) as HeaderServerStatus;
 
-    const fetchServerStatus = async () => {
-      try {
-        const response = await fetch("/api/opencode/server");
-        const data = (await response.json()) as HeaderServerStatus;
-
-        if (!response.ok) {
-          throw new Error(data.error ?? `HTTP ${response.status}`);
-        }
-
-        if (!isDisposed) {
-          setServerStatus(data);
-        }
-      } catch (error) {
-        if (!isDisposed) {
-          setServerStatus({
-            checkedAt: new Date().toISOString(),
-            error: error instanceof Error ? error.message : String(error),
-            isRunning: false,
-            lastStartedAt: null,
-            managedByApp: false,
-            state: "down",
-            url: "",
-          });
-        }
+      if (!response.ok) {
+        throw new Error(data.error ?? `HTTP ${response.status}`);
       }
-    };
 
+      setServerStatus((current) => (areServerStatusesEqual(current, data) ? current : data));
+    } catch (error) {
+      const nextStatus = {
+        checkedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+        isRunning: false,
+        lastStartedAt: null,
+        managedByApp: false,
+        state: "down" as const,
+        url: "",
+      };
+
+      setServerStatus((current) => (areServerStatusesEqual(current, nextStatus) ? current : nextStatus));
+    }
+  }, []);
+
+  useEffect(() => {
     fetchServerStatus();
     const intervalId = window.setInterval(fetchServerStatus, 10000);
 
     return () => {
-      isDisposed = true;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [fetchServerStatus]);
+
+  const handleRecoverServer = useCallback(async () => {
+    if (isRecoveringServer) {
+      return;
+    }
+
+    setIsRecoveringServer(true);
+
+    try {
+      const response = await fetch("/api/opencode/server", {
+        method: "POST",
+      });
+      const data = (await response.json()) as HeaderServerStatus;
+
+      setServerStatus(data);
+
+      if (!response.ok || !data.isRunning) {
+        throw new Error(data.error ?? "Failed to recover OpenCode server");
+      }
+
+      toast.success("OpenCode server recovered", {
+        description: data.managedByApp
+          ? "A managed server process is now running."
+          : "Connected to an existing server instance.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error("Failed to recover OpenCode server", {
+        description: message,
+      });
+      await fetchServerStatus();
+    } finally {
+      setIsRecoveringServer(false);
+    }
+  }, [fetchServerStatus, isRecoveringServer]);
 
   const activeProjectLabel = formatActiveProjectLabel(
     activeNoctisProjects,
@@ -191,6 +239,10 @@ const Layout = (_props: Route.ComponentProps) => {
     activeProjectsError
   );
   const serverStatusLabel = getServerStatusLabel(serverStatus);
+  const serverStatusTitle =
+    serverStatus?.state === "down"
+      ? serverStatus?.error ?? "OpenCode server is down. Click to recover."
+      : serverStatus?.error ?? serverStatus?.url ?? "Checking OpenCode server health";
 
   return (
     <SidebarProvider defaultOpen className="relative h-full min-h-0 overflow-hidden">
@@ -349,28 +401,44 @@ const Layout = (_props: Route.ComponentProps) => {
               </HoverCardContent>
             </HoverCard>
 
-            <Badge
-              className={cn(
-                "gap-1 font-normal text-[11px]",
-                serverStatus?.state === "running" &&
-                  "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-                serverStatus?.state === "starting" &&
-                  "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-                (!serverStatus || serverStatus.state === "down") &&
-                  "border-border/60 bg-background/60 text-foreground/75"
-              )}
-              title={serverStatus?.error ?? serverStatus?.url ?? "Checking OpenCode server health"}
-              variant="outline"
+            <button
+              className="disabled:cursor-default"
+              disabled={serverStatus?.state !== "down" || isRecoveringServer}
+              onClick={handleRecoverServer}
+              title={serverStatusTitle}
+              type="button"
             >
-              {serverStatus?.state === "running" ? (
-                <CheckCircle2 className="h-3 w-3 shrink-0" />
-              ) : serverStatus?.state === "starting" ? (
-                <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />
-              ) : (
-                <ServerCrash className="h-3 w-3 shrink-0" />
-              )}
-              <span>{serverStatusLabel}</span>
-            </Badge>
+              <Badge
+                className={cn(
+                  "gap-1 font-normal text-[11px] transition-colors",
+                  serverStatus?.state === "running" &&
+                    "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                  (serverStatus?.state === "starting" || isRecoveringServer) &&
+                    "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                  (!serverStatus || serverStatus.state === "down") &&
+                    "border-destructive/30 bg-destructive/15 text-destructive shadow-sm",
+                  serverStatus?.state === "down" &&
+                    !isRecoveringServer &&
+                    "cursor-pointer hover:bg-destructive/20"
+                )}
+                variant="outline"
+              >
+                {serverStatus?.state === "running" ? (
+                  <CheckCircle2 className="h-3 w-3 shrink-0" />
+                ) : serverStatus?.state === "starting" || isRecoveringServer ? (
+                  <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />
+                ) : (
+                  <ServerCrash className="h-3 w-3 shrink-0" />
+                )}
+                <span>
+                  {isRecoveringServer
+                    ? "OpenCode: recovering"
+                    : serverStatus?.state === "down"
+                      ? "OpenCode: down - click to recover"
+                      : serverStatusLabel}
+                </span>
+              </Badge>
+            </button>
           </div>
         </div>
 

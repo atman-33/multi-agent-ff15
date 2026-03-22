@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectScope } from "@/lib/project-scopes";
 
 export interface ProjectEntry {
@@ -15,13 +15,55 @@ export interface ActiveProjectsData {
   projects: ProjectEntry[];
 }
 
+function areProjectEntriesEqual(left: ProjectEntry[], right: ProjectEntry[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((project, index) => {
+    const other = right[index];
+    return (
+      project.id === other?.id &&
+      project.displayName === other.displayName &&
+      project.path === other.path &&
+      project.updatedAt === other.updatedAt &&
+      project.branchName === other.branchName
+    );
+  });
+}
+
+function areActiveProjectsDataEqual(left: ActiveProjectsData | null, right: ActiveProjectsData) {
+  if (!left) {
+    return false;
+  }
+
+  if (left.configUpdatedAt !== right.configUpdatedAt) {
+    return false;
+  }
+
+  if (!areProjectEntriesEqual(left.projects, right.projects)) {
+    return false;
+  }
+
+  return (
+    left.projectScopes.noctis_team.activeProjectIds.join("\u0000") ===
+      right.projectScopes.noctis_team.activeProjectIds.join("\u0000") &&
+    left.projectScopes.lunafreya.activeProjectIds.join("\u0000") ===
+      right.projectScopes.lunafreya.activeProjectIds.join("\u0000")
+  );
+}
+
 export function useActiveProjects() {
   const [data, setData] = useState<ActiveProjectsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
+
     try {
       const res = await fetch("/api/projects");
       if (!res.ok) {
@@ -31,11 +73,15 @@ export function useActiveProjects() {
       if (json.error) {
         throw new Error(json.error);
       }
-      setData(json as ActiveProjectsData);
-      setError(null);
+
+      const nextData = json as ActiveProjectsData;
+      setData((current) => (areActiveProjectsDataEqual(current, nextData) ? current : nextData));
+      setError((current) => (current === null ? current : null));
     } catch (e) {
-      setError(String(e));
+      const message = String(e);
+      setError((current) => (current === message ? current : message));
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, []);
