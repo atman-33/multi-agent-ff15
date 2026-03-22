@@ -342,6 +342,7 @@ export function useAgentSession({
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const missionIdRef = useRef<string | null>(null);
+  const activeMissionIdRef = useRef<string | null>(activeMissionId);
   const noctisSessionIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const lastIncomingNoctisMessageIdRef = useRef<string | null>(null);
@@ -560,6 +561,34 @@ export function useAgentSession({
     }
     workerEventSourcesRef.current = {};
   }, []);
+
+  useEffect(() => {
+    const previousMissionId = activeMissionIdRef.current;
+    activeMissionIdRef.current = activeMissionId;
+
+    if (previousMissionId === activeMissionId) {
+      return;
+    }
+
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+    closeWorkerEventSources();
+
+    noctisSessionIdRef.current = initialNoctisSessionId ?? null;
+    setNoctisSessionId(initialNoctisSessionId ?? null);
+    setWorkerSessionIds(initialWorkerSessionIds);
+    setDelegationLedger(null);
+    streamingMessageIdRef.current = null;
+    lastIncomingNoctisMessageIdRef.current = null;
+    hasHydratedRuntimeRef.current = false;
+    setIsStreaming(false);
+    lastSessionStateRef.current = null;
+    lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
+    sessionStatusRef.current = initialNoctisSessionId
+      ? useChatStore.getState().sessionStates[initialNoctisSessionId] ?? null
+      : null;
+    setPartyRuntime(createInitialPartyRuntimeState());
+  }, [activeMissionId, closeWorkerEventSources, initialNoctisSessionId, initialWorkerSessionIds]);
 
   const scheduleIdleReset = useCallback(() => {
     if (idleTimerRef.current) {
