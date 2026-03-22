@@ -82,7 +82,17 @@ export async function dispatchTaskToWorker(input: {
     throw new Error("Mission not found");
   }
 
-  const taskId = input.taskId?.trim() || createTaskId();
+  const explicitTaskId = input.taskId?.trim();
+  const reusableTask = explicitTaskId
+    ? null
+    : [...mission.taskGraph]
+        .reverse()
+        .find(
+          (task) =>
+            task.assignedTo === input.agentId &&
+            (task.status === "pending" || task.status === "running")
+        ) ?? null;
+  const taskId = explicitTaskId || reusableTask?.id || createTaskId();
   const missionObjective = typeof input.missionObjective === "string" ? input.missionObjective : "";
   let task = mission.taskGraph.find((item) => item.id === taskId);
   if (!task) {

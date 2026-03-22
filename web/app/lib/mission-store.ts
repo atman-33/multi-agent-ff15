@@ -190,6 +190,29 @@ export function updateTask(
     ledgerEntry.status = status;
   }
 
+  const assignedTo = task?.assignedTo ?? ledgerEntry?.assignedTo;
+  if (assignedTo && (status === "completed" || status === "failed" || status === "blocked")) {
+    for (const existingTask of mission.taskGraph) {
+      if (
+        existingTask.id !== taskId &&
+        existingTask.assignedTo === assignedTo &&
+        (existingTask.status === "pending" || existingTask.status === "running")
+      ) {
+        existingTask.status = status;
+      }
+    }
+
+    for (const existingLedgerEntry of mission.delegationLedger.activeTasks) {
+      if (
+        existingLedgerEntry.id !== taskId &&
+        existingLedgerEntry.assignedTo === assignedTo &&
+        (existingLedgerEntry.status === "pending" || existingLedgerEntry.status === "running")
+      ) {
+        existingLedgerEntry.status = status;
+      }
+    }
+  }
+
   if ((status === "completed" || status === "failed" || status === "blocked") && summary) {
     mission.delegationLedger.completedSummaries[taskId] = summary;
   }

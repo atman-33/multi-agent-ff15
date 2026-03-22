@@ -441,16 +441,8 @@ export function useAgentSession({
           const workerSessionId = workerSessionIds[member.id as WorkerMemberId];
           const workerSessionStatus = workerSessionId ? (sessionStates[workerSessionId] ?? null) : null;
           const isWorkerActive = isSessionStatusActive(workerSessionStatus);
-          const memberSessionKey = "sessionKey" in member ? member.sessionKey : null;
-          const hasAssignedActiveTask = memberSessionKey
-            ? (delegationLedger?.activeTasks ?? []).some(
-                (task) =>
-                  task.assignedTo === memberSessionKey &&
-                  (task.status === "pending" || task.status === "running")
-              )
-            : false;
 
-          if (isWorkerActive || hasAssignedActiveTask) {
+          if (isWorkerActive) {
             return {
               id: member.id,
               name: member.name,
@@ -517,7 +509,7 @@ export function useAgentSession({
           progress: runtime.progress,
         };
       }),
-    [contextUsageByAgent, delegationLedger, isSessionActive, isStreaming, partyRuntime, sessionStates, workerSessionIds]
+    [contextUsageByAgent, isSessionActive, isStreaming, partyRuntime, sessionStates, workerSessionIds]
   );
 
   useEffect(() => {
