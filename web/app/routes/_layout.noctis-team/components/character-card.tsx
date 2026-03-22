@@ -90,7 +90,7 @@ export const CharacterCard = ({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-xl border border-border/50 bg-card/60 px-3 py-2",
+        "flex flex-col gap-1.5 rounded-xl border border-border/50 bg-card/60 px-3 py-2",
         "transition-all duration-500 backdrop-blur-sm",
         status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
         status === "success" &&
@@ -125,11 +125,15 @@ export const CharacterCard = ({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-wider text-foreground uppercase">{name}</span>
-            <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-bold text-sm tracking-wider text-foreground uppercase">{name}</span>
+              <span className="shrink-0 font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
+            </div>
+            <p className="max-w-32 truncate text-right font-mono text-[10px] text-muted-foreground/70">
+              {task}
+            </p>
           </div>
-          <p className="truncate font-mono text-[10px] text-muted-foreground/70">{task}</p>
           {detail && (
             <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/50">{detail}</p>
           )}
