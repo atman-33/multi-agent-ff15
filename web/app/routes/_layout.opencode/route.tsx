@@ -6,11 +6,15 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  coerceSessionStatus,
+  fetchSessionStatuses,
+  isSessionStatusActive,
+  type SessionStatus,
+} from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import type { Route } from "./+types/route";
-
-type SessionStatus = "idle" | "busy" | "retry";
 
 type EventPayload = {
   type: string;
@@ -254,24 +258,24 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    void fetchSessionStatuses()
+      .then((statuses) => {
+        for (const [id, status] of Object.entries(statuses)) {
+          setSessionState(id, status);
+        }
+      })
+      .catch(() => undefined);
+
     const source = new EventSource("/api/event-stream");
     source.onmessage = (event) => {
       const payload = JSON.parse(event.data as string) as { payload?: EventPayload } | EventPayload;
       const actual = ("payload" in payload ? payload.payload : payload) as EventPayload;
       if (!actual?.type) return;
 
-      if (actual.type === "message.part.updated") {
-        const part = actual.properties.part;
-        if (!part || part.type !== "text") return;
-        const partSessionId = part.sessionID;
-        if (partSessionId) {
-          setSessionState(partSessionId, "busy");
-        }
-      }
-
       if (actual.type === "session.status") {
         const eventSessionId = actual.properties.sessionID;
-        const nextStatus = actual.properties.status?.type;
+        const nextStatus = coerceSessionStatus(actual.properties.status?.type);
         if (eventSessionId && nextStatus) {
           setSessionState(eventSessionId, nextStatus);
         }
@@ -296,15 +300,13 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const hasBusy = Object.values(sessionStates).some((s) => s !== "idle");
+    const hasBusy = Object.values(sessionStates).some((status) => isSessionStatusActive(status));
 
     if (hasBusy && !pollingIntervalRef.current) {
       pollingIntervalRef.current = setInterval(async () => {
         try {
-          const response = await fetch("/api/session-status");
-          if (!response.ok) return;
-          const data = (await response.json()) as { statuses: Record<string, SessionStatus> };
-          for (const [id, status] of Object.entries(data.statuses)) {
+          const statuses = await fetchSessionStatuses();
+          for (const [id, status] of Object.entries(statuses)) {
             setSessionState(id, status);
           }
         } catch (_) {

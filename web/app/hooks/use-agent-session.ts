@@ -14,10 +14,13 @@ import {
   type AgentEvent,
 } from "@/lib/event-to-party-update";
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
+import {
+  coerceSessionStatus,
+  isSessionStatusActive,
+  type SessionStatus,
+} from "@/lib/session-status";
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
-
-type SessionState = "idle" | "busy" | "retry";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
   messageId?: string;
@@ -163,7 +166,6 @@ export interface UseAgentSessionReturn {
   isSessionActive: boolean;
   isStreaming: boolean;
   isLoadingHistory: boolean;
-  isAwaitingReply: boolean;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
 }
@@ -174,35 +176,84 @@ export function useAgentSession({
   initialMissionData,
   initialMessageInfos,
 }: UseAgentSessionOptions): UseAgentSessionReturn {
+  const initialNoctisSessionId =
+    activeMissionId && initialMissionData?.missionId === activeMissionId
+      ? initialMissionData.sessions.noctis
+      : null;
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyMembers, setPartyMembers] = useState<PartyMember[]>(INITIAL_PARTY);
-  const [noctisSessionId, setNoctisSessionId] = useState<string | null>(null);
+  const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [isAwaitingReply, setIsAwaitingReply] = useState(false);
 
   const missionIdRef = useRef<string | null>(null);
   const noctisSessionIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const banterEntriesRef = useRef<RecentBanterEntry[]>([]);
-  const awaitingReplyRef = useRef(false);
-  const lastSessionStateRef = useRef<SessionState | null>(null);
+  const lastSessionStateRef = useRef<SessionStatus | null>(null);
+  const sessionStatusRef = useRef<SessionStatus | null>(null);
+  const pendingActiveResolversRef = useRef<Map<string, Array<() => void>>>(new Map());
   const progressTimersRef = useRef<
     Partial<Record<string, Partial<Record<"early" | "late", ReturnType<typeof setTimeout>>>>>
   >({});
 
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setSessionState = useChatStore((state) => state.setSessionState);
-  const storeSessionState = noctisSessionId ? (sessionStates[noctisSessionId] ?? "idle") : "idle";
-  const isSessionActive = Boolean(noctisSessionId) && (
-    storeSessionState !== "idle" ||
-    isAwaitingReply ||
-    isStreaming
-  );
+  const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
+  const isSessionActive = isSessionStatusActive(sessionStatus);
+
+  useEffect(() => {
+    if (!initialNoctisSessionId) {
+      return;
+    }
+
+    setNoctisSessionId((current) => current ?? initialNoctisSessionId);
+    noctisSessionIdRef.current = noctisSessionIdRef.current ?? initialNoctisSessionId;
+  }, [initialNoctisSessionId]);
+
+  const resolvePendingActive = useCallback((sessionId: string, status: SessionStatus) => {
+    if (!isSessionStatusActive(status)) {
+      return;
+    }
+
+    const resolvers = pendingActiveResolversRef.current.get(sessionId);
+    if (!resolvers || resolvers.length === 0) {
+      return;
+    }
+
+    pendingActiveResolversRef.current.delete(sessionId);
+    for (const resolve of resolvers) {
+      resolve();
+    }
+  }, []);
+
+  const waitForActiveStatus = useCallback(async (sessionId: string, timeoutMs = 1200) => {
+    const currentStatus = useChatStore.getState().sessionStates[sessionId] ?? null;
+    if (isSessionStatusActive(currentStatus)) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      const finish = () => {
+        window.clearTimeout(timeout);
+        const resolvers = pendingActiveResolversRef.current.get(sessionId) ?? [];
+        const nextResolvers = resolvers.filter((entry) => entry !== finish);
+        if (nextResolvers.length === 0) {
+          pendingActiveResolversRef.current.delete(sessionId);
+        } else {
+          pendingActiveResolversRef.current.set(sessionId, nextResolvers);
+        }
+        resolve();
+      };
+
+      const timeout = window.setTimeout(finish, timeoutMs);
+      const resolvers = pendingActiveResolversRef.current.get(sessionId) ?? [];
+      pendingActiveResolversRef.current.set(sessionId, [...resolvers, finish]);
+    });
+  }, []);
 
   const addBanter = useCallback(
     (template: { speakerId: string; speakerName: string; speakerAvatar: string; message: string }) => {
@@ -247,8 +298,8 @@ export function useAgentSession({
   }, []);
 
   useEffect(() => {
-    awaitingReplyRef.current = isAwaitingReply;
-  }, [isAwaitingReply]);
+    sessionStatusRef.current = sessionStatus;
+  }, [sessionStatus]);
 
   const scheduleIdleReset = useCallback(() => {
     if (idleTimerRef.current) {
@@ -315,11 +366,6 @@ export function useAgentSession({
         if (!text) return;
 
         setIsStreaming(true);
-        setIsAwaitingReply(true);
-        awaitingReplyRef.current = true;
-        if (noctisSessionIdRef.current) {
-          setSessionState(noctisSessionIdRef.current, "busy");
-        }
         setMessages((prev) => {
           const streamId = eventMessageId ?? streamingMessageIdRef.current;
           if (streamId) {
@@ -356,8 +402,6 @@ export function useAgentSession({
 
       if (event.type === "session.completed") {
         setIsStreaming(false);
-        setIsAwaitingReply(false);
-        awaitingReplyRef.current = false;
         streamingMessageIdRef.current = null;
         clearProgressBanter();
         scheduleIdleReset();
@@ -374,7 +418,7 @@ export function useAgentSession({
         }
       }
     },
-    [addBanter, clearProgressBanter, language, scheduleIdleReset, setSessionState]
+    [addBanter, clearProgressBanter, language, scheduleIdleReset]
   );
 
   const scheduleProgressBanter = useCallback(
@@ -387,13 +431,13 @@ export function useAgentSession({
       clearProgressBanter(normalized);
       progressTimersRef.current[normalized] = {
         early: setTimeout(() => {
-          if (!awaitingReplyRef.current) {
+          if (!isSessionStatusActive(sessionStatusRef.current)) {
             return;
           }
           handleAgentEvent({ type: "task.progress", agentId: normalized, stage: "early" });
         }, PROGRESS_BANTER_DELAYS.early),
         late: setTimeout(() => {
-          if (!awaitingReplyRef.current) {
+          if (!isSessionStatusActive(sessionStatusRef.current)) {
             return;
           }
           handleAgentEvent({ type: "task.progress", agentId: normalized, stage: "late" });
@@ -438,6 +482,7 @@ export function useAgentSession({
           if (sessionId) {
             setSessionState(sessionId, "idle");
             lastSessionStateRef.current = "idle";
+            sessionStatusRef.current = "idle";
             void syncSessionMessages(sessionId).catch(() => undefined);
           }
           streamingMessageIdRef.current = null;
@@ -448,91 +493,46 @@ export function useAgentSession({
         if (type === "session.status") {
           const props = parsed.properties as Record<string, unknown> | undefined;
           const status = props?.status as Record<string, unknown> | undefined;
-          const nextStatus = status?.type;
-          if (typeof nextStatus === "string" && noctisSessionIdRef.current) {
-            const mappedStatus: SessionState = nextStatus === "idle" ? "idle" : nextStatus === "retry" ? "retry" : "busy";
-            setSessionState(noctisSessionIdRef.current, mappedStatus);
-            if (mappedStatus === "retry" && lastSessionStateRef.current !== "retry") {
+          const nextStatus = coerceSessionStatus(status?.type);
+          if (nextStatus && noctisSessionIdRef.current) {
+            setSessionState(noctisSessionIdRef.current, nextStatus);
+            sessionStatusRef.current = nextStatus;
+            resolvePendingActive(noctisSessionIdRef.current, nextStatus);
+            if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
               clearProgressBanter("noctis");
               handleAgentEvent({ type: "task.retrying", agentId: "noctis" });
               scheduleProgressBanter("noctis");
             }
-            lastSessionStateRef.current = mappedStatus;
-          }
-          if (nextStatus === "busy" || nextStatus === "retry") {
-            setIsAwaitingReply(true);
-            awaitingReplyRef.current = true;
+            lastSessionStateRef.current = nextStatus;
           }
           return;
         }
       };
 
       es.onerror = () => {
-        es.close();
-        eventSourceRef.current = null;
-        if (noctisSessionIdRef.current) {
-          setSessionState(noctisSessionIdRef.current, "idle");
-        }
-        lastSessionStateRef.current = "idle";
         setIsStreaming(false);
-        setIsAwaitingReply(false);
-        awaitingReplyRef.current = false;
         clearProgressBanter();
       };
     },
-    [clearProgressBanter, handleAgentEvent, scheduleProgressBanter, setSessionState, syncSessionMessages]
+    [
+      clearProgressBanter,
+      handleAgentEvent,
+      resolvePendingActive,
+      scheduleProgressBanter,
+      setSessionState,
+      syncSessionMessages,
+    ]
   );
 
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
       clearProgressBanter();
     };
   }, [clearProgressBanter]);
-
-  useEffect(() => {
-    if (!noctisSessionId || !isSessionActive) {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      return;
-    }
-
-    if (pollingIntervalRef.current) {
-      return;
-    }
-
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await fetch("/api/session-status");
-        if (!response.ok) {
-          return;
-        }
-
-        const data = (await response.json()) as { statuses?: Record<string, SessionState> };
-        const nextStatus = data.statuses?.[noctisSessionId];
-        if (nextStatus) {
-          setSessionState(noctisSessionId, nextStatus);
-        }
-      } catch {
-        return;
-      }
-    }, 3000);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [isSessionActive, noctisSessionId, setSessionState]);
 
   useEffect(() => {
     const loadMission = async () => {
@@ -545,14 +545,9 @@ export function useAgentSession({
         clearBanterEntries();
         setPartyMembers(INITIAL_PARTY);
         setIsStreaming(false);
-        setIsAwaitingReply(false);
-        awaitingReplyRef.current = false;
         lastSessionStateRef.current = null;
+        sessionStatusRef.current = null;
         clearProgressBanter();
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
         return;
@@ -591,9 +586,8 @@ export function useAgentSession({
         clearBanterEntries();
         setPartyMembers(INITIAL_PARTY);
         setIsStreaming(false);
-        setIsAwaitingReply(false);
-        awaitingReplyRef.current = false;
         lastSessionStateRef.current = null;
+        sessionStatusRef.current = null;
         clearProgressBanter();
         subscribeToSession(mission.sessions.noctis);
       } catch {
@@ -601,8 +595,7 @@ export function useAgentSession({
         noctisSessionIdRef.current = null;
         setNoctisSessionId(null);
         setMessages(INITIAL_MESSAGES);
-        setIsAwaitingReply(false);
-        awaitingReplyRef.current = false;
+        sessionStatusRef.current = null;
         clearProgressBanter();
       } finally {
         setIsLoadingHistory(false);
@@ -610,7 +603,14 @@ export function useAgentSession({
     };
 
     void loadMission();
-  }, [activeMissionId, clearBanterEntries, clearProgressBanter, initialMessageInfos, initialMissionData, subscribeToSession]);
+  }, [
+    activeMissionId,
+    clearBanterEntries,
+    clearProgressBanter,
+    initialMessageInfos,
+    initialMissionData,
+    subscribeToSession,
+  ]);
 
   const send = useCallback(
     async (parts: PromptPart[]) => {
@@ -624,8 +624,6 @@ export function useAgentSession({
       };
       setMessages((prev) => [...prev, userMessage]);
       streamingMessageIdRef.current = null;
-      setIsAwaitingReply(true);
-      awaitingReplyRef.current = true;
 
       const agentModels = useChatStore.getState().agentModels;
 
@@ -655,12 +653,11 @@ export function useAgentSession({
           missionIdRef.current = data.missionId;
           noctisSessionIdRef.current = data.noctisSessionId;
           setNoctisSessionId(data.noctisSessionId);
-          setSessionState(data.noctisSessionId, "busy");
-          lastSessionStateRef.current = "busy";
 
           handleAgentEvent({ type: "session.created" });
           scheduleProgressBanter("noctis");
           subscribeToSession(data.noctisSessionId);
+          await waitForActiveStatus(data.noctisSessionId);
           void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
             () => undefined
           );
@@ -669,8 +666,6 @@ export function useAgentSession({
           handleAgentEvent({ type: "session.created" });
           scheduleProgressBanter("noctis");
           if (noctisSessionIdRef.current) {
-            setSessionState(noctisSessionIdRef.current, "busy");
-            lastSessionStateRef.current = "busy";
             subscribeToSession(noctisSessionIdRef.current);
           }
           const res = await fetch("/api/noctis/mission/continue", {
@@ -708,13 +703,7 @@ export function useAgentSession({
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMessage]);
-        if (noctisSessionIdRef.current) {
-          setSessionState(noctisSessionIdRef.current, "idle");
-        }
         setIsStreaming(false);
-        setIsAwaitingReply(false);
-        awaitingReplyRef.current = false;
-        lastSessionStateRef.current = "idle";
         clearProgressBanter();
         return null;
       }
@@ -723,9 +712,9 @@ export function useAgentSession({
       clearProgressBanter,
       handleAgentEvent,
       scheduleProgressBanter,
-      setSessionState,
       subscribeToSession,
       syncSessionMessages,
+      waitForActiveStatus,
     ]
   );
 
@@ -750,13 +739,10 @@ export function useAgentSession({
         setMessages(nextMessages);
       }
 
-      setSessionState(sessionId, "idle");
-      lastSessionStateRef.current = "idle";
       streamingMessageIdRef.current = null;
       setIsStreaming(false);
-      setIsAwaitingReply(false);
-      awaitingReplyRef.current = false;
       clearProgressBanter();
+      setSessionState(sessionId, "idle");
       setPartyMembers((prev) => resetToIdle(prev));
     } catch (err) {
       const errorMessage: ChatMessage = {
@@ -782,7 +768,6 @@ export function useAgentSession({
     isSessionActive,
     isStreaming,
     isLoadingHistory,
-    isAwaitingReply,
     send,
     abort,
   };

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { fetchSessionStatus, isSessionStatusActive } from "@/lib/session-status";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { mergeMessageInfoText, mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
@@ -36,7 +37,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const setStreamingContent = useChatStore((state) => state.setStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
 
-  const isSessionRunning = sessionId ? (sessionStates[sessionId] ?? "idle") !== "idle" : false;
+  const isSessionRunning = sessionId ? isSessionStatusActive(sessionStates[sessionId]) : false;
   const currentSessionTitle = useMemo(() => {
     if (!sessionId) {
       return "Session";
@@ -70,6 +71,26 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     setMessages(loaderData.messages ?? []);
   }, [loaderData.messages]);
 
+  const refreshSessionStatus = useCallback(async () => {
+    if (!sessionId) {
+      return null;
+    }
+
+    try {
+      const status = await fetchSessionStatus(sessionId);
+      if (status) {
+        setSessionState(sessionId, status);
+      }
+      return status;
+    } catch {
+      return null;
+    }
+  }, [sessionId, setSessionState]);
+
+  useEffect(() => {
+    void refreshSessionStatus();
+  }, [refreshSessionStatus]);
+
   useEffect(() => {
     if (!sessionId || typeof window === "undefined") {
       return;
@@ -88,7 +109,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       const textPartEvent = parseSessionTextPartEvent(parsed);
       if (textPartEvent && (!textPartEvent.sessionId || textPartEvent.sessionId === sessionId)) {
         const currentStore = useChatStore.getState();
-        setSessionState(sessionId, "busy");
 
         if (textPartEvent.messageId) {
           let matchedExistingMessage = false;
@@ -155,7 +175,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     };
 
     source.onerror = () => {
-      source.close();
+      void refreshSessionStatus();
     };
 
     return () => {
@@ -164,6 +184,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   }, [
     clearStreamingContent,
     loadMessages,
+    refreshSessionStatus,
     sessionId,
     setSessionState,
     setStreamingContent,
@@ -246,9 +267,9 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         if (!response.ok) {
           throw new Error("Failed to send message");
         }
-        setSessionState(sessionId, "busy");
         clearStreamingContent();
         setStreamingMessageId(null);
+        await refreshSessionStatus();
         await loadMessages();
       } catch {
         toast.error("Unable to send message", {
@@ -262,10 +283,10 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       clearStreamingContent,
       isLoading,
       loadMessages,
+      refreshSessionStatus,
       selectedAgent,
       selectedModel,
       sessionId,
-      setSessionState,
       setStreamingMessageId,
     ]
   );
@@ -284,9 +305,9 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         throw new Error(data?.error ?? `HTTP ${response.status}`);
       }
 
-      setSessionState(sessionId, "idle");
       clearStreamingContent();
       setStreamingMessageId(null);
+      await refreshSessionStatus();
       await loadMessages();
 
       if (typeof window !== "undefined") {
@@ -303,8 +324,8 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     clearStreamingContent,
     isAborting,
     loadMessages,
+    refreshSessionStatus,
     sessionId,
-    setSessionState,
     setStreamingMessageId,
   ]);
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { SessionStatus } from "@/lib/session-status";
 
 type ModelSelection = {
   providerID: string;
@@ -32,8 +33,8 @@ type ChatStore = {
   sessionDrafts: Record<string, SessionDraft>;
   setSessionDraft: (sessionId: string, draft: SessionDraft) => void;
   clearSessionDraft: (sessionId: string) => void;
-  sessionStates: Record<string, "idle" | "busy" | "retry">;
-  setSessionState: (sessionId: string, state: "idle" | "busy" | "retry") => void;
+  sessionStates: Record<string, SessionStatus>;
+  setSessionState: (sessionId: string, state: SessionStatus) => void;
   streamingMessageId: string | null;
   setStreamingMessageId: (id: string | null) => void;
   streamingContent: string;
@@ -46,6 +47,7 @@ const MODEL_STORAGE_KEY = "ff15.selectedModel";
 const AGENT_STORAGE_KEY = "ff15.selectedAgent";
 const AGENT_MODELS_STORAGE_KEY = "ff15.agentModels";
 const SESSION_DRAFTS_STORAGE_KEY = "ff15.sessionDrafts";
+const SESSION_STATES_STORAGE_KEY = "ff15.sessionStates";
 
 const normalizeAgentModelKey = (agentId: string): string => {
   return agentId === "gladio" ? "gladiolus" : agentId;
@@ -197,6 +199,49 @@ const persistSessionDrafts = (drafts: Record<string, SessionDraft>): void => {
   window.localStorage.setItem(SESSION_DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
 };
 
+const isSessionStatus = (value: unknown): value is SessionStatus => {
+  return value === "idle" || value === "busy" || value === "retry";
+};
+
+const getInitialSessionStates = (): Record<string, SessionStatus> => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = window.sessionStorage.getItem(SESSION_STATES_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const sessionStates: Record<string, SessionStatus> = {};
+
+    for (const [sessionId, value] of Object.entries(parsed)) {
+      if (isSessionStatus(value)) {
+        sessionStates[sessionId] = value;
+      }
+    }
+
+    return sessionStates;
+  } catch {
+    return {};
+  }
+};
+
+const persistSessionStates = (sessionStates: Record<string, SessionStatus>): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (Object.keys(sessionStates).length === 0) {
+    window.sessionStorage.removeItem(SESSION_STATES_STORAGE_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(SESSION_STATES_STORAGE_KEY, JSON.stringify(sessionStates));
+};
+
 export const useChatStore = create<ChatStore>((set) => ({
   currentSessionId: null,
   setCurrentSessionId: (id) => set({ currentSessionId: id }),
@@ -254,14 +299,17 @@ export const useChatStore = create<ChatStore>((set) => ({
       persistSessionDrafts(sessionDrafts);
       return { sessionDrafts };
     }),
-  sessionStates: {},
+  sessionStates: getInitialSessionStates(),
   setSessionState: (sessionId, state) =>
-    set((current) => ({
-      sessionStates:
-        current.sessionStates[sessionId] === state
-          ? current.sessionStates
-          : { ...current.sessionStates, [sessionId]: state },
-    })),
+    set((current) => {
+      if (current.sessionStates[sessionId] === state) {
+        return current;
+      }
+
+      const sessionStates = { ...current.sessionStates, [sessionId]: state };
+      persistSessionStates(sessionStates);
+      return { sessionStates }; 
+    }),
   streamingMessageId: null,
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),
   streamingContent: "",

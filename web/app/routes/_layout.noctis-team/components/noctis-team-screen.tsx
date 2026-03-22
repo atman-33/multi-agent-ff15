@@ -57,7 +57,6 @@ export function NoctisTeamScreen({
     isSessionActive,
     isStreaming,
     isLoadingHistory,
-    isAwaitingReply,
     send,
     abort,
   } = useAgentSession({
@@ -185,7 +184,7 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50} >
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
-              isResponding={isAwaitingReply || isLoadingHistory}
+              isResponding={isSessionActive || isLoadingHistory}
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
