@@ -90,6 +90,12 @@ app
 
 ### app/components
 
+- Place app-wide shared components under `app/components`.
+- Components in this directory should be reusable across multiple routes or features.
+- Do not place feature-scoped components here; keep them inside each route directory's `components` folder.
+- Use lowercase kebab-case for all component file names in both `app/components` and route-scoped `components` directories.
+- Examples: `app-header.tsx`, `empty-state.tsx`, `todo-form.tsx`.
+
 ```sh
 app/components
 |
@@ -97,6 +103,9 @@ app/components
 |   |
 |   +-- button.tsx
 |   ...
+|
++-- app-header.tsx  # Shared across multiple routes
++-- empty-state.tsx # Shared across multiple features
 |
 ```
 
