@@ -1,4 +1,9 @@
 import { create } from "zustand";
+import {
+  createDefaultWorkingPartyState,
+  type WorkingPartyMemberId,
+  type WorkingPartyState,
+} from "@/lib/noctis-working-party";
 import type { SessionStatus } from "@/lib/session-status";
 
 type ModelSelection = {
@@ -30,6 +35,8 @@ type ChatStore = {
   agentModels: Record<string, ModelSelection | null>;
   setAgentModel: (agentId: string, model: ModelSelection | null) => void;
   setAgentModels: (models: Record<string, ModelSelection | null>) => void;
+  workingParty: WorkingPartyState;
+  setWorkingPartyMember: (agentId: WorkingPartyMemberId, joined: boolean) => void;
   sessionDrafts: Record<string, SessionDraft>;
   setSessionDraft: (sessionId: string, draft: SessionDraft) => void;
   clearSessionDraft: (sessionId: string) => void;
@@ -54,6 +61,7 @@ type ChatStore = {
 const MODEL_STORAGE_KEY = "ff15.selectedModel";
 const AGENT_STORAGE_KEY = "ff15.selectedAgent";
 const AGENT_MODELS_STORAGE_KEY = "ff15.agentModels";
+const WORKING_PARTY_STORAGE_KEY = "ff15.workingParty";
 const SESSION_DRAFTS_STORAGE_KEY = "ff15.sessionDrafts";
 const OPTIMISTIC_SESSION_TTL_MS = 15000;
 
@@ -82,6 +90,38 @@ const persistAgentModels = (agentModels: Record<string, ModelSelection | null>):
     AGENT_MODELS_STORAGE_KEY,
     JSON.stringify(sanitizeAgentModels(agentModels))
   );
+};
+
+const getInitialWorkingParty = (): WorkingPartyState => {
+  const defaults = createDefaultWorkingPartyState();
+
+  if (typeof window === "undefined") {
+    return defaults;
+  }
+
+  const raw = window.localStorage.getItem(WORKING_PARTY_STORAGE_KEY);
+  if (!raw) {
+    return defaults;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      ignis: typeof parsed.ignis === "boolean" ? parsed.ignis : defaults.ignis,
+      gladiolus: typeof parsed.gladiolus === "boolean" ? parsed.gladiolus : defaults.gladiolus,
+      prompto: typeof parsed.prompto === "boolean" ? parsed.prompto : defaults.prompto,
+    };
+  } catch {
+    return defaults;
+  }
+};
+
+const persistWorkingParty = (workingParty: WorkingPartyState): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(WORKING_PARTY_STORAGE_KEY, JSON.stringify(workingParty));
 };
 
 const isSessionDraftSlashMention = (value: unknown): value is SessionDraftSlashMention => {
@@ -282,6 +322,20 @@ export const useChatStore = create<ChatStore>((set) => ({
       return { agentModels: next };
     });
   },
+  workingParty: getInitialWorkingParty(),
+  setWorkingPartyMember: (agentId, joined) =>
+    set((current) => {
+      if (current.workingParty[agentId] === joined) {
+        return current;
+      }
+
+      const workingParty = {
+        ...current.workingParty,
+        [agentId]: joined,
+      };
+      persistWorkingParty(workingParty);
+      return { workingParty };
+    }),
   sessionDrafts: getInitialSessionDrafts(),
   setSessionDraft: (sessionId, draft) =>
     set((current) => {

@@ -7,6 +7,11 @@ import {
   type PromptPart,
 } from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import {
+  coerceAllowedWorkers,
+  getNoctisAgentProfile,
+  getNoctisExecutionMode,
+} from "@/lib/noctis-working-party";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
 import { createMission, buildDelegationLedger, setAgentModels } from "@/lib/mission-store";
 import type { ModelSelection, AgentId } from "@/lib/types/mission";
@@ -27,6 +32,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     parts?: unknown;
     noctisModel?: unknown;
     workerModels?: unknown;
+    allowedWorkers?: unknown;
     title?: unknown;
     objective?: unknown;
   } | null;
@@ -69,6 +75,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
+  const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
+  const executionMode = getNoctisExecutionMode(allowedWorkers);
+  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
 
   const workerModelsRaw = body.workerModels && typeof body.workerModels === "object"
     ? body.workerModels as Record<string, unknown>
@@ -109,15 +118,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const injectedContext = buildInjectedPromptContext({
       missionId,
       sessionId,
-      agent: "noctis",
+      agent: noctisAgentProfile,
+      allowedWorkers,
       appRoot: projectRoot,
+      executionMode,
     });
 
     const promptResult = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
         parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
-        agent: "noctis",
+        agent: noctisAgentProfile,
         system: ledger,
         ...(noctisModel ? { model: noctisModel } : {}),
       },

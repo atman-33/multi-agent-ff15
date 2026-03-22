@@ -13,6 +13,7 @@ import {
   type AgentEvent,
   type PartyRuntimeState,
 } from "@/lib/event-to-party-update";
+import { getAllowedWorkers } from "@/lib/noctis-working-party";
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import {
@@ -1298,6 +1299,7 @@ export function useAgentSession({
       streamingMessageIdRef.current = null;
 
       const agentModels = useChatStore.getState().agentModels;
+      const allowedWorkers = getAllowedWorkers(useChatStore.getState().workingParty);
 
       try {
         if (!missionIdRef.current) {
@@ -1309,6 +1311,7 @@ export function useAgentSession({
               title: text.slice(0, 80),
               objective: text,
               noctisModel: agentModels["noctis"] ?? null,
+              allowedWorkers,
               workerModels: {
                 ignis: agentModels["ignis"] ?? null,
                 gladiolus: agentModels["gladiolus"] ?? null,
@@ -1350,6 +1353,7 @@ export function useAgentSession({
               missionId: missionIdRef.current,
               parts,
               noctisModel: agentModels["noctis"] ?? null,
+              allowedWorkers,
             }),
           });
 

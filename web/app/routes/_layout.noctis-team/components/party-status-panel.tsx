@@ -2,6 +2,12 @@ import { Check, ChevronsUpDown, Cpu, Sparkles } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  getCompactWorkingPartySummary,
+  getAllowedWorkers,
+  isWorkingPartyMemberId,
+  normalizeWorkingPartyMemberId,
+} from "@/lib/noctis-working-party";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -249,8 +255,10 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
   const [providers, setProviders] = useState<Provider[]>([]);
   const [presets, setPresets] = useState<ModelPreset[]>([]);
   const agentModels = useChatStore((state) => state.agentModels);
+  const workingParty = useChatStore((state) => state.workingParty);
   const setAgentModel = useChatStore((state) => state.setAgentModel);
   const setAgentModels = useChatStore((state) => state.setAgentModels);
+  const setWorkingPartyMember = useChatStore((state) => state.setWorkingPartyMember);
 
   useEffect(() => {
     const load = async () => {
@@ -293,6 +301,12 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
     return match?.id ?? null;
   }, [agentModels, presets]);
 
+  const allowedWorkers = useMemo(() => getAllowedWorkers(workingParty), [workingParty]);
+  const compactWorkingPartySummary = useMemo(
+    () => getCompactWorkingPartySummary(allowedWorkers),
+    [allowedWorkers]
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2 border-border/50 border-b pb-2">
@@ -300,8 +314,8 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
         <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Party Status
         </span>
-        <div className="ml-auto font-mono text-[10px] text-muted-foreground/50">
-          {members.filter((m) => m.status === "working").length} active
+        <div className="ml-auto min-w-0 max-w-44 truncate font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          {compactWorkingPartySummary}
         </div>
       </div>
 
@@ -323,6 +337,28 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
       <div className="flex flex-col gap-2">
         {members.map((member) => {
           const normalizedAgentId = normalizePartyAgentId(member.id);
+          const workingPartyAgentId = normalizeWorkingPartyMemberId(member.id);
+          const isWorker = workingPartyAgentId ? isWorkingPartyMemberId(workingPartyAgentId) : false;
+          const isInParty = workingPartyAgentId ? workingParty[workingPartyAgentId] : false;
+
+          const partyControl = isWorker && workingPartyAgentId ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-6 w-full justify-center rounded-md border px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
+                isInParty
+                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+                  : "border-border/40 bg-background/20 text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setWorkingPartyMember(workingPartyAgentId, !isInParty)}
+            >
+              {isInParty ? "Leave" : "Join"}
+            </Button>
+          ) : (
+            <div aria-hidden="true" className="invisible h-6 w-full rounded-md border px-2" />
+          );
 
           return (
             <div key={member.id}>
@@ -330,6 +366,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
                 {...member}
                 agentId={normalizedAgentId ?? member.id}
                 isSpeaking={normalizedAgentId === speakingAgentId}
+                statusAccessory={partyControl}
                 metaAccessory={
                   <AgentModelPicker
                     agentId={member.id}

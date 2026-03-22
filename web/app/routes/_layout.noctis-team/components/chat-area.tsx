@@ -13,11 +13,13 @@ import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Button } from "@/components/ui/button";
 import { getAgentTheme } from "@/lib/agent-theme";
+import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import { useChatStore } from "@/stores/chat-store";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 import MessageDetailSheet from "./message-detail-sheet";
@@ -358,6 +360,11 @@ export const ChatArea = ({
   showAbortAction = false,
 }: ChatAreaProps) => {
   const renderedMessages = useMemo(() => buildRenderedMessages(messages), [messages]);
+  const workingParty = useChatStore((state) => state.workingParty);
+  const composerSummary = useMemo(() => {
+    const allowedWorkers = getAllowedWorkers(workingParty);
+    return getWorkingPartySummary(allowedWorkers);
+  }, [workingParty]);
 
   return (
     <ChatThreadFrame
@@ -399,6 +406,11 @@ export const ChatArea = ({
           onSend={onSend}
           onAbort={onAbort}
           showAbortAction={showAbortAction}
+          footerStart={
+            <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
+              <span className="truncate">{composerSummary}</span>
+            </div>
+          }
           placeholder="Send a message to Noctis... Use @ for files/folders and / for commands/skills. Shift+Enter for new line"
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />

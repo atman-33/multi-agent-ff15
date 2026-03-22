@@ -8,6 +8,11 @@ import {
 } from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import {
+  coerceAllowedWorkers,
+  getNoctisAgentProfile,
+  getNoctisExecutionMode,
+} from "@/lib/noctis-working-party";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ModelSelection } from "@/lib/types/mission";
 
@@ -27,6 +32,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     message?: unknown;
     parts?: unknown;
     noctisModel?: unknown;
+    allowedWorkers?: unknown;
   } | null;
 
   if (!body || typeof body.missionId !== "string" || !body.missionId.trim()) {
@@ -69,6 +75,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
     },
   ];
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
+  const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
+  const executionMode = getNoctisExecutionMode(allowedWorkers);
+  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
 
   const mission = getMission(missionId);
   if (!mission) {
@@ -82,15 +91,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const injectedContext = buildInjectedPromptContext({
       missionId,
       sessionId: mission.noctisSessionId,
-      agent: "noctis",
+      agent: noctisAgentProfile,
+      allowedWorkers,
       appRoot: getProjectRoot(),
+      executionMode,
     });
 
     const result = await client.session.promptAsync({
       path: { id: mission.noctisSessionId },
       body: {
         parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
-        agent: "noctis",
+        agent: noctisAgentProfile,
         ...(effectiveModel ? { model: effectiveModel } : {}),
       },
     });

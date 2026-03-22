@@ -10,6 +10,10 @@ import {
 } from "@/lib/project-scopes";
 
 function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | null {
+  if (agent === "noctis-solo") {
+    return "noctis";
+  }
+
   if (
     agent === "noctis" ||
     agent === "lunafreya" ||
@@ -61,14 +65,18 @@ function collectActiveProjects(
 
 type BuildInjectedPromptContextOptions = {
   agent?: string;
+  allowedWorkers?: string[];
   appRoot: string;
+  executionMode?: string;
   missionId?: string;
   sessionId: string;
 };
 
 export function buildInjectedPromptContext({
   agent,
+  allowedWorkers,
   appRoot,
+  executionMode,
   missionId,
   sessionId,
 }: BuildInjectedPromptContextOptions): string {
@@ -77,6 +85,19 @@ export function buildInjectedPromptContext({
     lines.push(`mission_id: ${missionId}`);
   }
   lines.push(`session_id: ${sessionId}`);
+  if (executionMode) {
+    lines.push(`execution_mode: ${executionMode}`);
+  }
+  if (allowedWorkers) {
+    if (allowedWorkers.length === 0) {
+      lines.push("allowed_workers: []");
+    } else {
+      lines.push("allowed_workers:");
+      for (const agentId of allowedWorkers) {
+        lines.push(`  - ${agentId}`);
+      }
+    }
+  }
   const { projects, scopeLabel } = collectActiveProjects(appRoot, agent);
 
   lines.push(`project_scope: ${scopeLabel}`);

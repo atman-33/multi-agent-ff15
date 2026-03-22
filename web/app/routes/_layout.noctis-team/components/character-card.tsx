@@ -13,6 +13,7 @@ export interface CharacterCardProps {
   role: string;
   imageSrc: string;
   isSpeaking?: boolean;
+  statusAccessory?: ReactNode;
   status: AgentStatus;
   task: string;
   detail?: string;
@@ -81,6 +82,7 @@ export const CharacterCard = ({
   role,
   imageSrc,
   isSpeaking = false,
+  statusAccessory,
   status,
   task,
   detail,
@@ -276,13 +278,16 @@ export const CharacterCard = ({
           )}
         </div>
 
-        <div
-          className={cn(
-            "shrink-0 rounded-full border px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest",
-            config.badgeClass
-          )}
-        >
-          {config.label}
+        <div className="flex w-20 shrink-0 flex-col items-stretch gap-1 self-start pt-0.5">
+          {statusAccessory ? statusAccessory : null}
+          <div
+            className={cn(
+              "w-full rounded-full border px-2 py-0.5 text-center font-mono text-[9px] font-semibold uppercase tracking-widest",
+              config.badgeClass
+            )}
+          >
+            {config.label}
+          </div>
         </div>
       </div>
     </div>
