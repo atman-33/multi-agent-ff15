@@ -1,5 +1,5 @@
 import { ArrowUpRight, BadgeInfo, ChevronDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -29,6 +29,8 @@ const MessageDetailSheet = ({
   sender,
 }: Props) => {
   const [contextExpanded, setContextExpanded] = useState(false);
+  const toolKeyMapRef = useRef(new WeakMap<MessagePart, string>());
+  const nextToolKeyRef = useRef(0);
   const rawText = useMemo(() => {
     if (typeof rawTextContent === "string" && rawTextContent.trim()) {
       return rawTextContent;
@@ -38,6 +40,18 @@ const MessageDetailSheet = ({
   }, [content, parts, rawTextContent, sender]);
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
+
+  const getToolKey = (tool: MessagePart) => {
+    const existingKey = toolKeyMapRef.current.get(tool);
+    if (existingKey) {
+      return existingKey;
+    }
+
+    nextToolKeyRef.current += 1;
+    const nextKey = `tool-${nextToolKeyRef.current}`;
+    toolKeyMapRef.current.set(tool, nextKey);
+    return nextKey;
+  };
   const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
   const displayContent = useMemo(
     () => (sender === "noctis" ? removeInternalContext(rawText) : content),
@@ -138,10 +152,10 @@ const MessageDetailSheet = ({
           <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400">
             Tool Activity
           </div>
-          {tools.map((tool, index) => (
+          {tools.map((tool) => (
             <div
               className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5"
-              key={`${tool.tool ?? "tool"}-${index}`}
+              key={getToolKey(tool)}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="font-medium text-slate-100">{tool.tool ?? "Tool"}</div>

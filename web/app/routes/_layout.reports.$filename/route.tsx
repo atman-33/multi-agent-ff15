@@ -189,7 +189,7 @@ const ReportDetail = (_props: Route.ComponentProps) => {
       }
       tocContainer.innerHTML = "";
     };
-  }, [content, headings.length, loading]);
+  }, [headings.length]);
 
   const handleCopy = async () => {
     if (!content) {

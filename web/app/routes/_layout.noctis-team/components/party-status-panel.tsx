@@ -356,7 +356,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
             "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";
 
           const partyControl = isNoctis ? (
-            <div
+                <fieldset
               className="grid w-full cursor-not-allowed grid-cols-2 gap-1 rounded-full border border-border/40 bg-muted/20 p-0.5"
               aria-label="Noctis party membership locked"
             >
@@ -376,9 +376,9 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
               >
                 Out
               </div>
-            </div>
+                </fieldset>
           ) : isWorker && workingPartyAgentId ? (
-            <div
+                <fieldset
               className="grid w-full grid-cols-2 gap-1 rounded-full border border-border/30 bg-background/25 p-0.5"
               aria-label={`${member.name} party membership`}
             >
@@ -412,7 +412,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
               >
                 Out
               </Button>
-            </div>
+                </fieldset>
           ) : (
             <div aria-hidden="true" className="invisible h-6 w-full rounded-md border px-2" />
           );

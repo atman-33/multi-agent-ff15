@@ -25,6 +25,7 @@ export function ChatThreadFrame({
   resetKey,
 }: ChatThreadFrameProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const previousResetKeyRef = useRef(resetKey);
   const shouldStickToBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
@@ -76,6 +77,11 @@ export function ChatThreadFrame({
   }, [syncScrollState]);
 
   useEffect(() => {
+    if (previousResetKeyRef.current === resetKey) {
+      return;
+    }
+
+    previousResetKeyRef.current = resetKey;
     shouldStickToBottomRef.current = true;
     setShowScrollToBottom(false);
     window.setTimeout(() => scrollToBottom("auto"), 0);

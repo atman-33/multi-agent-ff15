@@ -951,7 +951,6 @@ export function useAgentSession({
       clearProgressBanter,
       handleAgentEvent,
       resolvePendingActive,
-      scheduleProgressBanter,
       setServerSessionState,
       syncSessionMessages,
     ]
@@ -1283,7 +1282,6 @@ export function useAgentSession({
     closeWorkerEventSources,
     initialMessageInfos,
     initialMissionData,
-    pendingMissionSessionId,
     applyMissionRuntimeSnapshot,
     replaceServerSessionStates,
     subscribeToSession,
@@ -1405,7 +1403,6 @@ export function useAgentSession({
     [
       clearProgressBanter,
       handleAgentEvent,
-      scheduleProgressBanter,
       setPendingMissionSession,
       setOptimisticSessionState,
       subscribeToSession,

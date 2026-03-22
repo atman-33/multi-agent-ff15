@@ -1,5 +1,5 @@
 import { BadgeInfo, ChevronDown, Sparkles, Wrench } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { InternalContextViewModel } from "@/lib/chat-internal-context";
 import type { ChatMessagePart } from "@/lib/chat-message-parts";
 import { cn } from "@/lib/utils";
@@ -34,11 +34,25 @@ export function buildIntermediateDetailSummary(
 
 export function MessageIntermediateDetails({ internalContext, reasoning, tools }: Props) {
   const [contextExpanded, setContextExpanded] = useState(false);
+  const toolKeyMapRef = useRef(new WeakMap<ChatMessagePart, string>());
+  const nextToolKeyRef = useRef(0);
   const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
   const detailSummary = useMemo(
     () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
     [internalContext, reasoning, tools]
   );
+
+  const getToolKey = (tool: ChatMessagePart) => {
+    const existingKey = toolKeyMapRef.current.get(tool);
+    if (existingKey) {
+      return existingKey;
+    }
+
+    nextToolKeyRef.current += 1;
+    const nextKey = `tool-${nextToolKeyRef.current}`;
+    toolKeyMapRef.current.set(tool, nextKey);
+    return nextKey;
+  };
 
   if (!hasDetails) {
     return null;
@@ -112,9 +126,9 @@ export function MessageIntermediateDetails({ internalContext, reasoning, tools }
             Tool Activity
           </div>
           <div className="space-y-2">
-            {tools.map((tool, index) => (
+            {tools.map((tool) => (
               <details
-                key={`${tool.tool ?? "tool"}-${index}`}
+                key={getToolKey(tool)}
                 className="rounded-md border border-border/30 bg-black/10 p-2"
               >
                 <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">

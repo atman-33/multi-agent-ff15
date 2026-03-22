@@ -375,7 +375,7 @@
   @apply bg-transparent p-0 text-foreground/90;
 }
 .markdown-body blockquote {
-  @apply border-l-4 border-primary/40 pl-4 italic my-4 text-muted-foreground bg-primary/5 py-1 rounded-r-lf;
+  @apply border-l-4 border-primary/40 pl-4 italic my-4 text-muted-foreground bg-primary/5 py-1 rounded-r-lg;
 }
 .markdown-body hr {
   @apply border-border/50 my-6;

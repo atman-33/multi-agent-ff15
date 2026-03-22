@@ -40,13 +40,22 @@ interface OhMyOpenCodeData {
   version: string;
 }
 
+const LOADING_CARD_KEYS = [
+  "skeleton-config",
+  "skeleton-models",
+  "skeleton-agents",
+  "skeleton-tools",
+  "skeleton-commands",
+  "skeleton-status",
+] as const;
+
 const LoadingGrid = () => {
   return (
     <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-      {[...new Array(6)].map((_, index) => (
+      {LOADING_CARD_KEYS.map((key) => (
         <div
           className="flex animate-pulse items-center gap-3 rounded-md border border-border/10 bg-card/10 p-1.5 px-3"
-          key={`skeleton-${index}`}
+          key={key}
         >
           <div className="h-4 w-24 rounded bg-muted" />
           <div className="flex-1" />

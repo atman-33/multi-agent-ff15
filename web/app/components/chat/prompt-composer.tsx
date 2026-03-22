@@ -167,12 +167,8 @@ export function PromptComposer({
   }, [clearSessionDraft, draftKey, fileMentions, input, setSessionDraft, slashMentions]);
 
   useEffect(() => {
-    setSelectedSuggestionIndex(0);
-  }, [suggestions]);
-
-  useEffect(() => {
     const textarea = textareaRef.current;
-    if (!textarea) {
+    if (!textarea || textarea.value !== input) {
       return;
     }
 
@@ -196,6 +192,7 @@ export function PromptComposer({
     if (!mention) {
       setIsOpen(false);
       setSuggestions([]);
+      setSelectedSuggestionIndex(0);
       return;
     }
 
@@ -231,6 +228,7 @@ export function PromptComposer({
         .filter((item) => !selectedFiles.has(item.value));
 
       setSuggestions(fileSuggestions);
+      setSelectedSuggestionIndex(0);
       setIsOpen(fileSuggestions.length > 0);
       return;
     }
@@ -252,6 +250,7 @@ export function PromptComposer({
       }));
 
     setSuggestions(filtered);
+    setSelectedSuggestionIndex(0);
     setIsOpen(filtered.length > 0);
   }, [fileMentions, input, slashMentions, slashSuggestions]);
 
