@@ -1,10 +1,10 @@
-import { ArrowDown, Terminal } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Terminal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Button } from "@/components/ui/button";
 import { fetchSessionStatus, isSessionStatusActive } from "@/lib/session-status";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { mergeMessageInfoText, mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
 import MessageComposer from "./components/message-composer";
@@ -23,16 +23,12 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const [isAborting, setIsAborting] = useState(false);
   const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const scrollViewportRef = useRef<HTMLDivElement>(null);
-  const shouldStickToBottomRef = useRef(true);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const selectedModel = useChatStore((state) => state.selectedModel);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setServerSessionState = useChatStore((state) => state.setServerSessionState);
   const streamingContent = useChatStore((state) => state.streamingContent);
-  const streamingMessageId = useChatStore((state) => state.streamingMessageId);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
   const setStreamingContent = useChatStore((state) => state.setStreamingContent);
   const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
@@ -189,54 +185,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     setStreamingMessageId,
   ]);
 
-  const syncScrollState = useCallback(() => {
-    const viewport = scrollViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const distanceFromBottom =
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    const nearBottom = distanceFromBottom < 72;
-
-    shouldStickToBottomRef.current = nearBottom;
-    setShowScrollToBottom(!nearBottom);
-  }, []);
-
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const viewport = scrollViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
-  }, []);
-
-  useEffect(() => {
-    shouldStickToBottomRef.current = true;
-    setShowScrollToBottom(false);
-    window.setTimeout(() => scrollToBottom("auto"), 0);
-  }, [scrollToBottom, sessionId]);
-
-  useEffect(() => {
-    const viewport = scrollViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    syncScrollState();
-
-    const handleScroll = () => {
-      syncScrollState();
-    };
-
-    viewport.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      viewport.removeEventListener("scroll", handleScroll);
-    };
-  }, [syncScrollState]);
-
   const handleSend = useCallback(
     async (
       parts: Array<
@@ -356,83 +304,69 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   }, [isOpeningTerminal, sessionId]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-start justify-between gap-3 border-border/50 border-b px-5 py-3">
-        <div className="min-w-0">
-          <h1 className="truncate font-semibold text-sm">{currentSessionTitle}</h1>
-          <p className="truncate text-muted-foreground text-xs">{sessionId}</p>
+    <ChatThreadFrame
+      outerClassName="flex h-full flex-col"
+      resetKey={sessionId ?? null}
+      header={
+        <div className="flex items-start justify-between gap-3 border-border/50 border-b px-5 py-3">
+          <div className="min-w-0">
+            <h1 className="truncate font-semibold text-sm">{currentSessionTitle}</h1>
+            <p className="truncate text-muted-foreground text-xs">{sessionId}</p>
+          </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={handleOpenTerminal}
+            disabled={!sessionId || isOpeningTerminal}
+            title="Open session terminal"
+          >
+            <Terminal className={isOpeningTerminal ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+          </Button>
         </div>
+      }
+      footer={
+        <MessageComposer
+          sessionId={sessionId}
+          onSend={handleSend}
+          onAbort={handleAbort}
+          disabled={isLoading || isAborting}
+          isSessionRunning={isSessionRunning}
+          isAborting={isAborting}
+        />
+      }
+      contentClassName="mx-auto w-full max-w-3xl space-y-4"
+    >
+      {(viewportRef) => (
+        <>
+          {errorMessage ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {errorMessage}
+            </div>
+          ) : (
+            <MessageList
+              messages={messages}
+              streamingContent={streamingContent}
+              viewportRef={viewportRef}
+            />
+          )}
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={handleOpenTerminal}
-          disabled={!sessionId || isOpeningTerminal}
-          title="Open session terminal"
-        >
-          <Terminal className={isOpeningTerminal ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
-        </Button>
-      </div>
-
-      <div className="relative min-h-0 flex-1">
-        <ScrollArea className="h-full px-4 py-4" viewportRef={scrollViewportRef}>
-          <div className="mx-auto max-w-3xl space-y-4">
-            {errorMessage ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {errorMessage}
-              </div>
-            ) : (
-              <MessageList
-                messages={messages}
-                streamingContent={streamingContent}
-                viewportRef={scrollViewportRef}
-              />
-            )}
-
-            {isSessionRunning ? (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
-                  <div className="flex gap-1.5">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
-                  </div>
+          {isSessionRunning ? (
+            <div className="flex justify-start">
+              <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
+                <div className="flex gap-1.5">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
                 </div>
               </div>
-            ) : null}
-          </div>
-        </ScrollArea>
-
-        {showScrollToBottom ? (
-          <Button
-            aria-label="Scroll to latest message"
-            className="absolute right-8 bottom-6 h-10 w-10 rounded-full border border-white/10 bg-slate-950/90 p-0 text-slate-100 shadow-lg backdrop-blur hover:bg-slate-900"
-            onClick={() => scrollToBottom()}
-            size="sm"
-            title="Scroll to latest message"
-            type="button"
-            variant="outline"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-        ) : null}
-      </div>
-
-      <div className="border-border/50 border-t px-4 py-4">
-        <div className="mx-auto max-w-3xl">
-          <MessageComposer
-            sessionId={sessionId}
-            onSend={handleSend}
-            onAbort={handleAbort}
-            disabled={isLoading || isAborting}
-            isSessionRunning={isSessionRunning}
-            isAborting={isAborting}
-          />
-        </div>
-      </div>
-    </div>
+            </div>
+          ) : null}
+        </>
+      )}
+    </ChatThreadFrame>
   );
 };
 

@@ -1,7 +1,18 @@
 export type SessionStatus = "idle" | "busy" | "retry";
 
 export function coerceSessionStatus(value: unknown): SessionStatus | null {
-  return value === "idle" || value === "busy" || value === "retry" ? value : null;
+  if (value === "idle" || value === "busy" || value === "retry") {
+    return value;
+  }
+
+  if (value && typeof value === "object") {
+    const type = (value as { type?: unknown }).type;
+    if (type === "idle" || type === "busy" || type === "retry") {
+      return type;
+    }
+  }
+
+  return null;
 }
 
 export function isSessionStatusActive(status: SessionStatus | null | undefined): boolean {

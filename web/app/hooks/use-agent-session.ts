@@ -854,9 +854,17 @@ export function useAgentSession({
   const applyMissionRuntimeSnapshot = useCallback(
     (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
       missionIdRef.current = runtime.missionId;
-      clearPendingMissionSession(runtime.missionId);
 
       const nextNoctisSessionId = runtime.sessions.noctis;
+      const optimisticNoctisStatus =
+        useChatStore.getState().optimisticSessionStates[nextNoctisSessionId] ?? null;
+      const shouldPreserveNoctisActive =
+        isSessionStatusActive(optimisticNoctisStatus) ||
+        pendingMissionSessionId === nextNoctisSessionId ||
+        isStreaming;
+
+      clearPendingMissionSession(runtime.missionId);
+
       if (noctisSessionIdRef.current !== nextNoctisSessionId) {
         noctisSessionIdRef.current = nextNoctisSessionId;
         setNoctisSessionId(nextNoctisSessionId);
@@ -873,13 +881,6 @@ export function useAgentSession({
       setDelegationLedger(runtime.delegationLedger);
 
       const nextNoctisStatus = runtime.sessionStatuses[nextNoctisSessionId];
-      const currentEffectiveNoctisStatus =
-        useChatStore.getState().sessionStates[nextNoctisSessionId] ?? null;
-      const shouldPreserveNoctisActive =
-        isSessionStatusActive(currentEffectiveNoctisStatus) ||
-        isSessionStatusActive(sessionStatusRef.current) ||
-        pendingMissionSessionId === nextNoctisSessionId ||
-        isStreaming;
 
       if (nextNoctisStatus) {
         setServerSessionState(nextNoctisSessionId, nextNoctisStatus);
