@@ -21,7 +21,7 @@ import type {
 const store = new Map<string, Mission>();
 
 function getMissionStoreDir(): string {
-  return join(getProjectRoot(), ".tmp", "noctis-missions");
+  return join(getProjectRoot(), "runtime", "noctis-missions");
 }
 
 function getMissionFilePath(id: string): string {

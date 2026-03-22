@@ -108,7 +108,7 @@ const SessionNavItem = memo(
               onChange={(event) => setDraftTitle(event.target.value)}
               rows={2}
               disabled={isRenaming}
-              className="min-h-[56px] resize-none bg-transparent text-xs"
+              className="min-h-14 resize-none bg-transparent text-xs"
             />
             <div className="flex items-center justify-end gap-1">
               <Button

@@ -9,7 +9,7 @@ def main() -> int:
         return 0
 
     session_id = sys.argv[1]
-    store_dir = os.path.join('.tmp', 'noctis-missions')
+    store_dir = os.path.join('runtime', 'noctis-missions')
     if not os.path.isdir(store_dir):
         return 0
 
