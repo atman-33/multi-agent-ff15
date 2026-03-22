@@ -239,10 +239,7 @@ export function updateMissionMetadata(
   touchMission(mission, patch.status);
 }
 
-export function appendMissionMessage(
-  missionId: string,
-  message: MissionMessageLogEntry
-): void {
+export function appendMissionMessage(missionId: string, message: MissionMessageLogEntry): void {
   const mission = getMission(missionId);
   if (!mission) return;
   mission.messageLog.push(message);

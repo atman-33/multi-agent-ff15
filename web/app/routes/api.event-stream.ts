@@ -12,7 +12,10 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   } catch {
     const readable = new ReadableStream({
       start(controller) {
-        const payload = JSON.stringify({ type: "sse.error", properties: { message: "OpenCode server not available" } });
+        const payload = JSON.stringify({
+          type: "sse.error",
+          properties: { message: "OpenCode server not available" },
+        });
         controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
         controller.close();
       },
@@ -42,7 +45,10 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
           controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
         }
       } catch (error) {
-        const payload = JSON.stringify({ type: "sse.error", properties: { message: String(error) } });
+        const payload = JSON.stringify({
+          type: "sse.error",
+          properties: { message: String(error) },
+        });
         controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
       } finally {
         controller.close();

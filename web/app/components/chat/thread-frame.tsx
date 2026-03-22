@@ -34,8 +34,7 @@ export function ChatThreadFrame({
       return;
     }
 
-    const distanceFromBottom =
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     const nearBottom = distanceFromBottom < 72;
 
     shouldStickToBottomRef.current = nearBottom;

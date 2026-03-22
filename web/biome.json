@@ -1,4 +1,7 @@
 {
+  "files": {
+    "includes": ["**", "!.react-router", "!build", "!package-lock.json"]
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -9,6 +12,11 @@
     "enabled": true,
     "rules": {
       "recommended": true
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   },
   "javascript": {

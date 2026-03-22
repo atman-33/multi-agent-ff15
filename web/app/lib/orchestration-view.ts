@@ -271,13 +271,12 @@ export function buildOrchestrationViewModel(options: {
         {
           agentId: "noctis",
           state: streamingContent ? "reporting" : "delegating",
-          headline: streamingContent ? "Curating the squad response" : "Splitting the brief into lanes",
+          headline: streamingContent
+            ? "Curating the squad response"
+            : "Splitting the brief into lanes",
           detail: truncate(latestDirective, 86),
           chatter: [
-            choose(
-              CHOICES.noctis[streamingContent ? "reporting" : "delegating"] ?? [],
-              seed
-            ),
+            choose(CHOICES.noctis[streamingContent ? "reporting" : "delegating"] ?? [], seed),
           ],
           taskLabel: streamingContent ? "Report synthesis" : "Delegation mesh",
           intensity: "high",
@@ -351,8 +350,12 @@ export function buildOrchestrationViewModel(options: {
           "evt-reporting",
           "noctis",
           "report",
-          streamingContent ? "Noctis is synthesizing a curated reply" : "Noctis is preparing the next summary",
-          streamingContent ? truncate(streamingContent, 110) : "Only the cleaned-up summary returns to the canonical thread.",
+          streamingContent
+            ? "Noctis is synthesizing a curated reply"
+            : "Noctis is preparing the next summary",
+          streamingContent
+            ? truncate(streamingContent, 110)
+            : "Only the cleaned-up summary returns to the canonical thread.",
           "Now",
           "success"
         ),
@@ -363,8 +366,10 @@ export function buildOrchestrationViewModel(options: {
   if (messages.length > 0) {
     return {
       commandDeckLabel: "Crystal -> Noctis",
-      commandDeckSummary: "Crystal commands Noctis here. The squad remains visible as supporting context.",
-      commandDeckHint: "The main thread shows only curated updates. Teammate chatter stays ambient in the stage.",
+      commandDeckSummary:
+        "Crystal commands Noctis here. The squad remains visible as supporting context.",
+      commandDeckHint:
+        "The main thread shows only curated updates. Teammate chatter stays ambient in the stage.",
       presences: [
         {
           agentId: "noctis",
@@ -378,7 +383,9 @@ export function buildOrchestrationViewModel(options: {
         {
           agentId: "ignis",
           state: lastAssistantText ? "done" : "idle",
-          headline: lastAssistantText ? "Analysis folded into Noctis' reply" : "Watching for the next strategic thread",
+          headline: lastAssistantText
+            ? "Analysis folded into Noctis' reply"
+            : "Watching for the next strategic thread",
           detail: "The strategy lane stays available without pulling focus from the command deck.",
           chatter: [choose(CHOICES.ignis[lastAssistantText ? "done" : "idle"] ?? [], seed + 1)],
           taskLabel: lastAssistantText ? "Analysis returned" : "Standby",
@@ -387,7 +394,9 @@ export function buildOrchestrationViewModel(options: {
         {
           agentId: "gladiolus",
           state: lastAssistantText ? "done" : "idle",
-          headline: lastAssistantText ? "Implementation lane stabilized" : "Standing by for the hard path",
+          headline: lastAssistantText
+            ? "Implementation lane stabilized"
+            : "Standing by for the hard path",
           detail: "Heavy execution remains ready but secondary to the main thread until needed.",
           chatter: [choose(CHOICES.gladiolus[lastAssistantText ? "done" : "idle"] ?? [], seed + 2)],
           taskLabel: lastAssistantText ? "Execution stabilized" : "Standby",
@@ -396,7 +405,9 @@ export function buildOrchestrationViewModel(options: {
         {
           agentId: "prompto",
           state: lastAssistantText ? "done" : "idle",
-          headline: lastAssistantText ? "Recon packet already passed upstairs" : "No sweep active right now",
+          headline: lastAssistantText
+            ? "Recon packet already passed upstairs"
+            : "No sweep active right now",
           detail: "Fast hits remain available as context, not as a competing transcript.",
           chatter: [choose(CHOICES.prompto[lastAssistantText ? "done" : "idle"] ?? [], seed + 3)],
           taskLabel: lastAssistantText ? "Recon complete" : "Standby",
@@ -408,7 +419,9 @@ export function buildOrchestrationViewModel(options: {
           "evt-idle-command",
           "noctis",
           "status",
-          messages.length > 0 ? "Noctis has the latest directive on record" : "No active command yet",
+          messages.length > 0
+            ? "Noctis has the latest directive on record"
+            : "No active command yet",
           truncate(latestDirective, 110),
           "Recent",
           "info"
@@ -417,7 +430,9 @@ export function buildOrchestrationViewModel(options: {
           "evt-idle-report",
           "noctis",
           lastAssistantText ? "report" : "status",
-          lastAssistantText ? "Noctis delivered the latest curated response" : "The squad is idle but visible",
+          lastAssistantText
+            ? "Noctis delivered the latest curated response"
+            : "The squad is idle but visible",
           truncate(latestReport, 110),
           lastAssistantText ? "Recent" : "Standby",
           lastAssistantText ? "success" : "info"
@@ -428,8 +443,10 @@ export function buildOrchestrationViewModel(options: {
 
   return {
     commandDeckLabel: "Crystal -> Noctis",
-    commandDeckSummary: "This deck is reserved for Crystal's directives and Noctis' curated replies.",
-    commandDeckHint: "The squad stage stays visible even before work starts, so delegation never feels hidden.",
+    commandDeckSummary:
+      "This deck is reserved for Crystal's directives and Noctis' curated replies.",
+    commandDeckHint:
+      "The squad stage stays visible even before work starts, so delegation never feels hidden.",
     presences: [
       {
         agentId: "noctis",
@@ -444,7 +461,8 @@ export function buildOrchestrationViewModel(options: {
         agentId: "ignis",
         state: "idle",
         headline: "Strategy lane is clear",
-        detail: "Ignis becomes active when the brief needs structure, constraints, or risk framing.",
+        detail:
+          "Ignis becomes active when the brief needs structure, constraints, or risk framing.",
         chatter: [choose(CHOICES.ignis.idle ?? [], 1)],
         taskLabel: "Standby",
         intensity: "low",

@@ -1,21 +1,5 @@
-import {
-  AtSign,
-  FileText,
-  Folder,
-  Send,
-  Slash,
-  Sparkles,
-  Square,
-  X,
-} from "lucide-react";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { AtSign, FileText, Folder, Send, Slash, Sparkles, Square, X } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
@@ -335,8 +319,7 @@ export function PromptComposer({
   }, [fileMentions, input, slashMentions]);
 
   const canSubmit = input.trim().length > 0 || fileMentions.length > 0 || slashMentions.length > 0;
-  const effectiveShowAbortAction =
-    showAbortAction && (showAbortActionWhenComposing || !canSubmit);
+  const effectiveShowAbortAction = showAbortAction && (showAbortActionWhenComposing || !canSubmit);
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit || disabled) {
@@ -479,7 +462,9 @@ export function PromptComposer({
                           setSlashMentions((current) =>
                             current.filter(
                               (currentItem) =>
-                                !(currentItem.type === item.type && currentItem.value === item.value)
+                                !(
+                                  currentItem.type === item.type && currentItem.value === item.value
+                                )
                             )
                           )
                         }
@@ -598,7 +583,9 @@ export function PromptComposer({
           <button
             type="button"
             onClick={effectiveShowAbortAction ? onAbort : handleSubmit}
-            disabled={effectiveShowAbortAction ? !onAbort || disabled || isAborting : !canSubmit || disabled}
+            disabled={
+              effectiveShowAbortAction ? !onAbort || disabled || isAborting : !canSubmit || disabled
+            }
             title={effectiveShowAbortAction ? "Stop" : "Send"}
             className={cn(
               "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",

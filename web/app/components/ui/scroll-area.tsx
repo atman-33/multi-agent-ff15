@@ -3,8 +3,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-interface ScrollAreaProps
-  extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
+interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
   viewportClassName?: string;
   viewportRef?: React.Ref<HTMLDivElement>;
 }

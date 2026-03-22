@@ -50,7 +50,7 @@ export function MessageBubbleBase({
         align === "end" ? "justify-end" : "justify-start"
       )}
     >
-      {align === "start" ? avatar ?? null : null}
+      {align === "start" ? (avatar ?? null) : null}
 
       <div
         className={cn(

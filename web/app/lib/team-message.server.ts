@@ -2,7 +2,12 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { buildTeamMessageEnvelope, getActivityActorLabel } from "@/lib/team-message-format";
-import { appendMissionActivity, appendMissionMessage, getMission, setWorkerSession } from "@/lib/mission-store";
+import {
+  appendMissionActivity,
+  appendMissionMessage,
+  getMission,
+  setWorkerSession,
+} from "@/lib/mission-store";
 import type {
   ActivityActorId,
   AgentId,

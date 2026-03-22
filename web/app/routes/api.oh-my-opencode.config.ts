@@ -38,8 +38,7 @@ const readModels = (): string[] => {
       .split("\n")
       .map((line) => line.trim())
       .filter(
-        (line) =>
-          line && !line.startsWith("opencode") && !line.includes("--") && line.includes("/")
+        (line) => line && !line.startsWith("opencode") && !line.includes("--") && line.includes("/")
       );
   } catch {
     return [];

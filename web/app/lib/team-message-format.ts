@@ -50,7 +50,9 @@ function normalizeActorId(value: unknown): ActivityActorId | null {
     return "gladiolus";
   }
 
-  const byLabel = Object.entries(ACTOR_LABELS).find(([, label]) => label.toLowerCase() === normalized);
+  const byLabel = Object.entries(ACTOR_LABELS).find(
+    ([, label]) => label.toLowerCase() === normalized
+  );
   return (byLabel?.[0] as ActivityActorId | undefined) ?? null;
 }
 
@@ -183,7 +185,11 @@ export function parseRoutedMessageEnvelope(value: string): RoutedSessionMessage 
       const speaker = normalizeActorId(parsed?.speaker);
       const to = normalizeActorId(parsed?.to);
       const messageType = parsed?.message_type;
-      if (!speaker || !to || (messageType !== "chat" && messageType !== "message" && messageType !== "report")) {
+      if (
+        !speaker ||
+        !to ||
+        (messageType !== "chat" && messageType !== "message" && messageType !== "report")
+      ) {
         return null;
       }
 

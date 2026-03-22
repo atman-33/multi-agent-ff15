@@ -19,7 +19,12 @@ export function normalizeBanterAgentId(agentId: string): BanterAgentId | null {
     return "gladiolus";
   }
 
-  if (agentId === "noctis" || agentId === "ignis" || agentId === "gladiolus" || agentId === "prompto") {
+  if (
+    agentId === "noctis" ||
+    agentId === "ignis" ||
+    agentId === "gladiolus" ||
+    agentId === "prompto"
+  ) {
     return agentId;
   }
 

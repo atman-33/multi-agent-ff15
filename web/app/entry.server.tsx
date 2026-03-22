@@ -19,7 +19,7 @@ export default function handleRequest(
   responseStatusCode: number,
   responseHeaders: Headers,
   routerContext: EntryContext,
-  _loadContext: AppLoadContext,
+  _loadContext: AppLoadContext
 ) {
   if (request.method.toUpperCase() === "HEAD") {
     return new Response(null, {
@@ -33,13 +33,11 @@ export default function handleRequest(
     const userAgent = request.headers.get("user-agent");
 
     const readyOption: keyof RenderToPipeableStreamOptions =
-      (userAgent && isbot(userAgent)) || routerContext.isSpaMode
-        ? "onAllReady"
-        : "onShellReady";
+      (userAgent && isbot(userAgent)) || routerContext.isSpaMode ? "onAllReady" : "onShellReady";
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(
       () => abort(),
-      streamTimeout + 1000,
+      streamTimeout + 1000
     );
 
     const { pipe, abort } = renderToPipeableStream(
@@ -61,7 +59,7 @@ export default function handleRequest(
             new Response(stream, {
               headers: responseHeaders,
               status: responseStatusCode,
-            }),
+            })
           );
 
           pipe(body);
@@ -75,7 +73,7 @@ export default function handleRequest(
             console.error(error);
           }
         },
-      },
+      }
     );
   });
 }

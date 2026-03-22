@@ -20,18 +20,22 @@ type Props = {
   sender: ActivityActorId;
 };
 
-const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts, sender }: Props) => {
+const MessageDetailSheet = ({
+  content,
+  rawTextContent,
+  onOpenChange,
+  open,
+  parts,
+  sender,
+}: Props) => {
   const [contextExpanded, setContextExpanded] = useState(false);
-  const rawText = useMemo(
-    () => {
-      if (typeof rawTextContent === "string" && rawTextContent.trim()) {
-        return rawTextContent;
-      }
+  const rawText = useMemo(() => {
+    if (typeof rawTextContent === "string" && rawTextContent.trim()) {
+      return rawTextContent;
+    }
 
-      return sender === "noctis" && parts && parts.length > 0 ? extractText(parts) : content;
-    },
-    [content, parts, rawTextContent, sender]
-  );
+    return sender === "noctis" && parts && parts.length > 0 ? extractText(parts) : content;
+  }, [content, parts, rawTextContent, sender]);
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
   const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
@@ -45,7 +49,8 @@ const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts
     [displayContent, reasoning, tools]
   );
   const hasVisibleBody = displayContent.trim().length > 0;
-  const hasIntermediateDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+  const hasIntermediateDetails =
+    reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
 
   return (
     <MessageDetailSheetBase
@@ -68,9 +73,7 @@ const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts
             type="button"
           >
             <BadgeInfo className="h-4 w-4 shrink-0 text-sky-300" />
-            <span className="shrink-0 text-xs font-medium text-sky-100">
-              Internal Context
-            </span>
+            <span className="shrink-0 text-xs font-medium text-sky-100">Internal Context</span>
             <span className="min-w-0 flex-1 truncate text-xs text-sky-100/80">
               {internalContext.summary}
             </span>
@@ -85,7 +88,9 @@ const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts
           <div
             className={cn(
               "grid transition-all duration-300 ease-out",
-              contextExpanded ? "mt-3 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+              contextExpanded
+                ? "mt-3 grid-rows-[1fr] opacity-100"
+                : "mt-0 grid-rows-[0fr] opacity-0"
             )}
           >
             <div className="overflow-hidden">
@@ -105,13 +110,17 @@ const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts
             </p>
           ) : (
             <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                {displayContent}
+              </ReactMarkdown>
             </div>
           )}
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-white/10 bg-white/3 p-4 text-[12px] text-slate-400 sm:p-5">
-          {hasIntermediateDetails ? "Intermediate activity only." : "No final answer text was captured for this message."}
+          {hasIntermediateDetails
+            ? "Intermediate activity only."
+            : "No final answer text was captured for this message."}
         </div>
       )}
 
@@ -120,9 +129,7 @@ const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts
           <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             Commentary
           </div>
-          <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">
-            {reasoning}
-          </p>
+          <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">{reasoning}</p>
         </div>
       ) : null}
 

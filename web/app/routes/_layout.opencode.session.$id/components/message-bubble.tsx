@@ -36,7 +36,10 @@ const MessageBubble = ({ message }: Props) => {
   const text = useMemo(() => removeInternalContext(rawText), [rawText]);
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
-  const messageMarkdown = useMemo(() => buildMessageMarkdown(text, reasoning, tools), [reasoning, text, tools]);
+  const messageMarkdown = useMemo(
+    () => buildMessageMarkdown(text, reasoning, tools),
+    [reasoning, text, tools]
+  );
   const displayContent = message.showCursor ? `${text}▌` : text;
   const copyContent = messageMarkdown.trim() ? messageMarkdown : text;
   const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
@@ -67,7 +70,9 @@ const MessageBubble = ({ message }: Props) => {
             </p>
           ) : (
             <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                {displayContent}
+              </ReactMarkdown>
             </div>
           )
         ) : (

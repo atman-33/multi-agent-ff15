@@ -47,7 +47,7 @@ function collectEntries(searchRoots: SearchRoot[], appRoot: string, query: strin
   const q = query.toLowerCase();
   const results: FindEntry[] = [];
   const seen = new Set<string>();
-  
+
   for (const { root, projectName } of searchRoots) {
     if (!existsSync(root)) {
       continue;
@@ -56,11 +56,7 @@ function collectEntries(searchRoots: SearchRoot[], appRoot: string, query: strin
     const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
     let dirsExplored = 0;
 
-    while (
-      queue.length > 0 &&
-      results.length < MAX_RESULTS &&
-      dirsExplored < MAX_DIRS_EXPLORED
-    ) {
+    while (queue.length > 0 && results.length < MAX_RESULTS && dirsExplored < MAX_DIRS_EXPLORED) {
       const current = queue.shift();
       if (!current) break;
       if (!existsSync(current.dir)) continue;

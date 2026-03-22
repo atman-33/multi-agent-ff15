@@ -66,7 +66,10 @@ function normalizePartyAgentId(agentId: string): PresetAgentId | null {
   return normalized && PRESET_AGENT_IDS.includes(normalized) ? normalized : null;
 }
 
-function isSameModel(left: ModelSelection | null | undefined, right: ModelSelection | null | undefined): boolean {
+function isSameModel(
+  left: ModelSelection | null | undefined,
+  right: ModelSelection | null | undefined
+): boolean {
   if (!left && !right) {
     return true;
   }
@@ -294,7 +297,9 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
 
   const activePresetId = useMemo(() => {
     const match = presets.find((preset) =>
-      PRESET_AGENT_IDS.every((agentId) => isSameModel(agentModels[agentId], preset.agentModels[agentId]))
+      PRESET_AGENT_IDS.every((agentId) =>
+        isSameModel(agentModels[agentId], preset.agentModels[agentId])
+      )
     );
 
     return match?.id ?? null;
@@ -337,9 +342,15 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
         {members.map((member) => {
           const normalizedAgentId = normalizePartyAgentId(member.id);
           const workingPartyAgentId = normalizeWorkingPartyMemberId(member.id);
-          const isWorker = workingPartyAgentId ? isWorkingPartyMemberId(workingPartyAgentId) : false;
+          const isWorker = workingPartyAgentId
+            ? isWorkingPartyMemberId(workingPartyAgentId)
+            : false;
           const isNoctis = normalizedAgentId === "noctis";
-          const isInParty = isNoctis ? true : workingPartyAgentId ? workingParty[workingPartyAgentId] : false;
+          const isInParty = isNoctis
+            ? true
+            : workingPartyAgentId
+              ? workingParty[workingPartyAgentId]
+              : false;
 
           const segmentBaseClass =
             "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";
@@ -418,7 +429,9 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
                   <AgentModelPicker
                     agentId={member.id}
                     modelItems={modelItems}
-                    selectedModel={normalizedAgentId ? agentModels[normalizedAgentId] ?? null : null}
+                    selectedModel={
+                      normalizedAgentId ? (agentModels[normalizedAgentId] ?? null) : null
+                    }
                     onSelect={(model) => {
                       if (!normalizedAgentId) {
                         return;

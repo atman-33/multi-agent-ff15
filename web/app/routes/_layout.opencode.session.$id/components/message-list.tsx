@@ -21,7 +21,7 @@ function toDisplayMessage(message: MessageInfo): DisplayMessage {
     id: message.info.id,
     role: message.info.role,
     senderLabel:
-      message.info.role === "assistant" ? (message.info.agent?.trim() || "Assistant") : "User",
+      message.info.role === "assistant" ? message.info.agent?.trim() || "Assistant" : "User",
     timestamp: new Date(message.info.time.created),
     parts: message.parts,
   };
@@ -33,11 +33,7 @@ const MessageList = ({ messages, streamingContent, viewportRef }: Props) => {
   return (
     <div className="space-y-3">
       {displayMessages.map((message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-          viewportRef={viewportRef}
-        />
+        <MessageBubble key={message.id} message={message} viewportRef={viewportRef} />
       ))}
       {streamingContent ? (
         <MessageBubble

@@ -1,11 +1,7 @@
 import type { Route } from "./+types/api.noctis.mission.start";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import {
-  buildPromptPayloadParts,
-  stringifyPromptParts,
-  type PromptPart,
-} from "@/lib/prompt-parts";
+import { buildPromptPayloadParts, stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import {
   coerceAllowedWorkers,
@@ -27,7 +23,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const body = await request.json().catch(() => null) as {
+  const body = (await request.json().catch(() => null)) as {
     message?: unknown;
     parts?: unknown;
     noctisModel?: unknown;
@@ -50,11 +46,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
       )
     : [];
   const fallbackMessage = typeof body?.message === "string" ? body.message.trim() : "";
-  const promptParts: PromptPart[] = rawParts.length > 0
-    ? rawParts
-    : fallbackMessage
-      ? [{ type: "text" as const, text: fallbackMessage }]
-      : [];
+  const promptParts: PromptPart[] =
+    rawParts.length > 0
+      ? rawParts
+      : fallbackMessage
+        ? [{ type: "text" as const, text: fallbackMessage }]
+        : [];
 
   if (!body || promptParts.length === 0) {
     return Response.json({ error: "Missing message" }, { status: 400 });
@@ -79,9 +76,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const executionMode = getNoctisExecutionMode(allowedWorkers);
   const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
 
-  const workerModelsRaw = body.workerModels && typeof body.workerModels === "object"
-    ? body.workerModels as Record<string, unknown>
-    : {};
+  const workerModelsRaw =
+    body.workerModels && typeof body.workerModels === "object"
+      ? (body.workerModels as Record<string, unknown>)
+      : {};
   const agentModels: Partial<Record<AgentId, ModelSelection>> = {};
   if (noctisModel) agentModels["noctis"] = noctisModel;
   for (const agentId of ["ignis", "gladiolus", "prompto"] as const) {

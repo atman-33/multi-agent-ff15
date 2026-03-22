@@ -2,13 +2,13 @@ import { History, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAgentSession, type MissionResumePayload, type MissionSummary } from "@/hooks/use-agent-session";
+import {
+  useAgentSession,
+  type MissionResumePayload,
+  type MissionSummary,
+} from "@/hooks/use-agent-session";
 import type { AppLanguage } from "@/lib/app-language.server";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
@@ -105,7 +105,7 @@ export function NoctisTeamScreen({
         orientation="horizontal"
         className="relative h-full min-h-0 w-full overflow-hidden"
       >
-        <ResizablePanel defaultSize={20} >
+        <ResizablePanel defaultSize={20}>
           <div className="flex h-full min-h-0 min-w-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
             <div className="w-full border-border/50 border-b p-3">
               <div className="mb-3 flex w-full items-center gap-2">
@@ -183,7 +183,7 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
 
-        <ResizablePanel defaultSize={50} >
+        <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
               isResponding={isSessionActive || isLoadingHistory}

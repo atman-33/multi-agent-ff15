@@ -193,7 +193,8 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
 
           <div className="flex flex-col">
             {reports.map((report) => {
-              const isActive = decodeURIComponent(location.pathname) === `/reports/${report.filename}`;
+              const isActive =
+                decodeURIComponent(location.pathname) === `/reports/${report.filename}`;
               return (
                 <button
                   className={cn(
@@ -262,7 +263,10 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
           </div>
         </div>
 
-        <Sheet onOpenChange={(open) => (!open ? closeDetail() : setIsSheetOpen(true))} open={isSheetOpen}>
+        <Sheet
+          onOpenChange={(open) => (!open ? closeDetail() : setIsSheetOpen(true))}
+          open={isSheetOpen}
+        >
           <SheetContent
             className="w-[98vw] max-w-[98vw] p-0 sm:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
             showCloseButton={false}

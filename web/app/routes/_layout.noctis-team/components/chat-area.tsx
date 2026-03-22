@@ -1,4 +1,13 @@
-import { ArrowUpRight, BadgeInfo, Check, ChevronDown, Copy, Radio, Sparkles, Wrench } from "lucide-react";
+import {
+  ArrowUpRight,
+  BadgeInfo,
+  Check,
+  ChevronDown,
+  Copy,
+  Radio,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -239,114 +248,107 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   return rendered;
 }
 
-const MessageBubble = memo(({
-  message,
-  showCursor,
-}: {
-  message: RenderedChatMessage;
-  showCursor: boolean;
-}) => {
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const isOutgoing = message.sender === "crystal";
-  const isNoctis = message.sender === "noctis";
-  const senderLabel = getActivityActorLabel(message.sender);
-  const avatarSrc = getSenderAvatar(message.sender);
-  const detailRawText = useMemo(
-    () => pickDetailRawText(message),
-    [message]
-  );
-  const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);
-  const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
-  const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
-  const messageMarkdown = useMemo(
-    () => buildMessageMarkdown(message.displayContent, reasoning, tools),
-    [message.displayContent, reasoning, tools]
-  );
-  const copyContent = messageMarkdown.trim()
-    ? messageMarkdown
-    : message.displayContent.trim()
-      ? message.displayContent
-      : detailRawText;
-  const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
-  const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
-  const detailSummary = useMemo(
-    () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
-    [internalContext, reasoning, tools]
-  );
+const MessageBubble = memo(
+  ({ message, showCursor }: { message: RenderedChatMessage; showCursor: boolean }) => {
+    const [detailsExpanded, setDetailsExpanded] = useState(false);
+    const isOutgoing = message.sender === "crystal";
+    const isNoctis = message.sender === "noctis";
+    const senderLabel = getActivityActorLabel(message.sender);
+    const avatarSrc = getSenderAvatar(message.sender);
+    const detailRawText = useMemo(() => pickDetailRawText(message), [message]);
+    const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);
+    const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
+    const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
+    const messageMarkdown = useMemo(
+      () => buildMessageMarkdown(message.displayContent, reasoning, tools),
+      [message.displayContent, reasoning, tools]
+    );
+    const copyContent = messageMarkdown.trim()
+      ? messageMarkdown
+      : message.displayContent.trim()
+        ? message.displayContent
+        : detailRawText;
+    const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+    const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
+    const detailSummary = useMemo(
+      () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
+      [internalContext, reasoning, tools]
+    );
 
-  return (
-    <MessageBubbleBase
-      align={isOutgoing ? "end" : "start"}
-      avatar={
-        !isOutgoing && avatarSrc ? (
-          <img
-            alt={senderLabel}
-            src={avatarSrc}
-            className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
-            style={getAvatarThemeStyle(message.sender)}
-          />
-        ) : undefined
-      }
-      bubbleClassName={
-        isOutgoing
-          ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
-          : isNoctis
-            ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
-            : "rounded-bl-md border-amber-300/15 bg-amber-50/8 text-foreground"
-      }
-      body={
-        hasVisibleBody ? (
-          !isOutgoing ? (
-            <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                {`${message.displayContent}${showCursor ? "▌" : ""}`}
-              </ReactMarkdown>
-            </div>
-          ) : (
-            <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-              {message.displayContent}
-              {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
-            </p>
-          )
-        ) : (
-          <div className="rounded-md border border-dashed border-border/40 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
-            Intermediate activity only.
-          </div>
-        )
-      }
-      copyContent={copyContent}
-      details={
-        hasDetails ? (
-          <MessageIntermediateDetailsToggle
-            detailSummary={detailSummary}
-            expanded={detailsExpanded}
-            onToggle={() => setDetailsExpanded((value) => !value)}
-          >
-            <MessageIntermediateDetails
-              internalContext={internalContext}
-              reasoning={reasoning}
-              tools={tools}
+    return (
+      <MessageBubbleBase
+        align={isOutgoing ? "end" : "start"}
+        avatar={
+          !isOutgoing && avatarSrc ? (
+            <img
+              alt={senderLabel}
+              src={avatarSrc}
+              className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
+              style={getAvatarThemeStyle(message.sender)}
             />
-          </MessageIntermediateDetailsToggle>
-        ) : null
-      }
-      renderDetailSheet={({ open, onOpenChange }) => (
-        open ? (
-          <MessageDetailSheet
-            content={message.displayContent}
-            rawTextContent={detailRawText}
-            parts={message.parts}
-            onOpenChange={onOpenChange}
-            open={open}
-            sender={message.sender}
-          />
-        ) : null
-      )}
-      senderLabel={senderLabel}
-      timestamp={message.timestamp}
-    />
-  );
-});
+          ) : undefined
+        }
+        bubbleClassName={
+          isOutgoing
+            ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
+            : isNoctis
+              ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
+              : "rounded-bl-md border-amber-300/15 bg-amber-50/8 text-foreground"
+        }
+        body={
+          hasVisibleBody ? (
+            !isOutgoing ? (
+              <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                  {`${message.displayContent}${showCursor ? "▌" : ""}`}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
+                {message.displayContent}
+                {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
+              </p>
+            )
+          ) : (
+            <div className="rounded-md border border-dashed border-border/40 bg-black/10 px-2.5 py-2 text-[11px] text-muted-foreground/80">
+              Intermediate activity only.
+            </div>
+          )
+        }
+        copyContent={copyContent}
+        details={
+          hasDetails ? (
+            <MessageIntermediateDetailsToggle
+              detailSummary={detailSummary}
+              expanded={detailsExpanded}
+              onToggle={() => setDetailsExpanded((value) => !value)}
+            >
+              <MessageIntermediateDetails
+                internalContext={internalContext}
+                reasoning={reasoning}
+                tools={tools}
+              />
+            </MessageIntermediateDetailsToggle>
+          ) : null
+        }
+        renderDetailSheet={({ open, onOpenChange }) =>
+          open ? (
+            <MessageDetailSheet
+              content={message.displayContent}
+              rawTextContent={detailRawText}
+              parts={message.parts}
+              onOpenChange={onOpenChange}
+              open={open}
+              sender={message.sender}
+            />
+          ) : null
+        }
+        senderLabel={senderLabel}
+        timestamp={message.timestamp}
+      />
+    );
+  }
+);
 
 MessageBubble.displayName = "MessageBubble";
 
@@ -421,16 +423,8 @@ export const ChatArea = ({
         <>
           {renderedMessages.map((message, index) => {
             const isLastNoctis =
-              isStreaming &&
-              message.sender === "noctis" &&
-              index === renderedMessages.length - 1;
-            return (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                showCursor={isLastNoctis}
-              />
-            );
+              isStreaming && message.sender === "noctis" && index === renderedMessages.length - 1;
+            return <MessageBubble key={message.id} message={message} showCursor={isLastNoctis} />;
           })}
 
           {isSessionActive ? (

@@ -46,11 +46,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "一区切りついた。次の手が来るまで待機だ。",
         "今の流れは収まった。次に備える。",
       ],
-      "task-completed": [
-        "よし、片付いた。",
-        "十分だ。次に進む。",
-        "受け取った。これで動ける。",
-      ],
+      "task-completed": ["よし、片付いた。", "十分だ。次に進む。", "受け取った。これで動ける。"],
       "task-failed": [
         "止まったか。立て直す。",
         "想定より渋いな。別の線で行く。",
@@ -61,10 +57,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "崩れたなら、立て直して進む。",
         "手は残ってる。切り替えるぞ。",
       ],
-      "runtime-recovered": [
-        "戻ったな。続けるぞ。",
-        "再開だ。ここから詰める。",
-      ],
+      "runtime-recovered": ["戻ったな。続けるぞ。", "再開だ。ここから詰める。"],
     },
     ignis: {
       "message-received": [
@@ -126,10 +119,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "再検証に入る。まだ切り捨てない。",
         "修正した。続きを確認する。",
       ],
-      "runtime-recovered": [
-        "再調整完了。作業に戻る。",
-        "復帰した。分析を再開する。",
-      ],
+      "runtime-recovered": ["再調整完了。作業に戻る。", "復帰した。分析を再開する。"],
     },
     gladiolus: {
       "message-received": [
@@ -191,10 +181,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "立て直した。今度は通す。",
         "やり方を変える。押し返すぞ。",
       ],
-      "runtime-recovered": [
-        "...立て直した。もう一度いくぞ。",
-        "戻った。ここからだ。",
-      ],
+      "runtime-recovered": ["...立て直した。もう一度いくぞ。", "戻った。ここからだ。"],
     },
     prompto: {
       "message-received": [
@@ -256,10 +243,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "まだいけるいける、拾い直すよ！",
         "角度変えて当たってみる！",
       ],
-      "runtime-recovered": [
-        "戻った！ さあ続きいこう！",
-        "復帰完了！ すぐ追いかけるよ。",
-      ],
+      "runtime-recovered": ["戻った！ さあ続きいこう！", "復帰完了！ すぐ追いかけるよ。"],
     },
   },
   other: {
@@ -316,10 +300,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Reset the line and keep moving.",
         "We still have room to push.",
       ],
-      "runtime-recovered": [
-        "Back online. Continue.",
-        "We're back. Keep going.",
-      ],
+      "runtime-recovered": ["Back online. Continue.", "We're back. Keep going."],
     },
     ignis: {
       "message-received": [
@@ -381,10 +362,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Another pass. This time with tighter constraints.",
         "I've adjusted the approach. Continuing.",
       ],
-      "runtime-recovered": [
-        "Recalibrating. Back on it.",
-        "Recovered. Resuming analysis.",
-      ],
+      "runtime-recovered": ["Recalibrating. Back on it.", "Recovered. Resuming analysis."],
     },
     gladiolus: {
       "message-received": [
@@ -446,10 +424,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Reset. Push again.",
         "Different angle, same target.",
       ],
-      "runtime-recovered": [
-        "Tch. Shaking it off - try again.",
-        "Recovered. Back in.",
-      ],
+      "runtime-recovered": ["Tch. Shaking it off - try again.", "Recovered. Back in."],
     },
     prompto: {
       "message-received": [
@@ -511,10 +486,7 @@ export const BANTER_CATALOG: BanterCatalog = {
         "No problem, I'll sweep it again!",
         "Switching angles and going back in!",
       ],
-      "runtime-recovered": [
-        "Back up! Let's keep rolling.",
-        "Recovered! Picking it right back up.",
-      ],
+      "runtime-recovered": ["Back up! Let's keep rolling.", "Recovered! Picking it right back up."],
     },
   },
 };

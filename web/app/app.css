@@ -1,6 +1,6 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
-@plugin 'tailwindcss-animate';
+@plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -38,8 +38,7 @@
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
-  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out
-    infinite;
+  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
 
   @keyframes accordion-down {
     from {
@@ -305,9 +304,9 @@
 
   body {
     font-family:
-      "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
-      "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system,
-      sans-serif, "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
+      "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+      "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system, sans-serif, "Noto Color Emoji",
+      "Apple Color Emoji", "Segoe UI Emoji";
     @apply bg-background text-foreground;
   }
 

@@ -8,13 +8,8 @@ export function buildDependencyGraph(tasks: Task[]): Map<string, string[]> {
   return graph;
 }
 
-export function getExecutableWave(
-  tasks: Task[],
-  completedIds: Set<string>
-): Task[] {
+export function getExecutableWave(tasks: Task[], completedIds: Set<string>): Task[] {
   return tasks.filter(
-    (task) =>
-      task.status === "pending" &&
-      task.dependencies.every((dep) => completedIds.has(dep))
+    (task) => task.status === "pending" && task.dependencies.every((dep) => completedIds.has(dep))
   );
 }

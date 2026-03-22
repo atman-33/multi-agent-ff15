@@ -13,7 +13,11 @@ import { fileURLToPath } from "node:url";
 export function getProjectRoot(): string {
   // 1. Environment variable override
   const envRoot = process.env.MULTI_AGENT_FF15_ROOT;
-  if (envRoot && existsSync(join(envRoot, "scripts")) && existsSync(join(envRoot, "opencode.json"))) {
+  if (
+    envRoot &&
+    existsSync(join(envRoot, "scripts")) &&
+    existsSync(join(envRoot, "opencode.json"))
+  ) {
     return envRoot;
   }
 

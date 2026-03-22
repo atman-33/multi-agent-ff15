@@ -139,7 +139,9 @@ const ReportDetail = (_props: Route.ComponentProps) => {
     }
 
     let cancelled = false;
-    let tocbotModule: { default: { destroy: () => void; init: (options: Record<string, unknown>) => void } } | null = null;
+    let tocbotModule: {
+      default: { destroy: () => void; init: (options: Record<string, unknown>) => void };
+    } | null = null;
 
     const initToc = async () => {
       const imported = await import("tocbot");
@@ -290,10 +292,12 @@ const ReportDetail = (_props: Route.ComponentProps) => {
             )}
           </Button>
         </div>
-
       </SheetHeader>
 
-      <div className="report-detail-scroll min-h-0 flex-1 overflow-auto p-4 md:p-6" ref={scrollContainerRef}>
+      <div
+        className="report-detail-scroll min-h-0 flex-1 overflow-auto p-4 md:p-6"
+        ref={scrollContainerRef}
+      >
         {loading ? (
           <div className="flex h-48 items-center justify-center text-muted-foreground">
             <RefreshCw className="mr-2 h-5 w-5 animate-spin" />

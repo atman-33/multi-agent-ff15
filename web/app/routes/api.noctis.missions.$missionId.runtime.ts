@@ -35,7 +35,9 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       mission.workerSessions.ignis,
       mission.workerSessions.gladiolus,
       mission.workerSessions.prompto,
-    ].filter((sessionId): sessionId is string => typeof sessionId === "string" && sessionId.length > 0);
+    ].filter(
+      (sessionId): sessionId is string => typeof sessionId === "string" && sessionId.length > 0
+    );
 
     const sessionStatuses: Record<string, "idle" | "busy" | "retry"> = {};
     const rawStatuses = statusResult.data ?? {};
@@ -48,11 +50,15 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
 
     const contextUsageByAgent = {
       noctis: readSessionContextUsage(mission.noctisSessionId),
-      ignis: mission.workerSessions.ignis ? readSessionContextUsage(mission.workerSessions.ignis) : null,
+      ignis: mission.workerSessions.ignis
+        ? readSessionContextUsage(mission.workerSessions.ignis)
+        : null,
       gladiolus: mission.workerSessions.gladiolus
         ? readSessionContextUsage(mission.workerSessions.gladiolus)
         : null,
-      prompto: mission.workerSessions.prompto ? readSessionContextUsage(mission.workerSessions.prompto) : null,
+      prompto: mission.workerSessions.prompto
+        ? readSessionContextUsage(mission.workerSessions.prompto)
+        : null,
     };
 
     return Response.json({

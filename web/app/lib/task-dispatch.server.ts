@@ -39,10 +39,7 @@ function buildCompactTaskPrompt(input: {
   missionId: string;
   agentId: WorkerAgentId;
 }): string {
-  const lines = [
-    `Task ID: ${input.taskId}`,
-    `Task: ${input.instruction}`,
-  ];
+  const lines = [`Task ID: ${input.taskId}`, `Task: ${input.instruction}`];
 
   if (input.missionObjective.trim()) {
     lines.push(`Mission: ${input.missionObjective.trim()}`);
@@ -85,13 +82,13 @@ export async function dispatchTaskToWorker(input: {
   const explicitTaskId = input.taskId?.trim();
   const reusableTask = explicitTaskId
     ? null
-    : [...mission.taskGraph]
+    : ([...mission.taskGraph]
         .reverse()
         .find(
           (task) =>
             task.assignedTo === input.agentId &&
             (task.status === "pending" || task.status === "running")
-        ) ?? null;
+        ) ?? null);
   const taskId = explicitTaskId || reusableTask?.id || createTaskId();
   const missionObjective = typeof input.missionObjective === "string" ? input.missionObjective : "";
   let task = mission.taskGraph.find((item) => item.id === taskId);
@@ -168,7 +165,11 @@ export async function dispatchTaskToWorker(input: {
       appendLog(existingSessionId, "sent");
       return { sessionId: existingSessionId, taskId };
     } catch (error) {
-      appendLog(existingSessionId, "failed", error instanceof Error ? error.message : String(error));
+      appendLog(
+        existingSessionId,
+        "failed",
+        error instanceof Error ? error.message : String(error)
+      );
       throw error;
     }
   }
@@ -207,7 +208,9 @@ export async function dispatchTaskToWorker(input: {
         ],
         agent: input.agentId,
         system: ledger,
-        ...(mission.agentModels[input.agentId] ? { model: mission.agentModels[input.agentId] } : {}),
+        ...(mission.agentModels[input.agentId]
+          ? { model: mission.agentModels[input.agentId] }
+          : {}),
       },
     });
 

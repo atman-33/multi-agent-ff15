@@ -116,7 +116,9 @@ const ComposerSelectionControls = memo(
                         setAgentComboboxOpen(false);
                       }}
                     >
-                      <Check className={cn("h-4 w-4", !selectedAgent ? "opacity-100" : "opacity-0")} />
+                      <Check
+                        className={cn("h-4 w-4", !selectedAgent ? "opacity-100" : "opacity-0")}
+                      />
                       <div className="min-w-0">
                         <div className="truncate text-sm">Default agent</div>
                         <div className="truncate text-[10px] text-muted-foreground">
@@ -193,9 +195,13 @@ const ComposerSelectionControls = memo(
                           setModelComboboxOpen(false);
                         }}
                       >
-                        <Check className={cn("h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                        <Check
+                          className={cn("h-4 w-4", isSelected ? "opacity-100" : "opacity-0")}
+                        />
                         <div className="min-w-0">
-                          <div className="truncate text-sm">{item.providerName} / {item.modelName}</div>
+                          <div className="truncate text-sm">
+                            {item.providerName} / {item.modelName}
+                          </div>
                           <div className="truncate text-[10px] text-muted-foreground">
                             {item.providerID} / {item.modelID}
                           </div>

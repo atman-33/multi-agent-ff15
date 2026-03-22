@@ -1,4 +1,11 @@
-import { AlertCircle, CheckCircle2, LoaderCircle, RefreshCw, ServerCrash, Terminal } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  LoaderCircle,
+  RefreshCw,
+  ServerCrash,
+  Terminal,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -121,11 +128,20 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button disabled={isLoading || isRecovering} onClick={fetchStatus} size="sm" variant="outline">
+          <Button
+            disabled={isLoading || isRecovering}
+            onClick={fetchStatus}
+            size="sm"
+            variant="outline"
+          >
             <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isLoading && "animate-spin")} />
             Refresh
           </Button>
-          <Button disabled={isRecovering || status?.state === "starting"} onClick={handleRecover} size="sm">
+          <Button
+            disabled={isRecovering || status?.state === "starting"}
+            onClick={handleRecover}
+            size="sm"
+          >
             <ServerCrash className={cn("mr-1.5 h-3.5 w-3.5", isRecovering && "animate-pulse")} />
             Recover Server
           </Button>
@@ -178,19 +194,29 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-lg border border-border/60 bg-background/60 p-4">
-              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">Server URL</div>
+              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                Server URL
+              </div>
               <div className="mt-2 font-mono text-sm">{status?.url ?? "-"}</div>
             </div>
             <div className="rounded-lg border border-border/60 bg-background/60 p-4">
-              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">Managed By App</div>
-              <div className="mt-2 text-sm">{status ? (status.managedByApp ? "Yes" : "No") : "-"}</div>
+              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                Managed By App
+              </div>
+              <div className="mt-2 text-sm">
+                {status ? (status.managedByApp ? "Yes" : "No") : "-"}
+              </div>
             </div>
             <div className="rounded-lg border border-border/60 bg-background/60 p-4">
-              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">Last Checked</div>
+              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                Last Checked
+              </div>
               <div className="mt-2 text-sm">{formatTimestamp(status?.checkedAt ?? null)}</div>
             </div>
             <div className="rounded-lg border border-border/60 bg-background/60 p-4">
-              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">Last Started</div>
+              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                Last Started
+              </div>
               <div className="mt-2 text-sm">{formatTimestamp(status?.lastStartedAt ?? null)}</div>
             </div>
           </div>

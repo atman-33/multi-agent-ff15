@@ -407,7 +407,10 @@ export const useChatStore = create<ChatStore>((set) => ({
         if (!(sessionId in current.optimisticSessionStates)) {
           return {
             serverSessionStates: nextServerSessionStates,
-            sessionStates: mergeSessionStates(nextServerSessionStates, current.optimisticSessionStates),
+            sessionStates: mergeSessionStates(
+              nextServerSessionStates,
+              current.optimisticSessionStates
+            ),
           };
         }
 
@@ -420,7 +423,10 @@ export const useChatStore = create<ChatStore>((set) => ({
         };
       }
 
-      if (current.serverSessionStates[sessionId] === state && !(sessionId in current.optimisticSessionStates)) {
+      if (
+        current.serverSessionStates[sessionId] === state &&
+        !(sessionId in current.optimisticSessionStates)
+      ) {
         return current;
       }
 
@@ -429,7 +435,10 @@ export const useChatStore = create<ChatStore>((set) => ({
       if (!(sessionId in current.optimisticSessionStates)) {
         return {
           serverSessionStates: nextServerSessionStates,
-          sessionStates: mergeSessionStates(nextServerSessionStates, current.optimisticSessionStates),
+          sessionStates: mergeSessionStates(
+            nextServerSessionStates,
+            current.optimisticSessionStates
+          ),
         };
       }
 
@@ -462,7 +471,10 @@ export const useChatStore = create<ChatStore>((set) => ({
         clearOptimisticSessionTimer(sessionId);
       }
 
-      const nextSessionStates = mergeSessionStates(nextServerSessionStates, optimisticSessionStates);
+      const nextSessionStates = mergeSessionStates(
+        nextServerSessionStates,
+        optimisticSessionStates
+      );
       const currentEntries = Object.entries(current.sessionStates);
       const nextEntries = Object.entries(nextSessionStates);
 
@@ -474,7 +486,9 @@ export const useChatStore = create<ChatStore>((set) => ({
       const nextServerEntries = Object.entries(nextServerSessionStates);
       const sameServer =
         currentServerEntries.length === nextServerEntries.length &&
-        currentServerEntries.every(([sessionId, state]) => nextServerSessionStates[sessionId] === state);
+        currentServerEntries.every(
+          ([sessionId, state]) => nextServerSessionStates[sessionId] === state
+        );
 
       if (sameEffective && sameServer && !optimisticChanged) {
         return current;

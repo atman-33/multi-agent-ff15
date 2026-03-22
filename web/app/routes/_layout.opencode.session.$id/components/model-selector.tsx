@@ -37,7 +37,9 @@ const ModelSelector = () => {
         const provider = data.providers[0];
         const firstModel = Object.values(provider.models ?? {})[0];
         if (provider && firstModel) {
-          useChatStore.getState().setSelectedModel({ providerID: provider.id, modelID: firstModel.id });
+          useChatStore
+            .getState()
+            .setSelectedModel({ providerID: provider.id, modelID: firstModel.id });
         }
       }
     };
@@ -57,7 +59,8 @@ const ModelSelector = () => {
 
   const currentLabel = useMemo(() => {
     const current = items.find(
-      (item) => item.providerID === selectedModel?.providerID && item.modelID === selectedModel.modelID
+      (item) =>
+        item.providerID === selectedModel?.providerID && item.modelID === selectedModel.modelID
     );
     if (current) return `${current.providerName} / ${current.modelName}`;
     return "Select Model";

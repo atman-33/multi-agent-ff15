@@ -41,32 +41,30 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-const statusConfig: Record<
-  AgentStatus,
-  { label: string; badgeClass: string; animation: string }
-> = {
-  idle: {
-    label: "STANDBY",
-    badgeClass: "bg-muted text-muted-foreground border-border/50",
-    animation: "agent-float 3s ease-in-out infinite",
-  },
-  working: {
-    label: "ACTIVE",
-    badgeClass: "bg-primary/20 text-primary border-primary/40",
-    animation: "agent-active 0.52s cubic-bezier(0.42, 0, 0.28, 1) infinite",
-  },
-  success: {
-    label: "DONE",
-    badgeClass:
-      "bg-[hsl(var(--success)/0.2)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.4)]",
-    animation: "agent-report 1s ease-in-out infinite",
-  },
-  blocked: {
-    label: "BLOCKED",
-    badgeClass: "bg-destructive/20 text-destructive border-destructive/40",
-    animation: "agent-blocked 0.4s ease-in-out infinite",
-  },
-};
+const statusConfig: Record<AgentStatus, { label: string; badgeClass: string; animation: string }> =
+  {
+    idle: {
+      label: "STANDBY",
+      badgeClass: "bg-muted text-muted-foreground border-border/50",
+      animation: "agent-float 3s ease-in-out infinite",
+    },
+    working: {
+      label: "ACTIVE",
+      badgeClass: "bg-primary/20 text-primary border-primary/40",
+      animation: "agent-active 0.52s cubic-bezier(0.42, 0, 0.28, 1) infinite",
+    },
+    success: {
+      label: "DONE",
+      badgeClass:
+        "bg-[hsl(var(--success)/0.2)] text-[hsl(var(--success))] border-[hsl(var(--success)/0.4)]",
+      animation: "agent-report 1s ease-in-out infinite",
+    },
+    blocked: {
+      label: "BLOCKED",
+      badgeClass: "bg-destructive/20 text-destructive border-destructive/40",
+      animation: "agent-blocked 0.4s ease-in-out infinite",
+    },
+  };
 
 const statusGlowColorFallback: Record<AgentStatus, string> = {
   idle: "rgba(100,120,180,0.15)",
@@ -129,7 +127,9 @@ export const CharacterCard = ({
       {theme && !isBenched ? (
         <div
           className="pointer-events-none absolute inset-x-3 top-0 h-px rounded-full"
-          style={{ background: `linear-gradient(90deg, transparent, ${theme.accentStrong}, transparent)` }}
+          style={{
+            background: `linear-gradient(90deg, transparent, ${theme.accentStrong}, transparent)`,
+          }}
         />
       ) : null}
       <div className="flex min-w-0 flex-row items-center gap-3">
@@ -147,7 +147,9 @@ export const CharacterCard = ({
                 background: theme
                   ? `radial-gradient(circle, ${theme.glow} 0%, ${theme.glowSoft} 68%, rgba(0,0,0,0) 100%)`
                   : statusGlowColorFallback[status],
-                animation: isSpeaking ? "agent-speaking-glow 0.9s ease-in-out infinite" : "agent-glow 2s ease-in-out infinite",
+                animation: isSpeaking
+                  ? "agent-speaking-glow 0.9s ease-in-out infinite"
+                  : "agent-glow 2s ease-in-out infinite",
               }}
             />
           ) : null}
@@ -237,10 +239,20 @@ export const CharacterCard = ({
               <TooltipTrigger asChild>
                 <div className="mt-1.5 cursor-help">
                   <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
-                    <span className={cn("text-muted-foreground/70", isBenched && "text-muted-foreground/45")}>
+                    <span
+                      className={cn(
+                        "text-muted-foreground/70",
+                        isBenched && "text-muted-foreground/45"
+                      )}
+                    >
                       CTX budget
                     </span>
-                    <span className={cn("text-foreground/80 transition-colors duration-300", isBenched && "text-muted-foreground/55")}>
+                    <span
+                      className={cn(
+                        "text-foreground/80 transition-colors duration-300",
+                        isBenched && "text-muted-foreground/55"
+                      )}
+                    >
                       {formatPercent(contextUsage.remainingPercentage)}
                     </span>
                   </div>
@@ -255,7 +267,9 @@ export const CharacterCard = ({
                         "h-full rounded-full transition-all duration-500",
                         isBenched ? "bg-muted-foreground/35" : getContextBarClass(contextUsage)
                       )}
-                      style={{ width: `${Math.min(100, Math.max(0, contextUsage.remainingPercentage * 100))}%` }}
+                      style={{
+                        width: `${Math.min(100, Math.max(0, contextUsage.remainingPercentage * 100))}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -276,10 +290,20 @@ export const CharacterCard = ({
               <TooltipTrigger asChild>
                 <div className="mt-1.5 cursor-help">
                   <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
-                    <span className={cn("text-muted-foreground/70", isBenched && "text-muted-foreground/45")}>
+                    <span
+                      className={cn(
+                        "text-muted-foreground/70",
+                        isBenched && "text-muted-foreground/45"
+                      )}
+                    >
                       CTX budget
                     </span>
-                    <span className={cn("text-foreground/80 transition-colors duration-300", isBenched && "text-muted-foreground/55")}>
+                    <span
+                      className={cn(
+                        "text-foreground/80 transition-colors duration-300",
+                        isBenched && "text-muted-foreground/55"
+                      )}
+                    >
                       100%
                     </span>
                   </div>

@@ -25,10 +25,7 @@ export function parseSessionTextPartEvent(payload: unknown): SessionTextPartEven
   }
 
   const event = payload as RawEvent;
-  if (
-    event.type !== "message.part.updated" &&
-    event.type !== "message.part.created"
-  ) {
+  if (event.type !== "message.part.updated" && event.type !== "message.part.created") {
     return null;
   }
 

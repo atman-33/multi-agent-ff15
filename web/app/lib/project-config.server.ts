@@ -178,8 +178,7 @@ export function readRegisteredProjectDefinition(
             path: typeof file.path === "string" ? file.path : "",
             exists: file.exists === true,
             sha256: typeof file.sha256 === "string" ? file.sha256 : "",
-            lastCheckedAt:
-              typeof file.last_checked_at === "string" ? file.last_checked_at : "",
+            lastCheckedAt: typeof file.last_checked_at === "string" ? file.last_checked_at : "",
           }))
       : [];
 
@@ -187,8 +186,7 @@ export function readRegisteredProjectDefinition(
       id: parsed.id,
       name: typeof parsed.name === "string" ? parsed.name : parsed.id,
       rootPath: typeof parsed.root_path === "string" ? parsed.root_path : "",
-      serenaProject:
-        typeof parsed.serena_project === "string" ? parsed.serena_project : "",
+      serenaProject: typeof parsed.serena_project === "string" ? parsed.serena_project : "",
       updatedAt: typeof parsed.updated_at === "string" ? parsed.updated_at : "",
       instructionFiles,
     };

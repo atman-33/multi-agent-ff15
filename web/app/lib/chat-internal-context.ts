@@ -29,8 +29,11 @@ export function parseInternalContext(content: string): InternalContextViewModel 
     .map((matchItem) => matchItem[1]?.trim())
     .filter((value): value is string => Boolean(value));
 
-  const summaryParts = [sessionId ? `Session ${sessionId}` : null, projectScope, projectIds[0] ?? null]
-    .filter((value): value is string => Boolean(value));
+  const summaryParts = [
+    sessionId ? `Session ${sessionId}` : null,
+    projectScope,
+    projectIds[0] ?? null,
+  ].filter((value): value is string => Boolean(value));
   const extraProjectCount = Math.max(projectIds.length - 1, 0);
 
   return {

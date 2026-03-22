@@ -278,8 +278,8 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
             Project Settings
           </h1>
           <p className="mt-1 text-muted-foreground text-sm">
-            Manage scoped project injection for the Noctis team. Iris is excluded from
-            project settings.
+            Manage scoped project injection for the Noctis team. Iris is excluded from project
+            settings.
           </p>
         </div>
 
@@ -454,7 +454,9 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
                                   key={option.preference}
                                   onClick={() => {
                                     updateVSCodePreference(project.id, option.preference);
-                                    openVSCode(project.path, option.preference).catch(() => undefined);
+                                    openVSCode(project.path, option.preference).catch(
+                                      () => undefined
+                                    );
                                   }}
                                   type="button"
                                 >

@@ -61,7 +61,11 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/server", icon: Activity, label: "Server Monitor", end: true },
 ];
 
-function formatActiveProjectLabel(projects: ProjectEntry[], isLoading: boolean, error: string | null) {
+function formatActiveProjectLabel(
+  projects: ProjectEntry[],
+  isLoading: boolean,
+  error: string | null
+) {
   if (isLoading && projects.length === 0) {
     return "Noctis Team: checking";
   }
@@ -142,8 +146,11 @@ const Layout = (_props: Route.ComponentProps) => {
   const navigation = useNavigation();
   const location = useLocation();
   const isLoading = navigation.state !== "idle";
-  const { data: activeProjectsData, loading: activeProjectsLoading, error: activeProjectsError } =
-    useActiveProjects();
+  const {
+    data: activeProjectsData,
+    loading: activeProjectsLoading,
+    error: activeProjectsError,
+  } = useActiveProjects();
   const [serverStatus, setServerStatus] = useState<HeaderServerStatus | null>(null);
   const [isRecoveringServer, setIsRecoveringServer] = useState(false);
 
@@ -185,7 +192,9 @@ const Layout = (_props: Route.ComponentProps) => {
         url: "",
       };
 
-      setServerStatus((current) => (areServerStatusesEqual(current, nextStatus) ? current : nextStatus));
+      setServerStatus((current) =>
+        areServerStatusesEqual(current, nextStatus) ? current : nextStatus
+      );
     }
   }, []);
 
@@ -241,8 +250,8 @@ const Layout = (_props: Route.ComponentProps) => {
   const serverStatusLabel = getServerStatusLabel(serverStatus);
   const serverStatusTitle =
     serverStatus?.state === "down"
-      ? serverStatus?.error ?? "OpenCode server is down. Click to recover."
-      : serverStatus?.error ?? serverStatus?.url ?? "Checking OpenCode server health";
+      ? (serverStatus?.error ?? "OpenCode server is down. Click to recover.")
+      : (serverStatus?.error ?? serverStatus?.url ?? "Checking OpenCode server health");
 
   return (
     <SidebarProvider defaultOpen className="relative h-full min-h-0 overflow-hidden">
@@ -352,7 +361,9 @@ const Layout = (_props: Route.ComponentProps) => {
               </HoverCardTrigger>
               <HoverCardContent align="end" className="w-90 space-y-3 p-3" sideOffset={10}>
                 <div className="space-y-1">
-                  <div className="font-medium text-sm text-foreground">Noctis Team Active Projects</div>
+                  <div className="font-medium text-sm text-foreground">
+                    Noctis Team Active Projects
+                  </div>
                   <div className="text-muted-foreground text-xs">
                     {formatActiveProjectTitle(activeNoctisProjects, activeProjectsError)}
                   </div>
@@ -381,7 +392,10 @@ const Layout = (_props: Route.ComponentProps) => {
                           </span>
 
                           <span className="text-muted-foreground">Path</span>
-                          <span className="truncate font-mono text-foreground/90" title={project.path}>
+                          <span
+                            className="truncate font-mono text-foreground/90"
+                            title={project.path}
+                          >
                             {project.path}
                           </span>
 
@@ -395,7 +409,8 @@ const Layout = (_props: Route.ComponentProps) => {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
-                    {activeProjectsError ?? "No active project is configured for the Noctis Team scope."}
+                    {activeProjectsError ??
+                      "No active project is configured for the Noctis Team scope."}
                   </div>
                 )}
               </HoverCardContent>

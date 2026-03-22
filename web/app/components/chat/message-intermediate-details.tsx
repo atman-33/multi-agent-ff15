@@ -72,7 +72,9 @@ export function MessageIntermediateDetails({ internalContext, reasoning, tools }
           <div
             className={cn(
               "grid transition-all duration-300 ease-out",
-              contextExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+              contextExpanded
+                ? "mt-2 grid-rows-[1fr] opacity-100"
+                : "mt-0 grid-rows-[0fr] opacity-0"
             )}
           >
             <div className="overflow-hidden">

@@ -333,43 +333,40 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
     setEditingSessionId(null);
   }, []);
 
-  const submitRename = useCallback(
-    async (sessionId: string, nextTitle: string) => {
-      const title = nextTitle.trim();
-      if (!title) {
-        toast.error("Session title cannot be empty");
-        return;
+  const submitRename = useCallback(async (sessionId: string, nextTitle: string) => {
+    const title = nextTitle.trim();
+    if (!title) {
+      toast.error("Session title cannot be empty");
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      const response = await fetch(`/api/session/${sessionId}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename session");
       }
 
-      setIsRenaming(true);
-      try {
-        const response = await fetch(`/api/session/${sessionId}/rename`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to rename session");
-        }
-
-        setSessions((current) =>
-          current.map((session) => (session.id === sessionId ? { ...session, title } : session))
-        );
-        setEditingSessionId(null);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("sessions:refresh"));
-        }
-      } catch {
-        toast.error("Unable to rename session", {
-          description: "OpenCode server not available",
-        });
-      } finally {
-        setIsRenaming(false);
+      setSessions((current) =>
+        current.map((session) => (session.id === sessionId ? { ...session, title } : session))
+      );
+      setEditingSessionId(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sessions:refresh"));
       }
-    },
-    []
-  );
+    } catch {
+      toast.error("Unable to rename session", {
+        description: "OpenCode server not available",
+      });
+    } finally {
+      setIsRenaming(false);
+    }
+  }, []);
 
   return (
     <ResizablePanelGroup

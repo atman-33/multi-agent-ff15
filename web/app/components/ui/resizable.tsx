@@ -10,10 +10,7 @@ const ResizablePanelGroup = ({
 }: React.ComponentProps<typeof ResizablePrimitive.Group>) => {
   return (
     <ResizablePrimitive.Group
-      className={cn(
-        "flex h-full w-full data-[orientation=vertical]:flex-col",
-        className
-      )}
+      className={cn("flex h-full w-full data-[orientation=vertical]:flex-col", className)}
       {...props}
     />
   );

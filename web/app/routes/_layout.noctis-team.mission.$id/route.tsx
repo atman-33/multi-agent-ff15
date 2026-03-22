@@ -56,7 +56,7 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
 
     const messagesResponse = await fetch(`${url.origin}/api/session/${mission.sessions.noctis}`);
     const messages = messagesResponse.ok
-      ? ((await messagesResponse.json()) as { messages?: MessageInfo[] }).messages ?? []
+      ? (((await messagesResponse.json()) as { messages?: MessageInfo[] }).messages ?? [])
       : null;
 
     return {

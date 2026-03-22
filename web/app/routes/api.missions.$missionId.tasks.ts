@@ -43,7 +43,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       agentId: body.agentId,
       taskId: typeof body.taskId === "string" ? body.taskId : undefined,
       message: body.message.trim(),
-      missionObjective: typeof body.missionObjective === "string" ? body.missionObjective : undefined,
+      missionObjective:
+        typeof body.missionObjective === "string" ? body.missionObjective : undefined,
       outputSchema: typeof body.outputSchema === "string" ? body.outputSchema : undefined,
     });
 

@@ -1,11 +1,7 @@
 import type { Route } from "./+types/api.noctis.mission.continue";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getMission } from "@/lib/mission-store";
-import {
-  buildPromptPayloadParts,
-  stringifyPromptParts,
-  type PromptPart,
-} from "@/lib/prompt-parts";
+import { buildPromptPayloadParts, stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import {
@@ -27,7 +23,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const body = await request.json().catch(() => null) as {
+  const body = (await request.json().catch(() => null)) as {
     missionId?: unknown;
     message?: unknown;
     parts?: unknown;
@@ -52,11 +48,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
       )
     : [];
   const fallbackMessage = typeof body.message === "string" ? body.message.trim() : "";
-  const promptParts: PromptPart[] = rawParts.length > 0
-    ? rawParts
-    : fallbackMessage
-      ? [{ type: "text" as const, text: fallbackMessage }]
-      : [];
+  const promptParts: PromptPart[] =
+    rawParts.length > 0
+      ? rawParts
+      : fallbackMessage
+        ? [{ type: "text" as const, text: fallbackMessage }]
+        : [];
 
   if (promptParts.length === 0) {
     return Response.json({ error: "Missing message" }, { status: 400 });

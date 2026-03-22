@@ -53,7 +53,9 @@ export function buildMessageMarkdown(
     }
 
     if (tool.state?.input) {
-      toolSections.push(`### Input\n\n\`\`\`json\n${JSON.stringify(tool.state.input, null, 2)}\n\`\`\``);
+      toolSections.push(
+        `### Input\n\n\`\`\`json\n${JSON.stringify(tool.state.input, null, 2)}\n\`\`\``
+      );
     }
 
     if (tool.state?.output) {

@@ -5,14 +5,17 @@ import { toast } from "sonner";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Button } from "@/components/ui/button";
 import { fetchSessionStatus, isSessionStatusActive } from "@/lib/session-status";
-import { mergeMessageInfoText, mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
+import {
+  mergeMessageInfoText,
+  mergeStreamingText,
+  parseSessionTextPartEvent,
+} from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
 import MessageComposer from "./components/message-composer";
 import MessageList from "./components/message-list";
 import type { MessageInfo } from "./types";
 import type { Route } from "./+types/route";
 import type { OpenCodeOutletContext } from "../_layout.opencode/route";
-
 
 const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();

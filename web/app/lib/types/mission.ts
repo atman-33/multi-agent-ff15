@@ -143,14 +143,8 @@ export interface TaskContextParams {
 }
 
 export function buildTaskContext(params: TaskContextParams): string {
-  const {
-    missionId,
-    missionObjective,
-    taskId,
-    taskInstruction,
-    dependencyResults,
-    outputSchema,
-  } = params;
+  const { missionId, missionObjective, taskId, taskInstruction, dependencyResults, outputSchema } =
+    params;
 
   const depSection =
     dependencyResults.length > 0
