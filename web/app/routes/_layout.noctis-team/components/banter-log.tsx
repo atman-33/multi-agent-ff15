@@ -56,33 +56,49 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
               className={cn(
                 "flex items-start gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-1.5 transition-all",
                 entry.id === latestEntryId &&
-                  "border-sky-300/25 bg-sky-500/10 shadow-[0_0_18px_rgba(125,211,252,0.15)]"
+                  "border-sky-300/40 bg-sky-500/12 shadow-[0_0_24px_rgba(125,211,252,0.2)]"
               )}
               style={{
                 animation:
                   entry.id === latestEntryId
-                    ? "fadeInUp 0.3s ease-out, banter-fresh 1.25s ease-out"
-                    : "fadeInUp 0.3s ease-out",
+                    ? "banter-entry-in 0.42s cubic-bezier(0.22, 1, 0.36, 1), banter-fresh 1.5s ease-out"
+                    : "banter-entry-in 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
               <div
                 className={cn(
                   "mt-0.5 h-8 w-0.5 shrink-0 rounded-full bg-transparent transition-colors",
-                  entry.id === latestEntryId && "bg-sky-300/90 shadow-[0_0_10px_rgba(125,211,252,0.75)]"
+                  entry.id === latestEntryId && "bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.82)]"
                 )}
+                style={
+                  entry.id === latestEntryId
+                    ? { animation: "banter-accent-pulse 1.2s ease-in-out infinite" }
+                    : undefined
+                }
               />
               <img
                 alt={entry.speakerName}
                 src={entry.speakerAvatar}
                 className="mt-0.5 h-4 w-auto shrink-0 object-contain"
               />
-              <div className="min-w-0 flex-1">
+              <div
+                className="min-w-0 flex-1"
+                style={{
+                  animation:
+                    entry.id === latestEntryId
+                      ? "banter-card-reveal 0.44s ease-out 0.06s both"
+                      : "banter-card-reveal 0.36s ease-out 0.04s both",
+                }}
+              >
                 <div className="flex items-baseline gap-1.5">
                   <span className="shrink-0 font-mono text-[10px] font-semibold text-primary/80 uppercase">
                     {entry.speakerName}
                   </span>
                   {entry.id === latestEntryId ? (
-                    <span className="rounded-full border border-sky-300/35 bg-sky-500/12 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/90">
+                    <span
+                      className="rounded-full border border-sky-300/45 bg-sky-500/18 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/95 shadow-[0_0_12px_rgba(56,189,248,0.2)]"
+                      style={{ animation: "banter-live-pulse 1.35s ease-in-out infinite" }}
+                    >
                       live
                     </span>
                   ) : null}
