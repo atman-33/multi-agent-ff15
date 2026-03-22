@@ -2,9 +2,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
+  ActivityActorId,
   AgentId,
   DelegationLedger,
   Mission,
+  MissionActivityKind,
+  MissionActivityLogEntry,
   MissionMessageLogEntry,
   MissionStatus,
   MissionSummary,
@@ -43,6 +46,8 @@ function readMissionFromDisk(id: string): Mission | null {
 
   try {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
+    parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
+    parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
     return parsed;
   } catch {
     return null;
@@ -91,6 +96,7 @@ export function createMission(
     objective: options?.objective?.trim() || undefined,
     status: "active",
     messageLog: [],
+    activityLog: [],
   };
   store.set(id, mission);
   persistMission(mission);
@@ -217,6 +223,36 @@ export function appendMissionMessage(
   const mission = getMission(missionId);
   if (!mission) return;
   mission.messageLog.push(message);
+  touchMission(mission);
+}
+
+export function appendMissionActivity(
+  missionId: string,
+  activity: {
+    id: string;
+    actor: ActivityActorId;
+    speaker: ActivityActorId;
+    kind: MissionActivityKind;
+    body: string;
+    createdAt?: string;
+    source?: MissionActivityLogEntry["source"];
+  }
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+
+  const entry: MissionActivityLogEntry = {
+    id: activity.id,
+    missionId,
+    actor: activity.actor,
+    speaker: activity.speaker,
+    kind: activity.kind,
+    body: activity.body,
+    createdAt: activity.createdAt ?? new Date().toISOString(),
+    source: activity.source,
+  };
+
+  mission.activityLog.push(entry);
   touchMission(mission);
 }
 

@@ -28,5 +28,6 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     agentModels: mission.agentModels,
     delegationLedger: mission.delegationLedger,
     messageLog: mission.messageLog,
+    activityLog: mission.activityLog,
   });
 };

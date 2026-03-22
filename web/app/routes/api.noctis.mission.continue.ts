@@ -3,10 +3,12 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { getMission } from "@/lib/mission-store";
 import {
   buildPromptPayloadParts,
+  stringifyPromptParts,
   type PromptPart,
 } from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ModelSelection } from "@/lib/types/mission";
 
 function isModelSelection(value: unknown): value is ModelSelection {
@@ -55,6 +57,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   const missionId = body.missionId.trim();
+  const routedPromptParts: PromptPart[] = [
+    {
+      type: "text",
+      text: buildRoutedMessageEnvelope({
+        speaker: "crystal",
+        to: "noctis",
+        messageType: "chat",
+        body: stringifyPromptParts(promptParts),
+      }),
+    },
+  ];
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
 
   const mission = getMission(missionId);
@@ -76,7 +89,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const result = await client.session.promptAsync({
       path: { id: mission.noctisSessionId },
       body: {
-        parts: buildPromptPayloadParts(injectedContext, promptParts),
+        parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
         agent: "noctis",
         ...(effectiveModel ? { model: effectiveModel } : {}),
       },

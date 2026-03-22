@@ -7,6 +7,7 @@ import {
   type PromptPart,
 } from "@/lib/prompt-parts";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
 import { createMission, buildDelegationLedger, setAgentModels } from "@/lib/mission-store";
 import type { ModelSelection, AgentId } from "@/lib/types/mission";
 
@@ -54,6 +55,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   const message = stringifyPromptParts(promptParts);
+  const routedPromptParts: PromptPart[] = [
+    {
+      type: "text",
+      text: buildRoutedMessageEnvelope({
+        speaker: "crystal",
+        to: "noctis",
+        messageType: "chat",
+        body: message,
+      }),
+    },
+  ];
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
@@ -104,7 +116,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const promptResult = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: buildPromptPayloadParts(injectedContext, promptParts),
+        parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
         agent: "noctis",
         system: ledger,
         ...(noctisModel ? { model: noctisModel } : {}),

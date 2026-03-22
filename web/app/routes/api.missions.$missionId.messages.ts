@@ -39,6 +39,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       missionId,
       toAgent: body.toAgent,
       body: body.body.trim(),
+      fromActor: "crystal",
     });
     return Response.json(result);
   } catch (error) {

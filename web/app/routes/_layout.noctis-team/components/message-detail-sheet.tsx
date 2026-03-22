@@ -11,6 +11,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { getActivityActorLabel } from "@/lib/team-message-format";
+import type { ActivityActorId } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
@@ -18,20 +20,34 @@ import { buildMessageMarkdown, extractReasoning, extractText, extractTools } fro
 
 type Props = {
   content: string;
+  rawTextContent?: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   parts?: MessagePart[];
-  role: "noctis" | "user";
+  sender: ActivityActorId;
 };
 
-const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props) => {
+const MessageDetailSheet = ({ content, rawTextContent, onOpenChange, open, parts, sender }: Props) => {
   const [copied, setCopied] = useState(false);
   const [contextExpanded, setContextExpanded] = useState(false);
-  const rawText = useMemo(() => (parts && parts.length > 0 ? extractText(parts) : content), [content, parts]);
+  const rawText = useMemo(
+    () => {
+      if (typeof rawTextContent === "string" && rawTextContent.trim()) {
+        return rawTextContent;
+      }
+
+      return sender === "noctis" && parts && parts.length > 0 ? extractText(parts) : content;
+    },
+    [content, parts, rawTextContent, sender]
+  );
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
   const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
-  const displayContent = useMemo(() => removeInternalContext(rawText), [rawText]);
+  const displayContent = useMemo(
+    () => (sender === "noctis" ? removeInternalContext(rawText) : content),
+    [content, rawText, sender]
+  );
+  const senderLabel = useMemo(() => getActivityActorLabel(sender), [sender]);
   const copyContent = useMemo(
     () => buildMessageMarkdown(displayContent, reasoning, tools),
     [displayContent, reasoning, tools]
@@ -60,7 +76,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
           <div className="flex items-start justify-between gap-3 pr-8">
             <div className="space-y-2">
               <SheetTitle>
-                {role === "user" ? "Your message detail" : "Noctis message detail"}
+                {`${senderLabel} message detail`}
               </SheetTitle>
               <SheetDescription className="text-slate-400">
                 Full message view
@@ -92,7 +108,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/3 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-300">
             <ArrowUpRight className="h-3.5 w-3.5" />
-            {role === "user" ? "You" : "Noctis"}
+            {senderLabel}
           </div>
 
           {internalContext ? (
@@ -134,7 +150,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, parts, role }: Props)
 
           {hasVisibleBody ? (
             <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-              {role === "user" ? (
+              {sender === "crystal" ? (
                 <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
                   {displayContent}
                 </p>

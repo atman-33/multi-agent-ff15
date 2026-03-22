@@ -1,7 +1,15 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
+export type ActivityActorId = AgentId | "crystal" | "iris" | "system";
 export type TeamMessageType = "task" | "report" | "message";
 export type ReportStatus = "running" | "blocked" | "completed" | "failed";
+export type MissionActivityKind =
+  | "user_message"
+  | "assistant_message"
+  | "team_message"
+  | "system_event"
+  | "agent_proxy_quote"
+  | "iris_observation";
 
 export interface ModelSelection {
   providerID: string;
@@ -55,6 +63,27 @@ export interface Mission {
   objective?: string;
   status: MissionStatus;
   messageLog: MissionMessageLogEntry[];
+  activityLog: MissionActivityLogEntry[];
+}
+
+export interface MissionActivitySource {
+  type: "session_message" | "team_message" | "system";
+  sessionId?: string;
+  messageId?: string;
+  taskId?: string;
+  reportStatus?: ReportStatus;
+  deliveryStatus?: "sent" | "failed";
+}
+
+export interface MissionActivityLogEntry {
+  id: string;
+  missionId: string;
+  actor: ActivityActorId;
+  speaker: ActivityActorId;
+  kind: MissionActivityKind;
+  body: string;
+  createdAt: string;
+  source?: MissionActivitySource;
 }
 
 export interface TeamMessage {

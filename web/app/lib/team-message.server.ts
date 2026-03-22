@@ -1,9 +1,12 @@
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { appendMissionMessage, getMission, setWorkerSession } from "@/lib/mission-store";
+import { buildTeamMessageEnvelope, getActivityActorLabel } from "@/lib/team-message-format";
+import { appendMissionActivity, appendMissionMessage, getMission, setWorkerSession } from "@/lib/mission-store";
 import type {
+  ActivityActorId,
   AgentId,
+  MissionActivityKind,
   MissionMessageLogEntry,
   ReportStatus,
   TeamMessage,
@@ -16,9 +19,13 @@ export interface SendTeamMessageInput {
   toAgent: AgentId;
   type: TeamMessageType;
   body: string;
+  details?: string;
   taskId?: string;
   reportStatus?: ReportStatus;
   artifacts?: string[];
+  activityActor?: ActivityActorId;
+  activitySpeaker?: ActivityActorId;
+  activityKind?: MissionActivityKind;
 }
 
 function createMessageId(): string {
@@ -59,7 +66,7 @@ function assertIntentContract(message: SendTeamMessageInput): void {
   }
 }
 
-function serializeMeta(message: TeamMessage): string {
+function serializeMeta(message: TeamMessage, displayFrom: ActivityActorId): string {
   return [
     "[TEAM MESSAGE META]",
     `message_id: ${message.id}`,
@@ -69,6 +76,8 @@ function serializeMeta(message: TeamMessage): string {
     `message_type: ${message.type}`,
     `task_id: ${message.taskId ?? ""}`,
     `report_status: ${message.reportStatus ?? ""}`,
+    `display_from: ${getActivityActorLabel(displayFrom)}`,
+    `display_to: ${getActivityActorLabel(message.toAgent)}`,
     `artifacts: ${JSON.stringify(message.artifacts ?? [])}`,
   ].join("\n");
 }
@@ -137,7 +146,17 @@ async function deliverMissionMessage(
     appRoot: projectRoot,
   });
 
-  const system = serializeMeta(message);
+  const system = serializeMeta(message, input.activitySpeaker ?? input.fromAgent);
+  const promptBody = buildTeamMessageEnvelope({
+    from: input.activitySpeaker ?? input.fromAgent,
+    to: input.toAgent,
+    type: input.type,
+    body: input.body,
+    taskId: input.taskId,
+    reportStatus: input.reportStatus,
+    artifacts: input.artifacts,
+    details: input.details,
+  });
   const client = getOpencodeClient();
 
   try {
@@ -146,7 +165,7 @@ async function deliverMissionMessage(
       body: {
         parts: [
           { type: "text", text: injectedContext },
-          { type: "text", text: input.body },
+          { type: "text", text: promptBody },
         ],
         agent: input.toAgent,
         system,
@@ -159,6 +178,22 @@ async function deliverMissionMessage(
       deliveryStatus: "sent",
     };
     appendMissionMessage(input.missionId, entry);
+    appendMissionActivity(input.missionId, {
+      id: `activity_${message.id}`,
+      actor: input.activityActor ?? input.fromAgent,
+      speaker: input.activitySpeaker ?? input.fromAgent,
+      kind: input.activityKind ?? "team_message",
+      body: input.body,
+      createdAt: message.createdAt,
+      source: {
+        type: "team_message",
+        sessionId,
+        messageId: message.id,
+        taskId: message.taskId,
+        reportStatus: message.reportStatus,
+        deliveryStatus: "sent",
+      },
+    });
     return { sessionId, messageId: message.id };
   } catch (error) {
     const failedEntry: MissionMessageLogEntry = {
@@ -176,6 +211,7 @@ export async function sendSimpleMessage(input: {
   missionId: string;
   toAgent: AgentId;
   body: string;
+  fromActor: ActivityActorId;
 }): Promise<{ sessionId: string; messageId: string }> {
   return deliverMissionMessage({
     missionId: input.missionId,
@@ -183,6 +219,9 @@ export async function sendSimpleMessage(input: {
     toAgent: input.toAgent,
     type: "message",
     body: input.body,
+    activityActor: input.fromActor,
+    activitySpeaker: input.fromActor,
+    activityKind: "team_message",
   });
 }
 
@@ -195,20 +234,18 @@ export async function sendWorkerReport(input: {
   details?: string;
   artifacts?: string[];
 }): Promise<{ sessionId: string; messageId: string }> {
-  const sections = [`summary: ${input.summary}`];
-  if (input.details?.trim()) {
-    sections.push("details:");
-    sections.push(input.details.trim());
-  }
-
   return deliverMissionMessage({
     missionId: input.missionId,
     fromAgent: input.fromAgent,
     toAgent: "noctis",
     type: "report",
-    body: sections.join("\n"),
+    body: input.summary,
     taskId: input.taskId,
     reportStatus: input.status,
     artifacts: input.artifacts,
+    activityActor: input.fromAgent,
+    activitySpeaker: input.fromAgent,
+    activityKind: "team_message",
+    details: input.details,
   });
 }

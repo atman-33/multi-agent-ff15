@@ -25,6 +25,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { PromptPart } from "@/lib/prompt-parts";
+import { getActivityActorLabel } from "@/lib/team-message-format";
+import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
@@ -33,10 +35,16 @@ import MessageDetailSheet from "./message-detail-sheet";
 
 export interface ChatMessage {
   id: string;
-  role: "noctis" | "user";
+  sender: ActivityActorId;
+  actor: ActivityActorId;
+  speaker: ActivityActorId;
+  kind: MissionActivityKind;
   content: string;
+  detailContent?: string;
+  rawText?: string;
   parts?: MessagePart[];
   timestamp: Date;
+  source: "session" | "activity";
 }
 
 interface ChatAreaProps {
@@ -88,6 +96,17 @@ type FindFileResult =
 
 const MAX_HEIGHT_PX = 160;
 
+const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
+  noctis: "/images/noctis.png",
+  ignis: "/images/ignis.png",
+  gladiolus: "/images/gladiolus.png",
+  prompto: "/images/prompto.png",
+};
+
+function getSenderAvatar(sender: ActivityActorId): string | null {
+  return SENDER_AVATARS[sender] ?? null;
+}
+
 function findMentionQuery(value: string, cursor: number) {
   const prefix = value.slice(0, cursor);
 
@@ -132,6 +151,14 @@ function removeMentionQuery(
 }
 
 function toMessageParts(message: ChatMessage): MessagePart[] {
+  if (message.sender !== "noctis") {
+    if (!message.content) {
+      return [];
+    }
+
+    return [{ type: "text", text: message.content } as MessagePart];
+  }
+
   if (message.parts && message.parts.length > 0) {
     return message.parts;
   }
@@ -144,6 +171,14 @@ function toMessageParts(message: ChatMessage): MessagePart[] {
 }
 
 function getMessageRawText(message: ChatMessage): string {
+  if (typeof message.rawText === "string" && message.rawText.trim()) {
+    return message.rawText;
+  }
+
+  if (message.sender !== "noctis") {
+    return message.content;
+  }
+
   if (message.parts && message.parts.length > 0) {
     const extracted = extractText(message.parts);
     return extracted || message.content;
@@ -153,6 +188,10 @@ function getMessageRawText(message: ChatMessage): string {
 }
 
 function getMessageDisplayText(message: ChatMessage): string {
+  if (message.sender !== "noctis") {
+    return removeInternalContext(message.content).trim();
+  }
+
   return removeInternalContext(getMessageRawText(message)).trim();
 }
 
@@ -174,6 +213,32 @@ function getIntermediatePreview(parts: MessagePart[]): string | null {
   return null;
 }
 
+function pickDetailRawText(message: ChatMessage): string {
+  const rawText = typeof message.rawText === "string" ? message.rawText.trim() : "";
+  if (rawText && parseInternalContext(rawText)) {
+    return rawText;
+  }
+
+  if (typeof message.detailContent === "string" && message.detailContent.trim()) {
+    return message.detailContent;
+  }
+
+  return getMessageRawText(message);
+}
+
+function buildDetailText(messages: ChatMessage[]): string {
+  return messages
+    .map((message) => {
+      if (typeof message.detailContent === "string" && message.detailContent.trim()) {
+        return message.detailContent.trim();
+      }
+
+      return getMessageRawText(message).trim();
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   const rendered: RenderedChatMessage[] = [];
   let pendingNoctis: ChatMessage[] = [];
@@ -193,10 +258,15 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
 
     rendered.push({
       id: pendingNoctis.map((message) => message.id).join(":"),
-      role: "noctis",
+      sender: "noctis",
+      actor: "noctis",
+      speaker: "noctis",
+      kind: "assistant_message",
       content: "",
+      detailContent: buildDetailText(pendingNoctis),
       parts: parts.length > 0 ? parts : undefined,
       timestamp: pendingNoctis[pendingNoctis.length - 1].timestamp,
+      source: "session",
       displayContent: preview,
       intermediateOnly: true,
     });
@@ -205,7 +275,10 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   };
 
   messages.forEach((message) => {
-    if (message.role === "user") {
+    const isOutgoing = message.sender === "crystal";
+    const canCollapseToIntermediate = message.sender === "noctis" && message.source === "session";
+
+    if (isOutgoing) {
       flushPendingNoctis();
       rendered.push({
         ...message,
@@ -216,7 +289,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
 
     const displayContent = getMessageDisplayText(message);
 
-    if (!displayContent) {
+    if (!displayContent && canCollapseToIntermediate) {
       pendingNoctis.push(message);
       return;
     }
@@ -226,6 +299,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
 
     rendered.push({
       ...message,
+      detailContent: buildDetailText(groupedMessages),
       parts: parts.length > 0 ? parts : undefined,
       displayContent,
     });
@@ -249,17 +323,13 @@ const MessageBubble = memo(({
   const [contextExpanded, setContextExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const isNoctis = message.role === "noctis";
+  const isOutgoing = message.sender === "crystal";
+  const isNoctis = message.sender === "noctis";
+  const senderLabel = getActivityActorLabel(message.sender);
+  const avatarSrc = getSenderAvatar(message.sender);
   const detailRawText = useMemo(
-    () => {
-      if (message.parts && message.parts.length > 0) {
-        const extracted = extractText(message.parts);
-        return extracted || message.content;
-      }
-
-      return message.content;
-    },
-    [message.content, message.parts]
+    () => pickDetailRawText(message),
+    [message]
   );
   const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);
   const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
@@ -304,29 +374,29 @@ const MessageBubble = memo(({
     <div
       className={cn(
         "group flex min-w-0 max-w-full items-end gap-2",
-        isNoctis ? "justify-start" : "justify-end"
+        isOutgoing ? "justify-end" : "justify-start"
       )}
     >
-      {isNoctis && (
+      {!isOutgoing && avatarSrc ? (
         <img
-          alt="Noctis"
-          src="/images/noctis.png"
+          alt={senderLabel}
+          src={avatarSrc}
           className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-primary/30"
         />
-      )}
+      ) : null}
       <div
         className={cn(
           "flex min-w-0 max-w-[84%] flex-col",
-          isNoctis ? "items-start" : "items-end"
+          isOutgoing ? "items-end" : "items-start"
         )}
       >
         <div
           className={cn(
             "mb-1 flex items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-widest",
-            isNoctis ? "text-muted-foreground/65" : "text-primary/70"
+            isOutgoing ? "text-primary/70" : "text-muted-foreground/65"
           )}
         >
-          <span className="font-semibold">{isNoctis ? "Noctis" : "You"}</span>
+          <span className="font-semibold">{senderLabel}</span>
           {message.timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
@@ -337,13 +407,15 @@ const MessageBubble = memo(({
         <div
           className={cn(
             "relative min-w-0 max-w-full overflow-x-hidden rounded-2xl border px-4 py-3 text-sm shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-xs",
-            isNoctis
-              ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
-              : "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
+            isOutgoing
+              ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
+              : isNoctis
+                ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
+                : "rounded-bl-md border-amber-300/15 bg-amber-50/8 text-foreground"
           )}
         >
           {hasVisibleBody ? (
-            isNoctis ? (
+            !isOutgoing ? (
               <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
                 <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                   {`${message.displayContent}${showCursor ? "▌" : ""}`}
@@ -534,10 +606,11 @@ const MessageBubble = memo(({
         {detailOpen ? (
           <MessageDetailSheet
             content={message.displayContent}
+            rawTextContent={detailRawText}
             parts={message.parts}
             onOpenChange={setDetailOpen}
             open={detailOpen}
-            role={message.role}
+            sender={message.sender}
           />
         ) : null}
       </div>
@@ -1101,7 +1174,7 @@ export const ChatArea = ({
           {renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&
-              message.role === "noctis" &&
+              message.sender === "noctis" &&
               index === renderedMessages.length - 1;
             return (
               <MessageBubble

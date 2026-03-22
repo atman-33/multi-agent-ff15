@@ -14,6 +14,7 @@ import {
   type PartyRuntimeState,
 } from "@/lib/event-to-party-update";
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
+import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import {
   coerceSessionStatus,
   fetchSessionStatuses,
@@ -121,9 +122,13 @@ function createInitialWorkerSessionStates(): Record<WorkerMemberId, SessionStatu
 const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: "msg-init-1",
-    role: "noctis",
+    sender: "noctis",
+    actor: "noctis",
+    speaker: "noctis",
+    kind: "assistant_message",
     content: "We're on the road. What do you need?",
     timestamp: new Date(Date.now() - 300000),
+    source: "session",
   },
 ];
 
@@ -162,29 +167,67 @@ function extractLooseText(parts: MessagePart[]): string {
     .trim();
 }
 
-function toChatMessages(messages: MessageInfo[]): ChatMessage[] {
+function coerceMessageTimestamp(rawValue: unknown, fallback: Date): Date {
+  if (typeof rawValue === "string") {
+    const parsed = new Date(rawValue);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function toSessionChatMessages(messages: MessageInfo[]): ChatMessage[] {
   return messages.reduce<ChatMessage[]>((accumulator, message, index) => {
     const messageRecord = message as unknown as Record<string, unknown>;
     const info = (messageRecord.info as Record<string, unknown> | undefined) ?? {};
     const parts = Array.isArray(messageRecord.parts) ? (messageRecord.parts as MessagePart[]) : [];
+    const rawRole = info.role;
 
     const content = extractText(parts);
-    const reasoning = extractReasoning(parts);
-    const tools = extractTools(parts);
     const looseText = extractLooseText(parts);
     const fallbackContent = content || looseText;
 
+    if (!fallbackContent && (rawRole !== "assistant" || parts.length === 0)) {
+      return accumulator;
+    }
+
     const rawId = info.id;
     const id = typeof rawId === "string" && rawId.length > 0 ? rawId : `restored-${index}-${createId()}`;
-    const rawRole = info.role;
-    const role = rawRole === "assistant" ? "noctis" : "user";
+    const routedMessage = rawRole === "assistant" ? null : parseRoutedMessageEnvelope(fallbackContent);
+    const sender = rawRole === "assistant" ? "noctis" : (routedMessage?.speaker ?? "crystal");
+    const displayContent = routedMessage
+      ? routedMessage.messageType === "report"
+        ? routedMessage.summary?.trim() || routedMessage.details?.trim() || ""
+        : routedMessage.body?.trim() || ""
+      : fallbackContent;
+    const detailContent = routedMessage
+      ? routedMessage.messageType === "report"
+        ? [routedMessage.summary?.trim(), routedMessage.details?.trim()].filter(Boolean).join("\n\n")
+        : routedMessage.body?.trim() || fallbackContent
+      : fallbackContent;
 
     accumulator.push({
       id,
-      role,
-      content: fallbackContent,
+      sender,
+      actor: sender,
+      speaker: sender,
+      kind:
+        rawRole === "assistant"
+          ? "assistant_message"
+          : sender === "crystal"
+            ? "user_message"
+            : "team_message",
+      content: displayContent,
+      detailContent,
+      rawText: fallbackContent,
       parts,
-      timestamp: new Date(),
+      timestamp: coerceMessageTimestamp(
+        info.createdAt ?? messageRecord.createdAt,
+        new Date(Date.now() + index)
+      ),
+      source: "session",
     });
 
     return accumulator;
@@ -199,7 +242,7 @@ async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
 
   const data = (await response.json()) as { messages?: MessageInfo[] };
   const rawMessages = data.messages ?? [];
-  const convertedMessages = toChatMessages(rawMessages);
+  const convertedMessages = toSessionChatMessages(rawMessages);
 
   return convertedMessages;
 }
@@ -239,7 +282,7 @@ export function useAgentSession({
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? toWorkerSessionIds(initialMissionData.sessions)
       : createInitialWorkerSessionIds();
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(createInitialPartyRuntimeState);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
@@ -258,6 +301,7 @@ export function useAgentSession({
   const lastWorkerSessionStatesRef = useRef<Record<WorkerMemberId, SessionStatus | null>>(
     createInitialWorkerSessionStates()
   );
+  const messages = sessionMessages;
   const sessionStatusRef = useRef<SessionStatus | null>(null);
   const pendingActiveResolversRef = useRef<Map<string, Array<() => void>>>(new Map());
   const progressTimersRef = useRef<
@@ -455,13 +499,15 @@ export function useAgentSession({
   const syncSessionMessages = useCallback(
     async (sessionId: string, options?: { trackStreamingMessage?: boolean }) => {
       const nextMessages = await loadSessionMessages(sessionId);
-      setMessages(nextMessages.length > 0 ? nextMessages : INITIAL_MESSAGES);
+      setSessionMessages(nextMessages.length > 0 ? nextMessages : INITIAL_MESSAGES);
 
       if (!options?.trackStreamingMessage) {
         return;
       }
 
-      const latestAssistant = [...nextMessages].reverse().find((message) => message.role === "noctis");
+      const latestAssistant = [...nextMessages]
+        .reverse()
+        .find((message) => message.sender === "noctis");
       streamingMessageIdRef.current = latestAssistant?.id ?? null;
     },
     []
@@ -475,7 +521,7 @@ export function useAgentSession({
         if (!text) return;
 
         setIsStreaming(true);
-        setMessages((prev) => {
+        setSessionMessages((prev) => {
           const streamId = eventMessageId ?? streamingMessageIdRef.current;
           if (streamId) {
             streamingMessageIdRef.current = streamId;
@@ -499,10 +545,15 @@ export function useAgentSession({
             ...prev,
             {
               id: resolvedId,
-              role: "noctis" as const,
+              sender: "noctis" as const,
+              actor: "noctis" as const,
+              speaker: "noctis" as const,
+              kind: "assistant_message" as const,
               content: text,
+              rawText: text,
               parts: [{ type: "text", text }],
               timestamp: new Date(),
+              source: "session" as const,
             },
           ];
         });
@@ -754,7 +805,7 @@ export function useAgentSession({
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         streamingMessageIdRef.current = null;
-        setMessages(INITIAL_MESSAGES);
+        setSessionMessages(INITIAL_MESSAGES);
         clearBanterEntries();
         setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
@@ -791,7 +842,7 @@ export function useAgentSession({
           initialMessageInfos.length > 0;
 
         let chatMessages = hasPreloadedMessages
-          ? toChatMessages(initialMessageInfos)
+          ? toSessionChatMessages(initialMessageInfos)
           : [];
 
         if (chatMessages.length === 0) {
@@ -804,7 +855,7 @@ export function useAgentSession({
         setNoctisSessionId(mission.sessions.noctis);
         setWorkerSessionIds(toWorkerSessionIds(mission.sessions));
         streamingMessageIdRef.current = null;
-        setMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
+        setSessionMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
         clearBanterEntries();
         setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
@@ -819,7 +870,7 @@ export function useAgentSession({
         noctisSessionIdRef.current = null;
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
-        setMessages(INITIAL_MESSAGES);
+        setSessionMessages(INITIAL_MESSAGES);
         sessionStatusRef.current = null;
         clearProgressBanter();
         void fetchSessionStatuses()
@@ -852,12 +903,18 @@ export function useAgentSession({
       const text = stringifyPromptParts(parts);
       const userMessage: ChatMessage = {
         id: createId(),
-        role: "user",
+        sender: "crystal",
+        actor: "crystal",
+        speaker: "crystal",
+        kind: "user_message",
         content: text,
+        detailContent: text,
+        rawText: text,
         parts: [{ type: "text", text }],
         timestamp: new Date(),
+        source: "session",
       };
-      setMessages((prev) => [...prev, userMessage]);
+      setSessionMessages((prev) => [...prev, userMessage]);
       streamingMessageIdRef.current = null;
 
       const agentModels = useChatStore.getState().agentModels;
@@ -932,8 +989,12 @@ export function useAgentSession({
       } catch (err) {
         const errorMessage: ChatMessage = {
           id: createId(),
-          role: "noctis",
+          sender: "noctis",
+          actor: "noctis",
+          speaker: "noctis",
+          kind: "assistant_message",
           content: `Something went wrong. ${err instanceof Error ? err.message : String(err)}`,
+          rawText: `Something went wrong. ${err instanceof Error ? err.message : String(err)}`,
           parts: [
             {
               type: "text",
@@ -941,8 +1002,9 @@ export function useAgentSession({
             },
           ],
           timestamp: new Date(),
+          source: "session",
         };
-        setMessages((prev) => [...prev, errorMessage]);
+        setSessionMessages((prev) => [...prev, errorMessage]);
         setIsStreaming(false);
         clearProgressBanter();
         return null;
@@ -978,7 +1040,7 @@ export function useAgentSession({
       const nextMessages = await loadSessionMessages(sessionId).catch(() => null);
 
       if (nextMessages && nextMessages.length > 0) {
-        setMessages(nextMessages);
+        setSessionMessages(nextMessages);
       }
 
       streamingMessageIdRef.current = null;
@@ -989,8 +1051,12 @@ export function useAgentSession({
     } catch (err) {
       const errorMessage: ChatMessage = {
         id: createId(),
-        role: "noctis",
+        sender: "noctis",
+        actor: "noctis",
+        speaker: "noctis",
+        kind: "assistant_message",
         content: `Unable to stop the current response. ${err instanceof Error ? err.message : String(err)}`,
+        rawText: `Unable to stop the current response. ${err instanceof Error ? err.message : String(err)}`,
         parts: [
           {
             type: "text",
@@ -998,8 +1064,9 @@ export function useAgentSession({
           },
         ],
         timestamp: new Date(),
+        source: "session",
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setSessionMessages((prev) => [...prev, errorMessage]);
     }
   }, [clearProgressBanter, setServerSessionState]);
 
