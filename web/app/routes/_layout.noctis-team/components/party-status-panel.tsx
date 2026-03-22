@@ -349,8 +349,8 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
               className={cn(
                 "h-6 w-full justify-center rounded-md border px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
                 isInParty
-                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
-                  : "border-border/40 bg-background/20 text-muted-foreground hover:text-foreground"
+                  ? "border-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15 hover:text-rose-100"
+                  : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15 hover:text-emerald-100"
               )}
               onClick={() => setWorkingPartyMember(workingPartyAgentId, !isInParty)}
             >
@@ -365,6 +365,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
               <CharacterCard
                 {...member}
                 agentId={normalizedAgentId ?? member.id}
+                isInParty={isWorker ? isInParty : true}
                 isSpeaking={normalizedAgentId === speakingAgentId}
                 statusAccessory={partyControl}
                 metaAccessory={
