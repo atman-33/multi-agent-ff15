@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 
@@ -138,47 +139,67 @@ export const CharacterCard = ({
             <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/50">{detail}</p>
           )}
           {contextUsage ? (
-            <div className="mt-1.5">
-              <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
-                <span
-                  className={cn(
-                    "text-muted-foreground/70",
-                    contextUsage.freshness === "stale" && "text-amber-300/90"
-                  )}
-                >
-                  CTX {contextUsage.freshness === "stale" ? "stale" : "live"}
-                </span>
-                <span className="text-foreground/80">{formatPercent(contextUsage.remainingPercentage)}</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-500",
-                    getContextBarClass(contextUsage),
-                    contextUsage.freshness === "stale" && "opacity-75"
-                  )}
-                  style={{ width: `${Math.min(100, Math.max(0, contextUsage.remainingPercentage * 100))}%` }}
-                />
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[9px] text-muted-foreground/55">
-                <span>{contextUsage.remainingTokens.toLocaleString()} left</span>
-                <span>{contextUsage.limitTokens.toLocaleString()} max</span>
-              </div>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="mt-1.5 cursor-help">
+                  <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
+                    <span
+                      className={cn(
+                        "text-muted-foreground/70",
+                        contextUsage.freshness === "stale" && "text-amber-300/90"
+                      )}
+                    >
+                      CTX {contextUsage.freshness === "stale" ? "stale" : "live"}
+                    </span>
+                    <span className="text-foreground/80">{formatPercent(contextUsage.remainingPercentage)}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        getContextBarClass(contextUsage),
+                        contextUsage.freshness === "stale" && "opacity-75"
+                      )}
+                      style={{ width: `${Math.min(100, Math.max(0, contextUsage.remainingPercentage * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="font-mono text-[10px]">
+                <div className="flex min-w-32 items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Remaining</span>
+                  <span>{contextUsage.remainingTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex min-w-32 items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Window</span>
+                  <span>{contextUsage.limitTokens.toLocaleString()}</span>
+                </div>
+              </TooltipContent>
+            </Tooltip>
           ) : (
-            <div className="mt-1.5">
-              <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
-                <span className="text-muted-foreground/70">CTX unused</span>
-                <span className="text-foreground/80">100%</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
-                <div className="h-full w-full rounded-full bg-emerald-400 transition-all duration-500" />
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[9px] text-muted-foreground/40">
-                <span>- left</span>
-                <span>- max</span>
-              </div>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="mt-1.5 cursor-help">
+                  <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
+                    <span className="text-muted-foreground/70">CTX unused</span>
+                    <span className="text-foreground/80">100%</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+                    <div className="h-full w-full rounded-full bg-emerald-400 transition-all duration-500" />
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="font-mono text-[10px]">
+                <div className="flex min-w-32 items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Remaining</span>
+                  <span>-</span>
+                </div>
+                <div className="flex min-w-32 items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Window</span>
+                  <span>-</span>
+                </div>
+              </TooltipContent>
+            </Tooltip>
           )}
           {metaAccessory ? <div className="mt-1 min-w-0 max-w-60">{metaAccessory}</div> : null}
           {status === "working" && progress !== undefined && (
