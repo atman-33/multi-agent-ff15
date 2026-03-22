@@ -328,6 +328,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
             <div key={member.id}>
               <CharacterCard
                 {...member}
+                agentId={normalizedAgentId ?? member.id}
                 isSpeaking={normalizedAgentId === speakingAgentId}
                 metaAccessory={
                   <AgentModelPicker

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getAgentTheme } from "@/lib/agent-theme";
 import { cn } from "@/lib/utils";
 
 export interface BanterEntry {
@@ -138,16 +139,19 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
             const isHighlightedEntry = entry.id === highlightEntryId;
             const showActiveHighlight = isHighlightedEntry && isHighlightActive;
             const showLiveBadge = entry.id === liveBadgeEntryId;
+            const theme = getAgentTheme(entry.speakerId);
 
             return (
             <div
               key={entry.id}
               className={cn(
                 "flex items-start gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-1.5 transition-all duration-700 ease-out",
-                showActiveHighlight &&
-                  "border-sky-300/40 bg-sky-500/12 shadow-[0_0_24px_rgba(125,211,252,0.2)]"
+                showActiveHighlight && "shadow-[0_0_24px_rgba(125,211,252,0.2)]"
               )}
               style={{
+                borderColor: showActiveHighlight ? theme?.ring ?? "rgba(125, 211, 252, 0.4)" : undefined,
+                background: showActiveHighlight ? theme?.surfaceStrong ?? "rgba(14, 165, 233, 0.12)" : undefined,
+                boxShadow: showActiveHighlight ? `0 0 24px ${theme?.glowSoft ?? "rgba(125,211,252,0.2)"}` : undefined,
                 animation: isLatestEntry
                   ? "banter-entry-in 0.42s cubic-bezier(0.22, 1, 0.36, 1), banter-fresh 1.5s ease-out"
                   : "banter-entry-in 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -156,19 +160,32 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
               <div
                 className={cn(
                   "mt-0.5 h-8 w-0.5 shrink-0 rounded-full bg-transparent transition-all duration-700 ease-out",
-                  showActiveHighlight && "bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.82)]"
+                  showActiveHighlight && "shadow-[0_0_12px_rgba(125,211,252,0.82)]"
                 )}
                 style={
                   showActiveHighlight
-                    ? { animation: "banter-accent-pulse 1.2s ease-in-out infinite" }
+                    ? {
+                        animation: "banter-accent-pulse 1.2s ease-in-out infinite",
+                        background: theme?.accentStrong ?? "rgba(125, 211, 252, 0.9)",
+                        boxShadow: `0 0 12px ${theme?.glow ?? "rgba(125,211,252,0.82)"}`,
+                      }
                     : undefined
                 }
               />
-              <img
-                alt={entry.speakerName}
-                src={entry.speakerAvatar}
-                className="mt-0.5 h-4 w-auto shrink-0 object-contain"
-              />
+              <div
+                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ring-1 ring-white/6"
+                style={{
+                  borderColor: theme?.ring ?? "rgba(148, 163, 184, 0.35)",
+                  background: theme?.portraitBg ?? "rgba(15, 23, 42, 0.9)",
+                  boxShadow: `0 0 18px ${showActiveHighlight ? theme?.glowSoft ?? "rgba(125,211,252,0.12)" : "rgba(0,0,0,0)"}`,
+                }}
+              >
+                <img
+                  alt={entry.speakerName}
+                  src={entry.speakerAvatar}
+                  className="h-8 w-8 shrink-0 rounded-full object-cover"
+                />
+              </div>
               <div
                 className="min-w-0 flex-1"
                 style={{
@@ -178,16 +195,23 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
                 }}
               >
                 <div className="flex items-baseline gap-1.5">
-                  <span className="shrink-0 font-mono text-[10px] font-semibold text-primary/80 uppercase">
+                  <span
+                    className="shrink-0 font-mono text-[10px] font-semibold uppercase"
+                    style={{ color: theme?.text ?? "rgba(226, 232, 240, 0.88)" }}
+                  >
                     {entry.speakerName}
                   </span>
                   {showLiveBadge ? (
                     <span
                       className={cn(
-                        "rounded-full border border-sky-300/45 bg-sky-500/18 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/95 shadow-[0_0_12px_rgba(56,189,248,0.2)] transition-all duration-500 ease-out",
+                        "rounded-full border px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] transition-all duration-500 ease-out",
                         isLiveBadgeVisible ? "translate-y-0 opacity-100" : "-translate-y-0.5 opacity-0"
                       )}
                       style={{
+                        borderColor: theme?.ring ?? "rgba(56, 189, 248, 0.45)",
+                        background: theme?.surfaceStrong ?? "rgba(14, 165, 233, 0.18)",
+                        color: theme?.text ?? "rgba(224, 242, 254, 0.95)",
+                        boxShadow: `0 0 12px ${theme?.glowSoft ?? "rgba(56,189,248,0.2)"}`,
                         animation: isLiveBadgeVisible
                           ? "banter-live-pulse 1.35s ease-in-out infinite"
                           : undefined,

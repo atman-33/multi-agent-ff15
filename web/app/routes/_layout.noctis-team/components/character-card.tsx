@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getAgentTheme } from "@/lib/agent-theme";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 
 export type AgentStatus = "idle" | "working" | "success" | "blocked";
 
 export interface CharacterCardProps {
+  agentId?: string;
   contextUsage?: AgentContextUsage | null;
   name: string;
   role: string;
@@ -77,6 +79,7 @@ const statusGlowColor: Record<AgentStatus, string> = {
 };
 
 export const CharacterCard = ({
+  agentId,
   contextUsage,
   name,
   role,
@@ -89,11 +92,12 @@ export const CharacterCard = ({
   metaAccessory,
 }: CharacterCardProps) => {
   const config = statusConfig[status];
+  const theme = getAgentTheme(agentId ?? name);
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 rounded-xl border border-border/50 bg-card/60 px-3 py-2",
+        "relative flex flex-col gap-1.5 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-3 py-2",
         "transition-all duration-500 backdrop-blur-sm",
         status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
         status === "success" &&
@@ -102,6 +106,12 @@ export const CharacterCard = ({
         isSpeaking && "border-sky-300/45 bg-sky-500/8 shadow-[0_0_26px_rgba(125,211,252,0.18)]"
       )}
     >
+      {theme ? (
+        <div
+          className="pointer-events-none absolute inset-x-3 top-0 h-px rounded-full"
+          style={{ background: `linear-gradient(90deg, transparent, ${theme.accentStrong}, transparent)` }}
+        />
+      ) : null}
       <div className="flex min-w-0 flex-row items-center gap-3">
         <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
           {status === "working" ? (
@@ -110,7 +120,11 @@ export const CharacterCard = ({
           <div
             className="pointer-events-none absolute bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full blur-lg"
             style={{
-              background: isSpeaking ? "rgba(125, 211, 252, 0.32)" : statusGlowColor[status],
+              background: isSpeaking
+                ? theme?.glow ?? "rgba(125, 211, 252, 0.32)"
+                : theme
+                  ? `radial-gradient(circle, ${theme.glowSoft} 0%, ${statusGlowColor[status]} 72%)`
+                  : statusGlowColor[status],
               animation: isSpeaking ? "agent-speaking-glow 0.9s ease-in-out infinite" : "agent-glow 2s ease-in-out infinite",
             }}
           />
@@ -147,10 +161,24 @@ export const CharacterCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-bold text-sm tracking-wider text-foreground uppercase">{name}</span>
-              <span className="shrink-0 font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
+              <span className="truncate font-bold text-sm tracking-wider uppercase" style={{ color: theme?.text ?? undefined }}>
+                {name}
+              </span>
+              <span
+                className="shrink-0 font-mono text-[9px] uppercase tracking-widest"
+                style={{ color: theme?.accentStrong ?? "rgba(148, 163, 184, 0.8)" }}
+              >
+                {role}
+              </span>
               {isSpeaking ? (
-                <span className="shrink-0 rounded-full border border-sky-300/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/90">
+                <span
+                  className="shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em]"
+                  style={{
+                    borderColor: theme?.ring ?? "rgba(125, 211, 252, 0.4)",
+                    background: theme?.surfaceStrong ?? "rgba(14, 165, 233, 0.15)",
+                    color: theme?.text ?? "rgba(224, 242, 254, 0.9)",
+                  }}
+                >
                   talking
                 </span>
               ) : null}
