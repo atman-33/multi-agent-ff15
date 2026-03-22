@@ -1,14 +1,22 @@
 import {
   Activity,
+  CheckCircle2,
   Cpu,
   Crown,
   FileText,
   FolderGit2,
   Github,
+  LoaderCircle,
   Settings2,
+  ServerCrash,
   Terminal,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigation } from "react-router";
+import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { useActiveProjects, type ProjectEntry } from "@/hooks/use-active-projects";
+import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +40,16 @@ type NavItem = {
   end?: boolean;
 };
 
+type HeaderServerStatus = {
+  checkedAt: string;
+  error: string | null;
+  isRunning: boolean;
+  lastStartedAt: string | null;
+  managedByApp: boolean;
+  state: "down" | "running" | "starting";
+  url: string;
+};
+
 const NAV_ITEMS: NavItem[] = [
   { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
   { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
@@ -42,10 +60,74 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/server", icon: Activity, label: "Server Monitor", end: true },
 ];
 
+function formatActiveProjectLabel(projects: ProjectEntry[], isLoading: boolean, error: string | null) {
+  if (isLoading && projects.length === 0) {
+    return "Noctis Team: checking";
+  }
+
+  if (error && projects.length === 0) {
+    return "Noctis Team: unavailable";
+  }
+
+  if (projects.length === 0) {
+    return "Noctis Team: none";
+  }
+
+  if (projects.length === 1) {
+    const [project] = projects;
+    return `Noctis Team: ${project.displayName} / ${project.branchName ?? "unknown"}`;
+  }
+
+  const [firstProject] = projects;
+  return `Noctis Team: ${firstProject.displayName} / ${firstProject.branchName ?? "unknown"} +${projects.length - 1}`;
+}
+
+function formatActiveProjectTitle(projects: ProjectEntry[], error: string | null) {
+  if (projects.length === 0) {
+    return error ?? "No active projects for Noctis Team";
+  }
+
+  return projects
+    .map((project) => `${project.displayName} (${project.id}) / ${project.branchName ?? "unknown"}`)
+    .join("\n");
+}
+
+function formatProjectUpdatedAt(value: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
+}
+
+function getServerStatusLabel(status: HeaderServerStatus | null) {
+  if (!status) {
+    return "OpenCode: checking";
+  }
+
+  if (status.state === "running") {
+    return "OpenCode: running";
+  }
+
+  if (status.state === "starting") {
+    return "OpenCode: starting";
+  }
+
+  return "OpenCode: down";
+}
+
 const Layout = (_props: Route.ComponentProps) => {
   const navigation = useNavigation();
   const location = useLocation();
   const isLoading = navigation.state !== "idle";
+  const { data: activeProjectsData, loading: activeProjectsLoading, error: activeProjectsError } =
+    useActiveProjects();
+  const [serverStatus, setServerStatus] = useState<HeaderServerStatus | null>(null);
 
   const isNavItemActive = (to: string, end?: boolean) => {
     if (end) {
@@ -57,6 +139,58 @@ const Layout = (_props: Route.ComponentProps) => {
 
   const activeNavLabel =
     NAV_ITEMS.find((item) => isNavItemActive(item.to, item.end))?.label ?? "Multi-Agent";
+
+  const activeNoctisProjects = useMemo(() => {
+    const activeIds = activeProjectsData?.projectScopes.noctis_team.activeProjectIds ?? [];
+    const activeIdSet = new Set(activeIds);
+    return (activeProjectsData?.projects ?? []).filter((project) => activeIdSet.has(project.id));
+  }, [activeProjectsData]);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    const fetchServerStatus = async () => {
+      try {
+        const response = await fetch("/api/opencode/server");
+        const data = (await response.json()) as HeaderServerStatus;
+
+        if (!response.ok) {
+          throw new Error(data.error ?? `HTTP ${response.status}`);
+        }
+
+        if (!isDisposed) {
+          setServerStatus(data);
+        }
+      } catch (error) {
+        if (!isDisposed) {
+          setServerStatus({
+            checkedAt: new Date().toISOString(),
+            error: error instanceof Error ? error.message : String(error),
+            isRunning: false,
+            lastStartedAt: null,
+            managedByApp: false,
+            state: "down",
+            url: "",
+          });
+        }
+      }
+    };
+
+    fetchServerStatus();
+    const intervalId = window.setInterval(fetchServerStatus, 10000);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const activeProjectLabel = formatActiveProjectLabel(
+    activeNoctisProjects,
+    activeProjectsLoading,
+    activeProjectsError
+  );
+  const serverStatusLabel = getServerStatusLabel(serverStatus);
 
   return (
     <SidebarProvider defaultOpen className="relative h-full min-h-0 overflow-hidden">
@@ -149,9 +283,95 @@ const Layout = (_props: Route.ComponentProps) => {
           </div>
         )}
 
-        <div className="flex shrink-0 items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-2 backdrop-blur-sm">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-2 backdrop-blur-sm">
           <SidebarTrigger className="shrink-0" />
           <span className="font-medium text-sm text-foreground/85">{activeNavLabel}</span>
+
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <HoverCard openDelay={120} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <Badge
+                  className="max-w-full cursor-default gap-1 border-primary/20 bg-primary/10 font-normal text-[11px] text-foreground/85"
+                  variant="outline"
+                >
+                  <Crown className="h-3 w-3 shrink-0 text-primary/80" />
+                  <span className="truncate">{activeProjectLabel}</span>
+                </Badge>
+              </HoverCardTrigger>
+              <HoverCardContent align="end" className="w-90 space-y-3 p-3" sideOffset={10}>
+                <div className="space-y-1">
+                  <div className="font-medium text-sm text-foreground">Noctis Team Active Projects</div>
+                  <div className="text-muted-foreground text-xs">
+                    {formatActiveProjectTitle(activeNoctisProjects, activeProjectsError)}
+                  </div>
+                </div>
+
+                {activeNoctisProjects.length > 0 ? (
+                  <div className="space-y-2">
+                    {activeNoctisProjects.map((project) => (
+                      <div
+                        className="rounded-lg border border-border/60 bg-background/70 px-3 py-2.5"
+                        key={project.id}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium text-sm text-foreground">
+                            {project.displayName}
+                          </span>
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                            {project.id}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+                          <span className="text-muted-foreground">Branch</span>
+                          <span className="truncate font-mono text-foreground/90">
+                            {project.branchName ?? "unknown"}
+                          </span>
+
+                          <span className="text-muted-foreground">Path</span>
+                          <span className="truncate font-mono text-foreground/90" title={project.path}>
+                            {project.path}
+                          </span>
+
+                          <span className="text-muted-foreground">Updated</span>
+                          <span className="text-foreground/90">
+                            {formatProjectUpdatedAt(project.updatedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+                    {activeProjectsError ?? "No active project is configured for the Noctis Team scope."}
+                  </div>
+                )}
+              </HoverCardContent>
+            </HoverCard>
+
+            <Badge
+              className={cn(
+                "gap-1 font-normal text-[11px]",
+                serverStatus?.state === "running" &&
+                  "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                serverStatus?.state === "starting" &&
+                  "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                (!serverStatus || serverStatus.state === "down") &&
+                  "border-border/60 bg-background/60 text-foreground/75"
+              )}
+              title={serverStatus?.error ?? serverStatus?.url ?? "Checking OpenCode server health"}
+              variant="outline"
+            >
+              {serverStatus?.state === "running" ? (
+                <CheckCircle2 className="h-3 w-3 shrink-0" />
+              ) : serverStatus?.state === "starting" ? (
+                <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />
+              ) : (
+                <ServerCrash className="h-3 w-3 shrink-0" />
+              )}
+              <span>{serverStatusLabel}</span>
+            </Badge>
+          </div>
         </div>
 
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
