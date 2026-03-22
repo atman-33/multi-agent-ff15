@@ -7,17 +7,17 @@ type Props = {
   content: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  role: "user" | "assistant";
+  senderLabel: string;
 };
 
-const MessageDetailSheet = ({ content, onOpenChange, open, role }: Props) => {
+const MessageDetailSheet = ({ content, onOpenChange, open, senderLabel }: Props) => {
   return (
     <MessageDetailSheetBase
       copyContent={content}
       description="Full markdown detail view"
       onOpenChange={onOpenChange}
       open={open}
-      title={role === "user" ? "User message detail" : "Assistant message detail"}
+      title={`${senderLabel} message detail`}
     >
       <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
         <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">

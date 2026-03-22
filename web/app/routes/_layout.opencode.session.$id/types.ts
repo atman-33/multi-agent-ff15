@@ -14,6 +14,11 @@ export type MessageInfo = {
   info: {
     id: string;
     role: "user" | "assistant";
+    agent?: string;
+    time: {
+      created: number;
+      completed?: number;
+    };
   };
   parts: MessagePart[];
 };
