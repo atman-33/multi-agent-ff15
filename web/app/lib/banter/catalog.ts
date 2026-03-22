@@ -16,6 +16,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "状況を動かす。ついてこい。",
         "行くぞ。まずは全体を掴む。",
       ],
+      "task-delegated": [
+        "任せた。進捗が出たらすぐ寄こせ。",
+        "お前に振る。片がついたら知らせろ。",
+        "この線は任せる。拾ったものは全部上げてくれ。",
+        "そっちで見てくれ。動きがあればすぐ共有だ。",
+      ],
       "task-progress-early": [
         "まだ荒いが、筋は見えてきた。",
         "急ぐな。まずは流れを読む。",
@@ -49,6 +55,12 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
     },
     ignis: {
+      "message-received": [
+        "了解した。内容を確認する。",
+        "受け取った。すぐに整理へ入る。",
+        "指示は把握した。前提から確認する。",
+        "承知した。まずは論点を揃えよう。",
+      ],
       "task-assigned": [
         "分析を開始する。少し時間をくれ。",
         "了解。まずは差分を整理する。",
@@ -66,6 +78,26 @@ export const BANTER_CATALOG: BanterCatalog = {
         "主因はもう少しで見える。",
         "仮説を二つまで絞った。",
         "不要な線はかなり消えた。",
+      ],
+      "report-running": [
+        "途中経過を送った。引き続き確認を進める。",
+        "現時点の整理を Noctis に共有した。",
+        "中間報告は送信済みだ。作業を継続する。",
+      ],
+      "report-blocked": [
+        "阻害要因を Noctis に伝えた。判断を仰ぐ。",
+        "詰まりがある。状況は共有済みだ。",
+        "いったん障害を報告した。次の条件を待つ。",
+      ],
+      "report-completed": [
+        "結論を Noctis に送った。次の判断に使えるはずだ。",
+        "報告済みだ。必要な材料は揃えた。",
+        "結果は渡した。次の判断に移れる。",
+      ],
+      "report-failed": [
+        "失敗として報告した。条件の見直しが必要だ。",
+        "今回は崩れた。Noctis には伝えてある。",
+        "成立しなかった。報告は送信済みだ。",
       ],
       "task-completed": [
         "分析完了。結果を Noctis に送った。",
@@ -88,6 +120,12 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
     },
     gladiolus: {
+      "message-received": [
+        "了解だ。こっちで片付ける。",
+        "受け取った。すぐ動く。",
+        "話は分かった。正面から行くぞ。",
+        "任せろ。まずはぶつかってみる。",
+      ],
       "task-assigned": [
         "任務を実行する。邪魔はするな。",
         "了解だ。正面から片付ける。",
@@ -105,6 +143,26 @@ export const BANTER_CATALOG: BanterCatalog = {
         "形になってきた。押し切る。",
         "壁は薄くなった。このまま行く。",
         "終わりは見えてる。",
+      ],
+      "report-running": [
+        "途中経過は送った。このまま押す。",
+        "今の状況は Noctis に伝えた。続けるぞ。",
+        "中間報告を入れた。まだ手は止めねえ。",
+      ],
+      "report-blocked": [
+        "止まった理由は送ってある。次の一手を待つ。",
+        "壁に当たったって報告した。まだ諦めてねえ。",
+        "詰まりは共有済みだ。立て直しに入る。",
+      ],
+      "report-completed": [
+        "終わった。Noctis に報告も済ませた。",
+        "片付けた。結果はもう渡してある。",
+        "道は開けた。報告は上げたぞ。",
+      ],
+      "report-failed": [
+        "抜けなかったって伝えた。次は別の角度だ。",
+        "失敗として上げた。まだ終わりじゃねえ。",
+        "今回は崩れた。報告はもう出してある。",
       ],
       "task-completed": [
         "任務完了だ。きれいに片付けた。",
@@ -127,6 +185,12 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
     },
     prompto: {
+      "message-received": [
+        "了解！ すぐ見てくるね！",
+        "受け取ったよ！ まずは当たりを探す！",
+        "オッケー、内容は把握した！",
+        "任せて！ こっちで追ってみる！",
+      ],
       "task-assigned": [
         "了解！ 今すぐ情報を集めるよ。",
         "オッケー、走ってくる！",
@@ -144,6 +208,26 @@ export const BANTER_CATALOG: BanterCatalog = {
         "これ、だいぶ見えてきたよ！",
         "当たりが絞れてきた！",
         "もう少しで繋がりそう！",
+      ],
+      "report-running": [
+        "途中経過を送ったよ！ まだ掘れる！",
+        "いま分かった分は Noctis に共有した！",
+        "中間報告オッケー！ このまま続けるね！",
+      ],
+      "report-blocked": [
+        "引っかかってるって送った！ ちょい立て直す！",
+        "詰まりを報告したよ。別の線も当たってみる！",
+        "今の問題は共有済み！ もう一回探ってみるね！",
+      ],
+      "report-completed": [
+        "報告送ったよ！ 使えそうなネタもまとめといた！",
+        "完了って伝えた！ 次もいけるよ！",
+        "結果は Noctis に届けた！ いい感じ！",
+      ],
+      "report-failed": [
+        "だめだったって送った！ でもまだ探れる！",
+        "今回は外したって報告したよ。次で巻き返す！",
+        "失敗報告は済ませた！ もう一回当たり直すね！",
       ],
       "task-completed": [
         "報告完了！ ついでにいい絵も拾えたよ。",
@@ -174,6 +258,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Stay sharp. We start now.",
         "Let's get this moving.",
         "Eyes up. We take it from the top.",
+      ],
+      "task-delegated": [
+        "I'm handing this off. Report back the moment it moves.",
+        "Your turn. Send me anything useful right away.",
+        "Take this line and keep me posted.",
+        "Handle it. I want updates as soon as you have them.",
       ],
       "task-progress-early": [
         "Too early to cut corners. Read the field first.",
@@ -208,6 +298,12 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
     },
     ignis: {
+      "message-received": [
+        "Understood. I'll review the details now.",
+        "Received. I'll sort the constraints first.",
+        "Got it. Starting from the assumptions.",
+        "Acknowledged. I'll structure the problem first.",
+      ],
       "task-assigned": [
         "Running analysis... this may take a moment.",
         "Understood. I'll break the problem down first.",
@@ -225,6 +321,26 @@ export const BANTER_CATALOG: BanterCatalog = {
         "I'm down to a smaller set of plausible causes.",
         "The primary line is almost clear.",
         "Most of the false leads are gone now.",
+      ],
+      "report-running": [
+        "I've sent an interim update to Noctis. Continuing.",
+        "Current findings are with Noctis now. I'll keep digging.",
+        "Midpoint report sent. Work is still in progress.",
+      ],
+      "report-blocked": [
+        "I've reported the blocker to Noctis. Awaiting the next decision.",
+        "The obstruction is logged with Noctis now.",
+        "Blocked for the moment. Noctis has the details.",
+      ],
+      "report-completed": [
+        "Final report sent to Noctis. The conclusions should be actionable.",
+        "I've delivered the result to Noctis.",
+        "The report is in. We can act on it now.",
+      ],
+      "report-failed": [
+        "I've reported the failure. The setup needs another pass.",
+        "This line failed. Noctis has the full summary.",
+        "Failure transmitted. The conditions need revisiting.",
       ],
       "task-completed": [
         "Analysis complete. Results transmitted to Noctis.",
@@ -247,6 +363,12 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
     },
     gladiolus: {
+      "message-received": [
+        "Got it. I'll handle it from here.",
+        "Received. Moving now.",
+        "Yeah, I heard you. I'll hit it head-on.",
+        "Leave it with me. I'll push through it.",
+      ],
       "task-assigned": [
         "Executing task. Don't get in my way.",
         "Got it. I'll force it through.",
@@ -264,6 +386,26 @@ export const BANTER_CATALOG: BanterCatalog = {
         "I've almost got a clean path through.",
         "The wall is thinner now.",
         "Close enough to finish with force.",
+      ],
+      "report-running": [
+        "Sent the update. I'm still pushing.",
+        "Noctis has the current status. I'm not done yet.",
+        "Mid-run report is out. I keep moving.",
+      ],
+      "report-blocked": [
+        "I told Noctis what stopped me. I'll reset and push again.",
+        "Blocker reported. I'm lining up the next hit.",
+        "Noctis knows where it jammed. I'm not backing off.",
+      ],
+      "report-completed": [
+        "Done. Noctis has the report already.",
+        "Wrapped it up and sent the result.",
+        "Path's open. Report delivered.",
+      ],
+      "report-failed": [
+        "Didn't break through. I reported it.",
+        "Failure's logged with Noctis. Next round won't miss.",
+        "That push failed. Noctis has the summary now.",
       ],
       "task-completed": [
         "Task done. Clean as a blade.",
@@ -286,6 +428,12 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
     },
     prompto: {
+      "message-received": [
+        "Got it! I'll check it out right now!",
+        "Received! Let me chase the good leads!",
+        "Okay, I'm on it!",
+        "Leave it to me! I'll track it down!",
+      ],
       "task-assigned": [
         "On it! Gathering data as we speak.",
         "Got it! I'll go fish out the good stuff.",
@@ -303,6 +451,26 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Yeah, I'm getting a clearer read now!",
         "The good hits are starting to stand out!",
         "Almost got the thread!",
+      ],
+      "report-running": [
+        "I sent a progress update! Still chasing more.",
+        "Noctis has the latest from me. I'm keeping at it!",
+        "Midpoint report sent! I'm not done yet!",
+      ],
+      "report-blocked": [
+        "I told Noctis what's blocking me! I'll try another angle!",
+        "Blocker reported! Let me regroup and sweep again!",
+        "Noctis has the bad news. I'm still hunting for a way through!",
+      ],
+      "report-completed": [
+        "Report sent! Everything useful is packed in there!",
+        "Done and delivered to Noctis!",
+        "Final update's out! Ready for the next run!",
+      ],
+      "report-failed": [
+        "I sent the failure report. I'll line up another shot!",
+        "That one missed. Noctis has the details now!",
+        "Failure reported! I'll come back with a better angle!",
       ],
       "task-completed": [
         "Report filed! And I got some sick shots too.",

@@ -4,9 +4,15 @@ export type BanterAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
 
 export type BanterCue =
   | "session-start"
+  | "task-delegated"
   | "task-assigned"
+  | "message-received"
   | "task-progress-early"
   | "task-progress-late"
+  | "report-running"
+  | "report-blocked"
+  | "report-completed"
+  | "report-failed"
   | "task-completed"
   | "task-failed"
   | "task-retrying"

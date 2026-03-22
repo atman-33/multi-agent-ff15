@@ -69,6 +69,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
         prompto: mission.workerSessions.prompto ?? null,
       },
       delegationLedger: mission.delegationLedger,
+      messageLog: mission.messageLog,
       contextUsageByAgent,
       sessionStatuses,
       noctisMessages: messagesResult.data ?? [],
