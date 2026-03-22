@@ -242,9 +242,10 @@ AgentModelPicker.displayName = "AgentModelPicker";
 
 interface PartyStatusPanelProps {
   members: PartyMember[];
+  speakingAgentId?: string | null;
 }
 
-export const PartyStatusPanel = ({ members }: PartyStatusPanelProps) => {
+export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatusPanelProps) => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [presets, setPresets] = useState<ModelPreset[]>([]);
   const agentModels = useChatStore((state) => state.agentModels);
@@ -327,6 +328,7 @@ export const PartyStatusPanel = ({ members }: PartyStatusPanelProps) => {
             <div key={member.id}>
               <CharacterCard
                 {...member}
+                isSpeaking={normalizedAgentId === speakingAgentId}
                 metaAccessory={
                   <AgentModelPicker
                     agentId={member.id}

@@ -34,6 +34,18 @@ export const BANTER_CATALOG: BanterCatalog = {
         "線は見えた。あとは詰めるだけだ。",
         "迷いは減った。このまま押す。",
       ],
+      "report-acknowledged": [
+        "受け取った。次に繋げる。",
+        "いい。これで動ける。",
+        "報告は見た。判断材料には十分だ。",
+        "上出来だ。次の手を組む。",
+      ],
+      "session-settled": [
+        "ひとまず片付いたな。次の指示を待つ。",
+        "ここはいったん落ち着いた。必要ならまた動く。",
+        "一区切りついた。次の手が来るまで待機だ。",
+        "今の流れは収まった。次に備える。",
+      ],
       "task-completed": [
         "よし、片付いた。",
         "十分だ。次に進む。",
@@ -276,6 +288,18 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Close. I can narrow this down now.",
         "The noise is thinning out.",
         "Almost there. Keep pressure on it.",
+      ],
+      "report-acknowledged": [
+        "Got it. We can move on this.",
+        "Good. That's enough to act on.",
+        "Report received. I have what I need.",
+        "That works. I'll build the next move from it.",
+      ],
+      "session-settled": [
+        "That settles this round. Waiting on the next move.",
+        "We're at a stopping point for now.",
+        "This part is wrapped. Ready when the next call comes.",
+        "The board is quiet again. We hold here for now.",
       ],
       "task-completed": [
         "Good. That's settled.",

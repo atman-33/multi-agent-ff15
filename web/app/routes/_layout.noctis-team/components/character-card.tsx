@@ -10,6 +10,7 @@ export interface CharacterCardProps {
   name: string;
   role: string;
   imageSrc: string;
+  isSpeaking?: boolean;
   status: AgentStatus;
   task: string;
   detail?: string;
@@ -80,6 +81,7 @@ export const CharacterCard = ({
   name,
   role,
   imageSrc,
+  isSpeaking = false,
   status,
   task,
   detail,
@@ -96,7 +98,8 @@ export const CharacterCard = ({
         status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
         status === "success" &&
           "border-[hsl(var(--success)/0.3)] shadow-lg shadow-[hsl(var(--success)/0.08)]",
-        status === "blocked" && "border-destructive/30"
+        status === "blocked" && "border-destructive/30",
+        isSpeaking && "border-sky-300/45 bg-sky-500/8 shadow-[0_0_26px_rgba(125,211,252,0.18)]"
       )}
     >
       <div className="flex min-w-0 flex-row items-center gap-3">
@@ -107,19 +110,35 @@ export const CharacterCard = ({
           <div
             className="pointer-events-none absolute bottom-0 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full blur-lg"
             style={{
-              background: statusGlowColor[status],
-              animation: "agent-glow 2s ease-in-out infinite",
+              background: isSpeaking ? "rgba(125, 211, 252, 0.32)" : statusGlowColor[status],
+              animation: isSpeaking ? "agent-speaking-glow 0.9s ease-in-out infinite" : "agent-glow 2s ease-in-out infinite",
             }}
           />
+          {isSpeaking ? (
+            <div className="pointer-events-none absolute -top-1 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-sky-300/40 bg-sky-500/18 px-1.5 py-0.5 shadow-[0_0_16px_rgba(125,211,252,0.2)] backdrop-blur-sm">
+              {[0, 1, 2].map((dot) => (
+                <span
+                  key={dot}
+                  className="h-1 w-1 rounded-full bg-sky-100/90"
+                  style={{ animation: `banter-dot 0.9s ease-in-out ${dot * 0.12}s infinite` }}
+                />
+              ))}
+            </div>
+          ) : null}
           <img
             alt={name}
             src={imageSrc}
             className={cn(
               "relative z-10 h-full w-full object-contain object-bottom",
-              status === "working" && "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]"
+              status === "working" && !isSpeaking && "animate-bounce drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]",
+              isSpeaking && "drop-shadow-[0_0_10px_rgba(125,211,252,0.55)]"
             )}
             style={{
-              animation: status === "working" ? undefined : config.animation,
+              animation: isSpeaking
+                ? "agent-listening 0.9s ease-in-out infinite"
+                : status === "working"
+                  ? undefined
+                  : config.animation,
               filter: "drop-shadow(0 0 3px rgba(255,255,255,0.6)) drop-shadow(0 0 6px rgba(255,255,255,0.25))",
             }}
           />
@@ -130,6 +149,11 @@ export const CharacterCard = ({
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate font-bold text-sm tracking-wider text-foreground uppercase">{name}</span>
               <span className="shrink-0 font-mono text-[9px] text-muted-foreground uppercase tracking-widest">{role}</span>
+              {isSpeaking ? (
+                <span className="shrink-0 rounded-full border border-sky-300/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/90">
+                  talking
+                </span>
+              ) : null}
             </div>
             <p className="max-w-32 truncate text-right font-mono text-[10px] text-muted-foreground/70">
               {task}

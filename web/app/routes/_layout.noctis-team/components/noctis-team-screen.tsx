@@ -53,7 +53,9 @@ export function NoctisTeamScreen({
   const {
     messages,
     banterEntries,
+    latestBanterEntryId,
     partyMembers,
+    speakingAgentId,
     isSessionActive,
     isStreaming,
     isLoadingHistory,
@@ -198,11 +200,14 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={30}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 border-border/50 border-b p-3">
-              <PartyStatusPanel members={partyMembers} />
+              <PartyStatusPanel members={partyMembers} speakingAgentId={speakingAgentId} />
             </div>
 
             <div className="min-h-0 flex-1 overflow-hidden p-3">
-              <BanterLog entries={banterEntries} />
+              <BanterLog
+                entries={effectiveMissionId ? banterEntries : []}
+                latestEntryId={effectiveMissionId ? latestBanterEntryId : null}
+              />
             </div>
           </div>
         </ResizablePanel>

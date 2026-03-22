@@ -38,6 +38,9 @@ const PROGRESS_BANTER_DELAYS = {
   late: 10500,
 } as const;
 
+const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
+const SPEAKING_INDICATOR_MS = 980;
+
 const REPORT_BANTER_CUE: Record<ReportStatus, BanterCue> = {
   running: "report-running",
   blocked: "report-blocked",
@@ -194,10 +197,22 @@ function buildMissionMessageBanterTemplates(
   if (entry.type === "report" && entry.toAgent === "noctis" && entry.reportStatus) {
     return [
       createBanterTemplate(entry.fromAgent, REPORT_BANTER_CUE[entry.reportStatus], options),
+      ...(entry.reportStatus === "completed"
+        ? [createBanterTemplate("noctis", "report-acknowledged", options)]
+        : []),
     ].filter((template): template is BanterTemplate => template !== null);
   }
 
   return [];
+}
+
+function computeBanterRevealDelay(queueLength: number): number {
+  if (queueLength >= 4) {
+    return 420;
+  }
+
+  const baseDelay = 500 + Math.floor(Math.random() * 351);
+  return Math.max(420, baseDelay - Math.min(queueLength, 3) * 45);
 }
 
 function createInitialContextUsageByAgent(): Record<
@@ -357,6 +372,8 @@ export interface UseAgentSessionOptions {
 export interface UseAgentSessionReturn {
   messages: ChatMessage[];
   banterEntries: BanterEntry[];
+  latestBanterEntryId: string | null;
+  speakingAgentId: string | null;
   partyMembers: PartyMember[];
   isSessionActive: boolean;
   isStreaming: boolean;
@@ -384,6 +401,8 @@ export function useAgentSession({
       : createInitialWorkerSessionIds();
   const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
+  const [latestBanterEntryId, setLatestBanterEntryId] = useState<string | null>(null);
+  const [speakingAgentId, setSpeakingAgentId] = useState<string | null>(null);
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(createInitialPartyRuntimeState);
   const [delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
   const [contextUsageByAgent, setContextUsageByAgent] = useState(createInitialContextUsageByAgent);
@@ -401,10 +420,15 @@ export function useAgentSession({
   const hasHydratedMissionMessageLogRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimerRef = useRef<number | null>(null);
+  const banterRevealTimerRef = useRef<number | null>(null);
+  const speakingResetTimerRef = useRef<number | null>(null);
   const banterEntriesRef = useRef<RecentBanterEntry[]>([]);
   const banterMissionIdRef = useRef<string | null>(null);
+  const pendingBanterTemplatesRef = useRef<BanterTemplate[]>([]);
   const seenMissionMessageIdsRef = useRef<Set<string>>(new Set());
+  const hasHydratedNoctisSettledRef = useRef(false);
+  const lastNoctisSettledRef = useRef(false);
   const lastSessionStateRef = useRef<SessionStatus | null>(null);
   const lastWorkerSessionStatesRef = useRef<Record<WorkerMemberId, SessionStatus | null>>(
     createInitialWorkerSessionStates()
@@ -563,24 +587,65 @@ export function useAgentSession({
   }, []);
 
   const addBanter = useCallback(
-    (template: { speakerId: string; speakerName: string; speakerAvatar: string; message: string }) => {
-      setBanterEntries((prev) => [
-        ...prev,
-        (() => {
-          const nextEntry = { ...template, id: createId(), timestamp: new Date() };
-          banterEntriesRef.current = [
-            ...prev,
-            { speakerId: nextEntry.speakerId, message: nextEntry.message },
-          ];
-          return nextEntry;
-        })(),
-      ]);
+    (template: BanterTemplate) => {
+      pendingBanterTemplatesRef.current.push(template);
+
+      if (banterRevealTimerRef.current) {
+        return;
+      }
+
+      const revealNext = (delay: number) => {
+        banterRevealTimerRef.current = window.setTimeout(() => {
+          banterRevealTimerRef.current = null;
+          const nextTemplate = pendingBanterTemplatesRef.current.shift();
+          if (!nextTemplate) {
+            return;
+          }
+
+          const nextEntry = { ...nextTemplate, id: createId(), timestamp: new Date() };
+          setBanterEntries((prev) => {
+            const nextEntries = [...prev, nextEntry];
+            banterEntriesRef.current = nextEntries.map((entry) => ({
+              speakerId: entry.speakerId,
+              message: entry.message,
+            }));
+            return nextEntries;
+          });
+          setLatestBanterEntryId(nextEntry.id);
+          setSpeakingAgentId(nextEntry.speakerId);
+
+          if (speakingResetTimerRef.current) {
+            clearTimeout(speakingResetTimerRef.current);
+          }
+          speakingResetTimerRef.current = window.setTimeout(() => {
+            setSpeakingAgentId((current) => (current === nextEntry.speakerId ? null : current));
+            speakingResetTimerRef.current = null;
+          }, SPEAKING_INDICATOR_MS);
+
+          if (pendingBanterTemplatesRef.current.length > 0) {
+            revealNext(computeBanterRevealDelay(pendingBanterTemplatesRef.current.length));
+          }
+        }, delay);
+      };
+
+      revealNext(INITIAL_BANTER_REVEAL_DELAY_MS);
     },
     []
   );
 
   const clearBanterEntries = useCallback(() => {
+    if (banterRevealTimerRef.current) {
+      clearTimeout(banterRevealTimerRef.current);
+      banterRevealTimerRef.current = null;
+    }
+    if (speakingResetTimerRef.current) {
+      clearTimeout(speakingResetTimerRef.current);
+      speakingResetTimerRef.current = null;
+    }
+    pendingBanterTemplatesRef.current = [];
     banterEntriesRef.current = [];
+    setLatestBanterEntryId(null);
+    setSpeakingAgentId(null);
     setBanterEntries([]);
   }, []);
 
@@ -671,6 +736,8 @@ export function useAgentSession({
     lastIncomingNoctisMessageIdRef.current = null;
     hasHydratedRuntimeRef.current = false;
     hasHydratedMissionMessageLogRef.current = false;
+    hasHydratedNoctisSettledRef.current = false;
+    lastNoctisSettledRef.current = false;
     seenMissionMessageIdsRef.current = new Set();
     setIsStreaming(false);
     lastSessionStateRef.current = null;
@@ -685,7 +752,7 @@ export function useAgentSession({
     if (idleTimerRef.current) {
       clearTimeout(idleTimerRef.current);
     }
-    idleTimerRef.current = setTimeout(() => {
+    idleTimerRef.current = window.setTimeout(() => {
       setPartyRuntime(createInitialPartyRuntimeState());
     }, 2500);
   }, []);
@@ -858,7 +925,6 @@ export function useAgentSession({
             if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
               clearProgressBanter("noctis");
               handleAgentEvent({ type: "task.retrying", agentId: "noctis" });
-              scheduleProgressBanter("noctis");
             }
             lastSessionStateRef.current = nextStatus;
           }
@@ -953,6 +1019,10 @@ export function useAgentSession({
         isSessionStatusActive(optimisticNoctisStatus) ||
         pendingMissionSessionId === nextNoctisSessionId ||
         isStreaming;
+      const hasActiveDelegation = runtime.delegationLedger.activeTasks.some(
+        (task) => task.status === "pending" || task.status === "running"
+      );
+      const isNoctisSettled = !shouldPreserveNoctisActive && !hasActiveDelegation;
 
       clearPendingMissionSession(runtime.missionId);
 
@@ -971,6 +1041,21 @@ export function useAgentSession({
       });
       setDelegationLedger(runtime.delegationLedger);
       syncMissionMessageBanter(runtime.messageLog ?? []);
+      if (!hasHydratedNoctisSettledRef.current) {
+        hasHydratedNoctisSettledRef.current = true;
+        lastNoctisSettledRef.current = isNoctisSettled;
+      } else if (isNoctisSettled && !lastNoctisSettledRef.current) {
+        const settledTemplate = createBanterTemplate("noctis", "session-settled", {
+          language,
+          recentEntries: banterEntriesRef.current,
+        });
+        if (settledTemplate) {
+          addBanter(settledTemplate);
+        }
+        lastNoctisSettledRef.current = true;
+      } else {
+        lastNoctisSettledRef.current = isNoctisSettled;
+      }
       setContextUsageByAgent({
         noctis: runtime.contextUsageByAgent?.noctis ?? null,
         ignis: runtime.contextUsageByAgent?.ignis ?? null,
@@ -1028,6 +1113,8 @@ export function useAgentSession({
       clearPendingMissionSession,
       isStreaming,
       pendingMissionSessionId,
+      language,
+      addBanter,
       setOptimisticSessionState,
       setServerSessionState,
       subscribeToSession,
@@ -1041,6 +1128,12 @@ export function useAgentSession({
       closeWorkerEventSources();
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
+      }
+      if (banterRevealTimerRef.current) {
+        clearTimeout(banterRevealTimerRef.current);
+      }
+      if (speakingResetTimerRef.current) {
+        clearTimeout(speakingResetTimerRef.current);
       }
       clearProgressBanter();
     };
@@ -1087,6 +1180,8 @@ export function useAgentSession({
         lastIncomingNoctisMessageIdRef.current = null;
         hasHydratedRuntimeRef.current = false;
         hasHydratedMissionMessageLogRef.current = false;
+        hasHydratedNoctisSettledRef.current = false;
+        lastNoctisSettledRef.current = false;
         banterMissionIdRef.current = null;
         seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
@@ -1151,6 +1246,8 @@ export function useAgentSession({
         lastIncomingNoctisMessageIdRef.current = null;
         hasHydratedRuntimeRef.current = false;
         hasHydratedMissionMessageLogRef.current = false;
+        hasHydratedNoctisSettledRef.current = false;
+        lastNoctisSettledRef.current = false;
         seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
@@ -1232,7 +1329,6 @@ export function useAgentSession({
           setPendingMissionSession(data.missionId, data.noctisSessionId);
 
           handleAgentEvent({ type: "session.created" });
-          scheduleProgressBanter("noctis");
           subscribeToSession(data.noctisSessionId);
           await waitForActiveStatus(data.noctisSessionId);
           void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
@@ -1244,7 +1340,6 @@ export function useAgentSession({
             setOptimisticSessionState(noctisSessionIdRef.current, "busy");
           }
           handleAgentEvent({ type: "session.created" });
-          scheduleProgressBanter("noctis");
           if (noctisSessionIdRef.current) {
             subscribeToSession(noctisSessionIdRef.current);
           }
@@ -1356,6 +1451,8 @@ export function useAgentSession({
   return {
     messages,
     banterEntries,
+    latestBanterEntryId,
+    speakingAgentId,
     partyMembers,
     isSessionActive,
     isStreaming,

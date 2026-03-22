@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 export interface BanterEntry {
   id: string;
@@ -12,6 +13,7 @@ export interface BanterEntry {
 
 interface BanterLogProps {
   entries: BanterEntry[];
+  latestEntryId?: string | null;
 }
 
 const formatTime = (date: Date): string => {
@@ -23,7 +25,7 @@ const formatTime = (date: Date): string => {
   });
 };
 
-export const BanterLog = ({ entries }: BanterLogProps) => {
+export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(entries.length);
 
@@ -51,9 +53,24 @@ export const BanterLog = ({ entries }: BanterLogProps) => {
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="flex items-start gap-2 rounded-md bg-muted/20 px-2 py-1.5 transition-all"
-              style={{ animation: "fadeInUp 0.3s ease-out" }}
+              className={cn(
+                "flex items-start gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-1.5 transition-all",
+                entry.id === latestEntryId &&
+                  "border-sky-300/25 bg-sky-500/10 shadow-[0_0_18px_rgba(125,211,252,0.15)]"
+              )}
+              style={{
+                animation:
+                  entry.id === latestEntryId
+                    ? "fadeInUp 0.3s ease-out, banter-fresh 1.25s ease-out"
+                    : "fadeInUp 0.3s ease-out",
+              }}
             >
+              <div
+                className={cn(
+                  "mt-0.5 h-8 w-0.5 shrink-0 rounded-full bg-transparent transition-colors",
+                  entry.id === latestEntryId && "bg-sky-300/90 shadow-[0_0_10px_rgba(125,211,252,0.75)]"
+                )}
+              />
               <img
                 alt={entry.speakerName}
                 src={entry.speakerAvatar}
@@ -64,6 +81,11 @@ export const BanterLog = ({ entries }: BanterLogProps) => {
                   <span className="shrink-0 font-mono text-[10px] font-semibold text-primary/80 uppercase">
                     {entry.speakerName}
                   </span>
+                  {entry.id === latestEntryId ? (
+                    <span className="rounded-full border border-sky-300/35 bg-sky-500/12 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/90">
+                      live
+                    </span>
+                  ) : null}
                   <span className="font-mono text-[9px] text-muted-foreground/40">
                     {formatTime(entry.timestamp)}
                   </span>

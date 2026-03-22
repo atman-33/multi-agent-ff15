@@ -13,6 +13,8 @@ export type BanterCue =
   | "report-blocked"
   | "report-completed"
   | "report-failed"
+  | "report-acknowledged"
+  | "session-settled"
   | "task-completed"
   | "task-failed"
   | "task-retrying"
