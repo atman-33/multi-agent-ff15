@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
 import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
 import { extractReasoning, extractText, extractTools } from "@/routes/_layout.noctis-team/components/message-parts";
@@ -8,9 +8,7 @@ import type { AppLanguage } from "@/lib/app-language.server";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
 import type { RecentBanterEntry } from "@/lib/banter/types";
 import {
-  applyPartyUpdate,
   eventToPartyUpdate,
-  resetToIdle,
   type AgentEvent,
 } from "@/lib/event-to-party-update";
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
@@ -31,40 +29,74 @@ const PROGRESS_BANTER_DELAYS = {
   late: 10500,
 } as const;
 
-const INITIAL_PARTY: PartyMember[] = [
+const PARTY_MEMBER_META = [
   {
     id: "noctis",
     name: "Noctis",
     role: "Commander",
     imageSrc: "/images/noctis.png",
-    status: "idle",
-    task: "On the road",
+    defaultTask: "On the road",
   },
   {
     id: "ignis",
     name: "Ignis",
     role: "Analyst",
     imageSrc: "/images/ignis.png",
-    status: "idle",
-    task: "Awaiting orders",
+    defaultTask: "Awaiting orders",
   },
   {
     id: "gladio",
     name: "Gladio",
     role: "Executor",
     imageSrc: "/images/gladiolus.png",
-    status: "idle",
-    task: "Standing by",
+    defaultTask: "Standing by",
   },
   {
     id: "prompto",
     name: "Prompto",
     role: "Reporter",
     imageSrc: "/images/prompto.png",
-    status: "idle",
-    task: "Monitoring feeds",
+    defaultTask: "Monitoring feeds",
   },
-];
+] as const;
+
+type PartyRuntimeEntry = Pick<PartyMember, "status" | "task" | "detail" | "progress">;
+type PartyRuntimeState = Record<string, PartyRuntimeEntry>;
+
+function createInitialPartyRuntimeState(): PartyRuntimeState {
+  return Object.fromEntries(
+    PARTY_MEMBER_META.map((member) => [
+      member.id,
+      {
+        status: "idle",
+        task: member.defaultTask,
+        detail: undefined,
+        progress: undefined,
+      },
+    ])
+  ) as PartyRuntimeState;
+}
+
+function applyPartyRuntimeUpdate(
+  current: PartyRuntimeState,
+  update: { memberId: string; status: PartyMember["status"]; task: string; detail?: string }
+): PartyRuntimeState {
+  const existing = current[update.memberId];
+  if (!existing) {
+    return current;
+  }
+
+  return {
+    ...current,
+    [update.memberId]: {
+      ...existing,
+      status: update.status,
+      task: update.task,
+      detail: update.detail,
+      progress: undefined,
+    },
+  };
+}
 
 const INITIAL_MESSAGES: ChatMessage[] = [
   {
@@ -182,7 +214,7 @@ export function useAgentSession({
       : null;
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
-  const [partyMembers, setPartyMembers] = useState<PartyMember[]>(INITIAL_PARTY);
+  const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(createInitialPartyRuntimeState);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -204,6 +236,40 @@ export function useAgentSession({
   const setSessionState = useChatStore((state) => state.setSessionState);
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
   const isSessionActive = isSessionStatusActive(sessionStatus);
+  const partyMembers = useMemo<PartyMember[]>(
+    () =>
+      PARTY_MEMBER_META.map((member) => {
+        const runtime = partyRuntime[member.id] ?? {
+          status: "idle",
+          task: member.defaultTask,
+        };
+
+        if (member.id === "noctis" && isSessionActive) {
+          return {
+            id: member.id,
+            name: member.name,
+            role: member.role,
+            imageSrc: member.imageSrc,
+            status: "working",
+            task: "Coordinating…",
+            detail: runtime.detail,
+            progress: runtime.progress,
+          };
+        }
+
+        return {
+          id: member.id,
+          name: member.name,
+          role: member.role,
+          imageSrc: member.imageSrc,
+          status: runtime.status,
+          task: runtime.task,
+          detail: runtime.detail,
+          progress: runtime.progress,
+        };
+      }),
+    [isSessionActive, partyRuntime]
+  );
 
   useEffect(() => {
     if (!initialNoctisSessionId) {
@@ -306,7 +372,7 @@ export function useAgentSession({
       clearTimeout(idleTimerRef.current);
     }
     idleTimerRef.current = setTimeout(() => {
-      setPartyMembers((prev) => resetToIdle(prev));
+      setPartyRuntime(createInitialPartyRuntimeState());
     }, 2500);
   }, []);
 
@@ -324,39 +390,6 @@ export function useAgentSession({
     },
     []
   );
-
-  useEffect(() => {
-    setPartyMembers((prev) =>
-      prev.map((member) => {
-        if (member.id !== "noctis") {
-          return member;
-        }
-
-        if (isSessionActive) {
-          if (member.status === "working" && member.task === "Coordinating…") {
-            return member;
-          }
-
-          return {
-            ...member,
-            status: "working",
-            task: "Coordinating…",
-          };
-        }
-
-        if (member.status === "working") {
-          return {
-            ...member,
-            status: "idle",
-            task: "On the road",
-            detail: undefined,
-          };
-        }
-
-        return member;
-      })
-    );
-  }, [isSessionActive]);
 
   const handleAgentEvent = useCallback(
     (event: AgentEvent | StreamAgentEvent) => {
@@ -412,7 +445,7 @@ export function useAgentSession({
         recentEntries: banterEntriesRef.current,
       });
       if (update) {
-        setPartyMembers((prev) => applyPartyUpdate(prev, update));
+        setPartyRuntime((prev) => applyPartyRuntimeUpdate(prev, update));
         if (update.banterTemplate) {
           addBanter(update.banterTemplate);
         }
@@ -543,7 +576,7 @@ export function useAgentSession({
         streamingMessageIdRef.current = null;
         setMessages(INITIAL_MESSAGES);
         clearBanterEntries();
-        setPartyMembers(INITIAL_PARTY);
+        setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
         lastSessionStateRef.current = null;
         sessionStatusRef.current = null;
@@ -584,7 +617,7 @@ export function useAgentSession({
         streamingMessageIdRef.current = null;
         setMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
         clearBanterEntries();
-        setPartyMembers(INITIAL_PARTY);
+        setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
         lastSessionStateRef.current = null;
         sessionStatusRef.current = null;
@@ -743,7 +776,7 @@ export function useAgentSession({
       setIsStreaming(false);
       clearProgressBanter();
       setSessionState(sessionId, "idle");
-      setPartyMembers((prev) => resetToIdle(prev));
+      setPartyRuntime(createInitialPartyRuntimeState());
     } catch (err) {
       const errorMessage: ChatMessage = {
         id: createId(),
