@@ -16,11 +16,8 @@ export interface ModelSelection {
   modelID: string;
 }
 
-export type ContextUsageFreshness = "fresh" | "stale";
-
 export interface AgentContextUsage {
   calculatedAt: string;
-  freshness: ContextUsageFreshness;
   limitTokens: number;
   modelID: string;
   providerID: string;

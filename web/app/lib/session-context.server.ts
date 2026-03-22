@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentContextUsage, ContextUsageFreshness } from "./types/mission";
+import type { AgentContextUsage } from "./types/mission";
 import { getProjectRoot } from "./get-project-root.server";
 
 type SessionContextSnapshotFile = {
@@ -22,8 +22,6 @@ type SessionContextSnapshotFile = {
   usedTokens?: unknown;
 };
 
-const STALE_AFTER_MS = 30_000;
-
 function getSessionContextStoreDir(): string {
   return join(getProjectRoot(), "runtime", "session-context");
 }
@@ -38,15 +36,6 @@ function readNumber(value: unknown): number | null {
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function getFreshness(calculatedAt: string): ContextUsageFreshness {
-  const timestamp = Date.parse(calculatedAt);
-  if (Number.isNaN(timestamp)) {
-    return "stale";
-  }
-
-  return Date.now() - timestamp <= STALE_AFTER_MS ? "fresh" : "stale";
 }
 
 export function ensureSessionContextStoreDir(): void {
@@ -100,7 +89,6 @@ export function readSessionContextUsage(sessionId: string): AgentContextUsage | 
 
     return {
       calculatedAt,
-      freshness: getFreshness(calculatedAt),
       limitTokens,
       modelID,
       providerID,
