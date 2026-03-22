@@ -33,8 +33,16 @@ type ChatStore = {
   sessionDrafts: Record<string, SessionDraft>;
   setSessionDraft: (sessionId: string, draft: SessionDraft) => void;
   clearSessionDraft: (sessionId: string) => void;
+  pendingMissionSessions: Record<string, string>;
+  setPendingMissionSession: (missionId: string, sessionId: string) => void;
+  clearPendingMissionSession: (missionId: string) => void;
+  serverSessionStates: Record<string, SessionStatus>;
+  optimisticSessionStates: Record<string, SessionStatus>;
   sessionStates: Record<string, SessionStatus>;
-  setSessionState: (sessionId: string, state: SessionStatus) => void;
+  setServerSessionState: (sessionId: string, state: SessionStatus) => void;
+  replaceServerSessionStates: (sessionStates: Record<string, SessionStatus>) => void;
+  setOptimisticSessionState: (sessionId: string, state: SessionStatus, ttlMs?: number) => void;
+  clearOptimisticSessionState: (sessionId: string) => void;
   streamingMessageId: string | null;
   setStreamingMessageId: (id: string | null) => void;
   streamingContent: string;
@@ -47,7 +55,7 @@ const MODEL_STORAGE_KEY = "ff15.selectedModel";
 const AGENT_STORAGE_KEY = "ff15.selectedAgent";
 const AGENT_MODELS_STORAGE_KEY = "ff15.agentModels";
 const SESSION_DRAFTS_STORAGE_KEY = "ff15.sessionDrafts";
-const SESSION_STATES_STORAGE_KEY = "ff15.sessionStates";
+const OPTIMISTIC_SESSION_TTL_MS = 15000;
 
 const normalizeAgentModelKey = (agentId: string): string => {
   return agentId === "gladio" ? "gladiolus" : agentId;
@@ -199,47 +207,40 @@ const persistSessionDrafts = (drafts: Record<string, SessionDraft>): void => {
   window.localStorage.setItem(SESSION_DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
 };
 
-const isSessionStatus = (value: unknown): value is SessionStatus => {
-  return value === "idle" || value === "busy" || value === "retry";
-};
+const normalizeTrackedSessionStates = (
+  sessionStates: Record<string, SessionStatus>
+): Record<string, SessionStatus> => {
+  const next: Record<string, SessionStatus> = {};
 
-const getInitialSessionStates = (): Record<string, SessionStatus> => {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const raw = window.sessionStorage.getItem(SESSION_STATES_STORAGE_KEY);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const sessionStates: Record<string, SessionStatus> = {};
-
-    for (const [sessionId, value] of Object.entries(parsed)) {
-      if (isSessionStatus(value)) {
-        sessionStates[sessionId] = value;
-      }
+  for (const [sessionId, state] of Object.entries(sessionStates)) {
+    if (state === "busy" || state === "retry") {
+      next[sessionId] = state;
     }
-
-    return sessionStates;
-  } catch {
-    return {};
   }
+
+  return next;
 };
 
-const persistSessionStates = (sessionStates: Record<string, SessionStatus>): void => {
-  if (typeof window === "undefined") {
+const mergeSessionStates = (
+  serverSessionStates: Record<string, SessionStatus>,
+  optimisticSessionStates: Record<string, SessionStatus>
+): Record<string, SessionStatus> => {
+  return {
+    ...normalizeTrackedSessionStates(serverSessionStates),
+    ...normalizeTrackedSessionStates(optimisticSessionStates),
+  };
+};
+
+const optimisticSessionTimers = new Map<string, number>();
+
+const clearOptimisticSessionTimer = (sessionId: string): void => {
+  const timer = optimisticSessionTimers.get(sessionId);
+  if (!timer) {
     return;
   }
 
-  if (Object.keys(sessionStates).length === 0) {
-    window.sessionStorage.removeItem(SESSION_STATES_STORAGE_KEY);
-    return;
-  }
-
-  window.sessionStorage.setItem(SESSION_STATES_STORAGE_KEY, JSON.stringify(sessionStates));
+  clearTimeout(timer);
+  optimisticSessionTimers.delete(sessionId);
 };
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -299,16 +300,182 @@ export const useChatStore = create<ChatStore>((set) => ({
       persistSessionDrafts(sessionDrafts);
       return { sessionDrafts };
     }),
-  sessionStates: getInitialSessionStates(),
-  setSessionState: (sessionId, state) =>
+  pendingMissionSessions: {},
+  setPendingMissionSession: (missionId, sessionId) =>
     set((current) => {
-      if (current.sessionStates[sessionId] === state) {
+      if (current.pendingMissionSessions[missionId] === sessionId) {
         return current;
       }
 
-      const sessionStates = { ...current.sessionStates, [sessionId]: state };
-      persistSessionStates(sessionStates);
-      return { sessionStates }; 
+      return {
+        pendingMissionSessions: {
+          ...current.pendingMissionSessions,
+          [missionId]: sessionId,
+        },
+      };
+    }),
+  clearPendingMissionSession: (missionId) =>
+    set((current) => {
+      if (!(missionId in current.pendingMissionSessions)) {
+        return current;
+      }
+
+      const pendingMissionSessions = { ...current.pendingMissionSessions };
+      delete pendingMissionSessions[missionId];
+      return { pendingMissionSessions };
+    }),
+  serverSessionStates: {},
+  optimisticSessionStates: {},
+  sessionStates: {},
+  setServerSessionState: (sessionId, state) =>
+    set((current) => {
+      const nextServerSessionStates = { ...current.serverSessionStates };
+
+      if (state === "idle") {
+        if (!(sessionId in nextServerSessionStates)) {
+          clearOptimisticSessionTimer(sessionId);
+
+          if (!(sessionId in current.optimisticSessionStates)) {
+            return current;
+          }
+
+          const optimisticSessionStates = { ...current.optimisticSessionStates };
+          delete optimisticSessionStates[sessionId];
+          return {
+            optimisticSessionStates,
+            sessionStates: mergeSessionStates(nextServerSessionStates, optimisticSessionStates),
+          };
+        }
+
+        delete nextServerSessionStates[sessionId];
+        clearOptimisticSessionTimer(sessionId);
+
+        if (!(sessionId in current.optimisticSessionStates)) {
+          return {
+            serverSessionStates: nextServerSessionStates,
+            sessionStates: mergeSessionStates(nextServerSessionStates, current.optimisticSessionStates),
+          };
+        }
+
+        const optimisticSessionStates = { ...current.optimisticSessionStates };
+        delete optimisticSessionStates[sessionId];
+        return {
+          serverSessionStates: nextServerSessionStates,
+          optimisticSessionStates,
+          sessionStates: mergeSessionStates(nextServerSessionStates, optimisticSessionStates),
+        };
+      }
+
+      if (current.serverSessionStates[sessionId] === state && !(sessionId in current.optimisticSessionStates)) {
+        return current;
+      }
+
+      nextServerSessionStates[sessionId] = state;
+
+      if (!(sessionId in current.optimisticSessionStates)) {
+        return {
+          serverSessionStates: nextServerSessionStates,
+          sessionStates: mergeSessionStates(nextServerSessionStates, current.optimisticSessionStates),
+        };
+      }
+
+      clearOptimisticSessionTimer(sessionId);
+      const optimisticSessionStates = { ...current.optimisticSessionStates };
+      delete optimisticSessionStates[sessionId];
+      return {
+        serverSessionStates: nextServerSessionStates,
+        optimisticSessionStates,
+        sessionStates: mergeSessionStates(nextServerSessionStates, optimisticSessionStates),
+      };
+    }),
+  replaceServerSessionStates: (sessionStates) =>
+    set((current) => {
+      const nextServerSessionStates = normalizeTrackedSessionStates(sessionStates);
+
+      let optimisticSessionStates = current.optimisticSessionStates;
+      let optimisticChanged = false;
+      for (const sessionId of Object.keys(nextServerSessionStates)) {
+        if (!(sessionId in optimisticSessionStates)) {
+          continue;
+        }
+
+        if (!optimisticChanged) {
+          optimisticSessionStates = { ...optimisticSessionStates };
+          optimisticChanged = true;
+        }
+
+        delete optimisticSessionStates[sessionId];
+        clearOptimisticSessionTimer(sessionId);
+      }
+
+      const nextSessionStates = mergeSessionStates(nextServerSessionStates, optimisticSessionStates);
+      const currentEntries = Object.entries(current.sessionStates);
+      const nextEntries = Object.entries(nextSessionStates);
+
+      const sameEffective =
+        currentEntries.length === nextEntries.length &&
+        currentEntries.every(([sessionId, state]) => nextSessionStates[sessionId] === state);
+
+      const currentServerEntries = Object.entries(current.serverSessionStates);
+      const nextServerEntries = Object.entries(nextServerSessionStates);
+      const sameServer =
+        currentServerEntries.length === nextServerEntries.length &&
+        currentServerEntries.every(([sessionId, state]) => nextServerSessionStates[sessionId] === state);
+
+      if (sameEffective && sameServer && !optimisticChanged) {
+        return current;
+      }
+
+      return {
+        serverSessionStates: nextServerSessionStates,
+        optimisticSessionStates,
+        sessionStates: nextSessionStates,
+      };
+    }),
+  setOptimisticSessionState: (sessionId, state, ttlMs = OPTIMISTIC_SESSION_TTL_MS) =>
+    set((current) => {
+      if (state === "idle") {
+        clearOptimisticSessionTimer(sessionId);
+        if (!(sessionId in current.optimisticSessionStates)) {
+          return current;
+        }
+
+        const optimisticSessionStates = { ...current.optimisticSessionStates };
+        delete optimisticSessionStates[sessionId];
+        return {
+          optimisticSessionStates,
+          sessionStates: mergeSessionStates(current.serverSessionStates, optimisticSessionStates),
+        };
+      }
+
+      clearOptimisticSessionTimer(sessionId);
+      const optimisticSessionStates = { ...current.optimisticSessionStates, [sessionId]: state };
+
+      if (typeof window !== "undefined") {
+        const timer = window.setTimeout(() => {
+          useChatStore.getState().clearOptimisticSessionState(sessionId);
+        }, ttlMs);
+        optimisticSessionTimers.set(sessionId, timer);
+      }
+
+      return {
+        optimisticSessionStates,
+        sessionStates: mergeSessionStates(current.serverSessionStates, optimisticSessionStates),
+      };
+    }),
+  clearOptimisticSessionState: (sessionId) =>
+    set((current) => {
+      clearOptimisticSessionTimer(sessionId);
+      if (!(sessionId in current.optimisticSessionStates)) {
+        return current;
+      }
+
+      const optimisticSessionStates = { ...current.optimisticSessionStates };
+      delete optimisticSessionStates[sessionId];
+      return {
+        optimisticSessionStates,
+        sessionStates: mergeSessionStates(current.serverSessionStates, optimisticSessionStates),
+      };
     }),
   streamingMessageId: null,
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),

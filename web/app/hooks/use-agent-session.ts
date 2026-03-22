@@ -16,6 +16,7 @@ import {
 import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
 import {
   coerceSessionStatus,
+  fetchSessionStatuses,
   isSessionStatusActive,
   type SessionStatus,
 } from "@/lib/session-status";
@@ -227,10 +228,13 @@ export function useAgentSession({
   initialMissionData,
   initialMessageInfos,
 }: UseAgentSessionOptions): UseAgentSessionReturn {
+  const pendingMissionSessionId = useChatStore(
+    (state) => (activeMissionId ? state.pendingMissionSessions[activeMissionId] ?? null : null)
+  );
   const initialNoctisSessionId =
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? initialMissionData.sessions.noctis
-      : null;
+      : pendingMissionSessionId;
   const initialWorkerSessionIds =
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? toWorkerSessionIds(initialMissionData.sessions)
@@ -261,7 +265,11 @@ export function useAgentSession({
   >({});
 
   const sessionStates = useChatStore((state) => state.sessionStates);
-  const setSessionState = useChatStore((state) => state.setSessionState);
+  const setServerSessionState = useChatStore((state) => state.setServerSessionState);
+  const replaceServerSessionStates = useChatStore((state) => state.replaceServerSessionStates);
+  const setOptimisticSessionState = useChatStore((state) => state.setOptimisticSessionState);
+  const setPendingMissionSession = useChatStore((state) => state.setPendingMissionSession);
+  const clearPendingMissionSession = useChatStore((state) => state.clearPendingMissionSession);
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
   const isSessionActive = isSessionStatusActive(sessionStatus);
   const partyMembers = useMemo<PartyMember[]>(
@@ -581,7 +589,7 @@ export function useAgentSession({
         if (type === "session.idle") {
           const sessionId = noctisSessionIdRef.current;
           if (sessionId) {
-            setSessionState(sessionId, "idle");
+            setServerSessionState(sessionId, "idle");
             lastSessionStateRef.current = "idle";
             sessionStatusRef.current = "idle";
             void syncSessionMessages(sessionId).catch(() => undefined);
@@ -596,7 +604,7 @@ export function useAgentSession({
           const status = props?.status as Record<string, unknown> | undefined;
           const nextStatus = coerceSessionStatus(status?.type);
           if (nextStatus && noctisSessionIdRef.current) {
-            setSessionState(noctisSessionIdRef.current, nextStatus);
+            setServerSessionState(noctisSessionIdRef.current, nextStatus);
             sessionStatusRef.current = nextStatus;
             resolvePendingActive(noctisSessionIdRef.current, nextStatus);
             if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
@@ -620,7 +628,7 @@ export function useAgentSession({
       handleAgentEvent,
       resolvePendingActive,
       scheduleProgressBanter,
-      setSessionState,
+      setServerSessionState,
       syncSessionMessages,
     ]
   );
@@ -654,7 +662,7 @@ export function useAgentSession({
           }
 
           if (type === "session.idle") {
-            setSessionState(sessionId, "idle");
+            setServerSessionState(sessionId, "idle");
             lastWorkerSessionStatesRef.current[agentId] = "idle";
             return;
           }
@@ -667,7 +675,7 @@ export function useAgentSession({
               return;
             }
 
-            setSessionState(sessionId, nextStatus);
+            setServerSessionState(sessionId, nextStatus);
             if (
               nextStatus === "retry" &&
               lastWorkerSessionStatesRef.current[agentId] !== "retry"
@@ -683,7 +691,7 @@ export function useAgentSession({
         };
       }
     },
-    [closeWorkerEventSources, handleAgentEvent, setSessionState]
+    [closeWorkerEventSources, handleAgentEvent, setServerSessionState]
   );
 
   useEffect(() => {
@@ -754,6 +762,11 @@ export function useAgentSession({
         lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
         sessionStatusRef.current = null;
         clearProgressBanter();
+        void fetchSessionStatuses()
+          .then((statuses) => {
+            replaceServerSessionStates(statuses);
+          })
+          .catch(() => undefined);
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
         closeWorkerEventSources();
@@ -786,6 +799,7 @@ export function useAgentSession({
         }
 
         missionIdRef.current = mission.missionId;
+  clearPendingMissionSession(mission.missionId);
         noctisSessionIdRef.current = mission.sessions.noctis;
         setNoctisSessionId(mission.sessions.noctis);
         setWorkerSessionIds(toWorkerSessionIds(mission.sessions));
@@ -798,6 +812,7 @@ export function useAgentSession({
         lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
         sessionStatusRef.current = null;
         clearProgressBanter();
+        replaceServerSessionStates(await fetchSessionStatuses().catch(() => ({})));
         subscribeToSession(mission.sessions.noctis);
       } catch {
         missionIdRef.current = null;
@@ -807,6 +822,11 @@ export function useAgentSession({
         setMessages(INITIAL_MESSAGES);
         sessionStatusRef.current = null;
         clearProgressBanter();
+        void fetchSessionStatuses()
+          .then((statuses) => {
+            replaceServerSessionStates(statuses);
+          })
+          .catch(() => undefined);
         closeWorkerEventSources();
       } finally {
         setIsLoadingHistory(false);
@@ -817,10 +837,13 @@ export function useAgentSession({
   }, [
     activeMissionId,
     clearBanterEntries,
+    clearPendingMissionSession,
     clearProgressBanter,
     closeWorkerEventSources,
     initialMessageInfos,
     initialMissionData,
+    pendingMissionSessionId,
+    replaceServerSessionStates,
     subscribeToSession,
   ]);
 
@@ -865,6 +888,8 @@ export function useAgentSession({
           missionIdRef.current = data.missionId;
           noctisSessionIdRef.current = data.noctisSessionId;
           setNoctisSessionId(data.noctisSessionId);
+          setOptimisticSessionState(data.noctisSessionId, "busy");
+          setPendingMissionSession(data.missionId, data.noctisSessionId);
 
           handleAgentEvent({ type: "session.created" });
           scheduleProgressBanter("noctis");
@@ -875,6 +900,9 @@ export function useAgentSession({
           );
           return data.missionId;
         } else {
+          if (noctisSessionIdRef.current) {
+            setOptimisticSessionState(noctisSessionIdRef.current, "busy");
+          }
           handleAgentEvent({ type: "session.created" });
           scheduleProgressBanter("noctis");
           if (noctisSessionIdRef.current) {
@@ -924,6 +952,8 @@ export function useAgentSession({
       clearProgressBanter,
       handleAgentEvent,
       scheduleProgressBanter,
+      setPendingMissionSession,
+      setOptimisticSessionState,
       subscribeToSession,
       syncSessionMessages,
       waitForActiveStatus,
@@ -954,7 +984,7 @@ export function useAgentSession({
       streamingMessageIdRef.current = null;
       setIsStreaming(false);
       clearProgressBanter();
-      setSessionState(sessionId, "idle");
+      setServerSessionState(sessionId, "idle");
       setPartyRuntime(createInitialPartyRuntimeState());
     } catch (err) {
       const errorMessage: ChatMessage = {
@@ -971,7 +1001,7 @@ export function useAgentSession({
       };
       setMessages((prev) => [...prev, errorMessage]);
     }
-  }, [clearProgressBanter, setSessionState]);
+  }, [clearProgressBanter, setServerSessionState]);
 
   return {
     messages,

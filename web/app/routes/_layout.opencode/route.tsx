@@ -188,7 +188,8 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
   const sessionStates = useChatStore((state) => state.sessionStates);
-  const setSessionState = useChatStore((state) => state.setSessionState);
+  const setServerSessionState = useChatStore((state) => state.setServerSessionState);
+  const replaceServerSessionStates = useChatStore((state) => state.replaceServerSessionStates);
   const activeSessionId = params.id;
 
   const loadSessions = useCallback(async () => {
@@ -261,9 +262,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
 
     void fetchSessionStatuses()
       .then((statuses) => {
-        for (const [id, status] of Object.entries(statuses)) {
-          setSessionState(id, status);
-        }
+        replaceServerSessionStates(statuses);
       })
       .catch(() => undefined);
 
@@ -277,14 +276,14 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
         const eventSessionId = actual.properties.sessionID;
         const nextStatus = coerceSessionStatus(actual.properties.status?.type);
         if (eventSessionId && nextStatus) {
-          setSessionState(eventSessionId, nextStatus);
+          setServerSessionState(eventSessionId, nextStatus);
         }
       }
 
       if (actual.type === "session.idle") {
         const eventSessionId = actual.properties.sessionID;
         if (eventSessionId) {
-          setSessionState(eventSessionId, "idle");
+          setServerSessionState(eventSessionId, "idle");
           loadSessions();
         }
       }
@@ -295,7 +294,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
     return () => {
       source.close();
     };
-  }, [loadSessions, setSessionState]);
+  }, [loadSessions, replaceServerSessionStates, setServerSessionState]);
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -306,9 +305,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
       pollingIntervalRef.current = setInterval(async () => {
         try {
           const statuses = await fetchSessionStatuses();
-          for (const [id, status] of Object.entries(statuses)) {
-            setSessionState(id, status);
-          }
+          replaceServerSessionStates(statuses);
         } catch (_) {
           void _;
         }
@@ -326,7 +323,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
         pollingIntervalRef.current = null;
       }
     };
-  }, [sessionStates, setSessionState]);
+  }, [replaceServerSessionStates, sessionStates]);
 
   const beginRename = useCallback((session: Session) => {
     setEditingSessionId(session.id);

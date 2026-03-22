@@ -30,7 +30,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const selectedModel = useChatStore((state) => state.selectedModel);
   const selectedAgent = useChatStore((state) => state.selectedAgent);
   const sessionStates = useChatStore((state) => state.sessionStates);
-  const setSessionState = useChatStore((state) => state.setSessionState);
+  const setServerSessionState = useChatStore((state) => state.setServerSessionState);
   const streamingContent = useChatStore((state) => state.streamingContent);
   const streamingMessageId = useChatStore((state) => state.streamingMessageId);
   const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
@@ -78,14 +78,12 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
     try {
       const status = await fetchSessionStatus(sessionId);
-      if (status) {
-        setSessionState(sessionId, status);
-      }
+      setServerSessionState(sessionId, status ?? "idle");
       return status;
     } catch {
       return null;
     }
-  }, [sessionId, setSessionState]);
+  }, [sessionId, setServerSessionState]);
 
   useEffect(() => {
     void refreshSessionStatus();
@@ -157,13 +155,13 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
           | undefined;
         const nextStatus = properties?.status?.type;
         if (nextStatus) {
-          setSessionState(sessionId, nextStatus);
+          setServerSessionState(sessionId, nextStatus);
         }
         return;
       }
 
       if (type === "session.idle") {
-        setSessionState(sessionId, "idle");
+        setServerSessionState(sessionId, "idle");
         clearStreamingContent();
         setStreamingMessageId(null);
         void loadMessages();
@@ -186,7 +184,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     loadMessages,
     refreshSessionStatus,
     sessionId,
-    setSessionState,
+    setServerSessionState,
     setStreamingContent,
     setStreamingMessageId,
   ]);
