@@ -22,7 +22,7 @@ import {
 } from "@/lib/session-status";
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
-import type { DelegationLedger } from "@/lib/types/mission";
+import type { AgentContextUsage, DelegationLedger } from "@/lib/types/mission";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
   messageId?: string;
@@ -157,10 +157,23 @@ export type MissionResumePayload = {
 };
 
 type MissionRuntimeSnapshot = MissionResumePayload & {
+  contextUsageByAgent: Record<"noctis" | "ignis" | "gladiolus" | "prompto", AgentContextUsage | null>;
   delegationLedger: DelegationLedger;
   sessionStatuses: Record<string, SessionStatus>;
   noctisMessages: MessageInfo[];
 };
+
+function createInitialContextUsageByAgent(): Record<
+  "noctis" | "ignis" | "gladiolus" | "prompto",
+  AgentContextUsage | null
+> {
+  return {
+    noctis: null,
+    ignis: null,
+    gladiolus: null,
+    prompto: null,
+  };
+}
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -336,6 +349,7 @@ export function useAgentSession({
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(createInitialPartyRuntimeState);
   const [delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
+  const [contextUsageByAgent, setContextUsageByAgent] = useState(createInitialContextUsageByAgent);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [workerSessionIds, setWorkerSessionIds] = useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -377,6 +391,8 @@ export function useAgentSession({
           status: "idle",
           task: member.defaultTask,
         };
+        const normalizedAgentId = normalizeBanterAgentId(member.id);
+        const contextUsage = normalizedAgentId ? contextUsageByAgent[normalizedAgentId] ?? null : null;
 
         const fallbackStatus = runtime.status === "working" ? "idle" : runtime.status;
         const fallbackTask = runtime.status === "working" ? member.defaultTask : runtime.task;
@@ -400,6 +416,7 @@ export function useAgentSession({
               name: member.name,
               role: member.role,
               imageSrc: member.imageSrc,
+              contextUsage,
               status: "working",
               task: member.activeTask,
               detail: runtime.detail,
@@ -412,6 +429,7 @@ export function useAgentSession({
             name: member.name,
             role: member.role,
             imageSrc: member.imageSrc,
+            contextUsage,
             status: fallbackStatus,
             task: fallbackTask,
             detail: runtime.detail,
@@ -425,6 +443,7 @@ export function useAgentSession({
             name: member.name,
             role: member.role,
             imageSrc: member.imageSrc,
+            contextUsage,
             status: "working",
             task: member.activeTask,
             detail: runtime.detail,
@@ -438,6 +457,7 @@ export function useAgentSession({
             name: member.name,
             role: member.role,
             imageSrc: member.imageSrc,
+            contextUsage,
             status: "working",
             task: member.activeTask,
             detail: runtime.detail,
@@ -450,13 +470,14 @@ export function useAgentSession({
           name: member.name,
           role: member.role,
           imageSrc: member.imageSrc,
+          contextUsage,
           status: fallbackStatus,
           task: fallbackTask,
           detail: runtime.detail,
           progress: runtime.progress,
         };
       }),
-    [delegationLedger, isSessionActive, isStreaming, partyRuntime, sessionStates, workerSessionIds]
+    [contextUsageByAgent, delegationLedger, isSessionActive, isStreaming, partyRuntime, sessionStates, workerSessionIds]
   );
 
   useEffect(() => {
@@ -879,6 +900,12 @@ export function useAgentSession({
         return areWorkerSessionIdsEqual(current, nextWorkerSessionIds) ? current : nextWorkerSessionIds;
       });
       setDelegationLedger(runtime.delegationLedger);
+      setContextUsageByAgent({
+        noctis: runtime.contextUsageByAgent?.noctis ?? null,
+        ignis: runtime.contextUsageByAgent?.ignis ?? null,
+        gladiolus: runtime.contextUsageByAgent?.gladiolus ?? null,
+        prompto: runtime.contextUsageByAgent?.prompto ?? null,
+      });
 
       const nextNoctisStatus = runtime.sessionStatuses[nextNoctisSessionId];
 
@@ -990,6 +1017,7 @@ export function useAgentSession({
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
+        setContextUsageByAgent(createInitialContextUsageByAgent());
         streamingMessageIdRef.current = null;
         setSessionMessages(INITIAL_MESSAGES);
         clearBanterEntries();
@@ -1019,6 +1047,7 @@ export function useAgentSession({
           noctisSessionIdRef.current = initialMissionData.sessions.noctis;
           setNoctisSessionId(initialMissionData.sessions.noctis);
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
+          setContextUsageByAgent(createInitialContextUsageByAgent());
           streamingMessageIdRef.current = null;
           if (hasPreloadedMessages) {
             const preloadedMessages = toSessionChatMessages(initialMessageInfos ?? []);
@@ -1045,6 +1074,7 @@ export function useAgentSession({
         setNoctisSessionId(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
+        setContextUsageByAgent(createInitialContextUsageByAgent());
         setSessionMessages(INITIAL_MESSAGES);
         sessionStatusRef.current = null;
         clearProgressBanter();

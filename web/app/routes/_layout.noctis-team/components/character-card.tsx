@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 
 export type AgentStatus = "idle" | "working" | "success" | "blocked";
 
 export interface CharacterCardProps {
+  contextUsage?: AgentContextUsage | null;
   name: string;
   role: string;
   imageSrc: string;
@@ -12,6 +14,30 @@ export interface CharacterCardProps {
   detail?: string;
   progress?: number;
   metaAccessory?: ReactNode;
+}
+
+function getContextBarClass(contextUsage: AgentContextUsage): string {
+  if (contextUsage.freshness === "stale") {
+    return "bg-amber-400/70";
+  }
+
+  if (contextUsage.remainingPercentage <= 0.2) {
+    return "bg-destructive";
+  }
+
+  if (contextUsage.remainingPercentage <= 0.4) {
+    return "bg-orange-400";
+  }
+
+  if (contextUsage.remainingPercentage <= 0.7) {
+    return "bg-yellow-300";
+  }
+
+  return "bg-emerald-400";
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
 }
 
 const statusConfig: Record<
@@ -49,6 +75,7 @@ const statusGlowColor: Record<AgentStatus, string> = {
 };
 
 export const CharacterCard = ({
+  contextUsage,
   name,
   role,
   imageSrc,
@@ -105,6 +132,39 @@ export const CharacterCard = ({
           <p className="truncate font-mono text-[10px] text-muted-foreground/70">{task}</p>
           {detail && (
             <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/50">{detail}</p>
+          )}
+          {contextUsage ? (
+            <div className="mt-1.5">
+              <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
+                <span
+                  className={cn(
+                    "text-muted-foreground/70",
+                    contextUsage.freshness === "stale" && "text-amber-300/90"
+                  )}
+                >
+                  CTX {contextUsage.freshness === "stale" ? "stale" : "live"}
+                </span>
+                <span className="text-foreground/80">{formatPercent(contextUsage.remainingPercentage)}</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    getContextBarClass(contextUsage),
+                    contextUsage.freshness === "stale" && "opacity-75"
+                  )}
+                  style={{ width: `${Math.min(100, Math.max(0, contextUsage.remainingPercentage * 100))}%` }}
+                />
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[9px] text-muted-foreground/55">
+                <span>{contextUsage.remainingTokens.toLocaleString()} left</span>
+                <span>{contextUsage.limitTokens.toLocaleString()} max</span>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/45">
+              CTX no data
+            </div>
           )}
           {metaAccessory ? <div className="mt-1 min-w-0 max-w-60">{metaAccessory}</div> : null}
           {status === "working" && progress !== undefined && (

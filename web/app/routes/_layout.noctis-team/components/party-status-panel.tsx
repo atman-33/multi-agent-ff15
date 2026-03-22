@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
+import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import type { ModelSelection } from "@/stores/chat-store";
@@ -22,6 +23,7 @@ const PRESET_AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto"] as const;
 type PresetAgentId = (typeof PRESET_AGENT_IDS)[number];
 
 export interface PartyMember {
+  contextUsage?: AgentContextUsage | null;
   id: string;
   name: string;
   role: string;

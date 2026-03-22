@@ -1,6 +1,7 @@
 import type { Route } from "./+types/api.noctis.missions.$missionId.runtime";
 import { getMission } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { readSessionContextUsage } from "@/lib/session-context.server";
 import { coerceSessionStatus } from "@/lib/session-status";
 
 export const loader = async ({ params }: Route.LoaderArgs) => {
@@ -45,6 +46,15 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       }
     }
 
+    const contextUsageByAgent = {
+      noctis: readSessionContextUsage(mission.noctisSessionId),
+      ignis: mission.workerSessions.ignis ? readSessionContextUsage(mission.workerSessions.ignis) : null,
+      gladiolus: mission.workerSessions.gladiolus
+        ? readSessionContextUsage(mission.workerSessions.gladiolus)
+        : null,
+      prompto: mission.workerSessions.prompto ? readSessionContextUsage(mission.workerSessions.prompto) : null,
+    };
+
     return Response.json({
       missionId: mission.id,
       title: mission.title,
@@ -59,6 +69,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
         prompto: mission.workerSessions.prompto ?? null,
       },
       delegationLedger: mission.delegationLedger,
+      contextUsageByAgent,
       sessionStatuses,
       noctisMessages: messagesResult.data ?? [],
     });

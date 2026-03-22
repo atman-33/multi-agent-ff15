@@ -16,6 +16,28 @@ export interface ModelSelection {
   modelID: string;
 }
 
+export type ContextUsageFreshness = "fresh" | "stale";
+
+export interface AgentContextUsage {
+  calculatedAt: string;
+  freshness: ContextUsageFreshness;
+  limitTokens: number;
+  modelID: string;
+  providerID: string;
+  remainingPercentage: number;
+  remainingTokens: number;
+  tokenBreakdown: {
+    cacheRead: number;
+    cacheWrite: number;
+    input: number;
+    output: number;
+    reasoning: number;
+    total: number;
+  };
+  usedPercentage: number;
+  usedTokens: number;
+}
+
 export type MissionStatus = "active" | "completed" | "archived";
 
 export interface WorkerResult {
