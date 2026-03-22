@@ -166,8 +166,18 @@ export const CharacterCard = ({
               </div>
             </div>
           ) : (
-            <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/45">
-              CTX no data
+            <div className="mt-1.5">
+              <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[9px] uppercase tracking-[0.18em]">
+                <span className="text-muted-foreground/70">CTX unused</span>
+                <span className="text-foreground/80">100%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+                <div className="h-full w-full rounded-full bg-emerald-400 transition-all duration-500" />
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[9px] text-muted-foreground/40">
+                <span>- left</span>
+                <span>- max</span>
+              </div>
             </div>
           )}
           {metaAccessory ? <div className="mt-1 min-w-0 max-w-60">{metaAccessory}</div> : null}

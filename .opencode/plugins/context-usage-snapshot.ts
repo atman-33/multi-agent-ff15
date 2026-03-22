@@ -40,32 +40,24 @@ type MessageWrapper = {
   info?: AssistantMessageInfo;
 };
 
-const COPILOT_DEFAULT_LIMIT = 128_000;
-const DEFAULT_CONTEXT_LIMIT = 128_000;
-const ANTHROPIC_CONTEXT_LIMIT = 200_000;
+const DEFAULT_CONTEXT_LIMIT = 200_000;
 
-function getContextLimit(providerID: string, modelID: string): number {
-  if (providerID === "anthropic") {
-    return ANTHROPIC_CONTEXT_LIMIT;
-  }
+const MODEL_CONTEXT_LIMITS: Record<string, number> = {
+  "github-copilot/claude-haiku-4.5": 200_000,
+  "github-copilot/claude-sonnet-4.6": 200_000,
+  "github-copilot/claude-opus-4.6": 200_000,
+  "github-copilot/gpt-5.2-codex": 200_000,
+  "github-copilot/gpt-5.3-codex": 200_000,
+  "github-copilot/gpt-5.4": 200_000,
+  "github-copilot/gemini-3-flash-preview": 200_000,
+  "github-copilot/gemini-3.1-pro-preview": 200_000,
+  "github-copilot/gpt-5-mini": 200_000,
+  "opencode/minimax-m2.5-free": 200_000,
+  "opencode/trinity-large-preview-free": 200_000,
+};
 
-  if (providerID === "github-copilot") {
-    return COPILOT_DEFAULT_LIMIT;
-  }
-
-  if (providerID === "google") {
-    return 1_000_000;
-  }
-
-  if (providerID === "openai") {
-    return 128_000;
-  }
-
-  if (modelID.startsWith("claude-")) {
-    return ANTHROPIC_CONTEXT_LIMIT;
-  }
-
-  return DEFAULT_CONTEXT_LIMIT;
+function getContextLimit(modelID: string): number {
+  return MODEL_CONTEXT_LIMITS[modelID] ?? DEFAULT_CONTEXT_LIMIT;
 }
 
 function normalizeSnapshot(sessionId: string, info: AssistantMessageInfo): SessionContextSnapshot | null {
@@ -83,7 +75,7 @@ function normalizeSnapshot(sessionId: string, info: AssistantMessageInfo): Sessi
   const cacheRead = Math.max(0, tokens.cache?.read ?? 0);
   const cacheWrite = Math.max(0, tokens.cache?.write ?? 0);
   const total = Math.max(0, tokens.total ?? input + output + reasoning + cacheRead + cacheWrite);
-  const limitTokens = getContextLimit(providerID, modelID);
+  const limitTokens = getContextLimit(modelID);
   const usedTokens = Math.min(limitTokens, Math.max(0, input + cacheRead));
   const remainingTokens = Math.max(0, limitTokens - usedTokens);
 
