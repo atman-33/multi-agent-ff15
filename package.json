@@ -3,6 +3,8 @@
 	"scripts": {
 		"web:dev": "npm --prefix web run dev",
 		"web:build": "npm --prefix web run build",
+		"web:format": "npm --prefix web run format",
+		"web:lint": "npm --prefix web run lint",
 		"web:test": "npm --prefix web run test",
 		"web:start": "npm --prefix web run start",
 		"web:typecheck": "npm --prefix web run typecheck"
