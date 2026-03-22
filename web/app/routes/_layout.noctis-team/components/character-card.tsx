@@ -86,7 +86,6 @@ export const CharacterCard = ({
   isSpeaking = false,
   statusAccessory,
   status,
-  task,
   detail,
   progress,
   metaAccessory,
@@ -194,50 +193,35 @@ export const CharacterCard = ({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className={cn(
-                  "truncate font-bold text-sm tracking-wider text-foreground uppercase transition-colors duration-300",
-                  isBenched && "text-muted-foreground"
-                )}
-              >
-                {name}
-              </span>
-              <span
-                className={cn(
-                  "shrink-0 font-mono text-[9px] text-muted-foreground uppercase tracking-widest transition-colors duration-300",
-                  isBenched && "text-muted-foreground/65"
-                )}
-              >
-                {role}
-              </span>
-              {isBenched ? (
-                <span className="shrink-0 rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/75">
-                  reserve
-                </span>
-              ) : null}
-              {isSpeaking ? (
-                <span
-                  className="shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em]"
-                  style={{
-                    borderColor: theme?.ring ?? "rgba(125, 211, 252, 0.4)",
-                    background: theme?.surfaceStrong ?? "rgba(14, 165, 233, 0.15)",
-                    color: theme?.text ?? "rgba(224, 242, 254, 0.9)",
-                  }}
-                >
-                  talking
-                </span>
-              ) : null}
-            </div>
-            <p
+          <div className="flex items-center gap-2">
+            <span
               className={cn(
-                "max-w-32 truncate text-right font-mono text-[10px] text-muted-foreground/70 transition-colors duration-300",
-                isBenched && "text-muted-foreground/45"
+                "truncate font-bold text-sm tracking-wider text-foreground uppercase transition-colors duration-300",
+                isBenched && "text-muted-foreground"
               )}
             >
-              {task}
-            </p>
+              {name}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 font-mono text-[9px] text-muted-foreground uppercase tracking-widest transition-colors duration-300",
+                isBenched && "text-muted-foreground/65"
+              )}
+            >
+              {role}
+            </span>
+            {isSpeaking ? (
+              <span
+                className="shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em]"
+                style={{
+                  borderColor: theme?.ring ?? "rgba(125, 211, 252, 0.4)",
+                  background: theme?.surfaceStrong ?? "rgba(14, 165, 233, 0.15)",
+                  color: theme?.text ?? "rgba(224, 242, 254, 0.9)",
+                }}
+              >
+                talking
+              </span>
+            ) : null}
           </div>
           {detail && (
             <p

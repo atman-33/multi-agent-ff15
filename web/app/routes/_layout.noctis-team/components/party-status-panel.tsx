@@ -339,23 +339,70 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
           const normalizedAgentId = normalizePartyAgentId(member.id);
           const workingPartyAgentId = normalizeWorkingPartyMemberId(member.id);
           const isWorker = workingPartyAgentId ? isWorkingPartyMemberId(workingPartyAgentId) : false;
-          const isInParty = workingPartyAgentId ? workingParty[workingPartyAgentId] : false;
+          const isNoctis = normalizedAgentId === "noctis";
+          const isInParty = isNoctis ? true : workingPartyAgentId ? workingParty[workingPartyAgentId] : false;
 
-          const partyControl = isWorker && workingPartyAgentId ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-6 w-full justify-center rounded-md border px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
-                isInParty
-                  ? "border-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15 hover:text-rose-100"
-                  : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15 hover:text-emerald-100"
-              )}
-              onClick={() => setWorkingPartyMember(workingPartyAgentId, !isInParty)}
+          const segmentBaseClass =
+            "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";
+
+          const partyControl = isNoctis ? (
+            <div
+              className="grid w-full cursor-not-allowed grid-cols-2 gap-1 rounded-full border border-border/40 bg-muted/20 p-0.5"
+              aria-label="Noctis party membership locked"
             >
-              {isInParty ? "Leave" : "Join"}
-            </Button>
+              <div
+                className={cn(
+                  segmentBaseClass,
+                  "flex items-center justify-center border-border/50 bg-muted/60 text-foreground/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                )}
+              >
+                In
+              </div>
+              <div
+                className={cn(
+                  segmentBaseClass,
+                  "flex items-center justify-center border-border/20 bg-background/10 text-muted-foreground/30"
+                )}
+              >
+                Out
+              </div>
+            </div>
+          ) : isWorker && workingPartyAgentId ? (
+            <div
+              className="grid w-full grid-cols-2 gap-1 rounded-full border border-border/30 bg-background/25 p-0.5"
+              aria-label={`${member.name} party membership`}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  segmentBaseClass,
+                  isInParty
+                    ? "border-emerald-400/30 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/16 hover:text-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    : "border-border/20 bg-transparent text-muted-foreground/55 hover:border-border/35 hover:text-muted-foreground"
+                )}
+                aria-pressed={isInParty}
+                onClick={() => setWorkingPartyMember(workingPartyAgentId, true)}
+              >
+                In
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  segmentBaseClass,
+                  !isInParty
+                    ? "border-rose-400/30 bg-rose-400/12 text-rose-200 hover:bg-rose-400/16 hover:text-rose-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    : "border-border/20 bg-transparent text-muted-foreground/55 hover:border-border/35 hover:text-muted-foreground"
+                )}
+                aria-pressed={!isInParty}
+                onClick={() => setWorkingPartyMember(workingPartyAgentId, false)}
+              >
+                Out
+              </Button>
+            </div>
           ) : (
             <div aria-hidden="true" className="invisible h-6 w-full rounded-md border px-2" />
           );
