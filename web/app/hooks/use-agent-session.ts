@@ -31,6 +31,8 @@ const PROGRESS_BANTER_DELAYS = {
   late: 10500,
 } as const;
 
+type WorkerSessionKey = "ignis" | "gladiolus" | "prompto";
+
 const PARTY_MEMBER_META = [
   {
     id: "noctis",
@@ -38,6 +40,7 @@ const PARTY_MEMBER_META = [
     role: "Commander",
     imageSrc: "/images/noctis.png",
     defaultTask: "On the road",
+    activeTask: "Coordinating…",
   },
   {
     id: "ignis",
@@ -45,6 +48,8 @@ const PARTY_MEMBER_META = [
     role: "Analyst",
     imageSrc: "/images/ignis.png",
     defaultTask: "Awaiting orders",
+    activeTask: "Analysing…",
+    sessionKey: "ignis" as WorkerSessionKey,
   },
   {
     id: "gladio",
@@ -52,6 +57,8 @@ const PARTY_MEMBER_META = [
     role: "Executor",
     imageSrc: "/images/gladiolus.png",
     defaultTask: "Standing by",
+    activeTask: "Executing…",
+    sessionKey: "gladiolus" as WorkerSessionKey,
   },
   {
     id: "prompto",
@@ -59,8 +66,20 @@ const PARTY_MEMBER_META = [
     role: "Reporter",
     imageSrc: "/images/prompto.png",
     defaultTask: "Monitoring feeds",
+    activeTask: "Gathering data…",
+    sessionKey: "prompto" as WorkerSessionKey,
   },
 ] as const;
+
+type PartyMemberMeta = (typeof PARTY_MEMBER_META)[number];
+type PartyMemberId = PartyMemberMeta["id"];
+type WorkerPartyMemberMeta = PartyMemberMeta & { sessionKey: WorkerSessionKey };
+type WorkerMemberId = WorkerPartyMemberMeta["id"];
+type WorkerSessionIds = Record<WorkerMemberId, string | null>;
+
+const WORKER_PARTY_MEMBERS = PARTY_MEMBER_META.filter(
+  (member): member is WorkerPartyMemberMeta => "sessionKey" in member
+);
 
 function createInitialPartyRuntimeState(): PartyRuntimeState {
   return Object.fromEntries(
@@ -74,6 +93,28 @@ function createInitialPartyRuntimeState(): PartyRuntimeState {
       },
     ])
   ) as PartyRuntimeState;
+}
+
+function createInitialWorkerSessionIds(): WorkerSessionIds {
+  return Object.fromEntries(
+    WORKER_PARTY_MEMBERS.map((member) => [member.id, null])
+  ) as WorkerSessionIds;
+}
+
+function toWorkerSessionIds(sessions?: MissionResumePayload["sessions"] | null): WorkerSessionIds {
+  return Object.fromEntries(
+    WORKER_PARTY_MEMBERS.map((member) => [member.id, sessions?.[member.sessionKey] ?? null])
+  ) as WorkerSessionIds;
+}
+
+function areWorkerSessionIdsEqual(left: WorkerSessionIds, right: WorkerSessionIds): boolean {
+  return WORKER_PARTY_MEMBERS.every((member) => left[member.id] === right[member.id]);
+}
+
+function createInitialWorkerSessionStates(): Record<WorkerMemberId, SessionStatus | null> {
+  return Object.fromEntries(
+    WORKER_PARTY_MEMBERS.map((member) => [member.id, null])
+  ) as Record<WorkerMemberId, SessionStatus | null>;
 }
 
 const INITIAL_MESSAGES: ChatMessage[] = [
@@ -190,10 +231,15 @@ export function useAgentSession({
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? initialMissionData.sessions.noctis
       : null;
+  const initialWorkerSessionIds =
+    activeMissionId && initialMissionData?.missionId === activeMissionId
+      ? toWorkerSessionIds(initialMissionData.sessions)
+      : createInitialWorkerSessionIds();
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(createInitialPartyRuntimeState);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
+  const [workerSessionIds, setWorkerSessionIds] = useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -201,9 +247,13 @@ export function useAgentSession({
   const noctisSessionIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const banterEntriesRef = useRef<RecentBanterEntry[]>([]);
   const lastSessionStateRef = useRef<SessionStatus | null>(null);
+  const lastWorkerSessionStatesRef = useRef<Record<WorkerMemberId, SessionStatus | null>>(
+    createInitialWorkerSessionStates()
+  );
   const sessionStatusRef = useRef<SessionStatus | null>(null);
   const pendingActiveResolversRef = useRef<Map<string, Array<() => void>>>(new Map());
   const progressTimersRef = useRef<
@@ -222,6 +272,39 @@ export function useAgentSession({
           task: member.defaultTask,
         };
 
+        const fallbackStatus = runtime.status === "working" ? "idle" : runtime.status;
+        const fallbackTask = runtime.status === "working" ? member.defaultTask : runtime.task;
+
+        if (member.id !== "noctis") {
+          const workerSessionId = workerSessionIds[member.id as WorkerMemberId];
+          const workerSessionStatus = workerSessionId ? (sessionStates[workerSessionId] ?? null) : null;
+          const isWorkerActive = isSessionStatusActive(workerSessionStatus);
+
+          if (isWorkerActive) {
+            return {
+              id: member.id,
+              name: member.name,
+              role: member.role,
+              imageSrc: member.imageSrc,
+              status: "working",
+              task: member.activeTask,
+              detail: runtime.detail,
+              progress: runtime.progress,
+            };
+          }
+
+          return {
+            id: member.id,
+            name: member.name,
+            role: member.role,
+            imageSrc: member.imageSrc,
+            status: fallbackStatus,
+            task: fallbackTask,
+            detail: runtime.detail,
+            progress: runtime.progress,
+          };
+        }
+
         if (member.id === "noctis" && isSessionActive) {
           return {
             id: member.id,
@@ -229,7 +312,7 @@ export function useAgentSession({
             role: member.role,
             imageSrc: member.imageSrc,
             status: "working",
-            task: "Coordinating…",
+            task: member.activeTask,
             detail: runtime.detail,
             progress: runtime.progress,
           };
@@ -240,13 +323,13 @@ export function useAgentSession({
           name: member.name,
           role: member.role,
           imageSrc: member.imageSrc,
-          status: runtime.status,
-          task: runtime.task,
+          status: fallbackStatus,
+          task: fallbackTask,
           detail: runtime.detail,
           progress: runtime.progress,
         };
       }),
-    [isSessionActive, partyRuntime]
+    [isSessionActive, partyRuntime, sessionStates, workerSessionIds]
   );
 
   useEffect(() => {
@@ -344,6 +427,13 @@ export function useAgentSession({
   useEffect(() => {
     sessionStatusRef.current = sessionStatus;
   }, [sessionStatus]);
+
+  const closeWorkerEventSources = useCallback(() => {
+    for (const eventSource of Object.values(workerEventSourcesRef.current)) {
+      eventSource?.close();
+    }
+    workerEventSourcesRef.current = {};
+  }, []);
 
   const scheduleIdleReset = useCallback(() => {
     if (idleTimerRef.current) {
@@ -535,15 +625,118 @@ export function useAgentSession({
     ]
   );
 
+  const subscribeToWorkerSessions = useCallback(
+    (sessions: WorkerSessionIds) => {
+      closeWorkerEventSources();
+
+      for (const worker of WORKER_PARTY_MEMBERS) {
+        const agentId = worker.id;
+        const sessionId = sessions[agentId];
+        if (!sessionId) {
+          lastWorkerSessionStatesRef.current[agentId] = null;
+          continue;
+        }
+
+        const es = new EventSource(`/api/session/${sessionId}/events`);
+        workerEventSourcesRef.current[agentId] = es;
+
+        es.onmessage = (event: MessageEvent) => {
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = JSON.parse(event.data) as Record<string, unknown>;
+          } catch {
+            return;
+          }
+
+          const type = parsed.type;
+          if (typeof type !== "string") {
+            return;
+          }
+
+          if (type === "session.idle") {
+            setSessionState(sessionId, "idle");
+            lastWorkerSessionStatesRef.current[agentId] = "idle";
+            return;
+          }
+
+          if (type === "session.status") {
+            const props = parsed.properties as Record<string, unknown> | undefined;
+            const status = props?.status as Record<string, unknown> | undefined;
+            const nextStatus = coerceSessionStatus(status?.type);
+            if (!nextStatus) {
+              return;
+            }
+
+            setSessionState(sessionId, nextStatus);
+            if (
+              nextStatus === "retry" &&
+              lastWorkerSessionStatesRef.current[agentId] !== "retry"
+            ) {
+              handleAgentEvent({ type: "task.retrying", agentId });
+            }
+            lastWorkerSessionStatesRef.current[agentId] = nextStatus;
+          }
+        };
+
+        es.onerror = () => {
+          // Keep the last known server state until the next successful event.
+        };
+      }
+    },
+    [closeWorkerEventSources, handleAgentEvent, setSessionState]
+  );
+
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
+      closeWorkerEventSources();
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
       clearProgressBanter();
     };
-  }, [clearProgressBanter]);
+  }, [clearProgressBanter, closeWorkerEventSources]);
+
+  useEffect(() => {
+    subscribeToWorkerSessions(workerSessionIds);
+  }, [subscribeToWorkerSessions, workerSessionIds]);
+
+  useEffect(() => {
+    if (!activeMissionId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshMissionSessions = async () => {
+      try {
+        const response = await fetch(`/api/noctis/missions/${activeMissionId}`);
+        if (!response.ok) {
+          return;
+        }
+
+        const mission = (await response.json()) as MissionResumePayload;
+        if (cancelled || mission.missionId !== activeMissionId) {
+          return;
+        }
+
+        const nextWorkerSessionIds = toWorkerSessionIds(mission.sessions);
+        setWorkerSessionIds((current) =>
+          areWorkerSessionIdsEqual(current, nextWorkerSessionIds) ? current : nextWorkerSessionIds
+        );
+      } catch {
+        // Ignore transient mission refresh failures.
+      }
+    };
+
+    void refreshMissionSessions();
+    const intervalId = window.setInterval(refreshMissionSessions, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeMissionId]);
 
   useEffect(() => {
     const loadMission = async () => {
@@ -551,16 +744,19 @@ export function useAgentSession({
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
         setNoctisSessionId(null);
+        setWorkerSessionIds(createInitialWorkerSessionIds());
         streamingMessageIdRef.current = null;
         setMessages(INITIAL_MESSAGES);
         clearBanterEntries();
         setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
         lastSessionStateRef.current = null;
+        lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
         sessionStatusRef.current = null;
         clearProgressBanter();
         eventSourceRef.current?.close();
         eventSourceRef.current = null;
+        closeWorkerEventSources();
         return;
       }
 
@@ -592,12 +788,14 @@ export function useAgentSession({
         missionIdRef.current = mission.missionId;
         noctisSessionIdRef.current = mission.sessions.noctis;
         setNoctisSessionId(mission.sessions.noctis);
+        setWorkerSessionIds(toWorkerSessionIds(mission.sessions));
         streamingMessageIdRef.current = null;
         setMessages(chatMessages.length > 0 ? chatMessages : INITIAL_MESSAGES);
         clearBanterEntries();
         setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
         lastSessionStateRef.current = null;
+        lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
         sessionStatusRef.current = null;
         clearProgressBanter();
         subscribeToSession(mission.sessions.noctis);
@@ -605,9 +803,11 @@ export function useAgentSession({
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
         setNoctisSessionId(null);
+        setWorkerSessionIds(createInitialWorkerSessionIds());
         setMessages(INITIAL_MESSAGES);
         sessionStatusRef.current = null;
         clearProgressBanter();
+        closeWorkerEventSources();
       } finally {
         setIsLoadingHistory(false);
       }
@@ -618,6 +818,7 @@ export function useAgentSession({
     activeMissionId,
     clearBanterEntries,
     clearProgressBanter,
+    closeWorkerEventSources,
     initialMessageInfos,
     initialMissionData,
     subscribeToSession,
