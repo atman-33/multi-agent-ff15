@@ -35,7 +35,6 @@ export interface PartyMember {
   role: string;
   imageSrc: string;
   status: AgentStatus;
-  task: string;
   detail?: string;
   progress?: number;
 }

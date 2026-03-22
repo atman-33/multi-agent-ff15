@@ -16,7 +16,6 @@ export interface CharacterCardProps {
   isSpeaking?: boolean;
   statusAccessory?: ReactNode;
   status: AgentStatus;
-  task: string;
   detail?: string;
   progress?: number;
   metaAccessory?: ReactNode;

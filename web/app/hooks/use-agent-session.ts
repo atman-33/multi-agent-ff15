@@ -57,16 +57,12 @@ const PARTY_MEMBER_META = [
     name: "Noctis",
     role: "Commander",
     imageSrc: "/images/noctis.png",
-    defaultTask: "On the road",
-    activeTask: "Coordinating…",
   },
   {
     id: "ignis",
     name: "Ignis",
     role: "Analyst",
     imageSrc: "/images/ignis.png",
-    defaultTask: "Awaiting orders",
-    activeTask: "Analysing…",
     sessionKey: "ignis" as WorkerSessionKey,
   },
   {
@@ -74,8 +70,6 @@ const PARTY_MEMBER_META = [
     name: "Gladio",
     role: "Executor",
     imageSrc: "/images/gladiolus.png",
-    defaultTask: "Standing by",
-    activeTask: "Executing…",
     sessionKey: "gladiolus" as WorkerSessionKey,
   },
   {
@@ -83,8 +77,6 @@ const PARTY_MEMBER_META = [
     name: "Prompto",
     role: "Reporter",
     imageSrc: "/images/prompto.png",
-    defaultTask: "Monitoring feeds",
-    activeTask: "Gathering data…",
     sessionKey: "prompto" as WorkerSessionKey,
   },
 ] as const;
@@ -105,7 +97,6 @@ function createInitialPartyRuntimeState(): PartyRuntimeState {
       member.id,
       {
         status: "idle",
-        task: member.defaultTask,
         detail: undefined,
         progress: undefined,
       },
@@ -454,13 +445,11 @@ export function useAgentSession({
       PARTY_MEMBER_META.map((member) => {
         const runtime = partyRuntime[member.id] ?? {
           status: "idle",
-          task: member.defaultTask,
         };
         const normalizedAgentId = normalizeBanterAgentId(member.id);
         const contextUsage = normalizedAgentId ? contextUsageByAgent[normalizedAgentId] ?? null : null;
 
         const fallbackStatus = runtime.status === "working" ? "idle" : runtime.status;
-        const fallbackTask = runtime.status === "working" ? member.defaultTask : runtime.task;
 
         if (member.id !== "noctis") {
           const workerSessionId = workerSessionIds[member.id as WorkerMemberId];
@@ -475,7 +464,6 @@ export function useAgentSession({
               imageSrc: member.imageSrc,
               contextUsage,
               status: "working",
-              task: member.activeTask,
               detail: runtime.detail,
               progress: runtime.progress,
             };
@@ -488,7 +476,6 @@ export function useAgentSession({
             imageSrc: member.imageSrc,
             contextUsage,
             status: fallbackStatus,
-            task: fallbackTask,
             detail: runtime.detail,
             progress: runtime.progress,
           };
@@ -502,7 +489,6 @@ export function useAgentSession({
             imageSrc: member.imageSrc,
             contextUsage,
             status: "working",
-            task: member.activeTask,
             detail: runtime.detail,
             progress: runtime.progress,
           };
@@ -516,7 +502,6 @@ export function useAgentSession({
             imageSrc: member.imageSrc,
             contextUsage,
             status: "working",
-            task: member.activeTask,
             detail: runtime.detail,
             progress: runtime.progress,
           };
@@ -529,7 +514,6 @@ export function useAgentSession({
           imageSrc: member.imageSrc,
           contextUsage,
           status: fallbackStatus,
-          task: fallbackTask,
           detail: runtime.detail,
           progress: runtime.progress,
         };

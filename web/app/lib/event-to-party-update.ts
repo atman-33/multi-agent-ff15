@@ -21,7 +21,6 @@ export type AgentEvent =
 
 export interface PartyRuntimeEntry {
   status: AgentStatus;
-  task: string;
   detail?: string;
   progress?: number;
 }
@@ -57,7 +56,6 @@ export function eventToPartyUpdate(
       return {
         memberId: "noctis",
         status: "working",
-        task: "Coordinating…",
         banterTemplate: createBanterTemplate("noctis", "session-start", { language, recentEntries }),
       };
     }
@@ -68,7 +66,6 @@ export function eventToPartyUpdate(
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        task: TASK_ASSIGNED_LABEL[normalizedAgentId] ?? "Working…",
         detail: event.task,
         banterTemplate: createBanterTemplate(agentId, "task-assigned", { language, recentEntries }),
       };
@@ -80,7 +77,6 @@ export function eventToPartyUpdate(
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        task: TASK_ASSIGNED_LABEL[normalizedAgentId] ?? "Working…",
         banterTemplate: createBanterTemplate(
           agentId,
           stage === "early" ? "task-progress-early" : "task-progress-late",
@@ -94,7 +90,6 @@ export function eventToPartyUpdate(
       return {
         memberId: toPartyMemberId(agentId),
         status: "success",
-        task: "Done",
         banterTemplate: createBanterTemplate(agentId, "task-completed", { language, recentEntries }),
       };
     }
@@ -104,7 +99,6 @@ export function eventToPartyUpdate(
       return {
         memberId: toPartyMemberId(agentId),
         status: "blocked",
-        task: "Blocked",
         banterTemplate: createBanterTemplate(agentId, "task-failed", { language, recentEntries }),
       };
     }
@@ -115,7 +109,6 @@ export function eventToPartyUpdate(
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        task: TASK_ASSIGNED_LABEL[normalizedAgentId] ?? "Retrying…",
         banterTemplate: createBanterTemplate(agentId, "task-retrying", { language, recentEntries }),
       };
     }
@@ -124,7 +117,6 @@ export function eventToPartyUpdate(
       return {
         memberId: "noctis",
         status: "success",
-        task: "Message sent",
         banterTemplate: createLiteralBanterTemplate("noctis", event.message),
       };
     }
@@ -135,7 +127,6 @@ export function eventToPartyUpdate(
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        task: TASK_ASSIGNED_LABEL[normalizedAgentId] ?? "Retrying…",
         banterTemplate: createBanterTemplate(agentId, "runtime-recovered", { language, recentEntries }),
       };
     }
@@ -159,7 +150,6 @@ export function applyPartyRuntimeUpdate(
     [update.memberId]: {
       ...existing,
       status: update.status,
-      task: update.task,
       detail: update.detail,
       progress: update.progress,
     },
