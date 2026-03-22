@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +28,14 @@ const formatTime = (date: Date): string => {
 export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(entries.length);
+  const liveBadgeFadeTimeoutRef = useRef<number | null>(null);
+  const liveBadgeClearTimeoutRef = useRef<number | null>(null);
+  const highlightFadeTimeoutRef = useRef<number | null>(null);
+  const highlightClearTimeoutRef = useRef<number | null>(null);
+  const [liveBadgeEntryId, setLiveBadgeEntryId] = useState<string | null>(latestEntryId);
+  const [isLiveBadgeVisible, setIsLiveBadgeVisible] = useState(Boolean(latestEntryId));
+  const [highlightEntryId, setHighlightEntryId] = useState<string | null>(latestEntryId);
+  const [isHighlightActive, setIsHighlightActive] = useState(Boolean(latestEntryId));
 
   useEffect(() => {
     if (entries.length !== prevLengthRef.current) {
@@ -35,6 +43,81 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   });
+
+  useEffect(() => {
+    if (liveBadgeFadeTimeoutRef.current !== null) {
+      window.clearTimeout(liveBadgeFadeTimeoutRef.current);
+      liveBadgeFadeTimeoutRef.current = null;
+    }
+    if (liveBadgeClearTimeoutRef.current !== null) {
+      window.clearTimeout(liveBadgeClearTimeoutRef.current);
+      liveBadgeClearTimeoutRef.current = null;
+    }
+    if (highlightFadeTimeoutRef.current !== null) {
+      window.clearTimeout(highlightFadeTimeoutRef.current);
+      highlightFadeTimeoutRef.current = null;
+    }
+    if (highlightClearTimeoutRef.current !== null) {
+      window.clearTimeout(highlightClearTimeoutRef.current);
+      highlightClearTimeoutRef.current = null;
+    }
+
+    if (!latestEntryId) {
+      setLiveBadgeEntryId(null);
+      setIsLiveBadgeVisible(false);
+      setHighlightEntryId(null);
+      setIsHighlightActive(false);
+      return;
+    }
+
+    setLiveBadgeEntryId(latestEntryId);
+    setIsLiveBadgeVisible(true);
+    setHighlightEntryId(latestEntryId);
+    setIsHighlightActive(true);
+
+    liveBadgeFadeTimeoutRef.current = window.setTimeout(() => {
+      setIsLiveBadgeVisible(false);
+      liveBadgeFadeTimeoutRef.current = null;
+    }, 2400);
+
+    highlightFadeTimeoutRef.current = window.setTimeout(() => {
+      setIsHighlightActive(false);
+      highlightFadeTimeoutRef.current = null;
+    }, 2600);
+
+    liveBadgeClearTimeoutRef.current = window.setTimeout(() => {
+      setLiveBadgeEntryId((currentEntryId) =>
+        currentEntryId === latestEntryId ? null : currentEntryId
+      );
+      liveBadgeClearTimeoutRef.current = null;
+    }, 3200);
+
+    highlightClearTimeoutRef.current = window.setTimeout(() => {
+      setHighlightEntryId((currentEntryId) =>
+        currentEntryId === latestEntryId ? null : currentEntryId
+      );
+      highlightClearTimeoutRef.current = null;
+    }, 3400);
+
+    return () => {
+      if (liveBadgeFadeTimeoutRef.current !== null) {
+        window.clearTimeout(liveBadgeFadeTimeoutRef.current);
+        liveBadgeFadeTimeoutRef.current = null;
+      }
+      if (liveBadgeClearTimeoutRef.current !== null) {
+        window.clearTimeout(liveBadgeClearTimeoutRef.current);
+        liveBadgeClearTimeoutRef.current = null;
+      }
+      if (highlightFadeTimeoutRef.current !== null) {
+        window.clearTimeout(highlightFadeTimeoutRef.current);
+        highlightFadeTimeoutRef.current = null;
+      }
+      if (highlightClearTimeoutRef.current !== null) {
+        window.clearTimeout(highlightClearTimeoutRef.current);
+        highlightClearTimeoutRef.current = null;
+      }
+    };
+  }, [latestEntryId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
@@ -50,28 +133,33 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-1.5 pr-2">
-          {entries.map((entry) => (
+          {entries.map((entry) => {
+            const isLatestEntry = entry.id === latestEntryId;
+            const isHighlightedEntry = entry.id === highlightEntryId;
+            const showActiveHighlight = isHighlightedEntry && isHighlightActive;
+            const showLiveBadge = entry.id === liveBadgeEntryId;
+
+            return (
             <div
               key={entry.id}
               className={cn(
-                "flex items-start gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-1.5 transition-all",
-                entry.id === latestEntryId &&
+                "flex items-start gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-1.5 transition-all duration-700 ease-out",
+                showActiveHighlight &&
                   "border-sky-300/40 bg-sky-500/12 shadow-[0_0_24px_rgba(125,211,252,0.2)]"
               )}
               style={{
-                animation:
-                  entry.id === latestEntryId
-                    ? "banter-entry-in 0.42s cubic-bezier(0.22, 1, 0.36, 1), banter-fresh 1.5s ease-out"
-                    : "banter-entry-in 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
+                animation: isLatestEntry
+                  ? "banter-entry-in 0.42s cubic-bezier(0.22, 1, 0.36, 1), banter-fresh 1.5s ease-out"
+                  : "banter-entry-in 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
               <div
                 className={cn(
-                  "mt-0.5 h-8 w-0.5 shrink-0 rounded-full bg-transparent transition-colors",
-                  entry.id === latestEntryId && "bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.82)]"
+                  "mt-0.5 h-8 w-0.5 shrink-0 rounded-full bg-transparent transition-all duration-700 ease-out",
+                  showActiveHighlight && "bg-sky-300/90 shadow-[0_0_12px_rgba(125,211,252,0.82)]"
                 )}
                 style={
-                  entry.id === latestEntryId
+                  showActiveHighlight
                     ? { animation: "banter-accent-pulse 1.2s ease-in-out infinite" }
                     : undefined
                 }
@@ -84,20 +172,26 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
               <div
                 className="min-w-0 flex-1"
                 style={{
-                  animation:
-                    entry.id === latestEntryId
-                      ? "banter-card-reveal 0.44s ease-out 0.06s both"
-                      : "banter-card-reveal 0.36s ease-out 0.04s both",
+                  animation: isLatestEntry
+                    ? "banter-card-reveal 0.44s ease-out 0.06s both"
+                    : "banter-card-reveal 0.36s ease-out 0.04s both",
                 }}
               >
                 <div className="flex items-baseline gap-1.5">
                   <span className="shrink-0 font-mono text-[10px] font-semibold text-primary/80 uppercase">
                     {entry.speakerName}
                   </span>
-                  {entry.id === latestEntryId ? (
+                  {showLiveBadge ? (
                     <span
-                      className="rounded-full border border-sky-300/45 bg-sky-500/18 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/95 shadow-[0_0_12px_rgba(56,189,248,0.2)]"
-                      style={{ animation: "banter-live-pulse 1.35s ease-in-out infinite" }}
+                      className={cn(
+                        "rounded-full border border-sky-300/45 bg-sky-500/18 px-1 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-sky-100/95 shadow-[0_0_12px_rgba(56,189,248,0.2)] transition-all duration-500 ease-out",
+                        isLiveBadgeVisible ? "translate-y-0 opacity-100" : "-translate-y-0.5 opacity-0"
+                      )}
+                      style={{
+                        animation: isLiveBadgeVisible
+                          ? "banter-live-pulse 1.35s ease-in-out infinite"
+                          : undefined,
+                      }}
                     >
                       live
                     </span>
@@ -111,7 +205,8 @@ export const BanterLog = ({ entries, latestEntryId = null }: BanterLogProps) => 
                 </p>
               </div>
             </div>
-          ))}
+            );
+          })}
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
