@@ -156,6 +156,24 @@ function getMessageDisplayText(message: ChatMessage): string {
   return removeInternalContext(getMessageRawText(message)).trim();
 }
 
+function getIntermediatePreview(parts: MessagePart[]): string | null {
+  const reasoning = extractReasoning(parts)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (reasoning.length > 0) {
+    return reasoning.slice(0, 2).join("\n");
+  }
+
+  const tools = extractTools(parts);
+  if (tools.length > 0) {
+    return `Tool activity: ${tools.length} ${tools.length === 1 ? "event" : "events"}.`;
+  }
+
+  return null;
+}
+
 function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   const rendered: RenderedChatMessage[] = [];
   let pendingNoctis: ChatMessage[] = [];
@@ -166,6 +184,12 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
     }
 
     const parts = pendingNoctis.flatMap((message) => toMessageParts(message));
+    const preview = getIntermediatePreview(parts);
+
+    if (!preview) {
+      pendingNoctis = [];
+      return;
+    }
 
     rendered.push({
       id: pendingNoctis.map((message) => message.id).join(":"),
@@ -173,7 +197,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
       content: "",
       parts: parts.length > 0 ? parts : undefined,
       timestamp: pendingNoctis[pendingNoctis.length - 1].timestamp,
-      displayContent: "",
+      displayContent: preview,
       intermediateOnly: true,
     });
 
