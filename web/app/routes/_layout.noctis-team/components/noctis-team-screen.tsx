@@ -1,8 +1,22 @@
-import { Archive, Check, History, Pencil, Plus, RotateCcw, X } from "lucide-react";
+import { Archive, Check, Ellipsis, History, Pencil, Plus, RotateCcw, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +34,14 @@ import { ChatArea } from "./chat-area";
 import { PartyStatusPanel } from "./party-status-panel";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
+
+type BulkMissionAction = "archive" | "restore";
+
+type BulkMissionDialogState = {
+  action: BulkMissionAction;
+  count: number;
+  skipped: number;
+} | null;
 
 type MissionHistoryItemProps = {
   mission: MissionSummary;
@@ -212,6 +234,8 @@ export function NoctisTeamScreen({
   const [isLoadingMissions, setIsLoadingMissions] = useState(true);
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
   const [archiveMissionId, setArchiveMissionId] = useState<string | null>(null);
+  const [bulkMissionDialog, setBulkMissionDialog] = useState<BulkMissionDialogState>(null);
+  const [isBulkMissionActionPending, setIsBulkMissionActionPending] = useState(false);
   const [isRenamingMission, setIsRenamingMission] = useState(false);
   const {
     messages,
@@ -270,6 +294,22 @@ export function NoctisTeamScreen({
     [missionView, missions]
   );
 
+  const actionableVisibleMissions = useMemo(
+    () =>
+      visibleMissions.filter((mission) => {
+        if (missionView === "archived") {
+          return true;
+        }
+
+        const isDisabled =
+          effectiveMissionId === mission.missionId && (isSessionActive || isStreaming || isLoadingHistory);
+        return !isDisabled;
+      }),
+    [effectiveMissionId, isLoadingHistory, isSessionActive, isStreaming, missionView, visibleMissions]
+  );
+
+  const skippedVisibleMissionCount = visibleMissions.length - actionableVisibleMissions.length;
+
   const beginRenameMission = useCallback((mission: MissionSummary) => {
     setEditingMissionId(mission.missionId);
   }, []);
@@ -319,7 +359,11 @@ export function NoctisTeamScreen({
   }, []);
 
   const submitMissionArchive = useCallback(
-    async (mission: MissionSummary, action: "archive" | "restore", options?: { showUndo?: boolean }) => {
+    async (
+      mission: MissionSummary,
+      action: "archive" | "restore",
+      options?: { showUndo?: boolean; silent?: boolean }
+    ) => {
       setArchiveMissionId(mission.missionId);
       try {
         const response = await fetch(`/api/noctis/missions/${mission.missionId}/archive`, {
@@ -363,31 +407,103 @@ export function NoctisTeamScreen({
           navigate("/noctis-team", { replace: true, state: { skipMissionRestore: true } });
         }
 
-        toast.success(action === "archive" ? "Mission archived" : "Mission restored", {
-          action:
-            options?.showUndo === false
-              ? undefined
-              : {
-                  label: "Undo",
-                  onClick: () => {
-                    void submitMissionArchive(
-                      { ...mission, ...updatedMission },
-                      action === "archive" ? "restore" : "archive",
-                      { showUndo: false }
-                    );
+        if (!options?.silent) {
+          toast.success(action === "archive" ? "Mission archived" : "Mission restored", {
+            action:
+              options?.showUndo === false
+                ? undefined
+                : {
+                    label: "Undo",
+                    onClick: () => {
+                      void submitMissionArchive(
+                        { ...mission, ...updatedMission },
+                        action === "archive" ? "restore" : "archive",
+                        { showUndo: false }
+                      );
+                    },
                   },
-                },
-        });
+          });
+        }
+        return true;
       } catch {
-        toast.error(action === "archive" ? "Unable to archive mission" : "Unable to restore mission", {
-          description: "Mission metadata could not be updated.",
-        });
+        if (!options?.silent) {
+          toast.error(action === "archive" ? "Unable to archive mission" : "Unable to restore mission", {
+            description: "Mission metadata could not be updated.",
+          });
+        }
+        return false;
       } finally {
         setArchiveMissionId(null);
       }
     },
     [effectiveMissionId, navigate]
   );
+
+  const openBulkMissionDialog = useCallback((action: BulkMissionAction) => {
+    setBulkMissionDialog({
+      action,
+      count: actionableVisibleMissions.length,
+      skipped: skippedVisibleMissionCount,
+    });
+  }, [actionableVisibleMissions.length, skippedVisibleMissionCount]);
+
+  const confirmBulkMissionAction = useCallback(async () => {
+    if (!bulkMissionDialog) {
+      return;
+    }
+
+    const targets = [...actionableVisibleMissions];
+    setIsBulkMissionActionPending(true);
+    setBulkMissionDialog(null);
+
+    let successCount = 0;
+    let failureCount = 0;
+    for (const mission of targets) {
+      const ok = await submitMissionArchive(mission, bulkMissionDialog.action, {
+        showUndo: false,
+        silent: true,
+      });
+      if (ok) {
+        successCount += 1;
+      } else {
+        failureCount += 1;
+      }
+    }
+
+    setIsBulkMissionActionPending(false);
+
+    if (successCount === 0 && failureCount > 0) {
+      toast.error(
+        bulkMissionDialog.action === "archive"
+          ? "Unable to archive visible missions"
+          : "Unable to restore visible missions",
+        {
+          description: "No missions were updated.",
+        }
+      );
+      return;
+    }
+
+    const verb = bulkMissionDialog.action === "archive" ? "Archived" : "Restored";
+    const details = [
+      `${verb} ${successCount} ${successCount === 1 ? "mission" : "missions"}.`,
+      bulkMissionDialog.skipped > 0
+        ? `Skipped ${bulkMissionDialog.skipped} active ${bulkMissionDialog.skipped === 1 ? "mission" : "missions"}.`
+        : null,
+      failureCount > 0
+        ? `${failureCount} ${failureCount === 1 ? "update" : "updates"} failed.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    toast.success(
+      bulkMissionDialog.action === "archive" ? "Visible missions archived" : "Visible missions restored",
+      {
+        description: details,
+      }
+    );
+  }, [actionableVisibleMissions, bulkMissionDialog, submitMissionArchive]);
 
   const handleSend = useCallback(
     async (parts: PromptPart[]) => {
@@ -409,14 +525,40 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={20}>
           <div className="flex h-full min-h-0 min-w-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
             <div className="w-full border-border/50 border-b p-3">
-              <div className="mb-3 flex w-full items-center gap-2">
-                <History className="h-4 w-4 text-primary/80" />
-                <div>
-                  <h2 className="font-semibold text-sm">Mission History</h2>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
-                    Resume by mission
-                  </p>
+              <div className="mb-3 flex w-full items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary/80" />
+                  <div>
+                    <h2 className="font-semibold text-sm">Mission History</h2>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
+                      Resume by mission
+                    </p>
+                  </div>
                 </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      disabled={isBulkMissionActionPending || actionableVisibleMissions.length === 0}
+                      title={
+                        missionView === "archived"
+                          ? "More restore actions"
+                          : "More archive actions"
+                      }
+                    >
+                      <Ellipsis className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onSelect={() => openBulkMissionDialog(missionView === "archived" ? "restore" : "archive") }>
+                      {missionView === "archived"
+                        ? `Restore all visible (${actionableVisibleMissions.length})`
+                        : `Archive all visible (${actionableVisibleMissions.length})`}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <Button
                 className="w-full justify-start gap-2"
@@ -482,11 +624,12 @@ export function NoctisTeamScreen({
                       isActive={effectiveMissionId === mission.missionId}
                       isArchivedView={missionView === "archived"}
                       isEditing={editingMissionId === mission.missionId}
-                      isArchivePending={archiveMissionId === mission.missionId}
+                      isArchivePending={archiveMissionId === mission.missionId || isBulkMissionActionPending}
                       isArchiveDisabled={
-                        missionView === "active" &&
-                        effectiveMissionId === mission.missionId &&
-                        (isSessionActive || isStreaming || isLoadingHistory)
+                        isBulkMissionActionPending ||
+                        (missionView === "active" &&
+                          effectiveMissionId === mission.missionId &&
+                          (isSessionActive || isStreaming || isLoadingHistory))
                       }
                       isRenaming={isRenamingMission}
                       onBeginRename={beginRenameMission}
@@ -530,6 +673,33 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      <Dialog open={bulkMissionDialog !== null} onOpenChange={(open) => (!open ? setBulkMissionDialog(null) : undefined)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {bulkMissionDialog?.action === "archive"
+                ? "Archive visible missions?"
+                : "Restore visible missions?"}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkMissionDialog?.action === "archive"
+                ? `${bulkMissionDialog?.count ?? 0} visible missions will be archived.`
+                : `${bulkMissionDialog?.count ?? 0} visible missions will be restored.`}
+              {bulkMissionDialog && bulkMissionDialog.skipped > 0
+                ? ` ${bulkMissionDialog.skipped} active ${bulkMissionDialog.skipped === 1 ? "mission" : "missions"} will be skipped.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBulkMissionDialog(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void confirmBulkMissionAction()}>
+              {bulkMissionDialog?.action === "archive" ? "Archive visible" : "Restore visible"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
