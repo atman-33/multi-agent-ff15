@@ -4,4 +4,4 @@
 # ja: Japanese only (FF15-style Japanese, no bilingual output)
 # en: English (FF15-style Japanese + English translation in parentheses)
 # Other language codes (es, zh, ko, fr, de, etc.) also supported
-language: ja
+language: en
