@@ -1,6 +1,8 @@
 {
+  "version": "0.10.0",
 	"name": "multi-agent-ff15",
 	"scripts": {
+    "web:install": "cd web && npm install",
 		"web:dev": "npm --prefix web run dev",
 		"web:build": "npm --prefix web run build",
 		"web:format": "npm --prefix web run format",
