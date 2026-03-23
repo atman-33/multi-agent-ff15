@@ -12,6 +12,7 @@ import {
   isSessionStatusActive,
   type SessionStatus,
 } from "@/lib/session-status";
+import { NEW_OPENCODE_SESSION_DRAFT_KEY } from "@/lib/opencode-session";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import type { Route } from "./+types/route";
@@ -186,6 +187,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const [isFetching, setIsFetching] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
+  const clearSessionDraft = useChatStore((state) => state.clearSessionDraft);
   const setCurrentSessionId = useChatStore((state) => state.setCurrentSessionId);
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setServerSessionState = useChatStore((state) => state.setServerSessionState);
@@ -221,27 +223,10 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
     }
   }, [activeSessionId, setCurrentSessionId]);
 
-  const handleNewSession = useCallback(async () => {
-    try {
-      const response = await fetch("/api/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "New Session" }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to create session");
-      }
-      const data = (await response.json()) as { session: Session };
-      await loadSessions();
-      if (data.session?.id) {
-        navigate(`/opencode/session/${data.session.id}`);
-      }
-    } catch {
-      toast.error("Unable to create session", {
-        description: "OpenCode server not available",
-      });
-    }
-  }, [loadSessions, navigate]);
+  const handleNewSession = useCallback(() => {
+    clearSessionDraft(NEW_OPENCODE_SESSION_DRAFT_KEY);
+    navigate("/opencode");
+  }, [clearSessionDraft, navigate]);
 
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => b.time.updated - a.time.updated);
@@ -404,7 +389,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
             <nav className="w-full min-w-0 space-y-1">
               {sortedSessions.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                  No sessions yet. Create one to get started.
+                  No sessions yet. Start a conversation to create one.
                 </div>
               ) : (
                 sortedSessions.map((session) => {

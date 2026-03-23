@@ -5,6 +5,7 @@ import {
   Crown,
   FileText,
   FolderGit2,
+  GitBranch,
   Github,
   LoaderCircle,
   ServerCrash,
@@ -170,6 +171,8 @@ const Layout = (_props: Route.ComponentProps) => {
     const activeIdSet = new Set(activeIds);
     return (activeProjectsData?.projects ?? []).filter((project) => activeIdSet.has(project.id));
   }, [activeProjectsData]);
+  const primaryActiveProject = activeNoctisProjects[0] ?? null;
+  const additionalActiveProjectCount = Math.max(activeNoctisProjects.length - 1, 0);
 
   const fetchServerStatus = useCallback(async () => {
     try {
@@ -351,55 +354,153 @@ const Layout = (_props: Route.ComponentProps) => {
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             <HoverCard openDelay={120} closeDelay={80}>
               <HoverCardTrigger asChild>
-                <Badge
-                  className="max-w-full cursor-default gap-1 border-primary/20 bg-primary/10 font-normal text-[11px] text-foreground/85"
-                  variant="outline"
+                <NavLink
+                  aria-label={activeProjectLabel}
+                  className={cn(
+                    "group flex min-w-65 max-w-full items-center gap-3 rounded-xl border px-3 py-2 text-left shadow-sm transition-all duration-200",
+                    primaryActiveProject &&
+                      "border-amber-500/30 bg-amber-500/10 hover:border-amber-400/50 hover:bg-amber-500/15",
+                    activeProjectsLoading &&
+                      activeNoctisProjects.length === 0 &&
+                      "border-primary/20 bg-primary/10 hover:bg-primary/15",
+                    activeProjectsError &&
+                      activeNoctisProjects.length === 0 &&
+                      "border-destructive/30 bg-destructive/10 hover:bg-destructive/15",
+                    !primaryActiveProject &&
+                      !activeProjectsLoading &&
+                      !activeProjectsError &&
+                      "border-border/60 bg-background/55 hover:bg-background/75"
+                  )}
+                  end
+                  title={formatActiveProjectTitle(activeNoctisProjects, activeProjectsError)}
+                  to="/projects"
                 >
-                  <Crown className="h-3 w-3 shrink-0 text-primary/80" />
-                  <span className="truncate">{activeProjectLabel}</span>
-                </Badge>
-              </HoverCardTrigger>
-              <HoverCardContent align="end" className="w-90 space-y-3 p-3" sideOffset={10}>
-                <div className="space-y-1">
-                  <div className="font-medium text-sm text-foreground">
-                    Noctis Team Active Projects
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                      primaryActiveProject &&
+                        "border-amber-500/30 bg-amber-950/40 text-amber-300",
+                      activeProjectsLoading &&
+                        activeNoctisProjects.length === 0 &&
+                        "border-primary/20 bg-primary/15 text-primary",
+                      activeProjectsError &&
+                        activeNoctisProjects.length === 0 &&
+                        "border-destructive/30 bg-destructive/15 text-destructive",
+                      !primaryActiveProject &&
+                        !activeProjectsLoading &&
+                        !activeProjectsError &&
+                        "border-border/60 bg-background/70 text-muted-foreground"
+                    )}
+                  >
+                    {activeProjectsLoading && activeNoctisProjects.length === 0 ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FolderGit2 className="h-4 w-4" />
+                    )}
                   </div>
-                  <div className="text-muted-foreground text-xs">
-                    {formatActiveProjectTitle(activeNoctisProjects, activeProjectsError)}
+
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={cn(
+                        "text-[10px] font-semibold uppercase tracking-[0.18em]",
+                        primaryActiveProject
+                          ? "text-amber-700/80 dark:text-amber-300/80"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      Noctis Team
+                    </div>
+
+                    {activeProjectsLoading && activeNoctisProjects.length === 0 ? (
+                      <div className="mt-1 truncate font-semibold text-foreground/90 text-sm">
+                        Checking active projects...
+                      </div>
+                    ) : activeProjectsError && activeNoctisProjects.length === 0 ? (
+                      <div className="mt-1 truncate font-semibold text-destructive text-sm">
+                        Active projects unavailable
+                      </div>
+                    ) : primaryActiveProject ? (
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="truncate font-semibold text-foreground text-sm">
+                          {primaryActiveProject.displayName}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-950/70 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+                          <GitBranch className="h-2.5 w-2.5" />
+                          {primaryActiveProject.branchName ?? "unknown"}
+                        </span>
+                        {additionalActiveProjectCount > 0 && (
+                          <span className="shrink-0 rounded-full bg-amber-300 px-1.5 py-0.5 font-black text-[9px] text-amber-950">
+                            +{additionalActiveProjectCount}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-1 truncate font-semibold text-foreground/85 text-sm">
+                        No active project
+                      </div>
+                    )}
+                  </div>
+                </NavLink>
+              </HoverCardTrigger>
+              <HoverCardContent
+                align="end"
+                className="w-104 overflow-hidden border-amber-500/20 bg-background/95 p-0 backdrop-blur-md"
+                sideOffset={10}
+              >
+                <div className="border-border/50 border-b bg-amber-500/5 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="font-medium text-foreground text-sm">
+                        Noctis Team Active Projects
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        {formatActiveProjectTitle(activeNoctisProjects, activeProjectsError)}
+                      </div>
+                    </div>
+                    {activeNoctisProjects.length > 0 && (
+                      <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-1 font-semibold text-[10px] text-amber-700 dark:text-amber-300">
+                        {activeNoctisProjects.length} active
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {activeNoctisProjects.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="max-h-80 overflow-y-auto py-1">
                     {activeNoctisProjects.map((project) => (
                       <div
-                        className="rounded-lg border border-border/60 bg-background/70 px-3 py-2.5"
+                        className="group px-4 py-3 transition-colors hover:bg-amber-500/10"
                         key={project.id}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-medium text-sm text-foreground">
-                            {project.displayName}
-                          </span>
-                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                            {project.id}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="truncate font-semibold text-foreground text-sm transition-colors group-hover:text-amber-600 dark:group-hover:text-amber-300">
+                                {project.displayName}
+                              </span>
+                              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                {project.id}
+                              </span>
+                            </div>
+
+                            <div
+                              className="mt-1 truncate font-mono text-[10px] text-muted-foreground opacity-80"
+                              title={project.path}
+                            >
+                              {project.path}
+                            </div>
+                          </div>
+
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-700 dark:text-amber-300">
+                            <GitBranch className="h-2.5 w-2.5" />
+                            {project.branchName ?? "unknown"}
                           </span>
                         </div>
 
-                        <div className="mt-2 grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
-                          <span className="text-muted-foreground">Branch</span>
-                          <span className="truncate font-mono text-foreground/90">
-                            {project.branchName ?? "unknown"}
+                        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                          <span className="uppercase tracking-[0.14em] text-[9px]">
+                            Updated
                           </span>
-
-                          <span className="text-muted-foreground">Path</span>
-                          <span
-                            className="truncate font-mono text-foreground/90"
-                            title={project.path}
-                          >
-                            {project.path}
-                          </span>
-
-                          <span className="text-muted-foreground">Updated</span>
                           <span className="text-foreground/90">
                             {formatProjectUpdatedAt(project.updatedAt)}
                           </span>
@@ -408,7 +509,7 @@ const Layout = (_props: Route.ComponentProps) => {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="px-4 py-3 text-muted-foreground text-sm">
                     {activeProjectsError ??
                       "No active project is configured for the Noctis Team scope."}
                   </div>
