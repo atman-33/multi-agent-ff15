@@ -1,6 +1,4 @@
-import ReactMarkdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
-import remarkGfm from "remark-gfm";
+import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 
 type Props = {
@@ -21,7 +19,7 @@ const MessageDetailSheet = ({ content, onOpenChange, open, senderLabel }: Props)
     >
       <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
         <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{content}</ReactMarkdown>
+          <MessageMarkdown>{content}</MessageMarkdown>
         </div>
       </div>
     </MessageDetailSheetBase>

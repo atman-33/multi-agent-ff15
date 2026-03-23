@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { PageContainer } from "@/components/page-container";
 import type { ActiveProjectsData } from "@/hooks/use-active-projects";
 import {
   PROJECT_SCOPE_DESCRIPTIONS,
@@ -270,7 +271,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
   const totalCount = serverData?.projects.length ?? 0;
 
   return (
-    <div className="max-w-3xl space-y-5 p-6">
+    <PageContainer className="space-y-5" size="narrow">
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-muted-foreground text-sm">
@@ -515,7 +516,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

@@ -1,8 +1,6 @@
 import { Radio } from "lucide-react";
 import { memo, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
-import remarkGfm from "remark-gfm";
+import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
   buildIntermediateDetailSummary,
@@ -288,9 +286,7 @@ const MessageBubble = memo(
           hasVisibleBody ? (
             !isOutgoing ? (
               <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                  {`${message.displayContent}${showCursor ? "▌" : ""}`}
-                </ReactMarkdown>
+                <MessageMarkdown>{`${message.displayContent}${showCursor ? "▌" : ""}`}</MessageMarkdown>
               </div>
             ) : (
               <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">

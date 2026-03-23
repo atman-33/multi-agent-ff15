@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   Rabbit,
   ServerCrash,
+  SlidersHorizontal,
   Settings2,
   Terminal,
 } from "lucide-react";
@@ -60,6 +61,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/reports", icon: FileText, label: "Reports", end: true },
   { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
   { to: "/mcp", icon: Cpu, label: "MCP", end: true },
+  { to: "/config", icon: SlidersHorizontal, label: "Config", end: true },
   { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
   { to: "/server", icon: Activity, label: "Server Monitor", end: true },
   { to: "/loading-lab", icon: Rabbit, label: "Loading Lab", end: true },
