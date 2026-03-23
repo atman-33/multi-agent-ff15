@@ -1,4 +1,3 @@
-import type { AgentStatus } from "@/routes/_layout.noctis-team/components/character-card";
 import type { AppLanguage } from "@/lib/app-language.server";
 import {
   createBanterTemplate,
@@ -7,6 +6,7 @@ import {
   toPartyMemberId,
 } from "@/lib/banter/runtime";
 import type { BanterTemplate, RecentBanterEntry } from "@/lib/banter/types";
+import type { AgentStatus } from "@/routes/_layout.noctis-team/components/character-card";
 
 export type AgentEvent =
   | { type: "session.created" }
@@ -37,7 +37,7 @@ interface EventToPartyUpdateOptions {
   recentEntries?: RecentBanterEntry[];
 }
 
-const TASK_ASSIGNED_LABEL: Record<string, string> = {
+const _TASK_ASSIGNED_LABEL: Record<string, string> = {
   noctis: "Coordinating…",
   ignis: "Analysing…",
   gladiolus: "Executing…",
@@ -65,7 +65,7 @@ export function eventToPartyUpdate(
 
     case "task.assigned": {
       const { agentId } = event;
-      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
@@ -76,7 +76,7 @@ export function eventToPartyUpdate(
 
     case "task.progress": {
       const { agentId, stage } = event;
-      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
@@ -111,7 +111,7 @@ export function eventToPartyUpdate(
 
     case "task.retrying": {
       const { agentId } = event;
-      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
@@ -129,7 +129,7 @@ export function eventToPartyUpdate(
 
     case "runtime.recovered": {
       const { agentId } = event;
-      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",

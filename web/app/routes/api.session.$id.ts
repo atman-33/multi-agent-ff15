@@ -1,5 +1,5 @@
-import type { Route } from "./+types/api.session.$id";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import type { Route } from "./+types/api.session.$id";
 
 export const loader = async ({ params }: Route.LoaderArgs) => {
   const sessionId = params.id;

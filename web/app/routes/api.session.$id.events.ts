@@ -1,18 +1,18 @@
-import type { Route } from "./+types/api.session.$id.events";
-import { getOpencodeClient } from "@/lib/opencode-client";
 import type { Event } from "@opencode-ai/sdk";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import type { Route } from "./+types/api.session.$id.events";
 
 function extractSessionId(event: Event): string | undefined {
   const props = (event as { properties?: Record<string, unknown> }).properties;
   if (!props) return undefined;
 
-  if (typeof props["sessionID"] === "string") {
-    return props["sessionID"];
+  if (typeof props.sessionID === "string") {
+    return props.sessionID;
   }
 
-  const part = props["part"] as Record<string, unknown> | undefined;
-  if (part && typeof part["sessionID"] === "string") {
-    return part["sessionID"];
+  const part = props.part as Record<string, unknown> | undefined;
+  if (part && typeof part.sessionID === "string") {
+    return part.sessionID;
   }
 
   return undefined;

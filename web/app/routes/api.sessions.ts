@@ -1,6 +1,6 @@
-import type { Route } from "./+types/api.sessions";
-import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import type { Route } from "./+types/api.sessions";
 
 export const loader = async () => {
   try {

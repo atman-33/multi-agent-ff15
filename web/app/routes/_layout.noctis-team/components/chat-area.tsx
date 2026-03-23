@@ -1,17 +1,8 @@
-import {
-  ArrowUpRight,
-  BadgeInfo,
-  Check,
-  ChevronDown,
-  Copy,
-  Radio,
-  Sparkles,
-  Wrench,
-} from "lucide-react";
+import { Radio } from "lucide-react";
+import { memo, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { memo, useMemo, useState } from "react";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
   buildIntermediateDetailSummary,
@@ -20,18 +11,16 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
-import { Button } from "@/components/ui/button";
 import { getAgentTheme } from "@/lib/agent-theme";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
-import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
-import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 import MessageDetailSheet from "./message-detail-sheet";
+import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 
 export interface ChatMessage {
   id: string;
@@ -53,7 +42,7 @@ interface ChatAreaProps {
   isSessionActive?: boolean;
   isStreaming?: boolean;
   onAbort?: () => void;
-  onSend: (parts: PromptPart[]) => void | Promise<unknown>;
+  onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
 }
 
@@ -354,7 +343,6 @@ MessageBubble.displayName = "MessageBubble";
 
 export const ChatArea = ({
   messages,
-  isResponding,
   isSessionActive = false,
   isStreaming = false,
   onAbort,

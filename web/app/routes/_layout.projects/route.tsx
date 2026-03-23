@@ -257,7 +257,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
 
   if (loading && !serverData) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center p-6">
+      <div className="flex min-h-75 items-center justify-center p-6">
         <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -489,10 +489,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
                         );
                         const isSaving = savingIds.has(`${scope}:${project.id}`);
                         return (
-                          <div
-                            className="flex min-w-[110px] items-center justify-center"
-                            key={scope}
-                          >
+                          <div className="flex min-w-27.5 items-center justify-center" key={scope}>
                             <Switch
                               aria-label={`Toggle ${project.displayName} for ${PROJECT_SCOPE_LABELS[scope]}`}
                               checked={checked}

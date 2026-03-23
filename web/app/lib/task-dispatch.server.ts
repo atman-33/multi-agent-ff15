@@ -1,6 +1,4 @@
-import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import {
   addTask,
   appendMissionMessage,
@@ -9,6 +7,8 @@ import {
   setWorkerSession,
   updateTask,
 } from "@/lib/mission-store";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
@@ -57,10 +57,10 @@ function buildCompactTaskPrompt(input: {
   lines.push("- Use the bash tool to run send_report.sh.");
   lines.push("- Do not print the command in chat. Run it with the bash tool.");
   lines.push(
-    `- Final: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} completed \"<summary>\"`
+    `- Final: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} completed "<summary>"`
   );
   lines.push(
-    `- Blocked: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} blocked \"<reason>\"`
+    `- Blocked: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} blocked "<reason>"`
   );
 
   return lines.join("\n");

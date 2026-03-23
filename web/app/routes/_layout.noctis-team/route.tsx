@@ -1,7 +1,7 @@
-import type { Route } from "./+types/route";
 import { useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { readAppLanguage } from "@/lib/app-language.server";
+import type { Route } from "./+types/route";
 import { NoctisTeamScreen } from "./components/noctis-team-screen";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";

@@ -1,8 +1,8 @@
-import type { Route } from "./+types/api.noctis.missions.$missionId.runtime";
 import { getMission } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readSessionContextUsage } from "@/lib/session-context.server";
 import { coerceSessionStatus } from "@/lib/session-status";
+import type { Route } from "./+types/api.noctis.missions.$missionId.runtime";
 
 export const loader = async ({ params }: Route.LoaderArgs) => {
   const missionId = params.missionId;

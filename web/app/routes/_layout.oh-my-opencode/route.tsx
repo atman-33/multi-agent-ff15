@@ -59,7 +59,7 @@ const LoadingGrid = () => {
         >
           <div className="h-4 w-24 rounded bg-muted" />
           <div className="flex-1" />
-          <div className="h-7 w-[220px] rounded bg-muted sm:w-[280px] 2xl:w-[320px]" />
+          <div className="h-7 w-55 rounded bg-muted sm:w-70 2xl:w-80" />
         </div>
       ))}
     </div>
@@ -152,7 +152,7 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
 
   if (loading && !data) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center p-6">
+      <div className="flex min-h-75 items-center justify-center p-6">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -160,7 +160,7 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-4 p-4">
+      <div className="mx-auto flex h-full min-h-0 max-w-400 flex-col gap-4 p-4">
         <div className="flex items-center justify-between border-border/50 border-b pb-2">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-primary/10 p-2">
@@ -278,7 +278,7 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
                               onValueChange={(value) => handleModelChange("agents", key, value)}
                               value={entry.model}
                             >
-                              <SelectTrigger className="w-[220px] sm:w-[280px] 2xl:w-[320px]">
+                              <SelectTrigger className="w-55 sm:w-70 2xl:w-80">
                                 <SelectValue placeholder="Select model" />
                               </SelectTrigger>
                               <SelectContent>
@@ -325,7 +325,7 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
                               onValueChange={(value) => handleModelChange("categories", key, value)}
                               value={entry.model}
                             >
-                              <SelectTrigger className="w-[220px] sm:w-[280px] 2xl:w-[320px]">
+                              <SelectTrigger className="w-55 sm:w-70 2xl:w-80">
                                 <SelectValue placeholder="Select model" />
                               </SelectTrigger>
                               <SelectContent>

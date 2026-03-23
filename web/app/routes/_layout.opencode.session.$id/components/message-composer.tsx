@@ -1,7 +1,7 @@
 import { Bot, Check, ChevronsUpDown } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { PromptComposer } from "@/components/chat/prompt-composer";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -40,7 +40,10 @@ type ProvidersResponse = {
 
 type Props = {
   sessionId?: string;
-  onSend: (parts: PromptPart[], options?: { agent?: string | null }) => void | Promise<unknown>;
+  onSend: (
+    parts: PromptPart[],
+    options?: { agent?: string | null }
+  ) => undefined | Promise<unknown>;
   onAbort?: () => void;
   disabled?: boolean;
   isSessionRunning?: boolean;

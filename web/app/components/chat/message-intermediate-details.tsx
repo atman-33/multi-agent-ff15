@@ -37,7 +37,7 @@ export function MessageIntermediateDetails({ internalContext, reasoning, tools }
   const toolKeyMapRef = useRef(new WeakMap<ChatMessagePart, string>());
   const nextToolKeyRef = useRef(0);
   const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
-  const detailSummary = useMemo(
+  const _detailSummary = useMemo(
     () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
     [internalContext, reasoning, tools]
   );

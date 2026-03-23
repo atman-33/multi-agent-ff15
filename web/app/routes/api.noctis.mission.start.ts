@@ -1,16 +1,16 @@
-import type { Route } from "./+types/api.noctis.mission.start";
-import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { buildPromptPayloadParts, stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import {
   coerceAllowedWorkers,
   getNoctisAgentProfile,
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
-import { createMission, buildDelegationLedger, setAgentModels } from "@/lib/mission-store";
-import type { ModelSelection, AgentId } from "@/lib/types/mission";
+import type { AgentId, ModelSelection } from "@/lib/types/mission";
+import type { Route } from "./+types/api.noctis.mission.start";
 
 function isModelSelection(value: unknown): value is ModelSelection {
   if (!value || typeof value !== "object") return false;
@@ -81,7 +81,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       ? (body.workerModels as Record<string, unknown>)
       : {};
   const agentModels: Partial<Record<AgentId, ModelSelection>> = {};
-  if (noctisModel) agentModels["noctis"] = noctisModel;
+  if (noctisModel) agentModels.noctis = noctisModel;
   for (const agentId of ["ignis", "gladiolus", "prompto"] as const) {
     const m = workerModelsRaw[agentId];
     if (isModelSelection(m)) agentModels[agentId] = m;

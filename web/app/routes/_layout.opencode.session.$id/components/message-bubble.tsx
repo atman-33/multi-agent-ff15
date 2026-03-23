@@ -10,8 +10,8 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { parseInternalContext, removeInternalContext } from "@/lib/chat-internal-context";
 import { buildMessageMarkdown, extractReasoning, extractTools } from "@/lib/chat-message-parts";
-import MessageDetailSheet from "./message-detail-sheet";
 import type { MessagePart } from "../types";
+import MessageDetailSheet from "./message-detail-sheet";
 
 type Props = {
   message: {

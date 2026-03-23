@@ -3,8 +3,8 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { readAppLanguage } from "@/lib/app-language.server";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
-import type { Route } from "./+types/route";
 import { NoctisTeamScreen } from "../_layout.noctis-team/components/noctis-team-screen";
+import type { Route } from "./+types/route";
 
 const NoctisTeamMissionPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();

@@ -1,5 +1,5 @@
-import type { Route } from "./+types/api.noctis.missions";
 import { listMissionSummaries } from "@/lib/mission-store";
+import type { Route } from "./+types/api.noctis.missions";
 
 export const loader = async (_args: Route.LoaderArgs) => {
   try {

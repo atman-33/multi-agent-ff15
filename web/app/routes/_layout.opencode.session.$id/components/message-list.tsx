@@ -1,5 +1,5 @@
-import MessageBubble from "./message-bubble";
 import type { MessageInfo } from "../types";
+import MessageBubble from "./message-bubble";
 
 type DisplayMessage = {
   id: string;

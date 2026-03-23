@@ -1,16 +1,16 @@
-import type { Route } from "./+types/api.noctis.mission.continue";
-import { getOpencodeClient } from "@/lib/opencode-client";
-import { getMission } from "@/lib/mission-store";
-import { buildPromptPayloadParts, stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getMission } from "@/lib/mission-store";
 import {
   coerceAllowedWorkers,
   getNoctisAgentProfile,
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ModelSelection } from "@/lib/types/mission";
+import type { Route } from "./+types/api.noctis.mission.continue";
 
 function isModelSelection(value: unknown): value is ModelSelection {
   if (!value || typeof value !== "object") return false;
@@ -81,7 +81,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
 
-  const effectiveModel = noctisModel ?? mission.agentModels["noctis"];
+  const effectiveModel = noctisModel ?? mission.agentModels.noctis;
 
   try {
     const client = getOpencodeClient();

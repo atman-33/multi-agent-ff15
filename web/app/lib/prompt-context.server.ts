@@ -1,7 +1,7 @@
 import {
+  type RegisteredProjectDefinition,
   readRegisteredProjectDefinition,
   readScopedProjectsConfig,
-  type RegisteredProjectDefinition,
 } from "@/lib/project-config.server";
 import {
   getProjectScopeForAgent,
@@ -131,7 +131,7 @@ export function buildInjectedPromptContext({
   lines.push(
     `  activate_project: ${
       firstProject.serenaProject ||
-      `not set - try in order: \"${firstProject.id}\" -> \"${firstProject.rootPath}\" -> UNC path`
+      `not set - try in order: "${firstProject.id}" -> "${firstProject.rootPath}" -> UNC path`
     }`
   );
   lines.push(

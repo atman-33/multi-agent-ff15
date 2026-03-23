@@ -34,7 +34,10 @@ type FindFileResult =
 
 type PromptComposerProps = {
   draftKey?: string;
-  onSend: (parts: PromptPart[], options?: { agent?: string | null }) => void | Promise<unknown>;
+  onSend: (
+    parts: PromptPart[],
+    options?: { agent?: string | null }
+  ) => undefined | Promise<unknown>;
   getSendOptions?: () => { agent?: string | null } | undefined;
   onAbort?: () => void;
   disabled?: boolean;

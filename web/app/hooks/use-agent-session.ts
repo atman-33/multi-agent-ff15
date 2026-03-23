@@ -1,38 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
-import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
-import {
-  extractReasoning,
-  extractText,
-  extractTools,
-} from "@/routes/_layout.noctis-team/components/message-parts";
-import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
-import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import type { AppLanguage } from "@/lib/app-language.server";
 import { createBanterTemplate, normalizeBanterAgentId } from "@/lib/banter/runtime";
 import type { BanterCue, BanterTemplate, RecentBanterEntry } from "@/lib/banter/types";
 import {
+  type AgentEvent,
   applyPartyRuntimeUpdate,
   eventToPartyUpdate,
-  type AgentEvent,
   type PartyRuntimeState,
 } from "@/lib/event-to-party-update";
 import { getAllowedWorkers } from "@/lib/noctis-working-party";
-import { stringifyPromptParts, type PromptPart } from "@/lib/prompt-parts";
-import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
+import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import {
   coerceSessionStatus,
   isSessionStatusActive,
   type SessionStatus,
 } from "@/lib/session-status";
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
-import { useChatStore } from "@/stores/chat-store";
+import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type {
   AgentContextUsage,
   DelegationLedger,
   MissionMessageLogEntry,
   ReportStatus,
 } from "@/lib/types/mission";
+import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
+import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
+import { extractText } from "@/routes/_layout.noctis-team/components/message-parts";
+import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
+import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import { useChatStore } from "@/stores/chat-store";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
   messageId?: string;
@@ -86,7 +82,6 @@ const PARTY_MEMBER_META = [
 ] as const;
 
 type PartyMemberMeta = (typeof PARTY_MEMBER_META)[number];
-type PartyMemberId = PartyMemberMeta["id"];
 type WorkerPartyMemberMeta = PartyMemberMeta & { sessionKey: WorkerSessionKey };
 type WorkerMemberId = WorkerPartyMemberMeta["id"];
 type WorkerSessionIds = Record<WorkerMemberId, string | null>;
@@ -410,7 +405,7 @@ export function useAgentSession({
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(
     createInitialPartyRuntimeState
   );
-  const [delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
+  const [_delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
   const [contextUsageByAgent, setContextUsageByAgent] = useState(createInitialContextUsageByAgent);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [workerSessionIds, setWorkerSessionIds] =
@@ -855,7 +850,7 @@ export function useAgentSession({
     [addBanter, clearProgressBanter, language, scheduleIdleReset, setOptimisticSessionState]
   );
 
-  const scheduleProgressBanter = useCallback(
+  const _scheduleProgressBanter = useCallback(
     (agentId: string) => {
       const normalized = normalizeBanterAgentId(agentId);
       if (!normalized) {
@@ -1318,12 +1313,12 @@ export function useAgentSession({
               parts,
               title: text.slice(0, 80),
               objective: text,
-              noctisModel: agentModels["noctis"] ?? null,
+              noctisModel: agentModels.noctis ?? null,
               allowedWorkers,
               workerModels: {
-                ignis: agentModels["ignis"] ?? null,
-                gladiolus: agentModels["gladiolus"] ?? null,
-                prompto: agentModels["prompto"] ?? null,
+                ignis: agentModels.ignis ?? null,
+                gladiolus: agentModels.gladiolus ?? null,
+                prompto: agentModels.prompto ?? null,
               },
             }),
           });
@@ -1360,7 +1355,7 @@ export function useAgentSession({
             body: JSON.stringify({
               missionId: missionIdRef.current,
               parts,
-              noctisModel: agentModels["noctis"] ?? null,
+              noctisModel: agentModels.noctis ?? null,
               allowedWorkers,
             }),
           });

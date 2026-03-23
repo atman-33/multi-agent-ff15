@@ -1,5 +1,5 @@
-import type { Route } from "./+types/api.noctis.missions.$missionId";
 import { getMission } from "@/lib/mission-store";
+import type { Route } from "./+types/api.noctis.missions.$missionId";
 
 export const loader = async ({ params }: Route.LoaderArgs) => {
   const missionId = params.missionId;

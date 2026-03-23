@@ -14,8 +14,8 @@ import type {
   ModelSelection,
   Task,
   TaskStatus,
-  WorkerResult,
   WorkerAgentId,
+  WorkerResult,
 } from "./types/mission";
 
 const store = new Map<string, Mission>();

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentContextUsage } from "./types/mission";
 import { getProjectRoot } from "./get-project-root.server";
+import type { AgentContextUsage } from "./types/mission";
 
 type SessionContextSnapshotFile = {
   calculatedAt?: unknown;

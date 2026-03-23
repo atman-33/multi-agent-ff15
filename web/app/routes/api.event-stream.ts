@@ -1,5 +1,5 @@
-import type { Route } from "./+types/api.event-stream";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import type { Route } from "./+types/api.event-stream";
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const encoder = new TextEncoder();

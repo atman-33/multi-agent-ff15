@@ -1,5 +1,5 @@
-import type { Route } from "./+types/api.opencode.server";
 import { getOpencodeServerStatus, recoverOpencodeServer } from "@/lib/opencode-server";
+import type { Route } from "./+types/api.opencode.server";
 
 export const loader = async () => {
   const status = await getOpencodeServerStatus();

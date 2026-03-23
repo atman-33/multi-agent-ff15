@@ -7,8 +7,8 @@ import {
   FolderGit2,
   Github,
   LoaderCircle,
-  Settings2,
   ServerCrash,
+  Settings2,
   Terminal,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,8 +16,6 @@ import { NavLink, Outlet, useLocation, useNavigation } from "react-router";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { useActiveProjects, type ProjectEntry } from "@/hooks/use-active-projects";
-import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +30,8 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { type ProjectEntry, useActiveProjects } from "@/hooks/use-active-projects";
+import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
 type NavItem = {

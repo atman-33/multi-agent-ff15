@@ -2,12 +2,12 @@ import { History, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  useAgentSession,
   type MissionResumePayload,
   type MissionSummary,
+  useAgentSession,
 } from "@/hooks/use-agent-session";
 import type { AppLanguage } from "@/lib/app-language.server";
 import type { PromptPart } from "@/lib/prompt-parts";

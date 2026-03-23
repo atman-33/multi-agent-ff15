@@ -108,7 +108,7 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
 
   if (isLoading && !status) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center p-6">
+      <div className="flex min-h-80 items-center justify-center p-6">
         <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );

@@ -11,11 +11,11 @@ import {
   parseSessionTextPartEvent,
 } from "@/lib/session-stream";
 import { useChatStore } from "@/stores/chat-store";
+import type { OpenCodeOutletContext } from "../_layout.opencode/route";
+import type { Route } from "./+types/route";
 import MessageComposer from "./components/message-composer";
 import MessageList from "./components/message-list";
 import type { MessageInfo } from "./types";
-import type { Route } from "./+types/route";
-import type { OpenCodeOutletContext } from "../_layout.opencode/route";
 
 const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();

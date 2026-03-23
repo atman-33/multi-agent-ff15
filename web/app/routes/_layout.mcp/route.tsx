@@ -154,7 +154,7 @@ const McpPage = (_props: Route.ComponentProps) => {
 
   if (loading && !data) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center p-6">
+      <div className="flex min-h-75 items-center justify-center p-6">
         <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );

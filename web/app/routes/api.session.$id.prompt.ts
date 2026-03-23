@@ -1,7 +1,7 @@
-import { getOpencodeClient } from "@/lib/opencode-client";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { buildPromptPayloadParts, type PromptPart } from "@/lib/prompt-parts";
+import { getOpencodeClient } from "@/lib/opencode-client";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { buildPromptPayloadParts, type PromptPart } from "@/lib/prompt-parts";
 import type { Route } from "./+types/api.session.$id.prompt";
 
 type PromptPayload = {

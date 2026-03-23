@@ -232,7 +232,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
                   <div className="mt-2 flex items-center justify-between">
                     <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
                       <User className="h-3 w-3" />
-                      <span className="max-w-[80px] truncate font-medium">{report.author}</span>
+                      <span className="max-w-20 truncate font-medium">{report.author}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
                       <Clock className="h-3 w-3" />

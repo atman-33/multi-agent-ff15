@@ -2,12 +2,6 @@ import { Check, ChevronsUpDown, Cpu, Sparkles } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  getCompactWorkingPartySummary,
-  getAllowedWorkers,
-  isWorkingPartyMemberId,
-  normalizeWorkingPartyMemberId,
-} from "@/lib/noctis-working-party";
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -17,10 +11,16 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
+import {
+  getAllowedWorkers,
+  getCompactWorkingPartySummary,
+  isWorkingPartyMemberId,
+  normalizeWorkingPartyMemberId,
+} from "@/lib/noctis-working-party";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
-import { useChatStore } from "@/stores/chat-store";
 import type { ModelSelection } from "@/stores/chat-store";
+import { useChatStore } from "@/stores/chat-store";
 import type { AgentStatus } from "./character-card";
 import { CharacterCard } from "./character-card";
 
@@ -356,7 +356,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
             "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";
 
           const partyControl = isNoctis ? (
-                <fieldset
+            <fieldset
               className="grid w-full cursor-not-allowed grid-cols-2 gap-1 rounded-full border border-border/40 bg-muted/20 p-0.5"
               aria-label="Noctis party membership locked"
             >
@@ -376,9 +376,9 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
               >
                 Out
               </div>
-                </fieldset>
+            </fieldset>
           ) : isWorker && workingPartyAgentId ? (
-                <fieldset
+            <fieldset
               className="grid w-full grid-cols-2 gap-1 rounded-full border border-border/30 bg-background/25 p-0.5"
               aria-label={`${member.name} party membership`}
             >
@@ -412,7 +412,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
               >
                 Out
               </Button>
-                </fieldset>
+            </fieldset>
           ) : (
             <div aria-hidden="true" className="invisible h-6 w-full rounded-md border px-2" />
           );
