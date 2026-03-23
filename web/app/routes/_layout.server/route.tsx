@@ -115,7 +115,7 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-5 overflow-auto p-6">
+    <div className="flex h-full w-full max-w-4xl flex-col gap-5 overflow-auto p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 font-semibold text-xl">
