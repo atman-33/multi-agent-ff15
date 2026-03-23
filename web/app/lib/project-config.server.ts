@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { PROJECT_SCOPES, type ProjectScope } from "@/lib/project-scopes";
+import { ensureRequiredWebConfigFiles } from "@/lib/required-config.server";
 
 export interface ProjectInstructionFile {
   exists: boolean;
@@ -47,6 +48,7 @@ export function createEmptyProjectScopes(): Record<ProjectScope, ProjectScopeSta
 }
 
 export function readScopedProjectsConfig(root: string): ScopedProjectsConfig {
+  ensureRequiredWebConfigFiles(root);
   const configPath = join(root, "config/current_projects.yaml");
   const projectScopes = createEmptyProjectScopes();
   let configUpdatedAt = "";
