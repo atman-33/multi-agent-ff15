@@ -8,15 +8,17 @@ import {
   GitBranch,
   Github,
   LoaderCircle,
+  Rabbit,
   ServerCrash,
   Settings2,
   Terminal,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigation } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { RouteTransitionOverlay } from "@/components/route-transition-overlay";
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/mcp", icon: Cpu, label: "MCP", end: true },
   { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
   { to: "/server", icon: Activity, label: "Server Monitor", end: true },
+  { to: "/loading-lab", icon: Rabbit, label: "Loading Lab", end: true },
 ];
 
 function formatActiveProjectLabel(
@@ -144,9 +147,7 @@ function areServerStatusesEqual(left: HeaderServerStatus | null, right: HeaderSe
 }
 
 const Layout = (_props: Route.ComponentProps) => {
-  const navigation = useNavigation();
   const location = useLocation();
-  const isLoading = navigation.state !== "idle";
   const {
     data: activeProjectsData,
     loading: activeProjectsLoading,
@@ -343,12 +344,6 @@ const Layout = (_props: Route.ComponentProps) => {
       </Sidebar>
 
       <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {isLoading && (
-          <div className="absolute top-0 right-0 left-0 z-50 h-0.5 overflow-hidden bg-primary/20">
-            <div className="h-full w-1/3 animate-pulse bg-primary" />
-          </div>
-        )}
-
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-2 backdrop-blur-sm">
           <SidebarTrigger className="shrink-0" />
           <div className="flex min-w-0 items-center gap-2">
@@ -570,7 +565,8 @@ const Layout = (_props: Route.ComponentProps) => {
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          <RouteTransitionOverlay />
           <Outlet />
         </div>
       </main>
