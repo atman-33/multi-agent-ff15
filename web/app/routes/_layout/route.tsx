@@ -347,7 +347,7 @@ const Layout = (_props: Route.ComponentProps) => {
           </div>
         )}
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-2 backdrop-blur-sm">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-1.5 backdrop-blur-sm">
           <SidebarTrigger className="shrink-0" />
           <span className="font-medium text-sm text-foreground/85">{activeNavLabel}</span>
 
@@ -357,7 +357,7 @@ const Layout = (_props: Route.ComponentProps) => {
                 <NavLink
                   aria-label={activeProjectLabel}
                   className={cn(
-                    "group flex min-w-65 max-w-full items-center gap-3 rounded-xl border px-3 py-2 text-left shadow-sm transition-all duration-200",
+                    "group flex min-w-0 max-w-full items-center gap-2.5 rounded-xl border px-2.5 py-1.5 text-left shadow-sm transition-all duration-200",
                     primaryActiveProject &&
                       "border-amber-500/30 bg-amber-500/10 hover:border-amber-400/50 hover:bg-amber-500/15",
                     activeProjectsLoading &&
@@ -377,7 +377,7 @@ const Layout = (_props: Route.ComponentProps) => {
                 >
                   <div
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors",
                       primaryActiveProject &&
                         "border-amber-500/30 bg-amber-950/40 text-amber-300",
                       activeProjectsLoading &&
@@ -393,34 +393,34 @@ const Layout = (_props: Route.ComponentProps) => {
                     )}
                   >
                     {activeProjectsLoading && activeNoctisProjects.length === 0 ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <FolderGit2 className="h-4 w-4" />
+                      <FolderGit2 className="h-3.5 w-3.5" />
                     )}
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div
+                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                    <span
                       className={cn(
-                        "text-[10px] font-semibold uppercase tracking-[0.18em]",
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
                         primaryActiveProject
-                          ? "text-amber-700/80 dark:text-amber-300/80"
-                          : "text-muted-foreground"
+                          ? "bg-amber-500/15 text-amber-700/80 dark:text-amber-300/80"
+                          : "bg-muted text-muted-foreground"
                       )}
                     >
-                      Noctis Team
-                    </div>
+                      Noctis
+                    </span>
 
                     {activeProjectsLoading && activeNoctisProjects.length === 0 ? (
-                      <div className="mt-1 truncate font-semibold text-foreground/90 text-sm">
+                      <div className="truncate font-semibold text-foreground/90 text-sm">
                         Checking active projects...
                       </div>
                     ) : activeProjectsError && activeNoctisProjects.length === 0 ? (
-                      <div className="mt-1 truncate font-semibold text-destructive text-sm">
+                      <div className="truncate font-semibold text-destructive text-sm">
                         Active projects unavailable
                       </div>
                     ) : primaryActiveProject ? (
-                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
                         <span className="truncate font-semibold text-foreground text-sm">
                           {primaryActiveProject.displayName}
                         </span>
@@ -435,7 +435,7 @@ const Layout = (_props: Route.ComponentProps) => {
                         )}
                       </div>
                     ) : (
-                      <div className="mt-1 truncate font-semibold text-foreground/85 text-sm">
+                      <div className="truncate font-semibold text-foreground/85 text-sm">
                         No active project
                       </div>
                     )}
