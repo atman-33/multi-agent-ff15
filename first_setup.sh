@@ -55,7 +55,7 @@ echo "  ║     Initial Setup Script for Ubuntu / WSL                    ║"
 echo "  ╚══════════════════════════════════════════════════════════════╝"
 echo ""
 echo "  This script is for first-time setup."
-echo "  It checks dependencies and creates directory structure."
+echo "  It checks dependencies and configures the environment."
 echo ""
 echo "  Installation directory: $SCRIPT_DIR"
 echo ""
@@ -65,7 +65,6 @@ echo ""
 # ============================================================
 log_step "STEP 1: System environment check"
 
-# Get OS information
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS_NAME=$NAME
@@ -76,783 +75,89 @@ else
     log_warn "Could not retrieve OS information"
 fi
 
-# WSL check
 if grep -qi microsoft /proc/version 2>/dev/null; then
     log_info "Environment: WSL (Windows Subsystem for Linux)"
     IS_WSL=true
 else
-    log_info "Environment: Native Linux"
+    log_info "Environment: Native Linux / Mac"
     IS_WSL=false
 fi
 
 RESULTS+=("System environment: OK")
 
 # ============================================================
-# STEP 2: tmux check / install
+# STEP 2: uv / uvx check
+# Note: uvx is required by the serena MCP server (opencode.json).
+#       uv installs to ~/.local/bin, which must be in PATH.
 # ============================================================
-log_step "STEP 2: tmux check"
+log_step "STEP 2: uv / uvx check (required for serena MCP)"
 
-if command -v tmux &> /dev/null; then
-    TMUX_VERSION=$(tmux -V | awk '{print $2}')
-    log_success "tmux is already installed (v$TMUX_VERSION)"
-    RESULTS+=("tmux: OK (v$TMUX_VERSION)")
-else
-    log_warn "tmux is not installed"
-    echo ""
-
-    # Check if Ubuntu/Debian system
-    if command -v apt-get &> /dev/null; then
-        log_info "Installing tmux..."
-        if ! sudo -n apt-get update -qq 2>/dev/null; then
-            if ! sudo apt-get update -qq 2>/dev/null; then
-                log_error "Failed to run sudo. Please execute directly from terminal"
-                RESULTS+=("tmux: Installation failed (sudo failed)")
-                HAS_ERROR=true
-            fi
-        fi
-
-        if [ "$HAS_ERROR" != true ]; then
-            if ! sudo -n apt-get install -y tmux 2>/dev/null; then
-                if ! sudo apt-get install -y tmux 2>/dev/null; then
-                    log_error "Failed to install tmux"
-                    RESULTS+=("tmux: Installation failed")
-                    HAS_ERROR=true
-                fi
-            fi
-        fi
-
-        if command -v tmux &> /dev/null; then
-            TMUX_VERSION=$(tmux -V | awk '{print $2}')
-            log_success "tmux installation complete (v$TMUX_VERSION)"
-            RESULTS+=("tmux: Installation complete (v$TMUX_VERSION)")
-        else
-            log_error "Failed to install tmux"
-            RESULTS+=("tmux: Installation failed")
-            HAS_ERROR=true
-        fi
-    else
-        log_error "apt-get not found. Please manually install tmux"
-        echo ""
-        echo "  Installation methods:"
-        echo "    Ubuntu/Debian: sudo apt-get install tmux"
-        echo "    Fedora:        sudo dnf install tmux"
-        echo "    macOS:         brew install tmux"
-        RESULTS+=("tmux: Not installed (manual installation required)")
-        HAS_ERROR=true
-    fi
-fi
-
-# ============================================================
-# STEP 3: tmux mouse scroll settings
-# ============================================================
-log_step "STEP 3: tmux mouse scroll settings"
-
-TMUX_CONF="$HOME/.tmux.conf"
-TMUX_MOUSE_SETTING="set -g mouse on"
-
-if [ -f "$TMUX_CONF" ] && grep -qF "$TMUX_MOUSE_SETTING" "$TMUX_CONF" 2>/dev/null; then
-    log_info "tmux mouse settings already exist in ~/.tmux.conf"
-else
-    log_info "Adding '$TMUX_MOUSE_SETTING' to ~/.tmux.conf..."
-    echo "" >> "$TMUX_CONF"
-    echo "# Enable mouse scroll (added by first_setup.sh)" >> "$TMUX_CONF"
-    echo "$TMUX_MOUSE_SETTING" >> "$TMUX_CONF"
-    log_success "Added tmux mouse settings"
-fi
-
-# Apply settings immediately if tmux is running
-if command -v tmux &> /dev/null && tmux list-sessions &> /dev/null; then
-    log_info "tmux is running, applying settings immediately..."
-    if tmux source-file "$TMUX_CONF" 2>/dev/null; then
-        log_success "Reloaded tmux configuration"
-    else
-        log_warn "Failed to reload tmux configuration (please manually run: tmux source-file ~/.tmux.conf)"
-    fi
-else
-    log_info "tmux is not running, settings will apply on next launch"
-fi
-
-RESULTS+=("tmux mouse settings: OK")
-
-# ============================================================
-# STEP 4: Node.js check
-# ============================================================
-log_step "STEP 4: Node.js check"
-
-if command -v node &> /dev/null; then
-    NODE_VERSION=$(node -v)
-    log_success "Node.js is already installed ($NODE_VERSION)"
-
-    # Version check (18+ recommended)
-    NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | tr -d 'v')
-    if [ "$NODE_MAJOR" -lt 18 ]; then
-        log_warn "Node.js 18+ is recommended (current: $NODE_VERSION)"
-        RESULTS+=("Node.js: OK (v$NODE_MAJOR - upgrade recommended)")
-    else
-        RESULTS+=("Node.js: OK ($NODE_VERSION)")
-    fi
-else
-    log_warn "Node.js is not installed"
-    echo ""
-
-    # Check if nvm is already installed
-    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-    if [ -s "$NVM_DIR/nvm.sh" ]; then
-        log_info "nvm is already installed. Setting up Node.js..."
-        \. "$NVM_DIR/nvm.sh"
-    else
-        # Auto-install nvm
-        log_info "Installing nvm..."
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    fi
-
-    # Install Node.js if nvm is available
-    if command -v nvm &> /dev/null; then
-        log_info "Installing Node.js 20..."
-        nvm install 20 || true
-        nvm use 20 || true
-
-        if command -v node &> /dev/null; then
-            NODE_VERSION=$(node -v)
-            log_success "Node.js installation complete ($NODE_VERSION)"
-            RESULTS+=("Node.js: Installation complete ($NODE_VERSION)")
-        else
-            log_error "Failed to install Node.js"
-            RESULTS+=("Node.js: Installation failed")
-            HAS_ERROR=true
-        fi
-    elif [ "$HAS_ERROR" != true ]; then
-        log_error "Failed to install nvm"
-        echo ""
-        echo "  Please install manually:"
-        echo "    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash"
-        echo "    source ~/.bashrc"
-        echo "    nvm install 20"
-        echo ""
-        RESULTS+=("Node.js: Not installed (nvm failed)")
-        HAS_ERROR=true
-    fi
-fi
-
-# npm check
-if command -v npm &> /dev/null; then
-    NPM_VERSION=$(npm -v)
-    log_success "npm is already installed (v$NPM_VERSION)"
-else
-    if command -v node &> /dev/null; then
-        log_warn "npm not found (should be installed with Node.js)"
-    fi
-fi
-
-# ============================================================
-# STEP 4.3: Python3 / PyYAML check
-# Note: .opencode/lib/*.py (inbox_reader, report_checker, etc.)
-#       and scripts/ rely on python3 + PyYAML.
-# ============================================================
-log_step "STEP 4.3: Python3 / PyYAML check"
-
-if command -v python3 &> /dev/null; then
-    PYTHON_VERSION=$(python3 --version 2>&1)
-    log_success "python3 is already installed ($PYTHON_VERSION)"
-    RESULTS+=("python3: OK ($PYTHON_VERSION)")
-else
-    log_warn "python3 is not installed"
-    echo ""
-
-    if command -v apt-get &> /dev/null; then
-        log_info "Installing python3..."
-        if sudo apt-get install -y python3 python3-pip 2>/dev/null; then
-            PYTHON_VERSION=$(python3 --version 2>&1)
-            log_success "python3 installation complete ($PYTHON_VERSION)"
-            RESULTS+=("python3: Installation complete ($PYTHON_VERSION)")
-        else
-            log_error "Failed to install python3"
-            echo ""
-            echo "  Please install manually:"
-            echo "    sudo apt-get install python3 python3-pip"
-            echo ""
-            RESULTS+=("python3: Installation failed")
-            HAS_ERROR=true
-        fi
-    else
-        log_error "apt-get not found. Please manually install python3"
-        echo ""
-        echo "  Installation methods:"
-        echo "    Ubuntu/Debian: sudo apt-get install python3 python3-pip"
-        echo "    macOS:         brew install python3"
-        echo ""
-        RESULTS+=("python3: Not installed (manual installation required)")
-        HAS_ERROR=true
-    fi
-fi
-
-# PyYAML check (required by .opencode/lib/*.py and scripts/)
-if command -v python3 &> /dev/null; then
-    if python3 -c "import yaml" 2>/dev/null; then
-        PYYAML_VERSION=$(python3 -c "import yaml; print(yaml.__version__)" 2>/dev/null || echo "unknown")
-        log_success "PyYAML is already installed (v$PYYAML_VERSION)"
-        RESULTS+=("PyYAML: OK (v$PYYAML_VERSION)")
-    else
-        log_warn "PyYAML is not installed"
-        log_info "Installing PyYAML..."
-
-        PYYAML_INSTALLED=false
-
-        # Try pip3 first, then python3 -m pip
-        if command -v pip3 &> /dev/null; then
-            if pip3 install pyyaml 2>/dev/null; then
-                PYYAML_INSTALLED=true
-            fi
-        fi
-
-        if [ "$PYYAML_INSTALLED" = false ]; then
-            if python3 -m pip install pyyaml 2>/dev/null; then
-                PYYAML_INSTALLED=true
-            fi
-        fi
-
-        # Last resort: apt-get
-        if [ "$PYYAML_INSTALLED" = false ] && command -v apt-get &> /dev/null; then
-            if sudo apt-get install -y python3-yaml 2>/dev/null; then
-                PYYAML_INSTALLED=true
-            fi
-        fi
-
-        if [ "$PYYAML_INSTALLED" = true ] && python3 -c "import yaml" 2>/dev/null; then
-            PYYAML_VERSION=$(python3 -c "import yaml; print(yaml.__version__)" 2>/dev/null || echo "unknown")
-            log_success "PyYAML installation complete (v$PYYAML_VERSION)"
-            RESULTS+=("PyYAML: Installation complete (v$PYYAML_VERSION)")
-        else
-            log_error "Failed to install PyYAML"
-            echo ""
-            echo "  Please install manually:"
-            echo "    pip3 install pyyaml"
-            echo "    # or"
-            echo "    sudo apt-get install python3-yaml"
-            echo ""
-            RESULTS+=("PyYAML: Installation failed")
-            HAS_ERROR=true
-        fi
-    fi
-fi
-
-# ============================================================
-# STEP 4.5: Desktop Web App setup (install + build)
-# ============================================================
-log_step "STEP 4.5: Desktop Web App setup"
-
-if command -v npm &> /dev/null; then
-    log_info "Installing desktop dependencies..."
-    if npm run desktop:install; then
-        log_success "Desktop dependencies installed"
-        RESULTS+=("Desktop install: OK")
-
-        log_info "Building desktop web app..."
-        if npm run desktop:web:build; then
-            log_success "Desktop web app built"
-            RESULTS+=("Desktop build: OK")
-        else
-            log_error "Desktop build failed"
-            RESULTS+=("Desktop build: Failed")
-            HAS_ERROR=true
-        fi
-    else
-        log_error "Desktop install failed"
-        RESULTS+=("Desktop install: Failed")
-        HAS_ERROR=true
-    fi
-else
-    log_warn "npm not found, skipping desktop setup"
-    RESULTS+=("Desktop setup: Skipped (npm not found)")
-fi
-
-# ============================================================
-# STEP 5: OpenCode CLI check (native version)
-# Note: npm version is officially deprecated. Use native version.
-#       Node.js is still required for MCP servers (via npx).
-# ============================================================
-log_step "STEP 5: OpenCode CLI check"
-
-# Add ~/.local/bin to PATH to detect existing native installation
+# Ensure ~/.local/bin is in PATH for this session
 export PATH="$HOME/.local/bin:$PATH"
 
-NEED_OPENCODE_INSTALL=false
-HAS_NPM_OPENCODE=false
-
-if command -v opencode &> /dev/null; then
-    # opencode command exists → check if it actually works
-    OPENCODE_VERSION=$(opencode --version 2>&1)
-    OPENCODE_PATH=$(which opencode 2>/dev/null)
-
-    if [ $? -eq 0 ] && [ "$OPENCODE_VERSION" != "unknown" ] && [[ "$OPENCODE_VERSION" != *"not found"* ]]; then
-        # Working opencode found → determine if npm or native version
-        if echo "$OPENCODE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
-            # npm version is running
-            HAS_NPM_OPENCODE=true
-            log_warn "npm version OpenCode CLI detected (officially deprecated)"
-            log_info "Detected path: $OPENCODE_PATH"
-            log_info "Version: $OPENCODE_VERSION"
-            echo ""
-            echo "  The npm version is officially deprecated."
-            echo "  It is recommended to install the native version and uninstall the npm version."
-            echo ""
-            if [ ! -t 0 ]; then
-                REPLY="Y"
-            else
-                read -p "  Install native version? [Y/n]: " REPLY
-            fi
-            REPLY=${REPLY:-Y}
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                NEED_OPENCODE_INSTALL=true
-                # npm version uninstall guide
-                echo ""
-                log_info "Please uninstall the npm version first:"
-                if echo "$OPENCODE_PATH" | grep -qi "mnt/c\|AppData"; then
-                    echo "  In Windows PowerShell:"
-                    echo "    npm uninstall -g @anthropic-ai/opencode-code"
-                else
-                    echo "    npm uninstall -g @anthropic-ai/opencode-code"
-                fi
-                echo ""
-            else
-                log_warn "Skipped migration to native version (continuing with npm version)"
-                RESULTS+=("OpenCode CLI: OK (npm version - migration recommended)")
-            fi
-        else
-            # Native version is working properly
-            log_success "OpenCode CLI is already installed (native version)"
-            log_info "Version: $OPENCODE_VERSION"
-            RESULTS+=("OpenCode CLI: OK")
-        fi
-    else
-        # command -v finds it but it doesn't work (e.g., npm version without Node.js)
-        log_warn "OpenCode CLI found but not working properly"
-        log_info "Detected path: $OPENCODE_PATH"
-        if echo "$OPENCODE_PATH" | grep -qi "npm\|node_modules\|AppData"; then
-            HAS_NPM_OPENCODE=true
-            log_info "→ npm version (Node.js-dependent) detected"
-        else
-            log_info "→ Failed to retrieve version"
-        fi
-        NEED_OPENCODE_INSTALL=true
-    fi
+if command -v uvx &> /dev/null; then
+    UV_VERSION=$(uv --version 2>&1 | awk '{print $2}')
+    log_success "uv is already installed (v$UV_VERSION)"
+    log_info "uvx path: $(which uvx)"
+    RESULTS+=("uv / uvx: OK (v$UV_VERSION)")
 else
-    # opencode command not found
-    NEED_OPENCODE_INSTALL=true
-fi
+    log_warn "uv is not installed"
+    log_info "Installing uv (includes uvx)..."
+    echo ""
 
-if [ "$NEED_OPENCODE_INSTALL" = true ]; then
-    log_info "Installing native version OpenCode CLI"
-    log_info "Installing OpenCode CLI (native version)..."
-    curl -fsSL https://opencode.ai/install.sh | bash
+    if curl -LsSf https://astral.sh/uv/install.sh | sh; then
+        # Reload PATH after installation
+        export PATH="$HOME/.local/bin:$PATH"
 
-    # Update PATH (may not be reflected immediately after installation)
-    export PATH="$HOME/.local/bin:$PATH"
-
-    # Persist to .bashrc (prevent duplicate additions)
-    if ! grep -q 'export PATH="\$HOME/.local/bin:\$PATH"' "$HOME/.bashrc" 2>/dev/null; then
-        echo '' >> "$HOME/.bashrc"
-        echo '# OpenCode CLI PATH (added by first_setup.sh)' >> "$HOME/.bashrc"
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-        log_info "Added ~/.local/bin to PATH in ~/.bashrc"
-    fi
-
-    if command -v opencode &> /dev/null; then
-        OPENCODE_VERSION=$(opencode --version 2>/dev/null || echo "unknown")
-        log_success "OpenCode CLI installation complete (native version)"
-        log_info "Version: $OPENCODE_VERSION"
-        RESULTS+=("OpenCode CLI: Installation complete")
-
-        # Guide if npm version remains
-        if [ "$HAS_NPM_OPENCODE" = true ]; then
-            echo ""
-            log_info "Native version will be prioritized in PATH, npm version will be disabled"
-            log_info "To completely remove the npm version, run:"
-            if echo "$OPENCODE_PATH" | grep -qi "mnt/c\|AppData"; then
-                echo "  In Windows PowerShell:"
-                echo "    npm uninstall -g @anthropic-ai/opencode-code"
-            else
-                echo "    npm uninstall -g @anthropic-ai/opencode-code"
-            fi
+        if command -v uvx &> /dev/null; then
+            UV_VERSION=$(uv --version 2>&1 | awk '{print $2}')
+            log_success "uv installation complete (v$UV_VERSION)"
+            log_info "uvx path: $(which uvx)"
+            RESULTS+=("uv / uvx: Installation complete (v$UV_VERSION)")
+        else
+            log_error "uv was installed but uvx is not found in PATH"
+            log_info "Expected location: $HOME/.local/bin/uvx"
+            RESULTS+=("uv / uvx: Installation failed (not found in PATH)")
+            HAS_ERROR=true
         fi
     else
-        log_error "Installation failed. Please check the path"
-        log_info "Please check if ~/.local/bin is included in PATH"
-        RESULTS+=("OpenCode CLI: Installation failed")
+        log_error "Failed to install uv"
+        echo ""
+        echo "  Please install manually:"
+        echo "    curl -LsSf https://astral.sh/uv/install.sh | sh"
+        echo "    source ~/.bashrc"
+        echo ""
+        RESULTS+=("uv / uvx: Installation failed")
         HAS_ERROR=true
     fi
 fi
 
-# ============================================================
-# STEP 5.5: OpenSpec CLI check (optional - for Spec-driven development)
-# Required only when using OpenSpec workflow with active external projects.
-# https://github.com/Fission-AI/OpenSpec
-# ============================================================
-log_step "STEP 5.5: OpenSpec CLI check (optional)"
+# Persist ~/.local/bin to shell configuration files (prevent "not found" on next login)
+LOCAL_BIN_EXPORT='export PATH="$HOME/.local/bin:$PATH"'
 
-if command -v openspec &> /dev/null; then
-    OPENSPEC_VERSION=$(openspec --version 2>&1 || echo "unknown")
-    log_success "openspec is already installed ($OPENSPEC_VERSION)"
-    RESULTS+=("openspec: OK ($OPENSPEC_VERSION)")
-else
-    log_warn "openspec not found (optional - required for Spec-driven development)"
-    echo ""
-    echo "  To use OpenSpec workflow with active projects, install manually:"
-    echo "    npm install -g @fission-ai/openspec@latest"
-    echo ""
-    echo "  Then initialize in each target project directory:"
-    echo "    cd /path/to/your-project"
-    echo "    openspec update"
-    echo ""
-    echo "  See: https://github.com/Fission-AI/OpenSpec"
-    echo ""
-    RESULTS+=("openspec: Not installed (optional - install if using Spec-driven development)")
-fi
-
-# ============================================================
-# STEP 6: Create directory structure
-# ============================================================
-log_step "STEP 6: Create directory structure"
-
-# Required directories
-DIRECTORIES=(
-    "queue/inbox"
-    "config"
-    "status"
-    "logs"
-    "demo_output"
-    "skills"
-    "memory"
-    "docs/shared"
-    "runtime"
-)
-
-CREATED_COUNT=0
-EXISTED_COUNT=0
-
-for dir in "${DIRECTORIES[@]}"; do
-    if [ ! -d "$SCRIPT_DIR/$dir" ]; then
-        mkdir -p "$SCRIPT_DIR/$dir"
-        log_info "Created: $dir/"
-        CREATED_COUNT=$((CREATED_COUNT + 1))
-    else
-        EXISTED_COUNT=$((EXISTED_COUNT + 1))
+for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$RC_FILE" ]; then
+        if ! grep -qF 'local/bin' "$RC_FILE" 2>/dev/null; then
+            echo "" >> "$RC_FILE"
+            echo "# uv / OpenCode PATH (added by first_setup.sh)" >> "$RC_FILE"
+            echo "$LOCAL_BIN_EXPORT" >> "$RC_FILE"
+            log_info "Added ~/.local/bin to PATH in $RC_FILE"
+        else
+            log_info "~/.local/bin already present in $RC_FILE"
+        fi
     fi
 done
 
-if [ $CREATED_COUNT -gt 0 ]; then
-    log_success "Created $CREATED_COUNT directories"
-fi
-if [ $EXISTED_COUNT -gt 0 ]; then
-    log_info "$EXISTED_COUNT directories already exist"
-fi
-
-RESULTS+=("Directory structure: OK (created:$CREATED_COUNT, existing:$EXISTED_COUNT)")
-if [ $EXISTED_COUNT -gt 0 ]; then
-    log_info "$EXISTED_COUNT directories already exist"
-fi
-
-RESULTS+=("Directory structure: OK (created:$CREATED_COUNT, existing:$EXISTED_COUNT)")
-
-# ============================================================
-# STEP 7: Initialize configuration files
-# ============================================================
-log_step "STEP 7: Check configuration files"
-
-# config/settings.yaml
-if [ ! -f "$SCRIPT_DIR/config/settings.yaml" ]; then
-    log_info "Creating config/settings.yaml..."
-    cat > "$SCRIPT_DIR/config/settings.yaml" << EOF
-# multi-agent-ff15 configuration file
-
-# Language settings
-# ja: Japanese (FF15-style Japanese only, no translation)
-# en: English (FF15-style Japanese + English translation)
-# Other language codes (es, zh, ko, fr, de, etc.) are also supported
-language: ja
-
-# Shell settings
-# bash: bash prompts (default)
-# zsh: zsh prompts
-shell: bash
-
-# Skill settings
-skill:
-  # Skill storage location (project-specific - must save here)
-  path: "$SCRIPT_DIR/.opencode/skills/"
-
-# Web app settings
-web:
-  # Port for the desktop web app (react-router-serve)
-  # Change this if the default port is already in use by another application.
-  port: 13000
-
-# Logging settings
-logging:
-  level: info  # debug | info | warn | error
-  path: "$SCRIPT_DIR/logs/"
-EOF
-    log_success "Created settings.yaml"
-else
-    log_info "config/settings.yaml already exists"
-fi
-
-# config/current_projects.yaml
-if [ ! -f "$SCRIPT_DIR/config/current_projects.yaml" ]; then
-    log_info "Creating config/current_projects.yaml..."
-    cat > "$SCRIPT_DIR/config/current_projects.yaml" << 'EOF'
-# Active projects configuration
-# Managed by scripts/projects_activate.sh
-project_scopes:
-    noctis_team:
-        active_project_ids: []
-    lunafreya:
-        active_project_ids: []
-updated_at: ""
-updated_by: ""
-EOF
-    log_success "Created current_projects.yaml"
-else
-    log_info "config/current_projects.yaml already exists"
-fi
-
-# projects/ directory (for per-project YAML definitions)
-if [ ! -d "$SCRIPT_DIR/projects" ]; then
-    mkdir -p "$SCRIPT_DIR/projects"
-    log_success "Created projects/ directory"
-fi
-
-RESULTS+=("Configuration files: OK")
-
-# ============================================================
-# STEP 8: Initialize inbox files
-# ============================================================
-log_step "STEP 8: Initialize queue files"
-
-for AGENT_NAME in noctis lunafreya ignis gladiolus prompto iris crystal; do
-    INBOX_FILE="$SCRIPT_DIR/queue/inbox/${AGENT_NAME}.yaml"
-    if [ ! -f "$INBOX_FILE" ]; then
-        echo "messages: []" > "$INBOX_FILE"
-    fi
-done
-log_info "Verified/created inbox files for all agents"
-
-RESULTS+=("Queue files: OK")
-
-# ============================================================
-# STEP 9: Grant script execution permissions
-# ============================================================
-log_step "STEP 9: Set execution permissions"
-
-SCRIPTS=(
-    "standby.sh"
-    "first_setup.sh"
-)
-
-for script in "${SCRIPTS[@]}"; do
-    if [ -f "$SCRIPT_DIR/$script" ]; then
-        chmod +x "$SCRIPT_DIR/$script"
-        log_info "Granted execution permission to $script"
-    fi
-done
-
-RESULTS+=("Execution permissions: OK")
-
-# ============================================================
-# STEP 10: Shell alias setup (multi-shell support)
-# ============================================================
-log_step "STEP 10: alias setup (multi-shell support)"
-
-# Detected shell configuration files
-DETECTED_SHELLS=()
-ALIAS_ADDED=false
-SOURCE_COMMANDS=()
-
-# ffa alias definition
-EXPECTED_FFA_BASH="alias ffa='tmux attach -t ff15'"
-EXPECTED_FFA_FISH="alias ffa='tmux attach -t ff15'"
-
-# ============================================================
-# bash support
-# ============================================================
-BASHRC_FILE="$HOME/.bashrc"
-if [ -f "$BASHRC_FILE" ]; then
-    DETECTED_SHELLS+=("bash")
-    if ! grep -q "alias ffa=" "$BASHRC_FILE" 2>/dev/null; then
-        # alias doesn't exist → add new
-        echo "" >> "$BASHRC_FILE"
-        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$BASHRC_FILE"
-        echo "$EXPECTED_FFA_BASH" >> "$BASHRC_FILE"
-        log_info "bash: Added alias ffa"
-        ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_FFA_BASH" "$BASHRC_FILE" 2>/dev/null; then
-        # alias exists but path differs → update
-        if sed -i "s|alias ffa=.*|$EXPECTED_FFA_BASH|" "$BASHRC_FILE" 2>/dev/null; then
-            log_info "bash: Updated alias ffa"
-        else
-            log_warn "bash: Failed to update alias ffa"
-        fi
-        ALIAS_ADDED=true
+if [ -f "$HOME/.config/fish/config.fish" ]; then
+    if ! grep -q 'local/bin' "$HOME/.config/fish/config.fish" 2>/dev/null; then
+        echo "" >> "$HOME/.config/fish/config.fish"
+        echo "# uv / OpenCode PATH (added by first_setup.sh)" >> "$HOME/.config/fish/config.fish"
+        echo "set -x PATH \$HOME/.local/bin \$PATH" >> "$HOME/.config/fish/config.fish"
+        log_info "Added ~/.local/bin to PATH in ~/.config/fish/config.fish"
     else
-        log_info "bash: alias ffa is already configured correctly"
+        log_info "~/.local/bin already present in ~/.config/fish/config.fish"
     fi
-    SOURCE_COMMANDS+=("source ~/.bashrc")
 fi
-
-# ============================================================
-# zsh support
-# ============================================================
-ZSHRC_FILE="$HOME/.zshrc"
-if [ -f "$ZSHRC_FILE" ]; then
-    DETECTED_SHELLS+=("zsh")
-    if ! grep -q "alias ffa=" "$ZSHRC_FILE" 2>/dev/null; then
-        # alias doesn't exist → add new
-        echo "" >> "$ZSHRC_FILE"
-        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$ZSHRC_FILE"
-        echo "$EXPECTED_FFA_BASH" >> "$ZSHRC_FILE"
-        log_info "zsh: Added alias ffa"
-        ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_FFA_BASH" "$ZSHRC_FILE" 2>/dev/null; then
-        # alias exists but path differs → update
-        if sed -i "s|alias ffa=.*|$EXPECTED_FFA_BASH|" "$ZSHRC_FILE" 2>/dev/null; then
-            log_info "zsh: Updated alias ffa"
-        else
-            log_warn "zsh: Failed to update alias ffa"
-        fi
-        ALIAS_ADDED=true
-    else
-        log_info "zsh: alias ffa is already configured correctly"
-    fi
-    SOURCE_COMMANDS+=("source ~/.zshrc")
-fi
-
-# ============================================================
-# fish support
-# ============================================================
-FISHCONFIG_FILE="$HOME/.config/fish/config.fish"
-if [ -f "$FISHCONFIG_FILE" ]; then
-    DETECTED_SHELLS+=("fish")
-    if ! grep -q "alias ffa" "$FISHCONFIG_FILE" 2>/dev/null; then
-        # alias doesn't exist → add new
-        echo "" >> "$FISHCONFIG_FILE"
-        echo "# multi-agent-ff15 aliases (added by first_setup.sh)" >> "$FISHCONFIG_FILE"
-        echo "$EXPECTED_FFA_FISH" >> "$FISHCONFIG_FILE"
-        log_info "fish: Added alias ffa"
-        ALIAS_ADDED=true
-    elif ! grep -qF "$EXPECTED_FFA_FISH" "$FISHCONFIG_FILE" 2>/dev/null; then
-        # alias exists but path differs → update
-        if sed -i "s|alias ffa.*|$EXPECTED_FFA_FISH|" "$FISHCONFIG_FILE" 2>/dev/null; then
-            log_info "fish: Updated alias ffa"
-        else
-            log_warn "fish: Failed to update alias ffa"
-        fi
-        ALIAS_ADDED=true
-    else
-        log_info "fish: alias ffa is already configured correctly"
-    fi
-    SOURCE_COMMANDS+=("source ~/.config/fish/config.fish")
-fi
-
-# ============================================================
-# Detection results and summary
-# ============================================================
-if [ ${#DETECTED_SHELLS[@]} -eq 0 ]; then
-    log_warn "Shell configuration files not found"
-    log_info "Supported: bash (~/.bashrc), zsh (~/.zshrc), fish (~/.config/fish/config.fish)"
-    RESULTS+=("alias setup: Shell configuration files not detected")
-else
-    log_success "Detected shells: ${DETECTED_SHELLS[*]}"
-    RESULTS+=("alias setup: OK (${DETECTED_SHELLS[*]})")
-    
-    # Display per-shell status explicitly
-    for shell in "${DETECTED_SHELLS[@]}"; do
-        log_info "  - $shell: ffa alias configured ✓"
-    done
-fi
-
-if [ "$ALIAS_ADDED" = true ] && [ ${#SOURCE_COMMANDS[@]} -gt 0 ]; then
-    log_success "Added/updated alias configuration"
-    log_warn "To apply aliases, run one of the following:"
-    
-    # Display source commands for each shell
-    for i in "${!SOURCE_COMMANDS[@]}"; do
-        log_info "  $((i + 1)). ${SOURCE_COMMANDS[$i]}"
-    done
-    
-    if [ "$IS_WSL" = true ]; then
-        log_info "  Or: Run 'wsl --shutdown' in PowerShell then reopen terminal"
-        log_info "  Note: Simply closing the window will not terminate WSL"
-    fi
-elif [ ${#DETECTED_SHELLS[@]} -gt 0 ]; then
-    # Even when no changes were made, confirm everything is ready
-    log_success "All shell aliases are already configured correctly"
-fi
-
-# ============================================================
-# STEP 10.5: WSL Memory Optimization Settings
-# ============================================================
-if [ "$IS_WSL" = true ]; then
-    log_step "STEP 10.5: WSL Memory Optimization Settings"
-
-    # Check/configure .wslconfig (placed in Windows user directory)
-    WIN_USER_DIR=$(cmd.exe /C "echo %USERPROFILE%" 2>/dev/null | tr -d '\r')
-    if [ -n "$WIN_USER_DIR" ]; then
-        # Convert Windows path to WSL path
-        WSLCONFIG_PATH=$(wslpath "$WIN_USER_DIR")/.wslconfig
-
-        if [ -f "$WSLCONFIG_PATH" ]; then
-            if grep -q "autoMemoryReclaim" "$WSLCONFIG_PATH" 2>/dev/null; then
-                log_info "autoMemoryReclaim is already configured in .wslconfig"
-            else
-                log_info "Adding autoMemoryReclaim=gradual to .wslconfig..."
-                # Check if [experimental] section exists
-                if grep -q "\[experimental\]" "$WSLCONFIG_PATH" 2>/dev/null; then
-                    # Add right after [experimental] section
-                    sed -i '/\[experimental\]/a autoMemoryReclaim=gradual' "$WSLCONFIG_PATH"
-                else
-                    echo "" >> "$WSLCONFIG_PATH"
-                    echo "[experimental]" >> "$WSLCONFIG_PATH"
-                    echo "autoMemoryReclaim=gradual" >> "$WSLCONFIG_PATH"
-                fi
-                log_success "Added autoMemoryReclaim=gradual to .wslconfig"
-                log_warn "Requires 'wsl --shutdown' and restart to take effect"
-            fi
-        else
-            log_info "Creating new .wslconfig..."
-            cat > "$WSLCONFIG_PATH" << 'EOF'
-[experimental]
-autoMemoryReclaim=gradual
-EOF
-            log_success "Created .wslconfig (autoMemoryReclaim=gradual)"
-            log_warn "Requires 'wsl --shutdown' and restart to take effect"
-        fi
-
-        RESULTS+=("WSL Memory Optimization: OK (.wslconfig configured)")
-    else
-        log_warn "Failed to get Windows user directory"
-        log_info "Manually add the following to %USERPROFILE%\\.wslconfig:"
-        echo "  [experimental]"
-        echo "  autoMemoryReclaim=gradual"
-        RESULTS+=("WSL Memory Optimization: Manual configuration required")
-    fi
-
-    # Instructions for immediate cache clearing
-    log_info "To clear memory cache immediately, run:"
-    echo "  sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'"
-else
-    log_info "Not a WSL environment, skipping memory optimization settings"
-fi
-
-# ============================================================
-# STEP 11: Memory MCP Setup (DEPRECATED)
-# ============================================================
-# Memory MCP is now configured via project-local opencode.json
-# No global configuration needed
-log_step "STEP 11: Memory MCP Setup"
-log_info "Memory MCP configuration is managed by project-local opencode.json"
-RESULTS+=("Memory MCP: Configured via project opencode.json")
 
 # ============================================================
 # Results Summary
@@ -907,27 +212,11 @@ echo "     3. Exit with /exit"
 echo ""
 echo "     ※ Once authenticated, credentials are saved to ~/.opencode/ and won't be needed again"
 echo ""
-echo "  ────────────────────────────────────────────────────────────────"
-echo ""
-echo "  Stand by Me! (Launch all agents):"
-echo "     ./standby.sh"
-echo ""
-echo "  Options:"
-echo "     ./standby.sh -s            # Setup only (manual OpenCode launch)"
-echo "     ./standby.sh -t            # Windows Terminal tab layout"
-echo "     ./standby.sh -shell bash   # Launch with bash prompt"
-echo "     ./standby.sh -shell zsh    # Launch with zsh prompt"
-echo ""
-echo "  ※ Shell settings can also be changed in config/settings.yaml with shell: option"
-echo ""
-echo "  See README.md for details."
-echo ""
 echo "  ════════════════════════════════════════════════════════════════"
 echo "   Stand by Me!"
 echo "  ════════════════════════════════════════════════════════════════"
 echo ""
 
-# Return exit 1 if dependencies are missing (so install.bat can detect it)
 if [ "$HAS_ERROR" = true ]; then
     exit 1
 fi

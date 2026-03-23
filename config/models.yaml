@@ -24,9 +24,9 @@ modes:
     ignis:
       model: github-copilot/gpt-5.4
     gladiolus:
-      model: github-copilot/claude-sonnet-4.6
+      model: github-copilot/gpt-5.4
     prompto:
-      model: github-copilot/gemini-3.1-pro-preview
+      model: github-copilot/gpt-5.4
     lunafreya:
       model: github-copilot/gpt-5.4
     iris:

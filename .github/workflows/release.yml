@@ -1,10 +1,10 @@
 name: Release
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 0.3.0)'
+        description: 'Release version (e.g. 0.10.0)'
         required: true
         type: string
 
@@ -21,60 +21,75 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
       - name: Validate version format
         run: |
           VERSION="${{ github.event.inputs.version }}"
           if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "❌ Invalid version format: '$VERSION'. Expected: X.Y.Z"
+            echo "Invalid version format: '$VERSION'. Expected: X.Y.Z"
             exit 1
           fi
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "TAG=v$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
 
       - name: Check tag does not already exist
         run: |
-          TAG="v${{ github.event.inputs.version }}"
           if git tag | grep -qx "$TAG"; then
-            echo "❌ Tag $TAG already exists"
+            echo "Tag $TAG already exists"
             exit 1
           fi
 
       - name: Verify version in package.json matches
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
-          INPUT_VERSION="${{ github.event.inputs.version }}"
-          if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
-            echo "❌ package.json version ($PKG_VERSION) does not match input ($INPUT_VERSION)"
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "package.json version ($PKG_VERSION) does not match input ($VERSION)"
             exit 1
           fi
 
       - name: Extract release notes from CHANGELOG.md
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          NOTES=$(awk '/^## \['"$VERSION"'\]/{found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)
           if [ -z "$NOTES" ]; then
-            echo "❌ No entry found for version $VERSION in CHANGELOG.md"
+            echo "No entry found for version $VERSION in CHANGELOG.md"
             exit 1
           fi
-          echo "$NOTES" > /tmp/release_notes.md
-          echo "Release notes extracted ($(wc -l < /tmp/release_notes.md) lines)"
+          printf '%s\n' "$NOTES" > /tmp/release_notes.md
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Run lint
+        run: npm run web:lint
+
+      - name: Run tests
+        run: npm run web:test
+
+      - name: Run typecheck
+        run: npm run web:typecheck
+
+      - name: Run build
+        run: npm run web:build
 
       - name: Create and push tag
         run: |
-          TAG="v${{ github.event.inputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
-          echo "✅ Tag $TAG created and pushed"
 
       - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v${{ github.event.inputs.version }}"
           gh release create "$TAG" \
             --title "Release $TAG" \
             --notes-file /tmp/release_notes.md \
             --verify-tag
-          echo "✅ GitHub Release created: $TAG"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

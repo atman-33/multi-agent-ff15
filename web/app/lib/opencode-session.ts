@@ -1,0 +1,1 @@
+export const NEW_OPENCODE_SESSION_DRAFT_KEY = "opencode:new-session";

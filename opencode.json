@@ -26,17 +26,14 @@
         "@drawio/mcp"
       ],
       "enabled": false
-    },    
+    },
     "serena": {
       "type": "local",
       "command": [
-        "uvx",
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide-assistant"
+        "/bin/bash",
+        "-l",
+        "-c",
+        "uvx --from git+https://github.com/oraios/serena serena start-mcp-server --open-web-dashboard false --context ide-assistant"
       ],
       "enabled": true
     }

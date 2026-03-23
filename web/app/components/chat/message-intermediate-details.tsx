@@ -1,0 +1,226 @@
+import { BadgeInfo, ChevronDown, Sparkles, Wrench } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import type { InternalContextViewModel } from "@/lib/chat-internal-context";
+import type { ChatMessagePart } from "@/lib/chat-message-parts";
+import { cn } from "@/lib/utils";
+
+type Props = {
+  internalContext: InternalContextViewModel | null;
+  reasoning: string;
+  tools: ChatMessagePart[];
+};
+
+export function buildIntermediateDetailSummary(
+  internalContext: InternalContextViewModel | null,
+  reasoning: string,
+  tools: ChatMessagePart[]
+): string {
+  const segments: string[] = [];
+
+  if (tools.length > 0) {
+    segments.push(`${tools.length} tool activit${tools.length === 1 ? "y" : "ies"}`);
+  }
+
+  if (reasoning.trim()) {
+    segments.push("commentary");
+  }
+
+  if (internalContext) {
+    segments.push("context");
+  }
+
+  return segments.join(" · ") || "Additional context";
+}
+
+export function MessageIntermediateDetails({ internalContext, reasoning, tools }: Props) {
+  const [contextExpanded, setContextExpanded] = useState(false);
+  const toolKeyMapRef = useRef(new WeakMap<ChatMessagePart, string>());
+  const nextToolKeyRef = useRef(0);
+  const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+  const _detailSummary = useMemo(
+    () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
+    [internalContext, reasoning, tools]
+  );
+
+  const getToolKey = (tool: ChatMessagePart) => {
+    const existingKey = toolKeyMapRef.current.get(tool);
+    if (existingKey) {
+      return existingKey;
+    }
+
+    nextToolKeyRef.current += 1;
+    const nextKey = `tool-${nextToolKeyRef.current}`;
+    toolKeyMapRef.current.set(tool, nextKey);
+    return nextKey;
+  };
+
+  if (!hasDetails) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      {internalContext ? (
+        <section className="rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
+          <button
+            className="flex w-full min-w-0 items-center gap-2 text-left"
+            onClick={() => setContextExpanded((value) => !value)}
+            type="button"
+          >
+            <BadgeInfo className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+            <span className="shrink-0 text-[11px] font-medium text-sky-100">Internal Context</span>
+            <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-200/80">
+              Injected
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-sky-100/80">
+              {internalContext.summary}
+            </span>
+            <ChevronDown
+              className={cn(
+                "ml-auto h-3 w-3 text-sky-200/70 transition-transform duration-300 ease-out",
+                contextExpanded ? "rotate-180" : "rotate-0"
+              )}
+            />
+          </button>
+
+          <div
+            className={cn(
+              "grid transition-all duration-300 ease-out",
+              contextExpanded
+                ? "mt-2 grid-rows-[1fr] opacity-100"
+                : "mt-0 grid-rows-[0fr] opacity-0"
+            )}
+          >
+            <div className="overflow-hidden">
+              <div
+                className={cn(
+                  "grid gap-2 border-t border-sky-500/10 pt-2 text-[11px] text-sky-50/85 transition-all duration-300 ease-out",
+                  contextExpanded ? "translate-y-0" : "-translate-y-1"
+                )}
+              >
+                <pre className="overflow-x-auto rounded-lg border border-sky-500/10 bg-black/20 p-3 font-mono text-[11px] whitespace-pre-wrap wrap-break-word text-sky-50/85">
+                  {internalContext.raw}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {reasoning ? (
+        <section className="space-y-2">
+          <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
+            <Sparkles className="h-3.5 w-3.5" />
+            Commentary
+          </div>
+          <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
+            {reasoning}
+          </div>
+        </section>
+      ) : null}
+
+      {tools.length > 0 ? (
+        <section className="space-y-2">
+          <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
+            <Wrench className="h-3.5 w-3.5" />
+            Tool Activity
+          </div>
+          <div className="space-y-2">
+            {tools.map((tool) => (
+              <details
+                key={getToolKey(tool)}
+                className="rounded-md border border-border/30 bg-black/10 p-2"
+              >
+                <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+                  {tool.tool ?? "Tool"}
+                </summary>
+                <div className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                  {tool.state?.status ? (
+                    <div className="mb-1">
+                      Status:{" "}
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          tool.state.status === "completed" && "text-emerald-400",
+                          tool.state.status === "error" && "text-destructive"
+                        )}
+                      >
+                        {tool.state.status}
+                      </span>
+                    </div>
+                  ) : null}
+                  {tool.state?.input ? (
+                    <pre className="whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+                      {JSON.stringify(tool.state.input, null, 2)}
+                    </pre>
+                  ) : null}
+                  {tool.state?.output ? (
+                    <pre className="mt-2 whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+                      {tool.state.output}
+                    </pre>
+                  ) : null}
+                  {tool.state?.error ? (
+                    <div className="mt-2 text-xs text-destructive">{tool.state.error}</div>
+                  ) : null}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+export function MessageIntermediateDetailsToggle({
+  detailSummary,
+  expanded,
+  onToggle,
+  children,
+}: {
+  detailSummary: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="mt-3 border-t border-white/10 pt-3">
+        <button
+          className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+          onClick={onToggle}
+          type="button"
+        >
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 transition-transform duration-300 ease-out",
+              expanded ? "rotate-180" : "rotate-0"
+            )}
+          />
+          <span className="font-medium">
+            {expanded ? "Hide intermediate details" : "Show intermediate details"}
+          </span>
+          <span className="text-[10px] text-muted-foreground/70">{detailSummary}</span>
+        </button>
+      </div>
+
+      <div
+        className={cn(
+          "grid transition-all duration-300 ease-out",
+          expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        )}
+      >
+        <div className="overflow-hidden">
+          <div
+            className={cn(
+              "pt-3 transition-all duration-300 ease-out",
+              expanded ? "translate-y-0" : "-translate-y-1"
+            )}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
