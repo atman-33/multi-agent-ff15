@@ -264,7 +264,7 @@
     --card-foreground: 215 20% 93%;
     --popover: 222 38% 8%;
     --popover-foreground: 215 20% 93%;
-    --primary: 217 91% 60%;
+    --primary: 218 48% 40%;
     --primary-foreground: 0 0% 100%;
     --secondary: 217 32% 16%;
     --secondary-foreground: 215 20% 93%;
@@ -276,7 +276,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 217 28% 14%;
     --input: 217 28% 14%;
-    --ring: 217 91% 60%;
+    --ring: 217 56% 50%;
     --radius: 0.5rem;
     --sidebar-width: 220px;
     /* Success / warning custom tokens */
