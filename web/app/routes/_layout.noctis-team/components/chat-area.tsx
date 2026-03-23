@@ -361,11 +361,11 @@ export const ChatArea = ({
       header={
         <div className="flex shrink-0 items-center justify-between border-border/50 border-b px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
+            <div className="flex h-8 w-8 items-center justify-center">
               <img
                 alt="FF15"
-                className="h-5 w-5 object-contain"
-                src="/favicons/favicon-32x32.png"
+                className="h-6 w-6 object-contain"
+                src="/images/sword-32x32.png"
               />
             </div>
             <div>

@@ -272,12 +272,8 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
   return (
     <div className="max-w-3xl space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 font-semibold text-xl">
-            <FolderGit2 className="h-5 w-5 text-primary" />
-            Project Settings
-          </h1>
-          <p className="mt-1 text-muted-foreground text-sm">
+        <div className="max-w-2xl">
+          <p className="text-muted-foreground text-sm">
             Manage scoped project injection for the Noctis team. Iris is excluded from project
             settings.
           </p>

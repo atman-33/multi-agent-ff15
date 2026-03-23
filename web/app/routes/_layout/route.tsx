@@ -163,8 +163,10 @@ const Layout = (_props: Route.ComponentProps) => {
     return location.pathname === to || location.pathname.startsWith(`${to}/`);
   };
 
-  const activeNavLabel =
-    NAV_ITEMS.find((item) => isNavItemActive(item.to, item.end))?.label ?? "Multi-Agent";
+  const activeNavItem =
+    NAV_ITEMS.find((item) => isNavItemActive(item.to, item.end)) ?? null;
+  const activeNavLabel = activeNavItem?.label ?? "Multi-Agent";
+  const ActiveNavIcon = activeNavItem?.icon ?? Crown;
 
   const activeNoctisProjects = useMemo(() => {
     const activeIds = activeProjectsData?.projectScopes.noctis_team.activeProjectIds ?? [];
@@ -276,10 +278,10 @@ const Layout = (_props: Route.ComponentProps) => {
       >
         <SidebarHeader className="border-border/50 border-b px-3 py-3 group-data-[collapsible=icon]:px-2">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/20">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
               <img
                 alt="FF15"
-                className="h-4 w-4 object-contain"
+                className="h-8 w-8 object-contain"
                 src="/favicons/favicon-32x32.png"
               />
             </div>
@@ -347,9 +349,19 @@ const Layout = (_props: Route.ComponentProps) => {
           </div>
         )}
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-1.5 backdrop-blur-sm">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-border/40 border-b bg-background/20 px-3 py-2 backdrop-blur-sm">
           <SidebarTrigger className="shrink-0" />
-          <span className="font-medium text-sm text-foreground/85">{activeNavLabel}</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+              <ActiveNavIcon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-sm text-foreground">{activeNavLabel}</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                Workspace view
+              </div>
+            </div>
+          </div>
 
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             <HoverCard openDelay={120} closeDelay={80}>

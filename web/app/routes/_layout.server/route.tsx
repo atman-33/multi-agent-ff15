@@ -117,12 +117,8 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
   return (
     <div className="flex h-full w-full max-w-4xl flex-col gap-5 overflow-auto p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 font-semibold text-xl">
-            <Terminal className="h-5 w-5 text-primary" />
-            OpenCode Server Monitor
-          </h1>
-          <p className="mt-1 text-muted-foreground text-sm">
+        <div className="max-w-2xl">
+          <p className="text-muted-foreground text-sm">
             Check whether the local OpenCode server is healthy and recover it when it goes down.
           </p>
         </div>

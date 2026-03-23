@@ -126,7 +126,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
       <div className="flex shrink-0 items-center justify-between border-border/50 border-b bg-card/40 px-5 py-3 backdrop-blur-xs">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-semibold text-sm">Reports</h2>
+          <h2 className="font-semibold text-sm">Library</h2>
           <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
             {reports.length}
           </span>

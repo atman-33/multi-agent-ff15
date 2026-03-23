@@ -162,16 +162,10 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
     <div className="h-full min-h-0 overflow-hidden">
       <div className="mx-auto flex h-full min-h-0 max-w-400 flex-col gap-4 p-4">
         <div className="flex items-center justify-between border-border/50 border-b pb-2">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Cpu className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg tracking-tight">OMO Config</h1>
-              <p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
-                Configuration v{data?.version ?? "unknown"}
-              </p>
-            </div>
+          <div>
+            <p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
+              Configuration v{data?.version ?? "unknown"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button disabled={loading} onClick={fetchData} size="sm" variant="outline">

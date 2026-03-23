@@ -166,12 +166,8 @@ const McpPage = (_props: Route.ComponentProps) => {
   return (
     <div className="max-w-3xl space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 font-semibold text-xl">
-            <Cpu className="h-5 w-5 text-primary" />
-            MCP Servers
-          </h1>
-          <p className="mt-1 text-muted-foreground text-sm">
+        <div className="max-w-2xl">
+          <p className="text-muted-foreground text-sm">
             Manage Model Context Protocol servers defined in{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
               opencode.json
