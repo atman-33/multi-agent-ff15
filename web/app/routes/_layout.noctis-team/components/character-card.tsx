@@ -90,11 +90,13 @@ export const CharacterCard = ({
   const config = statusConfig[status];
   const theme = getAgentTheme(agentId ?? name);
   const isBenched = !isInParty && !isSpeaking;
+  const portraitGlowStrong = theme?.ring ?? theme?.accentStrong ?? "rgba(224,224,255,0.55)";
+  const portraitGlowSoft = theme?.glow ?? theme?.surfaceStrong ?? "rgba(224,224,255,0.24)";
   const imageFilter = isBenched
     ? "none"
     : [
-        "drop-shadow(0 0 3px rgba(255,255,255,0.6))",
-        "drop-shadow(0 0 6px rgba(255,255,255,0.25))",
+        `drop-shadow(0 0 3px ${portraitGlowStrong})`,
+        `drop-shadow(0 0 6px ${portraitGlowSoft})`,
         status === "working" && !isSpeaking
           ? `drop-shadow(0 0 8px ${theme?.glow ?? "rgba(99,102,241,0.6)"})`
           : null,
@@ -124,14 +126,6 @@ export const CharacterCard = ({
           : undefined
       }
     >
-      {theme && !isBenched ? (
-        <div
-          className="pointer-events-none absolute inset-x-3 top-0 h-px rounded-full"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${theme.accentStrong}, transparent)`,
-          }}
-        />
-      ) : null}
       <div className="flex min-w-0 flex-row items-center gap-3">
         <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
           {status === "working" && !isBenched ? (
