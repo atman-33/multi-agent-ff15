@@ -1,15 +1,18 @@
-import { History, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Check, History, Pencil, Plus, X } from "lucide-react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type MissionResumePayload,
   type MissionSummary,
   useAgentSession,
 } from "@/hooks/use-agent-session";
 import type { AppLanguage } from "@/lib/app-language.server";
+import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import { BanterLog } from "./banter-log";
@@ -17,6 +20,127 @@ import { ChatArea } from "./chat-area";
 import { PartyStatusPanel } from "./party-status-panel";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
+
+type MissionHistoryItemProps = {
+  mission: MissionSummary;
+  isActive: boolean;
+  isEditing: boolean;
+  isRenaming: boolean;
+  onBeginRename: (mission: MissionSummary) => void;
+  onCancelRename: () => void;
+  onSubmitRename: (missionId: string, title: string) => void;
+};
+
+const MissionHistoryItem = memo(
+  ({
+    mission,
+    isActive,
+    isEditing,
+    isRenaming,
+    onBeginRename,
+    onCancelRename,
+    onSubmitRename,
+  }: MissionHistoryItemProps) => {
+    const [draftTitle, setDraftTitle] = useState(mission.title || "Untitled mission");
+
+    useEffect(() => {
+      if (isEditing) {
+        setDraftTitle(mission.title || "Untitled mission");
+      }
+    }, [isEditing, mission.title]);
+
+    if (isEditing) {
+      return (
+        <div className="rounded-xl border border-primary/30 bg-primary/8 p-3">
+          <Textarea
+            value={draftTitle}
+            onChange={(event) => setDraftTitle(event.target.value)}
+            rows={2}
+            disabled={isRenaming}
+            className="min-h-14 resize-none bg-transparent text-xs"
+          />
+          <div className="mt-2 flex items-center justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onCancelRename}
+              disabled={isRenaming}
+              title="Cancel rename"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onSubmitRename(mission.missionId, draftTitle)}
+              disabled={isRenaming || !draftTitle.trim()}
+              title="Save title"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={cn(
+          "group w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 transition-colors",
+          isActive ? "border-primary/40 bg-primary/10" : "border-border/50 bg-card/40 hover:bg-card/70"
+        )}
+      >
+        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+          <NavLink
+            className="block min-w-0"
+            to={`/noctis-team/mission/${mission.missionId}`}
+          >
+            <div className="mb-1 flex min-w-0 items-center gap-2">
+              <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-sm">
+                {mission.title}
+              </span>
+              <span className="max-w-28 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
+                {mission.status}
+              </span>
+            </div>
+            <p className="line-clamp-2 font-mono text-[10px] text-muted-foreground/70">
+              {mission.objective || "No objective recorded"}
+            </p>
+            <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
+              {new Date(mission.updatedAt).toLocaleString("en-US", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              })}
+            </p>
+          </NavLink>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+              "bg-background/30 text-foreground/70 opacity-0",
+              "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+              "focus-visible:opacity-100"
+            )}
+            onClick={() => onBeginRename(mission)}
+            title="Rename mission"
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+);
 
 export interface NoctisTeamScreenProps {
   activeMissionId: string | null;
@@ -50,6 +174,8 @@ export function NoctisTeamScreen({
 
   const [missions, setMissions] = useState<MissionSummary[]>([]);
   const [isLoadingMissions, setIsLoadingMissions] = useState(true);
+  const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
+  const [isRenamingMission, setIsRenamingMission] = useState(false);
   const {
     messages,
     banterEntries,
@@ -87,6 +213,54 @@ export function NoctisTeamScreen({
   useEffect(() => {
     void loadMissions();
   }, [loadMissions]);
+
+  const beginRenameMission = useCallback((mission: MissionSummary) => {
+    setEditingMissionId(mission.missionId);
+  }, []);
+
+  const cancelRenameMission = useCallback(() => {
+    setEditingMissionId(null);
+  }, []);
+
+  const submitRenameMission = useCallback(async (missionId: string, nextTitle: string) => {
+    const title = nextTitle.trim();
+    if (!title) {
+      toast.error("Mission title cannot be empty");
+      return;
+    }
+
+    setIsRenamingMission(true);
+    try {
+      const response = await fetch(`/api/noctis/missions/${missionId}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename mission");
+      }
+
+      const data = (await response.json()) as {
+        mission?: { title?: string; updatedAt?: string };
+      };
+      const updatedTitle = data.mission?.title ?? title;
+      const updatedAt = data.mission?.updatedAt ?? new Date().toISOString();
+
+      setMissions((current) =>
+        current.map((mission) =>
+          mission.missionId === missionId ? { ...mission, title: updatedTitle, updatedAt } : mission
+        )
+      );
+      setEditingMissionId(null);
+    } catch {
+      toast.error("Unable to rename mission", {
+        description: "Mission metadata could not be updated.",
+      });
+    } finally {
+      setIsRenamingMission(false);
+    }
+  }, []);
 
   const handleSend = useCallback(
     async (parts: PromptPart[]) => {
@@ -143,39 +317,16 @@ export function NoctisTeamScreen({
                   </div>
                 ) : (
                   missions.map((mission) => (
-                    <NavLink
+                    <MissionHistoryItem
                       key={mission.missionId}
-                      className={({ isActive }) =>
-                        `block w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 text-left transition-colors ${
-                          isActive || effectiveMissionId === mission.missionId
-                            ? "border-primary/40 bg-primary/10"
-                            : "border-border/50 bg-card/40 hover:bg-card/70"
-                        }`
-                      }
-                      to={`/noctis-team/mission/${mission.missionId}`}
-                    >
-                      <div className="mb-1 flex min-w-0 items-center gap-2">
-                        <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-sm">
-                          {mission.title}
-                        </span>
-                        <span className="max-w-28 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
-                          {mission.status}
-                        </span>
-                      </div>
-                      <p className="line-clamp-2 font-mono text-[10px] text-muted-foreground/70">
-                        {mission.objective || "No objective recorded"}
-                      </p>
-                      <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
-                        {new Date(mission.updatedAt).toLocaleString("en-US", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
-                      </p>
-                    </NavLink>
+                      mission={mission}
+                      isActive={effectiveMissionId === mission.missionId}
+                      isEditing={editingMissionId === mission.missionId}
+                      isRenaming={isRenamingMission}
+                      onBeginRename={beginRenameMission}
+                      onCancelRename={cancelRenameMission}
+                      onSubmitRename={submitRenameMission}
+                    />
                   ))
                 )}
               </div>
