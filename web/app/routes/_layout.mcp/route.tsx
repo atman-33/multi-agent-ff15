@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { readMcpConfig, type McpServerEntry } from "@/lib/mcp-config.server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,13 +19,6 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
-interface McpServerEntry {
-  command?: string[];
-  enabled?: boolean;
-  type?: string;
-  url?: string;
-}
-
 interface McpConfigData {
   config: {
     mcp?: Record<string, McpServerEntry>;
@@ -32,12 +26,26 @@ interface McpConfigData {
   error?: string;
 }
 
-const McpPage = (_props: Route.ComponentProps) => {
-  const [data, setData] = useState<McpConfigData | null>(null);
+export const loader = async (_args: Route.LoaderArgs) => {
+  const { config, error } = readMcpConfig();
+
+  return {
+    initialData: error ? null : ({ config } satisfies McpConfigData),
+    initialFetchError: error ?? null,
+  };
+};
+
+const McpPage = ({ loaderData }: Route.ComponentProps) => {
+  const [data, setData] = useState<McpConfigData | null>(loaderData.initialData);
   const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(loaderData.initialFetchError);
   const [savingNames, setSavingNames] = useState<Set<string>>(new Set());
   const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setData(loaderData.initialData);
+    setFetchError(loaderData.initialFetchError);
+  }, [loaderData.initialData, loaderData.initialFetchError]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -58,10 +66,6 @@ const McpPage = (_props: Route.ComponentProps) => {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   const handleToggle = async (name: string, nextEnabled: boolean) => {
     if (!data?.config?.mcp) {
@@ -151,14 +155,6 @@ const McpPage = (_props: Route.ComponentProps) => {
       return next;
     });
   };
-
-  if (loading && !data) {
-    return (
-      <div className="flex min-h-75 items-center justify-center p-6">
-        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   const mcpEntries = Object.entries(data?.config?.mcp ?? {});
   const enabledCount = mcpEntries.filter(([, value]) => value.enabled).length;

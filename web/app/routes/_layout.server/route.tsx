@@ -4,7 +4,6 @@ import {
   LoaderCircle,
   RefreshCw,
   ServerCrash,
-  Terminal,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -12,17 +11,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getOpencodeServerStatus, type OpencodeServerStatus } from "@/lib/opencode-server";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
-type ServerStatus = {
-  checkedAt: string;
-  error: string | null;
-  isRunning: boolean;
-  lastStartedAt: string | null;
-  managedByApp: boolean;
-  state: "down" | "running" | "starting";
-  url: string;
+type ServerStatus = OpencodeServerStatus;
+
+export const loader = async (_args: Route.LoaderArgs) => {
+  return {
+    initialStatus: await getOpencodeServerStatus(),
+  };
 };
 
 const formatTimestamp = (value: string | null): string => {
@@ -38,11 +36,15 @@ const formatTimestamp = (value: string | null): string => {
   return date.toLocaleString();
 };
 
-const OpenCodeServerPage = (_props: Route.ComponentProps) => {
-  const [status, setStatus] = useState<ServerStatus | null>(null);
+const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
+  const [status, setStatus] = useState<ServerStatus | null>(loaderData.initialStatus);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStatus(loaderData.initialStatus);
+  }, [loaderData.initialStatus]);
 
   const fetchStatus = useCallback(async () => {
     setIsLoading(true);
@@ -65,8 +67,6 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
   }, []);
 
   useEffect(() => {
-    fetchStatus();
-
     const id = window.setInterval(() => {
       fetchStatus();
     }, 10000);
@@ -105,14 +105,6 @@ const OpenCodeServerPage = (_props: Route.ComponentProps) => {
       fetchStatus();
     }
   }, [fetchStatus]);
-
-  if (isLoading && !status) {
-    return (
-      <div className="flex min-h-80 items-center justify-center p-6">
-        <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full w-full max-w-4xl flex-col gap-5 overflow-auto p-6">

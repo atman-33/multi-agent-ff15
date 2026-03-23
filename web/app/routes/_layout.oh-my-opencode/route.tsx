@@ -1,8 +1,6 @@
 import {
   AlertTriangle,
-  Cpu,
   LayoutGrid,
-  Loader2,
   RefreshCw,
   Save,
   Search,
@@ -10,6 +8,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  readOhMyOpenCodeData,
+  type OhMyOpenCodeConfig,
+  type OhMyOpenCodeData,
+} from "@/lib/oh-my-opencode-config.server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,24 +24,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
-
-interface ModelEntry {
-  model: string;
-  variant?: string;
-}
-
-interface OhMyOpenCodeConfig {
-  agents?: Record<string, ModelEntry>;
-  categories?: Record<string, ModelEntry>;
-}
-
-interface OhMyOpenCodeData {
-  config: OhMyOpenCodeConfig | null;
-  error?: string;
-  isInstalled: boolean;
-  models: string[];
-  version: string;
-}
 
 const LOADING_CARD_KEYS = [
   "skeleton-config",
@@ -66,13 +51,20 @@ const LoadingGrid = () => {
   );
 };
 
-const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
-  const [data, setData] = useState<OhMyOpenCodeData | null>(null);
-  const [config, setConfig] = useState<OhMyOpenCodeConfig>({});
+export const loader = async (_args: Route.LoaderArgs) => readOhMyOpenCodeData();
+
+const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
+  const [data, setData] = useState<OhMyOpenCodeData>(loaderData);
+  const [config, setConfig] = useState<OhMyOpenCodeConfig>(loaderData.config ?? {});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setData(loaderData);
+    setConfig(loaderData.config ?? {});
+  }, [loaderData]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -93,10 +85,6 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   const handleModelChange = (type: "agents" | "categories", key: string, model: string) => {
     setConfig((prev) => ({
@@ -149,14 +137,6 @@ const OhMyOpenCodePage = (_props: Route.ComponentProps) => {
   const filteredCategories = Object.entries(config.categories ?? {}).filter(([key]) =>
     key.toLowerCase().includes(search.toLowerCase())
   );
-
-  if (loading && !data) {
-    return (
-      <div className="flex min-h-75 items-center justify-center p-6">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <div className="h-full min-h-0 overflow-hidden">

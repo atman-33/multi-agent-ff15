@@ -14,7 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigation } from "react-router";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -148,6 +148,7 @@ function areServerStatusesEqual(left: HeaderServerStatus | null, right: HeaderSe
 
 const Layout = (_props: Route.ComponentProps) => {
   const location = useLocation();
+  const navigation = useNavigation();
   const {
     data: activeProjectsData,
     loading: activeProjectsLoading,
@@ -155,13 +156,14 @@ const Layout = (_props: Route.ComponentProps) => {
   } = useActiveProjects();
   const [serverStatus, setServerStatus] = useState<HeaderServerStatus | null>(null);
   const [isRecoveringServer, setIsRecoveringServer] = useState(false);
+  const activePathname = navigation.location?.pathname ?? location.pathname;
 
   const isNavItemActive = (to: string, end?: boolean) => {
     if (end) {
-      return location.pathname === to;
+      return activePathname === to;
     }
 
-    return location.pathname === to || location.pathname.startsWith(`${to}/`);
+    return activePathname === to || activePathname.startsWith(`${to}/`);
   };
 
   const activeNavItem =

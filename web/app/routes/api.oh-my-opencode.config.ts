@@ -1,82 +1,12 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
 import type { ActionFunctionArgs } from "react-router";
-
-const CONFIG_PATH = join(homedir(), ".config/opencode/oh-my-opencode.json");
-
-interface ModelEntry {
-  model: string;
-  variant?: string;
-}
-
-interface OhMyOpenCodeConfig {
-  agents?: Record<string, ModelEntry>;
-  categories?: Record<string, ModelEntry>;
-}
-
-const readVersion = (): { isInstalled: boolean; version: string } => {
-  try {
-    const version = execFileSync("oh-my-opencode", ["--version"], {
-      encoding: "utf-8",
-    }).trim();
-
-    return { isInstalled: true, version };
-  } catch {
-    return { isInstalled: false, version: "unknown" };
-  }
-};
-
-const readModels = (): string[] => {
-  try {
-    const stdout = execFileSync("opencode", ["models"], {
-      encoding: "utf-8",
-    });
-
-    return stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(
-        (line) => line && !line.startsWith("opencode") && !line.includes("--") && line.includes("/")
-      );
-  } catch {
-    return [];
-  }
-};
-
-const readConfig = (): { config: OhMyOpenCodeConfig | null; error?: string } => {
-  if (!existsSync(CONFIG_PATH)) {
-    return {
-      config: null,
-      error: `Configuration file not found at ${CONFIG_PATH}`,
-    };
-  }
-
-  try {
-    const raw = readFileSync(CONFIG_PATH, "utf-8");
-    const config = JSON.parse(raw) as OhMyOpenCodeConfig;
-    return { config };
-  } catch (e) {
-    return {
-      config: null,
-      error: `Failed to parse config: ${String(e)}`,
-    };
-  }
-};
+import {
+  readOhMyOpenCodeData,
+  writeOhMyOpenCodeConfig,
+  type OhMyOpenCodeConfig,
+} from "@/lib/oh-my-opencode-config.server";
 
 export const loader = () => {
-  const { isInstalled, version } = readVersion();
-  const { config, error } = readConfig();
-  const models = readModels();
-
-  return Response.json({
-    config,
-    error,
-    isInstalled,
-    models,
-    version,
-  });
+  return Response.json(readOhMyOpenCodeData());
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -103,11 +33,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Missing config in request body" }, { status: 400 });
     }
 
-    mkdirSync(dirname(CONFIG_PATH), { recursive: true });
-    writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+    writeOhMyOpenCodeConfig(config as OhMyOpenCodeConfig);
 
     return Response.json({ success: true });
-  } catch (e) {
-    return Response.json({ error: String(e) }, { status: 500 });
+  } catch (error) {
+    return Response.json({ error: String(error) }, { status: 500 });
   }
 };
