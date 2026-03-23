@@ -100,7 +100,7 @@ const ComposerSelectionControls = memo(
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Bot className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{selectedAgent ?? "Default agent"}</span>
+                  <span className="truncate">{selectedAgent ?? "Select agent"}</span>
                 </span>
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
               </Button>
@@ -112,23 +112,6 @@ const ComposerSelectionControls = memo(
                 <CommandList>
                   <CommandEmpty>No agent found.</CommandEmpty>
                   <CommandGroup heading="Agents">
-                    <CommandItem
-                      value="default agent"
-                      onSelect={() => {
-                        setSelectedAgent(null);
-                        setAgentComboboxOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn("h-4 w-4", !selectedAgent ? "opacity-100" : "opacity-0")}
-                      />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm">Default agent</div>
-                        <div className="truncate text-[10px] text-muted-foreground">
-                          Use the default agent
-                        </div>
-                      </div>
-                    </CommandItem>
                     {agents.map((agent) => (
                       <CommandItem
                         key={agent.name}
@@ -252,7 +235,21 @@ const MessageComposer = ({
       const response = await fetch("/api/agents").catch(() => null);
       if (!response?.ok) return;
       const data = (await response.json()) as { agents: Agent[] };
-      setAgents(data.agents ?? []);
+      const nextAgents = data.agents ?? [];
+      setAgents(nextAgents);
+
+      if (!nextAgents.length) {
+        return;
+      }
+
+      const currentAgent = useChatStore.getState().selectedAgent;
+      const hasCurrentAgent = currentAgent
+        ? nextAgents.some((agent) => agent.name === currentAgent)
+        : false;
+
+      if (!hasCurrentAgent) {
+        useChatStore.getState().setSelectedAgent(nextAgents[0].name);
+      }
     };
 
     const loadProviders = async () => {
