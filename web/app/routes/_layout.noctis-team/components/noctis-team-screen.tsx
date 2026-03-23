@@ -20,6 +20,7 @@ import {
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type MissionResumePayload,
   type MissionSummary,
@@ -569,38 +570,28 @@ export function NoctisTeamScreen({
                 <Plus className="h-4 w-4" />
                 New Mission
               </Button>
-              <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-background/40 p-1">
-                <button
-                  className={cn(
-                    "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
-                    missionView === "active"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => {
-                    setEditingMissionId(null);
-                    setMissionView("active");
-                  }}
-                  type="button"
-                >
-                  Active ({missionCounts.active})
-                </button>
-                <button
-                  className={cn(
-                    "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
-                    missionView === "archived"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => {
-                    setEditingMissionId(null);
-                    setMissionView("archived");
-                  }}
-                  type="button"
-                >
-                  Archived ({missionCounts.archived})
-                </button>
-              </div>
+              <Tabs
+                value={missionView}
+                onValueChange={(value) => {
+                  setEditingMissionId(null);
+                  setMissionView(value === "archived" ? "archived" : "active");
+                }}
+              >
+                <TabsList className="mt-3 grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-background/40 p-1">
+                  <TabsTrigger
+                    className="rounded-md px-2 py-1.5 text-[11px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    value="active"
+                  >
+                    Active ({missionCounts.active})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    className="rounded-md px-2 py-1.5 text-[11px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    value="archived"
+                  >
+                    Archived ({missionCounts.archived})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
 
             <ScrollArea
