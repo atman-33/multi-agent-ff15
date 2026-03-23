@@ -1,4 +1,4 @@
-import { Check, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { Archive, Check, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ type EventPayload = {
 type Session = {
   id: string;
   title: string;
+  archivedAt: string | null;
   time: {
     created: number;
     updated: number;
@@ -66,9 +67,13 @@ const formatRelativeTime = (value: number) => {
 type SessionNavItemProps = {
   session: Session;
   isActive: boolean;
+  isArchivedView: boolean;
+  isArchiveDisabled: boolean;
+  isArchivePending: boolean;
   isRunning: boolean;
   isEditing: boolean;
   isRenaming: boolean;
+  onArchiveAction: (session: Session, action: "archive" | "restore") => void;
   onBeginRename: (session: Session) => void;
   onCancelRename: () => void;
   onSubmitRename: (sessionId: string, title: string) => void;
@@ -78,9 +83,13 @@ const SessionNavItem = memo(
   ({
     session,
     isActive,
+    isArchivedView,
+    isArchiveDisabled,
+    isArchivePending,
     isRunning,
     isEditing,
     isRenaming,
+    onArchiveAction,
     onBeginRename,
     onCancelRename,
     onSubmitRename,
@@ -152,25 +161,53 @@ const SessionNavItem = memo(
                   {session.title || "Untitled"}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {formatRelativeTime(session.time.updated)}
+                  {isArchivedView && session.archivedAt
+                    ? `Archived ${formatRelativeTime(new Date(session.archivedAt).getTime())}`
+                    : formatRelativeTime(session.time.updated)}
                 </div>
               </div>
             </NavLink>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
-                "bg-background/30 text-foreground/70 opacity-0",
-                "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
-                "focus-visible:opacity-100"
-              )}
-              onClick={() => onBeginRename(session)}
-              title="Rename session"
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {!isArchivedView ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                    "bg-background/30 text-foreground/70 opacity-0",
+                    "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                    "focus-visible:opacity-100"
+                  )}
+                  onClick={() => onBeginRename(session)}
+                  title="Rename session"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                  "bg-background/30 text-foreground/70 opacity-0",
+                  "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                  "focus-visible:opacity-100"
+                )}
+                onClick={() => onArchiveAction(session, isArchivedView ? "restore" : "archive")}
+                disabled={isArchivePending || isArchiveDisabled}
+                title={
+                  isArchivedView
+                    ? "Restore session"
+                    : isArchiveDisabled
+                      ? "Running sessions cannot be archived"
+                      : "Archive session"
+                }
+              >
+                {isArchivedView ? <RotateCcw className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -184,7 +221,13 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>(loaderData.sessions ?? []);
+  const [sessionView, setSessionView] = useState<"active" | "archived">(
+    params.id && (loaderData.sessions ?? []).some((session) => session.id === params.id && session.archivedAt)
+      ? "archived"
+      : "active"
+  );
   const [isFetching, setIsFetching] = useState(false);
+  const [archiveSessionId, setArchiveSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const clearSessionDraft = useChatStore((state) => state.clearSessionDraft);
@@ -197,7 +240,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const loadSessions = useCallback(async () => {
     setIsFetching(true);
     try {
-      const response = await fetch("/api/sessions");
+      const response = await fetch("/api/sessions?view=all");
       if (!response.ok) {
         throw new Error("Failed to load sessions");
       }
@@ -231,6 +274,25 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => b.time.updated - a.time.updated);
   }, [sessions]);
+
+  const sessionCounts = useMemo(() => {
+    return sessions.reduce(
+      (counts, session) => {
+        if (session.archivedAt) {
+          counts.archived += 1;
+        } else {
+          counts.active += 1;
+        }
+        return counts;
+      },
+      { active: 0, archived: 0 }
+    );
+  }, [sessions]);
+
+  const visibleSessions = useMemo(
+    () => sortedSessions.filter((session) => (sessionView === "archived" ? Boolean(session.archivedAt) : !session.archivedAt)),
+    [sessionView, sortedSessions]
+  );
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleRefresh = () => {
@@ -353,6 +415,63 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
     }
   }, []);
 
+  const submitArchive = useCallback(
+    async (session: Session, action: "archive" | "restore", options?: { showUndo?: boolean }) => {
+      setArchiveSessionId(session.id);
+      try {
+        const response = await fetch(`/api/session/${session.id}/archive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update session archive state");
+        }
+
+        const data = (await response.json()) as { session?: { id: string; archivedAt: string | null } };
+        const updatedSession = data.session;
+        if (!updatedSession) {
+          throw new Error("Missing session in response");
+        }
+
+        setSessions((current) =>
+          current.map((entry) =>
+            entry.id === session.id ? { ...entry, archivedAt: updatedSession.archivedAt } : entry
+          )
+        );
+        setEditingSessionId(null);
+
+        if (action === "archive" && activeSessionId === session.id) {
+          navigate("/opencode", { replace: true });
+        }
+
+        toast.success(action === "archive" ? "Session archived" : "Session restored", {
+          action:
+            options?.showUndo === false
+              ? undefined
+              : {
+                  label: "Undo",
+                  onClick: () => {
+                    void submitArchive(
+                      { ...session, archivedAt: updatedSession.archivedAt },
+                      action === "archive" ? "restore" : "archive",
+                      { showUndo: false }
+                    );
+                  },
+                },
+        });
+      } catch {
+        toast.error(action === "archive" ? "Unable to archive session" : "Unable to restore session", {
+          description: "OpenCode server not available",
+        });
+      } finally {
+        setArchiveSessionId(null);
+      }
+    },
+    [activeSessionId, navigate]
+  );
+
   return (
     <ResizablePanelGroup
       orientation="horizontal"
@@ -385,14 +504,50 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
               </Button>
             </div>
           </div>
+          <div className="border-border/50 border-b px-2 py-2">
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-background/40 p-1">
+              <button
+                className={cn(
+                  "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
+                  sessionView === "active"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => {
+                  setEditingSessionId(null);
+                  setSessionView("active");
+                }}
+                type="button"
+              >
+                Active ({sessionCounts.active})
+              </button>
+              <button
+                className={cn(
+                  "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
+                  sessionView === "archived"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => {
+                  setEditingSessionId(null);
+                  setSessionView("archived");
+                }}
+                type="button"
+              >
+                Archived ({sessionCounts.archived})
+              </button>
+            </div>
+          </div>
           <ScrollArea className="min-h-0 w-full min-w-0 flex-1 px-2 py-2">
             <nav className="w-full min-w-0 space-y-1">
-              {sortedSessions.length === 0 ? (
+              {visibleSessions.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                  No sessions yet. Start a conversation to create one.
+                  {sessionView === "archived"
+                    ? "No archived sessions."
+                    : "No sessions yet. Start a conversation to create one."}
                 </div>
               ) : (
-                sortedSessions.map((session) => {
+                visibleSessions.map((session) => {
                   const isActive = session.id === activeSessionId;
                   const isRunning = (sessionStates[session.id] ?? "idle") !== "idle";
                   const isEditing = editingSessionId === session.id;
@@ -401,9 +556,13 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                       key={session.id}
                       session={session}
                       isActive={isActive}
+                      isArchivedView={sessionView === "archived"}
+                      isArchiveDisabled={sessionView === "active" && isRunning}
+                      isArchivePending={archiveSessionId === session.id}
                       isRunning={isRunning}
                       isEditing={isEditing}
                       isRenaming={isRenaming}
+                      onArchiveAction={submitArchive}
                       onBeginRename={beginRename}
                       onCancelRename={cancelRename}
                       onSubmitRename={submitRename}
@@ -428,7 +587,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
 export const loader = async ({ request }: Route.LoaderArgs) => {
   try {
     const url = new URL(request.url);
-    const response = await fetch(`${url.origin}/api/sessions`);
+    const response = await fetch(`${url.origin}/api/sessions?view=all`);
     if (!response.ok) {
       return { sessions: [] };
     }

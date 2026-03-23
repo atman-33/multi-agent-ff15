@@ -48,6 +48,7 @@ function readMissionFromDisk(id: string): Mission | null {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
+    parsed.archivedAt = typeof parsed.archivedAt === "string" ? parsed.archivedAt : undefined;
     return parsed;
   } catch {
     return null;
@@ -61,6 +62,7 @@ function toMissionSummary(mission: Mission): MissionSummary {
     objective: mission.objective,
     createdAt: mission.createdAt,
     updatedAt: mission.updatedAt,
+    archivedAt: mission.archivedAt,
     status: mission.status,
   };
 }
@@ -118,20 +120,52 @@ export function getMission(id: string): Mission | undefined {
   return undefined;
 }
 
-export function listMissionSummaries(): MissionSummary[] {
+export function listMissionSummaries(options?: { view?: "active" | "archived" | "all" }): MissionSummary[] {
   ensureMissionStoreDir();
   const dir = getMissionStoreDir();
   if (!existsSync(dir)) {
     return [];
   }
 
+  const view = options?.view ?? "active";
+
   const filenames = readdirSync(dir).filter((name) => name.endsWith(".json"));
   const missions = filenames
     .map((filename) => readMissionFromDisk(filename.replace(/\.json$/, "")))
     .filter((mission): mission is Mission => mission !== null)
+    .filter((mission) => {
+      if (view === "all") {
+        return true;
+      }
+
+      const isArchived = mission.status === "archived";
+      return view === "archived" ? isArchived : !isArchived;
+    })
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 
   return missions.map(toMissionSummary);
+}
+
+export function archiveMission(missionId: string): Mission | undefined {
+  const mission = getMission(missionId);
+  if (!mission) {
+    return undefined;
+  }
+
+  mission.archivedAt = new Date().toISOString();
+  touchMission(mission, "archived");
+  return mission;
+}
+
+export function restoreMission(missionId: string): Mission | undefined {
+  const mission = getMission(missionId);
+  if (!mission) {
+    return undefined;
+  }
+
+  delete mission.archivedAt;
+  touchMission(mission, "active");
+  return mission;
 }
 
 export function setWorkerSession(

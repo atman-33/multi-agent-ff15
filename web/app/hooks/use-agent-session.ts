@@ -145,6 +145,7 @@ export interface MissionSummary {
   objective?: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string | null;
   status: "active" | "completed" | "archived";
 }
 
@@ -154,6 +155,7 @@ export type MissionResumePayload = {
   objective?: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string | null;
   status: "active" | "completed" | "archived";
   sessions: {
     noctis: string;

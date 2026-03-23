@@ -78,6 +78,7 @@ export interface Mission {
   agentModels: Partial<Record<AgentId, ModelSelection>>;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string;
   title: string;
   objective?: string;
   status: MissionStatus;
@@ -130,6 +131,7 @@ export interface MissionSummary {
   objective?: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string;
   status: MissionStatus;
 }
 

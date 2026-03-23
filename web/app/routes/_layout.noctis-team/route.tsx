@@ -43,6 +43,12 @@ const NoctisTeamPage = ({ loaderData }: Route.ComponentProps) => {
           return;
         }
 
+        const mission = (await response.json()) as { status?: string };
+        if (mission.status === "archived") {
+          window.localStorage.removeItem(LAST_MISSION_STORAGE_KEY);
+          return;
+        }
+
         navigate(`/noctis-team/mission/${lastMissionId}`, { replace: true });
       } catch {
         return;

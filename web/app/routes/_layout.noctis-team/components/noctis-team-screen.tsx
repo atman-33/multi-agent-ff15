@@ -1,5 +1,5 @@
-import { Check, History, Pencil, Plus, X } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import { Archive, Check, History, Pencil, Plus, RotateCcw, X } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,13 @@ const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
 type MissionHistoryItemProps = {
   mission: MissionSummary;
   isActive: boolean;
+  isArchivedView: boolean;
   isEditing: boolean;
+  isArchivePending: boolean;
+  isArchiveDisabled: boolean;
   isRenaming: boolean;
   onBeginRename: (mission: MissionSummary) => void;
+  onArchiveAction: (mission: MissionSummary, action: "archive" | "restore") => void;
   onCancelRename: () => void;
   onSubmitRename: (missionId: string, title: string) => void;
 };
@@ -35,9 +39,13 @@ const MissionHistoryItem = memo(
   ({
     mission,
     isActive,
+    isArchivedView,
     isEditing,
+    isArchivePending,
+    isArchiveDisabled,
     isRenaming,
     onBeginRename,
+    onArchiveAction,
     onCancelRename,
     onSubmitRename,
   }: MissionHistoryItemProps) => {
@@ -121,21 +129,47 @@ const MissionHistoryItem = memo(
               })}
             </p>
           </NavLink>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
-              "bg-background/30 text-foreground/70 opacity-0",
-              "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
-              "focus-visible:opacity-100"
-            )}
-            onClick={() => onBeginRename(mission)}
-            title="Rename mission"
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {!isArchivedView ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                  "bg-background/30 text-foreground/70 opacity-0",
+                  "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                  "focus-visible:opacity-100"
+                )}
+                onClick={() => onBeginRename(mission)}
+                title="Rename mission"
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                "bg-background/30 text-foreground/70 opacity-0",
+                "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                "focus-visible:opacity-100"
+              )}
+              onClick={() => onArchiveAction(mission, isArchivedView ? "restore" : "archive")}
+              disabled={isArchivePending || isArchiveDisabled}
+              title={
+                isArchivedView
+                  ? "Restore mission"
+                  : isArchiveDisabled
+                    ? "Active mission cannot be archived while running"
+                    : "Archive mission"
+              }
+            >
+              {isArchivedView ? <RotateCcw className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -155,6 +189,7 @@ export function NoctisTeamScreen({
   initialMissionData,
   initialMessageInfos,
 }: NoctisTeamScreenProps) {
+  const initialView = initialMissionData?.status === "archived" ? "archived" : "active";
   const navigate = useNavigate();
   const params = useParams();
   const routeMissionId = params.id ?? null;
@@ -173,8 +208,10 @@ export function NoctisTeamScreen({
   }, [effectiveMissionId]);
 
   const [missions, setMissions] = useState<MissionSummary[]>([]);
+  const [missionView, setMissionView] = useState<"active" | "archived">(initialView);
   const [isLoadingMissions, setIsLoadingMissions] = useState(true);
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
+  const [archiveMissionId, setArchiveMissionId] = useState<string | null>(null);
   const [isRenamingMission, setIsRenamingMission] = useState(false);
   const {
     messages,
@@ -197,7 +234,7 @@ export function NoctisTeamScreen({
   const loadMissions = useCallback(async () => {
     setIsLoadingMissions(true);
     try {
-      const res = await fetch("/api/noctis/missions");
+      const res = await fetch("/api/noctis/missions?view=all");
       if (!res.ok) {
         throw new Error(`missions failed: ${res.status}`);
       }
@@ -213,6 +250,25 @@ export function NoctisTeamScreen({
   useEffect(() => {
     void loadMissions();
   }, [loadMissions]);
+
+  const missionCounts = useMemo(() => {
+    return missions.reduce(
+      (counts, mission) => {
+        if (mission.status === "archived") {
+          counts.archived += 1;
+        } else {
+          counts.active += 1;
+        }
+        return counts;
+      },
+      { active: 0, archived: 0 }
+    );
+  }, [missions]);
+
+  const visibleMissions = useMemo(
+    () => missions.filter((mission) => (missionView === "archived" ? mission.status === "archived" : mission.status !== "archived")),
+    [missionView, missions]
+  );
 
   const beginRenameMission = useCallback((mission: MissionSummary) => {
     setEditingMissionId(mission.missionId);
@@ -262,6 +318,77 @@ export function NoctisTeamScreen({
     }
   }, []);
 
+  const submitMissionArchive = useCallback(
+    async (mission: MissionSummary, action: "archive" | "restore", options?: { showUndo?: boolean }) => {
+      setArchiveMissionId(mission.missionId);
+      try {
+        const response = await fetch(`/api/noctis/missions/${mission.missionId}/archive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update mission archive state");
+        }
+
+        const data = (await response.json()) as {
+          mission?: MissionSummary & { archivedAt?: string | null };
+        };
+        const updatedMission = data.mission;
+        if (!updatedMission) {
+          throw new Error("Missing mission in response");
+        }
+
+        setMissions((current) =>
+          current.map((entry) =>
+            entry.missionId === mission.missionId
+              ? {
+                  ...entry,
+                  ...updatedMission,
+                  archivedAt: updatedMission.archivedAt ?? null,
+                }
+              : entry
+          )
+        );
+        setEditingMissionId(null);
+
+        if (action === "archive" && effectiveMissionId === mission.missionId) {
+          if (typeof window !== "undefined") {
+            const storedMissionId = window.localStorage.getItem(LAST_MISSION_STORAGE_KEY);
+            if (storedMissionId === mission.missionId) {
+              window.localStorage.removeItem(LAST_MISSION_STORAGE_KEY);
+            }
+          }
+          navigate("/noctis-team", { replace: true, state: { skipMissionRestore: true } });
+        }
+
+        toast.success(action === "archive" ? "Mission archived" : "Mission restored", {
+          action:
+            options?.showUndo === false
+              ? undefined
+              : {
+                  label: "Undo",
+                  onClick: () => {
+                    void submitMissionArchive(
+                      { ...mission, ...updatedMission },
+                      action === "archive" ? "restore" : "archive",
+                      { showUndo: false }
+                    );
+                  },
+                },
+        });
+      } catch {
+        toast.error(action === "archive" ? "Unable to archive mission" : "Unable to restore mission", {
+          description: "Mission metadata could not be updated.",
+        });
+      } finally {
+        setArchiveMissionId(null);
+      }
+    },
+    [effectiveMissionId, navigate]
+  );
+
   const handleSend = useCallback(
     async (parts: PromptPart[]) => {
       const missionId = await send(parts);
@@ -300,6 +427,38 @@ export function NoctisTeamScreen({
                 <Plus className="h-4 w-4" />
                 New Mission
               </Button>
+              <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-background/40 p-1">
+                <button
+                  className={cn(
+                    "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
+                    missionView === "active"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => {
+                    setEditingMissionId(null);
+                    setMissionView("active");
+                  }}
+                  type="button"
+                >
+                  Active ({missionCounts.active})
+                </button>
+                <button
+                  className={cn(
+                    "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
+                    missionView === "archived"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => {
+                    setEditingMissionId(null);
+                    setMissionView("archived");
+                  }}
+                  type="button"
+                >
+                  Archived ({missionCounts.archived})
+                </button>
+              </div>
             </div>
 
             <ScrollArea
@@ -311,19 +470,27 @@ export function NoctisTeamScreen({
                   <div className="rounded-lg border border-border/50 bg-card/40 p-3 font-mono text-[11px] text-muted-foreground/70">
                     Loading missions...
                   </div>
-                ) : missions.length === 0 ? (
+                ) : visibleMissions.length === 0 ? (
                   <div className="rounded-lg border border-border/50 bg-card/40 p-3 font-mono text-[11px] text-muted-foreground/70">
-                    No saved missions yet.
+                    {missionView === "archived" ? "No archived missions." : "No saved missions yet."}
                   </div>
                 ) : (
-                  missions.map((mission) => (
+                  visibleMissions.map((mission) => (
                     <MissionHistoryItem
                       key={mission.missionId}
                       mission={mission}
                       isActive={effectiveMissionId === mission.missionId}
+                      isArchivedView={missionView === "archived"}
                       isEditing={editingMissionId === mission.missionId}
+                      isArchivePending={archiveMissionId === mission.missionId}
+                      isArchiveDisabled={
+                        missionView === "active" &&
+                        effectiveMissionId === mission.missionId &&
+                        (isSessionActive || isStreaming || isLoadingHistory)
+                      }
                       isRenaming={isRenamingMission}
                       onBeginRename={beginRenameMission}
+                      onArchiveAction={submitMissionArchive}
                       onCancelRename={cancelRenameMission}
                       onSubmitRename={submitRenameMission}
                     />

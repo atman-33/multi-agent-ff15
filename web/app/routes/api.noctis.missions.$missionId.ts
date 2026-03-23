@@ -18,6 +18,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     objective: mission.objective,
     createdAt: mission.createdAt,
     updatedAt: mission.updatedAt,
+    archivedAt: mission.archivedAt ?? null,
     status: mission.status,
     sessions: {
       noctis: mission.noctisSessionId,
