@@ -181,7 +181,7 @@ const Layout = (_props: Route.ComponentProps) => {
 
   const fetchServerStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/opencode/server");
+      const response = await fetch("/api/opencode-server");
       const data = (await response.json()) as HeaderServerStatus;
 
       if (!response.ok) {
@@ -223,7 +223,7 @@ const Layout = (_props: Route.ComponentProps) => {
     setIsRecoveringServer(true);
 
     try {
-      const response = await fetch("/api/opencode/server", {
+      const response = await fetch("/api/opencode-server", {
         method: "POST",
       });
       const data = (await response.json()) as HeaderServerStatus;

@@ -51,7 +51,7 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
     setFetchError(null);
 
     try {
-      const response = await fetch("/api/opencode/server");
+      const response = await fetch("/api/opencode-server");
       const data: ServerStatus = await response.json();
 
       if (!response.ok) {
@@ -80,7 +80,7 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
     setIsRecovering(true);
 
     try {
-      const response = await fetch("/api/opencode/server", {
+      const response = await fetch("/api/opencode-server", {
         method: "POST",
       });
       const data: ServerStatus = await response.json();
