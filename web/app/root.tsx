@@ -7,8 +7,15 @@ import {
   ScrollRestoration,
 } from "react-router";
 import { Toaster } from "sonner";
+import { getProjectRoot } from "./lib/get-project-root.server";
+import { ensureRequiredWebConfigFiles } from "./lib/required-config.server";
 import type { Route } from "./+types/root";
 import "./app.css";
+
+export function loader() {
+  ensureRequiredWebConfigFiles(getProjectRoot());
+  return null;
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (

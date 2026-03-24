@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { PageContainer } from "@/components/page-container";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
@@ -160,7 +161,7 @@ const McpPage = ({ loaderData }: Route.ComponentProps) => {
   const enabledCount = mcpEntries.filter(([, value]) => value.enabled).length;
 
   return (
-    <div className="max-w-3xl space-y-5 p-6">
+    <PageContainer className="space-y-5" size="narrow">
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-muted-foreground text-sm">
@@ -319,7 +320,7 @@ const McpPage = ({ loaderData }: Route.ComponentProps) => {
           {enabledCount} of {mcpEntries.length} servers enabled
         </div>
       ) : null}
-    </div>
+    </PageContainer>
   );
 };
 

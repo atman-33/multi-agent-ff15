@@ -15,6 +15,7 @@ import {
 } from "@/lib/oh-my-opencode-config.server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PageContainer } from "@/components/page-container";
 import {
   Select,
   SelectContent,
@@ -139,8 +140,7 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
   );
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <div className="mx-auto flex h-full min-h-0 max-w-400 flex-col gap-4 p-4">
+    <PageContainer className="gap-4 p-4" size="wide">
         <div className="flex items-center justify-between border-border/50 border-b pb-2">
           <div>
             <p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
@@ -320,8 +320,7 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
             )}
           </>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 };
 

@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { Alert, AlertCircle, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { ReportMeta } from "../api.reports";
 import type { Route } from "./+types/route";
@@ -148,32 +149,19 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-full flex-col overflow-auto">
           <div className="sticky top-0 z-10 border-border/50 border-b bg-card/40 backdrop-blur-xs">
-            <div className="flex">
-              <button
-                className={cn(
-                  "flex-1 border-b-2 py-2 font-medium text-xs transition-colors",
-                  tab === "active"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => handleTabChange("active")}
-                type="button"
-              >
-                Active
-              </button>
-              <button
-                className={cn(
-                  "flex-1 border-b-2 py-2 font-medium text-xs transition-colors",
-                  tab === "archived"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => handleTabChange("archived")}
-                type="button"
-              >
-                Archived
-              </button>
-            </div>
+            <Tabs
+              value={tab}
+              onValueChange={(value) => handleTabChange(value === "archived" ? "archived" : "active")}
+            >
+              <TabsList variant="line" className="flex w-full">
+                <TabsTrigger className="flex-1" value="active" variant="line">
+                  Active
+                </TabsTrigger>
+                <TabsTrigger className="flex-1" value="archived" variant="line">
+                  Archived
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {error && (

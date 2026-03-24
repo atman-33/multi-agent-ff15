@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageContainer } from "@/components/page-container";
 import { getOpencodeServerStatus, type OpencodeServerStatus } from "@/lib/opencode-server";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
@@ -107,7 +108,7 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
   }, [fetchStatus]);
 
   return (
-    <div className="flex h-full w-full max-w-4xl flex-col gap-5 overflow-auto p-6">
+    <PageContainer className="gap-5" size="medium">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-muted-foreground text-sm">
@@ -218,7 +219,7 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 };
 

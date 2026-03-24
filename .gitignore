@@ -1,12 +1,9 @@
 # VS Code workspace
 *.code-workspace
 
-# GitHub automation
-.github/*
-!.github/workflows
-
 # Project state and local config
 config/current_projects.yaml
+config/settings.yaml
 !config/models.yaml
 projects/*
 

@@ -20,6 +20,7 @@ import {
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   coerceSessionStatus,
   fetchSessionStatuses,
@@ -640,38 +641,28 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
               </div>
             </div>
             <div className="border-border/50 border-b px-2 py-2">
-              <div className="grid grid-cols-2 gap-1 rounded-md bg-background/40 p-1">
-                <button
-                  className={cn(
-                    "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
-                    sessionView === "active"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => {
-                    setEditingSessionId(null);
-                    setSessionView("active");
-                  }}
-                  type="button"
-                >
-                  Active ({sessionCounts.active})
-                </button>
-                <button
-                  className={cn(
-                    "rounded-md px-2 py-1.5 font-medium text-[11px] transition-colors",
-                    sessionView === "archived"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => {
-                    setEditingSessionId(null);
-                    setSessionView("archived");
-                  }}
-                  type="button"
-                >
-                  Archived ({sessionCounts.archived})
-                </button>
-              </div>
+              <Tabs
+                value={sessionView}
+                onValueChange={(value) => {
+                  setEditingSessionId(null);
+                  setSessionView(value === "archived" ? "archived" : "active");
+                }}
+              >
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-background/40 p-1">
+                  <TabsTrigger
+                    className="rounded-md px-2 py-1.5 text-[11px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    value="active"
+                  >
+                    Active ({sessionCounts.active})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    className="rounded-md px-2 py-1.5 text-[11px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    value="archived"
+                  >
+                    Archived ({sessionCounts.archived})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
             <ScrollArea className="min-h-0 w-full min-w-0 flex-1 px-2 py-2">
               <nav className="w-full min-w-0 space-y-1">
