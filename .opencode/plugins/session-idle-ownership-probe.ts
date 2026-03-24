@@ -22,6 +22,11 @@ type ProbeRecord = {
   message: string | null;
 };
 
+type MessageFetchResult = {
+  message: string | null;
+  error: string | null;
+};
+
 const RESOLVE_SESSION_OWNER_SCRIPT = ".opencode/plugins/lib/resolve_session_owner.py";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -32,6 +37,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function asArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  const record = asRecord(value);
+  return Array.isArray(record?.data) ? record.data : [];
+}
+
 function normalizeContent(raw: string): string {
   return raw
     .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
@@ -39,6 +53,22 @@ function normalizeContent(raw: string): string {
     .replace(/\x1b[@-Z\\-_]/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? `${error.name}: ${error.message}`;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
 }
 
 function extractSessionId(event: Record<string, unknown>): string | null {
@@ -95,16 +125,14 @@ async function resolveOwnerFromSessionTitle(client: unknown, sessionId: string):
 } | null> {
   const clientRecord = asRecord(client);
   const sessionApi = asRecord(clientRecord?.session);
-  const list = sessionApi?.list;
-
-  if (typeof list !== "function") {
+  if (typeof sessionApi?.list !== "function") {
     return null;
   }
 
   try {
-    const result = await (list as () => Promise<unknown>)();
-    const resultRecord = asRecord(result);
-    const sessions = Array.isArray(resultRecord?.data) ? resultRecord.data : [];
+    const listSessions = (sessionApi.list as () => Promise<unknown>).bind(sessionApi);
+    const result = await listSessions();
+    const sessions = asArray(result);
 
     for (const session of sessions) {
       const sessionRecord = asRecord(session);
@@ -221,19 +249,23 @@ async function resolveOwner(
   return null;
 }
 
-async function fetchLatestAssistantMessage(client: unknown, sessionId: string): Promise<string | null> {
+async function fetchLatestAssistantMessage(client: unknown, sessionId: string): Promise<MessageFetchResult> {
   const clientRecord = asRecord(client);
   const sessionApi = asRecord(clientRecord?.session);
-  const messagesFn = sessionApi?.messages;
-
-  if (typeof messagesFn !== "function") {
-    return null;
+  if (typeof sessionApi?.messages !== "function") {
+    return {
+      message: null,
+      error: "session.messages API unavailable",
+    };
   }
 
   try {
-    const result = await (messagesFn as (input: unknown) => Promise<unknown>)({ path: { id: sessionId } });
-    const resultRecord = asRecord(result);
-    const messages = Array.isArray(resultRecord?.data) ? resultRecord.data : [];
+    const callMessages = (sessionApi.messages as (input: unknown) => Promise<unknown>).bind(sessionApi);
+    let messages = asArray(await callMessages({ path: { id: sessionId } }));
+
+    if (messages.length === 0) {
+      messages = asArray(await callMessages({ sessionID: sessionId }));
+    }
 
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const message = asRecord(messages[i]);
@@ -256,14 +288,23 @@ async function fetchLatestAssistantMessage(client: unknown, sessionId: string): 
 
       const normalized = normalizeContent(text);
       if (normalized) {
-        return normalized;
+        return {
+          message: normalized,
+          error: null,
+        };
       }
     }
-  } catch {
-    return null;
+  } catch (error) {
+    return {
+      message: null,
+      error: formatError(error),
+    };
   }
 
-  return null;
+  return {
+    message: null,
+    error: null,
+  };
 }
 
 async function appendLine(
@@ -311,7 +352,8 @@ const SessionIdleOwnershipProbe: Plugin = async ({ $, client }) => {
       recentIdleAt.set(sessionId, now);
 
       const owner = await resolveOwner($, client, sessionId);
-      const latestMessage = await fetchLatestAssistantMessage(client, sessionId);
+      const messageFetch = await fetchLatestAssistantMessage(client, sessionId);
+      const latestMessage = messageFetch.message;
 
       const record: ProbeRecord = {
         timestamp: new Date().toISOString(),
@@ -336,6 +378,14 @@ const SessionIdleOwnershipProbe: Plugin = async ({ $, client }) => {
         `logs/session-idle-ownership-probe-${ownerLabel}.log`,
         `[${record.timestamp}] session=${sessionId} mission=${record.missionId ?? "unknown"} source=${record.resolutionSource ?? "none"} mismatch=${record.mismatch} ${messagePreview}`
       );
+
+      if (messageFetch.error) {
+        await appendLine(
+          $,
+          diagPath,
+          `[${record.timestamp}] message fetch failed for session ${sessionId}: ${messageFetch.error.replace(/\s+/g, " ").slice(0, 1000)}`
+        );
+      }
 
       if (!owner) {
         await appendLine($, diagPath, `[${record.timestamp}] unresolved owner for session ${sessionId}`);
