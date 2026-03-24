@@ -170,13 +170,6 @@ async function removeSnapshot(client: unknown, sessionId: string): Promise<void>
 
 const ContextUsageSnapshotPlugin: Plugin = async ({ $, client }) => {
   return {
-    "tool.execute.after": async (input: { sessionID?: string }) => {
-      if (typeof input.sessionID !== "string" || input.sessionID.length === 0) {
-        return;
-      }
-
-      await writeLatestSnapshot({ $, session: (client as { session?: unknown }).session }, input.sessionID);
-    },
     event: async ({ event }: { event: { properties?: unknown; type: string } }) => {
       const eventRecord = event as unknown as Record<string, unknown>;
 
