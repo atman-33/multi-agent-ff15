@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.11.0] - 2026-03-24
+
+### Added
+- **Browser-based web dashboard** - Added the React Router web application as the primary interface for Noctis Team, OpenCode sessions, reports, MCP settings, server status, and project browsing
+- **Noctis Team mission workflow** - Added mission history, resume/archive actions, party status surfaces, streaming chat, banter logs, and mission runtime APIs for the browser experience
+- **Config management UI** - Added a dedicated configuration screen plus server helpers and API routes for editing `config/settings.yaml` and bootstrapping required local config files
+- **OpenSpec workflow assets** - Added Copilot/OpenSpec prompts and skills for apply, archive, continue, explore, onboarding, sync, and verify workflows
+
+### Changed
+- **Project architecture** - Completed the transition from the previous desktop/Tauri app to the browser-first `web/` application structure and updated documentation, setup flow, and assets accordingly
+- **Session and report UX** - Improved OpenCode session browsing, report navigation, page layout reuse, tab handling, and markdown rendering for richer long-form output review
+- **Release and CI plumbing** - Updated GitHub Actions workflows and npm lockfile handling to match the web app release process and checks
+
+### Fixed
+- **Message/session reliability** - Improved session owner resolution, message fetch error handling, intermediate detail rendering, and server recovery logic across the web dashboard
+- **Configuration bootstrap** - Fixed fresh-environment startup by auto-creating required config files instead of relying on committed local settings
+- **Release validation** - Fixed `web-checks` lockfile mismatch issues by syncing the npm lockfile with newly added web dependencies
+
+### Deprecated
+- None
+
+### Removed
+- **Legacy desktop app** - Removed the superseded `desktop/` application and related Tauri-only assets, scripts, and routes after the web dashboard became the primary interface
+
+### Security
+- None
+
 ## [0.10.0] - 2026-03-17
 
 ### Added
@@ -248,5 +276,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release.
 
+[0.11.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0
