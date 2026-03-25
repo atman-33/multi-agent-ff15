@@ -5,6 +5,7 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import {
   buildScopedProjectsYaml,
   createEmptyProjectScopes,
+  getProjectDefinitionPath,
   type ProjectScopeState,
   readScopedProjectsConfig,
 } from "@/lib/project-config.server";
@@ -41,11 +42,10 @@ export async function action({ request }: { request: Request }) {
       };
     }
 
-    const projectsDir = join(root, "projects");
     const allIds = Array.from(
       new Set(PROJECT_SCOPES.flatMap((scope) => nextProjectScopes[scope].activeProjectIds))
     );
-    const invalidIds = allIds.filter((id) => !existsSync(join(projectsDir, `${id}.yaml`)));
+    const invalidIds = allIds.filter((id) => !existsSync(getProjectDefinitionPath(root, id)));
     if (invalidIds.length > 0) {
       return Response.json(
         { error: `Unknown project IDs: ${invalidIds.join(", ")}` },

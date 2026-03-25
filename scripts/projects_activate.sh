@@ -75,7 +75,7 @@ validate_scope "$SCOPE"
 # --- Helper: validate project ID exists in projects/ directory (Task 3.6) ---
 validate_project_id() {
   local pid="$1"
-  if [[ ! -f "${PROJECTS_DIR}/${pid}.yaml" ]]; then
+  if [[ ! -f "${PROJECTS_DIR}/${pid}/project.yaml" ]]; then
     echo "ERROR: Project '${pid}' not found in ${PROJECTS_DIR}/" >&2
     echo "  Register it first with: scripts/project_register.sh --id ${pid} ..." >&2
     return 1

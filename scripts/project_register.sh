@@ -5,7 +5,7 @@
 #   project_register.sh --id <id> --name <name> --root <path> [--serena-project <value>] [--force]
 #
 # Detects instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) at project root.
-# Stores metadata in projects/<id>.yaml including existence, path, and SHA256 hash.
+# Stores metadata in projects/<id>/project.yaml with existing instruction file paths.
 # If --serena-project is provided, stores it in serena_project field for Serena MCP activation.
 #
 # Exit codes: 0=success, 1=error, 2=usage error
@@ -17,7 +17,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROJECTS_DIR="${REPO_ROOT}/projects"
 YAML_WRITE="${SCRIPT_DIR}/yaml_write_flock.sh"
 
-# Instruction file types to detect (root only)
 INSTRUCTION_FILES=("AGENTS.md" "CLAUDE.md" "GEMINI.md")
 
 # Defaults
@@ -134,7 +133,8 @@ while [[ "$CURRENT_PATH" != "/" ]]; do
 done
 
 # --- Re-registration handling (Task 2.7) ---
-OUTPUT_FILE="${PROJECTS_DIR}/${PROJECT_ID}.yaml"
+OUTPUT_DIR="${PROJECTS_DIR}/${PROJECT_ID}"
+OUTPUT_FILE="${OUTPUT_DIR}/project.yaml"
 if [[ -f "$OUTPUT_FILE" ]]; then
   if [[ "$FORCE" == true ]]; then
     echo "INFO: Re-registering project '${PROJECT_ID}' (--force)" >&2
@@ -159,39 +159,17 @@ if [[ -z "$SERENA_PROJECT" && -f "$OUTPUT_FILE" ]]; then
 fi
 
 # --- Instruction file detection (Task 2.2) ---
-TIMESTAMP=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
 INSTRUCTION_ENTRIES=""
 FILES_FOUND=0
 
 for FILENAME in "${INSTRUCTION_FILES[@]}"; do
   FILEPATH="${NORMALIZED_ROOT}/${FILENAME}"
-  
-  # Determine type from filename
-  case "$FILENAME" in
-    AGENTS.md)  FILE_TYPE="agents" ;;
-    CLAUDE.md)  FILE_TYPE="claude" ;;
-    GEMINI.md)  FILE_TYPE="gemini" ;;
-    *)          FILE_TYPE="unknown" ;;
-  esac
 
   if [[ -f "$FILEPATH" && ! -L "$FILEPATH" ]]; then
-    # File exists and is not a symlink — compute SHA256 (Task 2.3)
-    SHA256=$(sha256sum "$FILEPATH" | awk '{print $1}')
-    INSTRUCTION_ENTRIES+="  - type: ${FILE_TYPE}
-    path: $(yaml_quote "$FILEPATH")
-    exists: true
-    sha256: $(yaml_quote "$SHA256")
-    last_checked_at: $(yaml_quote "$TIMESTAMP")
+    INSTRUCTION_ENTRIES+="  - path: $(yaml_quote "$FILEPATH")
+    enabled: true
 "
     FILES_FOUND=$((FILES_FOUND + 1))
-  else
-    # File does not exist or is a symlink
-    INSTRUCTION_ENTRIES+="  - type: ${FILE_TYPE}
-    path: $(yaml_quote "$FILEPATH")
-    exists: false
-    sha256: ''
-    last_checked_at: $(yaml_quote "$TIMESTAMP")
-"
   fi
 done
 
@@ -202,7 +180,7 @@ if [[ "$FILES_FOUND" -eq 0 ]]; then
 fi
 
 # --- YAML output generation (Task 2.4) ---
-mkdir -p "$PROJECTS_DIR" 2>/dev/null
+mkdir -p "$OUTPUT_DIR" 2>/dev/null
 
 # Build serena_project line only if value was provided
 SERENA_PROJECT_LINE=""
@@ -214,11 +192,16 @@ elif [[ -n "$EXISTING_SERENA_PROJECT_LINE" ]]; then
 "
 fi
 
+INSTRUCTION_FILES_BLOCK="instruction_files: []"
+if [[ -n "$INSTRUCTION_ENTRIES" ]]; then
+  INSTRUCTION_FILES_BLOCK="instruction_files:
+${INSTRUCTION_ENTRIES}"
+fi
+
 YAML_CONTENT="id: $(yaml_quote "$PROJECT_ID")
 name: $(yaml_quote "$PROJECT_NAME")
 root_path: $(yaml_quote "$NORMALIZED_ROOT")
-${SERENA_PROJECT_LINE}instruction_files:
-${INSTRUCTION_ENTRIES}updated_at: $(yaml_quote "$TIMESTAMP")"
+${SERENA_PROJECT_LINE}${INSTRUCTION_FILES_BLOCK}"
 
 # Write using yaml_write_flock.sh for atomic writes
 if ! "$YAML_WRITE" "$OUTPUT_FILE" "$YAML_CONTENT"; then

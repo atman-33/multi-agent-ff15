@@ -89,22 +89,6 @@ const formatPath = (path: string): string => {
   return `…${path.slice(-39)}`;
 };
 
-const formatDate = (iso: string): string => {
-  if (!iso) {
-    return "—";
-  }
-  try {
-    return new Date(iso).toLocaleString("ja-JP", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-};
-
 const ProjectsPage = (_props: Route.ComponentProps) => {
   const [serverData, setServerData] = useState<ProjectsApiData | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -358,12 +342,6 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
                       <span className="truncate font-mono" title={project.path}>
                         {formatPath(project.path)}
                       </span>
-                      {project.updatedAt && (
-                        <>
-                          <span className="shrink-0">·</span>
-                          <span className="shrink-0">{formatDate(project.updatedAt)}</span>
-                        </>
-                      )}
                     </div>
                   </div>
 
