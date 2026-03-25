@@ -15,7 +15,7 @@ Registers external projects and manages active project state. Projects can have 
 
 ### 1. Register a New Project
 
-Detects instruction files at the project root and stores metadata in `projects/<id>.yaml`.
+Detects instruction files at the project root and stores metadata in `projects/<id>/project.yaml`.
 
 ```bash
 scripts/project_register.sh \
@@ -45,7 +45,7 @@ scripts/project_register.sh \
   --serena-project "my-app"   # value confirmed by activate_project
 ```
 
-Output: `projects/my-app.yaml` with detected instruction files, SHA256 hashes, and `serena_project`.
+Output: `projects/my-app/project.yaml` with detected instruction files and `serena_project`.
 
 ---
 
@@ -55,34 +55,34 @@ Control which projects are currently active. Active projects have their instruct
 
 ```bash
 # Add projects to active list (preserves existing)
-scripts/projects_activate.sh add <project_id...>
+scripts/projects_activate.sh <scope> add <project_id...>
 
 # Remove projects from active list
-scripts/projects_activate.sh remove <project_id...>
+scripts/projects_activate.sh <scope> remove <project_id...>
 
 # Replace active list entirely
-scripts/projects_activate.sh set <project_id...>
+scripts/projects_activate.sh <scope> set <project_id...>
 
 # Show currently active projects
-scripts/projects_activate.sh list
+scripts/projects_activate.sh <scope> list
 ```
 
 **Example — enable two projects:**
 
 ```bash
-scripts/projects_activate.sh add my-app another-project
+scripts/projects_activate.sh noctis_team add my-app another-project
 ```
 
 **Example — switch to a single project:**
 
 ```bash
-scripts/projects_activate.sh set my-app
+scripts/projects_activate.sh noctis_team set my-app
 ```
 
 **Example — deactivate all:**
 
 ```bash
-scripts/projects_activate.sh remove my-app
+scripts/projects_activate.sh noctis_team remove my-app
 ```
 
 ---
@@ -103,10 +103,10 @@ scripts/project_register.sh \
   --serena-project "<confirmed_value>"   # value confirmed in step 1
 
 # 3. Add to active project list
-scripts/projects_activate.sh add client-x
+scripts/projects_activate.sh noctis_team add client-x
 
 # 4. Verify
-scripts/projects_activate.sh list
+scripts/projects_activate.sh noctis_team list
 ```
 
 After activation, the `project-instruction-injection` plugin automatically adds a project-instruction-context block to every user message, listing instruction file paths for agents to read on demand.
@@ -135,7 +135,7 @@ Pass the successful value as `--serena-project` when running `project_register.s
 
 ## What Gets Stored
 
-`projects/<id>.yaml`:
+`projects/<id>/project.yaml`:
 
 ```yaml
 id: 'client-x'
@@ -143,17 +143,8 @@ name: 'Client X'
 root_path: '/home/atman/repos/client-x'
 serena_project: '\\wsl$\Ubuntu\home\atman\repos\client-x'  # optional; use the confirmed Serena activation value
 instruction_files:
-  - type: agents
-    path: '/home/atman/repos/client-x/AGENTS.md'
-    exists: true
-    sha256: 'abc123...'
-    last_checked_at: '2026-02-22T12:00:00Z'
-  - type: claude
-    path: '/home/atman/repos/client-x/CLAUDE.md'
-    exists: false
-    sha256: ''
-    last_checked_at: '2026-02-22T12:00:00Z'
-updated_at: '2026-02-22T12:00:00Z'
+  - path: '/home/atman/repos/client-x/AGENTS.md'
+    enabled: true
 ```
 
 `config/current_projects.yaml`:
@@ -183,7 +174,7 @@ scripts/project_register.sh \
   --force
 ```
 
-The SHA256 hash will be updated. No need to re-activate.
+Detected instruction files will be refreshed with `enabled: true`. No need to re-activate.
 
 If `serena_project` is already present in the existing YAML, re-registering without `--serena-project` preserves that value.
 
@@ -208,5 +199,5 @@ Note: `project_register.sh` now writes YAML-safe single-quoted scalars for path-
 - Re-registering after instruction files were added or changed
 
 **Don't use when:**
-- Editing project metadata directly — edit `projects/<id>.yaml` manually
+- Editing project metadata directly — edit `projects/<id>/project.yaml` manually
 - The project has no instruction files — registration still works (with a warning)

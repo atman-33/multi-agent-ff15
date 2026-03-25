@@ -103,19 +103,6 @@ function formatActiveProjectTitle(projects: ProjectEntry[], error: string | null
     .join("\n");
 }
 
-function formatProjectUpdatedAt(value: string) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
-}
-
 function getServerStatusLabel(status: HeaderServerStatus | null) {
   if (!status) {
     return "OpenCode: checking";
@@ -505,15 +492,6 @@ const Layout = (_props: Route.ComponentProps) => {
                           <span className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-700 dark:text-amber-300">
                             <GitBranch className="h-2.5 w-2.5" />
                             {project.branchName ?? "unknown"}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                          <span className="uppercase tracking-[0.14em] text-[9px]">
-                            Updated
-                          </span>
-                          <span className="text-foreground/90">
-                            {formatProjectUpdatedAt(project.updatedAt)}
                           </span>
                         </div>
                       </div>

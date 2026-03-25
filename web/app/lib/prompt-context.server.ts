@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
   type RegisteredProjectDefinition,
   readRegisteredProjectDefinition,
@@ -113,7 +114,9 @@ export function buildInjectedPromptContext({
     lines.push(`  - id: ${project.id}`);
     lines.push(`    root_path: ${project.rootPath}`);
 
-    const existingFiles = project.instructionFiles.filter((file) => file.exists && file.path);
+    const existingFiles = project.instructionFiles.filter(
+      (file) => file.enabled && file.path && existsSync(file.path)
+    );
     if (existingFiles.length === 0) {
       lines.push("    instruction_files: []");
       continue;
@@ -135,7 +138,7 @@ export function buildInjectedPromptContext({
     }`
   );
   lines.push(
-    `  on_success: write successful value back to projects/${firstProject.id}.yaml as serena_project`
+    `  on_success: write successful value back to projects/${firstProject.id}/project.yaml as serena_project`
   );
   lines.push("openspec_context:");
   lines.push(`  root: ${firstProject.rootPath || "not set"}`);

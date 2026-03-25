@@ -6,7 +6,6 @@ export interface ProjectEntry {
   displayName: string;
   id: string;
   path: string;
-  updatedAt: string;
 }
 
 export interface ActiveProjectsData {
@@ -26,7 +25,6 @@ function areProjectEntriesEqual(left: ProjectEntry[], right: ProjectEntry[]) {
       project.id === other?.id &&
       project.displayName === other.displayName &&
       project.path === other.path &&
-      project.updatedAt === other.updatedAt &&
       project.branchName === other.branchName
     );
   });

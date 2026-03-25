@@ -6,11 +6,8 @@ import { PROJECT_SCOPES, type ProjectScope } from "@/lib/project-scopes";
 import { ensureRequiredWebConfigFiles } from "@/lib/required-config.server";
 
 export interface ProjectInstructionFile {
-  exists: boolean;
-  lastCheckedAt: string;
+  enabled: boolean;
   path: string;
-  sha256: string;
-  type: string;
 }
 
 export interface RegisteredProjectDefinition {
@@ -19,7 +16,6 @@ export interface RegisteredProjectDefinition {
   name: string;
   rootPath: string;
   serenaProject: string;
-  updatedAt: string;
 }
 
 export interface ProjectEntry {
@@ -27,7 +23,6 @@ export interface ProjectEntry {
   displayName: string;
   id: string;
   path: string;
-  updatedAt: string;
 }
 
 export interface ProjectScopeState {
@@ -104,6 +99,10 @@ export function buildScopedProjectsYaml(
   ].join("\n");
 }
 
+export function getProjectDefinitionPath(root: string, id: string): string {
+  return join(root, "projects", id, "project.yaml");
+}
+
 export function readRegisteredProjects(root: string): ProjectEntry[] {
   const projectsDir = join(root, "projects");
   const projects: ProjectEntry[] = [];
@@ -112,13 +111,13 @@ export function readRegisteredProjects(root: string): ProjectEntry[] {
     return projects;
   }
 
-  const files = readdirSync(projectsDir).filter(
-    (file) => file.endsWith(".yaml") && !file.startsWith(".")
+  const directories = readdirSync(projectsDir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && !entry.name.startsWith(".")
   );
 
-  for (const file of files) {
+  for (const directory of directories) {
     try {
-      const raw = readFileSync(join(projectsDir, file), "utf-8");
+      const raw = readFileSync(join(projectsDir, directory.name, "project.yaml"), "utf-8");
       const parsed = parseYaml(raw);
       if (!parsed?.id) {
         continue;
@@ -141,7 +140,6 @@ export function readRegisteredProjects(root: string): ProjectEntry[] {
         id: parsed.id,
         displayName: parsed.name ?? parsed.id,
         path: parsed.root_path ?? "",
-        updatedAt: parsed.updated_at ?? "",
         branchName: branchName || undefined,
       });
     } catch {
@@ -156,7 +154,7 @@ export function readRegisteredProjectDefinition(
   root: string,
   id: string
 ): RegisteredProjectDefinition | null {
-  const projectPath = join(root, "projects", `${id}.yaml`);
+  const projectPath = getProjectDefinitionPath(root, id);
 
   if (!existsSync(projectPath)) {
     return null;
@@ -176,11 +174,8 @@ export function readRegisteredProjectDefinition(
             (file: unknown): file is Record<string, unknown> => !!file && typeof file === "object"
           )
           .map((file: Record<string, unknown>) => ({
-            type: typeof file.type === "string" ? file.type : "unknown",
             path: typeof file.path === "string" ? file.path : "",
-            exists: file.exists === true,
-            sha256: typeof file.sha256 === "string" ? file.sha256 : "",
-            lastCheckedAt: typeof file.last_checked_at === "string" ? file.last_checked_at : "",
+            enabled: file.enabled !== false,
           }))
       : [];
 
@@ -189,7 +184,6 @@ export function readRegisteredProjectDefinition(
       name: typeof parsed.name === "string" ? parsed.name : parsed.id,
       rootPath: typeof parsed.root_path === "string" ? parsed.root_path : "",
       serenaProject: typeof parsed.serena_project === "string" ? parsed.serena_project : "",
-      updatedAt: typeof parsed.updated_at === "string" ? parsed.updated_at : "",
       instructionFiles,
     };
   } catch {
@@ -208,10 +202,9 @@ export function getActiveProjectRootsForScope(
   const { projectScopes } = readScopedProjectsConfig(appRoot);
   const activeProjectIds = projectScopes[scope].activeProjectIds;
   const roots: string[] = [];
-  const projectsDir = join(appRoot, "projects");
 
   for (const id of activeProjectIds) {
-    const projectPath = join(projectsDir, `${id}.yaml`);
+    const projectPath = getProjectDefinitionPath(appRoot, id);
     if (!existsSync(projectPath)) {
       continue;
     }
