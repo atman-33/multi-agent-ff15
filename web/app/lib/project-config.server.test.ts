@@ -39,6 +39,8 @@ afterEach(() => {
 describe("project-config.server", () => {
   it("reads registered projects from projects/<id>/project.yaml", () => {
     const root = createTempRoot();
+    const projectRoot = join(root, "external-alpha");
+    mkdirSync(projectRoot, { recursive: true });
 
     writeProjectManifest(
       root,
@@ -46,10 +48,10 @@ describe("project-config.server", () => {
       [
         'id: "alpha"',
         'name: "Alpha Project"',
-        `root_path: "${root}/external-alpha"`,
+        'root_path: "../../external-alpha"',
         'serena_project: "alpha"',
         "instruction_files:",
-        `  - path: "${root}/external-alpha/AGENTS.md"`,
+        '  - path: "../../external-alpha/AGENTS.md"',
         "    enabled: true",
         "",
       ].join("\n")
@@ -61,7 +63,7 @@ describe("project-config.server", () => {
       {
         id: "alpha",
         displayName: "Alpha Project",
-        path: `${root}/external-alpha`,
+        path: projectRoot,
         branchName: undefined,
       },
     ]);
@@ -95,12 +97,12 @@ describe("project-config.server", () => {
       [
         'id: "alpha"',
         'name: "Alpha Project"',
-        `root_path: "${projectRoot}"`,
+        'root_path: "../../external-alpha"',
         'serena_project: "alpha"',
         "instruction_files:",
-        `  - path: "${projectRoot}/AGENTS.md"`,
+        '  - path: "../../external-alpha/AGENTS.md"',
         "    enabled: true",
-        `  - path: "${projectRoot}/CLAUDE.md"`,
+        '  - path: "../../external-alpha/CLAUDE.md"',
         "    enabled: false",
         "",
       ].join("\n")
@@ -120,5 +122,33 @@ describe("project-config.server", () => {
     });
 
     expect(getActiveProjectRootsForScope(root, "noctis_team")).toEqual([projectRoot]);
+  });
+
+  it("keeps supporting absolute paths in project manifests", () => {
+    const root = createTempRoot();
+    const projectRoot = join(root, "external-beta");
+    mkdirSync(projectRoot, { recursive: true });
+
+    writeProjectManifest(
+      root,
+      "beta",
+      [
+        'id: "beta"',
+        'name: "Beta Project"',
+        `root_path: "${projectRoot}"`,
+        'instruction_files:',
+        `  - path: "${projectRoot}/AGENTS.md"`,
+        '    enabled: true',
+        '',
+      ].join("\n")
+    );
+
+    expect(readRegisteredProjectDefinition(root, "beta")).toEqual({
+      id: "beta",
+      name: "Beta Project",
+      rootPath: projectRoot,
+      serenaProject: "",
+      instructionFiles: [{ path: `${projectRoot}/AGENTS.md`, enabled: true }],
+    });
   });
 });

@@ -32,6 +32,11 @@ yaml_quote() {
   printf "'%s'" "$value"
 }
 
+relative_to_output_dir() {
+  local target_path="$1"
+  realpath --relative-to="$OUTPUT_DIR" "$target_path"
+}
+
 # --- Argument parsing ---
 usage() {
   cat >&2 <<EOF
@@ -166,7 +171,8 @@ for FILENAME in "${INSTRUCTION_FILES[@]}"; do
   FILEPATH="${NORMALIZED_ROOT}/${FILENAME}"
 
   if [[ -f "$FILEPATH" && ! -L "$FILEPATH" ]]; then
-    INSTRUCTION_ENTRIES+="  - path: $(yaml_quote "$FILEPATH")
+    RELATIVE_FILEPATH="$(relative_to_output_dir "$FILEPATH")"
+    INSTRUCTION_ENTRIES+="  - path: $(yaml_quote "$RELATIVE_FILEPATH")
     enabled: true
 "
     FILES_FOUND=$((FILES_FOUND + 1))
@@ -200,7 +206,7 @@ fi
 
 YAML_CONTENT="id: $(yaml_quote "$PROJECT_ID")
 name: $(yaml_quote "$PROJECT_NAME")
-root_path: $(yaml_quote "$NORMALIZED_ROOT")
+root_path: $(yaml_quote "$(relative_to_output_dir "$NORMALIZED_ROOT")")
 ${SERENA_PROJECT_LINE}${INSTRUCTION_FILES_BLOCK}"
 
 # Write using yaml_write_flock.sh for atomic writes
