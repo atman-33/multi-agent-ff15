@@ -18,16 +18,20 @@ function normalizeMovement(raw: Record<string, unknown>): MovementDefinition {
     : [];
 
   const outputContracts = raw.output_contracts as
-    | { report?: Array<{ name: string; format: string }> }
+    | { report?: Array<{ name: string; format_file: string }> }
     | undefined;
 
   return {
     name: String(raw.name ?? ""),
     agent: String(raw.agent ?? "noctis") as MovementDefinition["agent"],
-    job: String(raw.job ?? ""),
-    instruction: String(raw.instruction ?? ""),
-    knowledge: raw.knowledge as string | string[] | undefined,
-    policy: raw.policy as string | string[] | undefined,
+    job_file: String(raw.job_file ?? ""),
+    instruction_file: String(raw.instruction_file ?? ""),
+    knowledge_files: Array.isArray(raw.knowledge_files)
+      ? raw.knowledge_files.map((value) => String(value ?? "")).filter(Boolean)
+      : undefined,
+    policy_files: Array.isArray(raw.policy_files)
+      ? raw.policy_files.map((value) => String(value ?? "")).filter(Boolean)
+      : undefined,
     edit: raw.edit === true,
     pass_previous_response: raw.pass_previous_response !== false,
     output_contracts: outputContracts?.report
@@ -61,6 +65,7 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
     : [];
 
   return {
+    sourcePath: absolutePath,
     name: String(raw.name ?? ""),
     description: String(raw.description ?? ""),
     max_movements: typeof raw.max_movements === "number" ? raw.max_movements : 20,

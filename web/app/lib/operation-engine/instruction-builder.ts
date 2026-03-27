@@ -1,9 +1,18 @@
+import { basename } from "node:path";
 import type { OperationState } from "@/lib/types/mission";
 import type {
   MovementDefinition,
   OperationDefinition,
   ResolvedFacets,
 } from "./types";
+
+export function describeMovementRole(jobFilePath: string): string {
+  if (!jobFilePath.trim()) {
+    return "";
+  }
+
+  return basename(jobFilePath).replace(/\.md$/i, "");
+}
 
 /**
  * Build a composed instruction from resolved facets for a Worker movement.
@@ -92,7 +101,7 @@ export function buildActivationInstruction(input: {
       `operation: ${operation.name}`,
       `description: ${operation.description}`,
       `current_movement: ${movement.name}`,
-      `your_role: ${movement.job}`,
+      `your_role: ${describeMovementRole(movement.job_file)}`,
     ].join("\n"),
   );
 

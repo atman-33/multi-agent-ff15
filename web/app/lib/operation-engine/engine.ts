@@ -6,6 +6,7 @@ import {
   buildActivationInstruction,
   buildAugmentedInstruction,
   buildOperationContextSummary,
+  describeMovementRole,
 } from "./instruction-builder";
 import { listAvailableOperations, loadOperationByName } from "./operation-loader";
 import { evaluateRules } from "./rule-evaluator";
@@ -311,7 +312,7 @@ function buildTransitionGuidance(
 
   if (nextMovement) {
     lines.push(`next_agent: ${nextMovement.agent}`);
-    lines.push(`next_job: ${nextMovement.job}`);
+    lines.push(`next_job: ${describeMovementRole(nextMovement.job_file)}`);
   }
 
   lines.push(`progress: ${completedCount}/${total} movements complete`);
