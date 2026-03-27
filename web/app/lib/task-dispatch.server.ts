@@ -8,6 +8,8 @@ import {
   updateTask,
 } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { augmentTaskPrompt } from "@/lib/operation-engine/engine";
+import { getOperationState } from "@/lib/operation-engine/state";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
@@ -122,6 +124,18 @@ export async function dispatchTaskToWorker(input: {
     agentId: input.agentId,
   });
 
+  // Hook 2: Operation Engine – augment task prompt with facets
+  let effectivePrompt = taskPrompt;
+  const operationState = getOperationState(input.missionId);
+  if (operationState && (operationState.status === "running" || operationState.status === "waiting_for_report")) {
+    effectivePrompt = augmentTaskPrompt({
+      operationState,
+      originalPrompt: taskPrompt,
+      agentId: input.agentId,
+      missionId: input.missionId,
+    });
+  }
+
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
   const existingSessionId = mission.workerSessions[input.agentId];
@@ -149,7 +163,7 @@ export async function dispatchTaskToWorker(input: {
       const promptResult = await client.session.promptAsync({
         path: { id: existingSessionId },
         body: {
-          parts: [{ type: "text", text: taskPrompt }],
+          parts: [{ type: "text", text: effectivePrompt }],
           agent: input.agentId,
           ...(workerModel ? { model: workerModel } : {}),
         },
@@ -204,7 +218,7 @@ export async function dispatchTaskToWorker(input: {
       body: {
         parts: [
           { type: "text", text: injectedContext },
-          { type: "text", text: taskPrompt },
+          { type: "text", text: effectivePrompt },
         ],
         agent: input.agentId,
         system: ledger,

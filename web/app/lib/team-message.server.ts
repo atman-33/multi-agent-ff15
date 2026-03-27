@@ -6,6 +6,8 @@ import {
   setWorkerSession,
 } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { processReport } from "@/lib/operation-engine/engine";
+import { getOperationState, saveOperationState } from "@/lib/operation-engine/state";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { buildTeamMessageEnvelope, getActivityActorLabel } from "@/lib/team-message-format";
 import type {
@@ -16,6 +18,7 @@ import type {
   ReportStatus,
   TeamMessage,
   TeamMessageType,
+  WorkerAgentId,
 } from "@/lib/types/mission";
 
 export interface SendTeamMessageInput {
@@ -162,6 +165,41 @@ async function deliverMissionMessage(
     artifacts: input.artifacts,
     details: input.details,
   });
+
+  // Hook 3: Operation Engine – process worker report and append guidance
+  let operationGuidance = "";
+  if (input.type === "report" && input.toAgent === "noctis") {
+    const opState = getOperationState(input.missionId);
+    if (opState && (opState.status === "running" || opState.status === "waiting_for_report")) {
+      const workers: WorkerAgentId[] = ["ignis", "gladiolus", "prompto"];
+      const workerAgent = workers.includes(input.fromAgent as WorkerAgentId)
+        ? (input.fromAgent as WorkerAgentId)
+        : undefined;
+
+      if (workerAgent && input.taskId && input.reportStatus) {
+        const hookResult = processReport({
+          operationState: opState,
+          reportBody: input.body,
+          reportDetails: input.details,
+          fromAgent: workerAgent,
+          taskId: input.taskId,
+          reportStatus: input.reportStatus,
+        });
+
+        if (hookResult.noctisGuidance) {
+          operationGuidance = `\n\n${hookResult.noctisGuidance}`;
+        }
+
+        // Persist updated operation state
+        saveOperationState(input.missionId, opState);
+      }
+    }
+  }
+
+  const effectivePromptBody = operationGuidance
+    ? `${promptBody}${operationGuidance}`
+    : promptBody;
+
   const client = getOpencodeClient();
 
   try {
@@ -170,7 +208,7 @@ async function deliverMissionMessage(
       body: {
         parts: [
           { type: "text", text: injectedContext },
-          { type: "text", text: promptBody },
+          { type: "text", text: effectivePromptBody },
         ],
         agent: input.toAgent,
         system,

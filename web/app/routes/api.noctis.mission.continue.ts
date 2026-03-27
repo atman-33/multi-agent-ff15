@@ -6,6 +6,7 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { processCrystalMessage } from "@/lib/operation-engine/engine";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
@@ -85,19 +86,58 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   try {
     const client = getOpencodeClient();
+    const appRoot = getProjectRoot();
     const injectedContext = buildInjectedPromptContext({
       missionId,
       sessionId: mission.noctisSessionId,
       agent: noctisAgentProfile,
       allowedWorkers,
-      appRoot: getProjectRoot(),
+      appRoot,
       executionMode,
     });
+
+    // Hook 1: Operation Engine – continue flow
+    // Retrieve last Noctis response for self-movement [STEP:N] detection
+    let lastNoctisResponse: string | undefined;
+    try {
+      const msgs = await client.session.messages({
+        path: { id: mission.noctisSessionId },
+      });
+      if (msgs.data) {
+        for (let i = msgs.data.length - 1; i >= 0; i--) {
+          const msg = msgs.data[i];
+          if (msg?.info.role === "assistant") {
+            lastNoctisResponse = msg.parts
+              .filter((p) => p.type === "text")
+              .map((p) => p.text ?? "")
+              .join("");
+            break;
+          }
+        }
+      }
+    } catch {
+      // Non-blocking: proceed without last response
+    }
+
+    const crystalMessage = stringifyPromptParts(promptParts);
+    const hookResult = processCrystalMessage(
+      {
+        missionId,
+        sessionId: mission.noctisSessionId,
+        message: crystalMessage,
+        isNewMission: false,
+      },
+      lastNoctisResponse,
+    );
+
+    const finalParts: PromptPart[] = hookResult.additionalContext
+      ? [{ type: "text", text: hookResult.additionalContext }, ...routedPromptParts]
+      : routedPromptParts;
 
     const result = await client.session.promptAsync({
       path: { id: mission.noctisSessionId },
       body: {
-        parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
+        parts: buildPromptPayloadParts(injectedContext, finalParts),
         agent: noctisAgentProfile,
         ...(effectiveModel ? { model: effectiveModel } : {}),
       },

@@ -6,6 +6,7 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { processCrystalMessage } from "@/lib/operation-engine/engine";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
@@ -122,10 +123,25 @@ export const action = async ({ request }: Route.ActionArgs) => {
       executionMode,
     });
 
+    // --- OperationEngine Hook 1: detect & activate operation ---
+    const engineResult = processCrystalMessage({
+      missionId,
+      sessionId,
+      message,
+      isNewMission: true,
+    });
+    let finalParts = routedPromptParts;
+    if (engineResult.additionalContext) {
+      finalParts = [
+        { type: "text", text: engineResult.additionalContext },
+        ...routedPromptParts,
+      ];
+    }
+
     const promptResult = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
+        parts: buildPromptPayloadParts(injectedContext, finalParts),
         agent: noctisAgentProfile,
         system: ledger,
         ...(noctisModel ? { model: noctisModel } : {}),

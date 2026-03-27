@@ -84,6 +84,52 @@ export interface Mission {
   status: MissionStatus;
   messageLog: MissionMessageLogEntry[];
   activityLog: MissionActivityLogEntry[];
+  operationState?: OperationState;
+}
+
+export type OperationStatus = "running" | "waiting_for_report" | "complete" | "aborted";
+
+export type DeviationType = "agent_mismatch" | "movement_skip" | "order_deviation";
+
+export interface DeviationEntry {
+  type: DeviationType;
+  expected: string;
+  actual: string;
+  timestamp: string;
+}
+
+export interface DeviationTracker {
+  totalDeviations: number;
+  history: DeviationEntry[];
+}
+
+export type MovementHistoryStatus = "dispatched" | "completed" | "failed";
+
+export interface MovementHistoryEntry {
+  movement: string;
+  agent: string;
+  taskId?: string;
+  status: MovementHistoryStatus;
+  ruleMatched?: number;
+  ruleCondition?: string;
+  nextMovement?: string;
+  dispatchedAt: string;
+  completedAt?: string;
+  summary?: string;
+}
+
+export interface OperationState {
+  operationName: string;
+  currentMovement: string;
+  iteration: number;
+  maxMovements: number;
+  status: OperationStatus;
+  activatedAt: string;
+  updatedAt: string;
+  reportDir: string;
+  previousResponse: string | null;
+  movementHistory: MovementHistoryEntry[];
+  deviations: DeviationTracker;
 }
 
 export interface MissionActivitySource {
