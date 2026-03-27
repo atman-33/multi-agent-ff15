@@ -46,6 +46,7 @@ type PromptComposerProps = {
   isAborting?: boolean;
   placeholder?: string;
   helperText?: ReactNode;
+  topSlot?: ReactNode;
   footerStart?: ReactNode;
 };
 
@@ -105,6 +106,7 @@ export function PromptComposer({
   isAborting = false,
   placeholder,
   helperText,
+  topSlot,
   footerStart,
 }: PromptComposerProps) {
   const [input, setInput] = useState("");
@@ -445,6 +447,7 @@ export function PromptComposer({
   return (
     <div className="shrink-0 border-border/50 border-t px-4 py-4">
       <div className="mx-auto max-w-3xl rounded-xl border border-transparent bg-card shadow-xs">
+        {topSlot ? <div className="border-border/40 border-b px-3 py-3">{topSlot}</div> : null}
         <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
           <PopoverAnchor asChild>
             <div className="px-3 pt-3">

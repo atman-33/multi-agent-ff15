@@ -7,6 +7,7 @@ import {
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { processCrystalMessage } from "@/lib/operation-engine/engine";
+import { getOperationState } from "@/lib/operation-engine/state";
 import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
 import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
@@ -30,6 +31,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     noctisModel?: unknown;
     workerModels?: unknown;
     allowedWorkers?: unknown;
+    selectedOperation?: unknown;
     title?: unknown;
     objective?: unknown;
   } | null;
@@ -72,6 +74,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
   ];
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
+  const selectedOperation =
+    typeof body.selectedOperation === "string" && body.selectedOperation.trim().length > 0
+      ? body.selectedOperation.trim()
+      : null;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
   const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
   const executionMode = getNoctisExecutionMode(allowedWorkers);
@@ -129,6 +135,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       sessionId,
       message,
       isNewMission: true,
+      selectedOperation,
     });
     let finalParts = routedPromptParts;
     if (engineResult.additionalContext) {
@@ -152,7 +159,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return Response.json({ error: promptResult.error }, { status: 502 });
     }
 
-    return Response.json({ missionId, noctisSessionId: sessionId });
+    return Response.json({
+      missionId,
+      noctisSessionId: sessionId,
+      operationState: getOperationState(missionId) ?? null,
+    });
   } catch {
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }

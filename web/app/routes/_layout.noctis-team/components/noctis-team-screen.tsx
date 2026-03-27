@@ -247,6 +247,11 @@ export function NoctisTeamScreen({
     isSessionActive,
     isStreaming,
     isLoadingHistory,
+    availableOperations,
+    selectedOperation,
+    activeOperationState,
+    isOperationSelectionLocked,
+    setSelectedOperation,
     send,
     abort,
   } = useAgentSession({
@@ -642,6 +647,11 @@ export function NoctisTeamScreen({
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
+              availableOperations={availableOperations}
+              selectedOperation={selectedOperation}
+              activeOperationState={activeOperationState}
+              isOperationSelectionLocked={isOperationSelectionLocked}
+              onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}
               onSend={handleSend}
               showAbortAction={isSessionActive && !isLoadingHistory}

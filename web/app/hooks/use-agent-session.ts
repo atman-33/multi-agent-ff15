@@ -21,6 +21,7 @@ import type {
   AgentContextUsage,
   DelegationLedger,
   MissionMessageLogEntry,
+  OperationState,
   ReportStatus,
 } from "@/lib/types/mission";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
@@ -163,6 +164,7 @@ export type MissionResumePayload = {
     gladiolus: string | null;
     prompto: string | null;
   };
+  operationState?: OperationState | null;
 };
 
 type MissionRuntimeSnapshot = MissionResumePayload & {
@@ -379,6 +381,11 @@ export interface UseAgentSessionReturn {
   isSessionActive: boolean;
   isStreaming: boolean;
   isLoadingHistory: boolean;
+  availableOperations: string[];
+  selectedOperation: string | null;
+  activeOperationState: OperationState | null;
+  isOperationSelectionLocked: boolean;
+  setSelectedOperation: (operationName: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
 }
@@ -401,6 +408,9 @@ export function useAgentSession({
       ? toWorkerSessionIds(initialMissionData.sessions)
       : createInitialWorkerSessionIds();
   const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [availableOperations, setAvailableOperations] = useState<string[]>([]);
+  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
+  const [activeOperationState, setActiveOperationState] = useState<OperationState | null>(null);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [latestBanterEntryId, setLatestBanterEntryId] = useState<string | null>(null);
   const [speakingAgentId, setSpeakingAgentId] = useState<string | null>(null);
@@ -450,6 +460,35 @@ export function useAgentSession({
   const setOptimisticSessionState = useChatStore((state) => state.setOptimisticSessionState);
   const setPendingMissionSession = useChatStore((state) => state.setPendingMissionSession);
   const clearPendingMissionSession = useChatStore((state) => state.clearPendingMissionSession);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAvailableOperations = async () => {
+      try {
+        const response = await fetch("/api/noctis/operations");
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { operations?: string[] };
+        if (!cancelled) {
+          setAvailableOperations(data.operations ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableOperations([]);
+        }
+      }
+    };
+
+    void loadAvailableOperations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
   const isSessionActive = isSessionStatusActive(sessionStatus);
   const partyMembers = useMemo<PartyMember[]>(
@@ -1014,6 +1053,8 @@ export function useAgentSession({
   const applyMissionRuntimeSnapshot = useCallback(
     (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
       missionIdRef.current = runtime.missionId;
+      setActiveOperationState(runtime.operationState ?? null);
+      setSelectedOperation(runtime.operationState?.operationName ?? null);
 
       const nextNoctisSessionId = runtime.sessions.noctis;
       const optimisticNoctisStatus =
@@ -1192,6 +1233,8 @@ export function useAgentSession({
         banterMissionIdRef.current = null;
         seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
+        setActiveOperationState(null);
+        setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
         setContextUsageByAgent(createInitialContextUsageByAgent());
@@ -1228,6 +1271,8 @@ export function useAgentSession({
           clearPendingMissionSession(initialMissionData.missionId);
           noctisSessionIdRef.current = initialMissionData.sessions.noctis;
           setNoctisSessionId(initialMissionData.sessions.noctis);
+          setActiveOperationState(initialMissionData.operationState ?? null);
+          setSelectedOperation(initialMissionData.operationState?.operationName ?? null);
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
           setContextUsageByAgent(createInitialContextUsageByAgent());
           streamingMessageIdRef.current = null;
@@ -1257,6 +1302,8 @@ export function useAgentSession({
         lastNoctisSettledRef.current = false;
         seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
+        setActiveOperationState(null);
+        setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
         setContextUsageByAgent(createInitialContextUsageByAgent());
@@ -1315,6 +1362,7 @@ export function useAgentSession({
               parts,
               title: text.slice(0, 80),
               objective: text,
+              selectedOperation,
               noctisModel: agentModels.noctis ?? null,
               allowedWorkers,
               workerModels: {
@@ -1329,9 +1377,15 @@ export function useAgentSession({
             throw new Error(`mission/start failed: ${res.status}`);
           }
 
-          const data = (await res.json()) as { missionId: string; noctisSessionId: string };
+          const data = (await res.json()) as {
+            missionId: string;
+            noctisSessionId: string;
+            operationState?: OperationState | null;
+          };
           missionIdRef.current = data.missionId;
           noctisSessionIdRef.current = data.noctisSessionId;
+          setActiveOperationState(data.operationState ?? null);
+          setSelectedOperation(data.operationState?.operationName ?? null);
           setNoctisSessionId(data.noctisSessionId);
           setOptimisticSessionState(data.noctisSessionId, "busy");
           setPendingMissionSession(data.missionId, data.noctisSessionId);
@@ -1400,6 +1454,7 @@ export function useAgentSession({
     [
       clearProgressBanter,
       handleAgentEvent,
+      selectedOperation,
       setPendingMissionSession,
       setOptimisticSessionState,
       subscribeToSession,
@@ -1465,6 +1520,11 @@ export function useAgentSession({
     isSessionActive,
     isStreaming,
     isLoadingHistory,
+    availableOperations,
+    selectedOperation,
+    activeOperationState,
+    isOperationSelectionLocked: activeMissionId !== null,
+    setSelectedOperation,
     send,
     abort,
   };

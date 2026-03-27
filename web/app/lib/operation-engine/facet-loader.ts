@@ -39,7 +39,7 @@ function toArray(value: string | string[] | undefined): string[] {
  * Resolve all facets referenced by a movement within an operation definition.
  */
 export function resolveMovementFacets(
-  operation: OperationDefinition,
+  _operation: OperationDefinition,
   movement: MovementDefinition,
   language: string,
 ): ResolvedFacets {

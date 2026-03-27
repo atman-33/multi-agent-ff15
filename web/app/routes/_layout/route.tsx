@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bug,
   CheckCircle2,
   Cpu,
   Crown,
@@ -25,6 +26,8 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -45,6 +48,12 @@ type NavItem = {
   end?: boolean;
 };
 
+type NavGroup = {
+  id: string;
+  items: NavItem[];
+  label: string;
+};
+
 type HeaderServerStatus = {
   checkedAt: string;
   error: string | null;
@@ -55,17 +64,38 @@ type HeaderServerStatus = {
   url: string;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
-  { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
-  { to: "/reports", icon: FileText, label: "Reports", end: true },
-  { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
-  { to: "/mcp", icon: Cpu, label: "MCP", end: true },
-  { to: "/config", icon: SlidersHorizontal, label: "Config", end: true },
-  { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
-  { to: "/server", icon: Activity, label: "Server Monitor", end: true },
-  { to: "/loading-lab", icon: Rabbit, label: "Loading Lab", end: true },
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "workspace",
+    label: "Workspace",
+    items: [
+      { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
+      { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
+      { to: "/reports", icon: FileText, label: "Reports", end: true },
+      { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    items: [
+      { to: "/mcp", icon: Cpu, label: "MCP", end: true },
+      { to: "/config", icon: SlidersHorizontal, label: "Config", end: true },
+      { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
+      { to: "/server", icon: Activity, label: "Server Monitor", end: true },
+    ],
+  },
+  {
+    id: "debug",
+    label: "Debug",
+    items: [
+      { to: "/operation-debug", icon: Bug, label: "Operation Debug", end: true },
+      { to: "/loading-lab", icon: Rabbit, label: "Loading Lab", end: true },
+    ],
+  },
 ];
+
+const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
 
 function formatActiveProjectLabel(
   projects: ProjectEntry[],
@@ -287,25 +317,31 @@ const Layout = (_props: Route.ComponentProps) => {
         </SidebarHeader>
 
         <SidebarContent>
-          <SidebarGroup className="px-2 py-3">
-            <SidebarMenu>
-              {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
-                <SidebarMenuItem key={to}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isNavItemActive(to, end)}
-                    tooltip={label}
-                    className="h-10 gap-2.5 rounded-md px-3 text-sm"
-                  >
-                    <NavLink to={to} end={end} className="flex items-center gap-2.5">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="font-medium">{label}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
+          {NAV_GROUPS.map((group, index) => (
+            <SidebarGroup className="px-2 py-2" key={group.id}>
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map(({ to, icon: Icon, label, end }) => (
+                    <SidebarMenuItem key={to}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isNavItemActive(to, end)}
+                        tooltip={label}
+                        className="h-10 gap-2.5 rounded-md px-3 text-sm"
+                      >
+                        <NavLink to={to} end={end} className="flex items-center gap-2.5">
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="font-medium">{label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+              {index < NAV_GROUPS.length - 1 ? <SidebarSeparator className="mt-2 bg-border/40" /> : null}
+            </SidebarGroup>
+          ))}
         </SidebarContent>
 
         <SidebarSeparator className="bg-border/50" />

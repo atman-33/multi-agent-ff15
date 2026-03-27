@@ -9,11 +9,18 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getAgentTheme } from "@/lib/agent-theme";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { getActivityActorLabel } from "@/lib/team-message-format";
-import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
+import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
 import { parseInternalContext, removeInternalContext } from "./internal-context";
@@ -39,10 +46,17 @@ interface ChatAreaProps {
   isResponding: boolean;
   isSessionActive?: boolean;
   isStreaming?: boolean;
+  availableOperations: string[];
+  selectedOperation: string | null;
+  activeOperationState: OperationState | null;
+  isOperationSelectionLocked: boolean;
+  onSelectedOperationChange: (operationName: string | null) => void;
   onAbort?: () => void;
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
 }
+
+const NO_OPERATION_VALUE = "__none__";
 
 interface RenderedChatMessage extends ChatMessage {
   displayContent: string;
@@ -341,6 +355,11 @@ export const ChatArea = ({
   messages,
   isSessionActive = false,
   isStreaming = false,
+  availableOperations,
+  selectedOperation,
+  activeOperationState,
+  isOperationSelectionLocked,
+  onSelectedOperationChange,
   onAbort,
   onSend,
   showAbortAction = false,
@@ -351,6 +370,8 @@ export const ChatArea = ({
     const allowedWorkers = getAllowedWorkers(workingParty);
     return getWorkingPartySummary(allowedWorkers);
   }, [workingParty]);
+  const operationBadgeLabel = activeOperationState?.operationName ?? "No operation";
+  const operationSelectValue = selectedOperation ?? NO_OPERATION_VALUE;
 
   return (
     <ChatThreadFrame
@@ -374,17 +395,23 @@ export const ChatArea = ({
             </div>
           </div>
 
-          {isSessionActive ? (
-            <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
-              <Radio
-                className="h-3 w-3 text-primary"
-                style={{ animation: "agent-glow 1s ease-in-out infinite" }}
-              />
-              <span className="animate-pulse font-mono text-[9px] font-semibold uppercase tracking-widest text-primary">
-                Radio Incoming
-              </span>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex max-w-[15rem] items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/85">
+              <span className="truncate">Workflow: {operationBadgeLabel}</span>
             </div>
-          ) : null}
+
+            {isSessionActive ? (
+              <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
+                <Radio
+                  className="h-3 w-3 text-primary"
+                  style={{ animation: "agent-glow 1s ease-in-out infinite" }}
+                />
+                <span className="animate-pulse font-mono text-[9px] font-semibold uppercase tracking-widest text-primary">
+                  Radio Incoming
+                </span>
+              </div>
+            ) : null}
+          </div>
         </div>
       }
       footer={
@@ -392,6 +419,42 @@ export const ChatArea = ({
           onSend={onSend}
           onAbort={onAbort}
           showAbortAction={showAbortAction}
+          topSlot={
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                  Mission Workflow
+                </p>
+                <p className="text-xs text-muted-foreground/75">
+                  {isOperationSelectionLocked
+                    ? "This mission is already running with its current workflow setting."
+                    : "Choose a workflow before sending the first message, or keep normal chat mode."}
+                </p>
+              </div>
+
+              <div className="w-full sm:max-w-56">
+                <Select
+                  disabled={isOperationSelectionLocked}
+                  value={operationSelectValue}
+                  onValueChange={(value) =>
+                    onSelectedOperationChange(value === NO_OPERATION_VALUE ? null : value)
+                  }
+                >
+                  <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                    <SelectValue placeholder="No operation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_OPERATION_VALUE}>No operation</SelectItem>
+                    {availableOperations.map((operationName) => (
+                      <SelectItem key={operationName} value={operationName}>
+                        {operationName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          }
           footerStart={
             <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
               <span className="truncate">{composerSummary}</span>

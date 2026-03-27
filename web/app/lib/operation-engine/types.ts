@@ -100,6 +100,7 @@ export interface ProcessCrystalMessageInput {
   sessionId: string;
   message: string;
   isNewMission: boolean;
+  selectedOperation?: string | null;
 }
 
 export interface ProcessCrystalMessageResult {

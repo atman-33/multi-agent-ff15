@@ -81,7 +81,10 @@ export function processCrystalMessage(
   const existingState = getOperationState(missionId);
 
   if (!existingState) {
-    const operationName = detectOperationName(message);
+    const operationName =
+      Object.hasOwn(input, "selectedOperation")
+        ? input.selectedOperation?.trim() || null
+        : detectOperationName(message);
     if (!operationName) {
       return { additionalContext: null };
     }
@@ -230,7 +233,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
  * Process a worker report and determine the next movement.
  */
 export function processReport(input: ProcessReportInput): ProcessReportResult {
-  const { operationState, reportBody, reportDetails, fromAgent, taskId, reportStatus } = input;
+  const { operationState, reportBody, reportDetails } = input;
   const language = getLanguage();
 
   const operation = loadOperationByName(operationState.operationName, language);
