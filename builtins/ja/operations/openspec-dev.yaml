@@ -1,0 +1,97 @@
+name: openspec-dev
+description: >
+  Standard OpenSpec Development Flow.
+  Spec planning → Implementation → Refactoring → Code Review → Fix cycle.
+  Noctis orchestrates, Gladiolus implements, Prompto refactors, Ignis reviews.
+max_movements: 20
+initial_movement: spec-planning
+
+# --- Movements ---
+
+movements:
+  # 1. Noctis clarifies requirements with Crystal and creates a spec plan
+  - name: spec-planning
+    agent: noctis
+    job_file: ../facets/jobs/commander.md
+    instruction_file: ../facets/instructions/spec-planning.md
+    knowledge_files:
+      - ../facets/knowledge/openspec-workflow.md
+    edit: false
+    pass_previous_response: false
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format_file: ../facets/output-contracts/spec-plan.md
+    rules:
+      - condition: Spec approved and requirements clear
+        next: implement
+      - condition: Requirements unclear or user requested abort
+        next: ABORT
+
+  # 2. Gladiolus implements based on the spec plan
+  - name: implement
+    agent: gladiolus
+    job_file: ../facets/jobs/implementer.md
+    instruction_file: ../facets/instructions/implement.md
+    knowledge_files:
+      - ../facets/knowledge/openspec-workflow.md
+    policy_files:
+      - ../facets/policies/coding-standards.md
+    edit: true
+    pass_previous_response: true
+    rules:
+      - condition: Implementation complete and tests pass
+        next: refactor
+      - condition: Cannot proceed with implementation
+        next: ABORT
+
+  # 3. Prompto refactors and simplifies the implementation
+  - name: refactor
+    agent: prompto
+    job_file: ../facets/jobs/refactorer.md
+    instruction_file: ../facets/instructions/refactor.md
+    policy_files:
+      - ../facets/policies/coding-standards.md
+    edit: true
+    pass_previous_response: true
+    rules:
+      - condition: Refactoring complete
+        next: review
+      - condition: No changes needed — code is already clean
+        next: review
+
+  # 4. Ignis reviews the code (read-only, produces structured report)
+  - name: review
+    agent: ignis
+    job_file: ../facets/jobs/reviewer.md
+    instruction_file: ../facets/instructions/review-code.md
+    policy_files:
+      - ../facets/policies/coding-standards.md
+    edit: false
+    pass_previous_response: true
+    output_contracts:
+      report:
+        - name: code-review.md
+          format_file: ../facets/output-contracts/code-review.md
+    rules:
+      - condition: Approved — no blocking issues
+        next: COMPLETE
+      - condition: Issues found — fix needed
+        next: fix
+      - condition: Critical problems — cannot proceed
+        next: ABORT
+
+  # 5. Gladiolus fixes issues found in review
+  - name: fix
+    agent: gladiolus
+    job_file: ../facets/jobs/implementer.md
+    instruction_file: ../facets/instructions/fix-code.md
+    policy_files:
+      - ../facets/policies/coding-standards.md
+    edit: true
+    pass_previous_response: true
+    rules:
+      - condition: All blocking issues fixed
+        next: review
+      - condition: Cannot fix — blocked
+        next: ABORT
