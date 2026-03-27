@@ -19,6 +19,7 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildOperationDebugBundle } from "@/lib/operation-engine/debug-preview.server";
 import { listAvailableOperations } from "@/lib/operation-engine/operation-loader";
 import { cn } from "@/lib/utils";
+import { CopyablePromptBlock } from "./components/copyable-prompt-block";
 import type { Route } from "./+types/route";
 
 type LoaderData = {
@@ -662,42 +663,54 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 </TabsList>
 
                 <TabsContent className="space-y-4" value="final">
-                  <div className="rounded-lg border border-blue-900 bg-blue-950/30 p-3">
-                    <div className="text-blue-200 text-xs uppercase tracking-wide">Rendered Order</div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {assemblyBlocks.map((block, index) => (
-                        <Badge className="border-slate-600 text-slate-200" key={block.id} variant="outline">
-                          {index + 1}. {block.title}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <PrettyCode value={finalPrompt} />
+                  <CopyablePromptBlock
+                    className="border-blue-900 bg-blue-950/30"
+                    headerContent={
+                      <div>
+                        <div className="text-blue-200 text-xs uppercase tracking-wide">Rendered Order</div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                          {assemblyBlocks.map((block, index) => (
+                            <Badge className="border-slate-600 text-slate-200" key={block.id} variant="outline">
+                              {index + 1}. {block.title}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    }
+                    preClassName="max-h-[34rem]"
+                    title="Final Prompt"
+                    value={finalPrompt}
+                  />
                 </TabsContent>
 
                 <TabsContent className="space-y-3" value="assembly">
                   {assemblyBlocks.map((block, index) => (
-                    <div className="rounded-lg border border-slate-700 bg-slate-950 p-3" key={block.id}>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-100">
-                            {index + 1}
+                    <CopyablePromptBlock
+                      key={block.id}
+                      preClassName="max-h-52"
+                      title={block.title}
+                      description={block.placement}
+                      value={block.content}
+                      headerContent={
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-100">
+                              {index + 1}
+                            </div>
+                            <div className="font-medium text-slate-100 text-sm">{block.title}</div>
                           </div>
-                          <div className="font-medium text-sm text-slate-100">{block.title}</div>
+                          <Badge
+                            className={cn(
+                              "border-slate-600",
+                              block.rendering === "Displayed" ? "text-blue-200" : "text-amber-200",
+                            )}
+                            variant="outline"
+                          >
+                            {block.rendering}
+                          </Badge>
                         </div>
-                        <Badge
-                          className={cn(
-                            "border-slate-600",
-                            block.rendering === "Displayed" ? "text-blue-200" : "text-amber-200",
-                          )}
-                          variant="outline"
-                        >
-                          {block.rendering}
-                        </Badge>
-                      </div>
-                      <div className="mt-1 text-slate-400 text-xs">{block.placement}</div>
-                      <PrettyCode className="mt-3 max-h-52" value={block.content} />
-                    </div>
+                      }
+                    />
                   ))}
                 </TabsContent>
 
