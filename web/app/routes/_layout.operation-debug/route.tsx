@@ -677,6 +677,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                         </div>
                       </div>
                     }
+                    highlightTexts={selectedStep?.sourceInput ? [selectedStep.sourceInput] : []}
                     preClassName="max-h-[34rem]"
                     title="Final Prompt"
                     value={finalPrompt}

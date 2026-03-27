@@ -10,7 +10,53 @@ type CopyablePromptBlockProps = {
   headerContent?: React.ReactNode;
   className?: string;
   preClassName?: string;
+  highlightTexts?: string[];
 };
+
+function renderHighlightedText(value: string, highlightTexts: string[]) {
+  const normalizedHighlights = highlightTexts
+    .map((item) => item.trim())
+    .filter((item, index, arr) => item.length > 0 && arr.indexOf(item) === index)
+    .sort((left, right) => right.length - left.length);
+
+  if (normalizedHighlights.length === 0) {
+    return value;
+  }
+
+  const segments: Array<{ start: number; text: string; highlighted: boolean }> = [];
+  let cursor = 0;
+
+  while (cursor < value.length) {
+    const matched = normalizedHighlights.find((highlight) => value.startsWith(highlight, cursor));
+    if (matched) {
+      segments.push({ start: cursor, text: matched, highlighted: true });
+      cursor += matched.length;
+      continue;
+    }
+
+    let nextCursor = cursor + 1;
+    while (nextCursor < value.length) {
+      const nextMatched = normalizedHighlights.find((highlight) => value.startsWith(highlight, nextCursor));
+      if (nextMatched) {
+        break;
+      }
+      nextCursor += 1;
+    }
+
+    segments.push({ start: cursor, text: value.slice(cursor, nextCursor), highlighted: false });
+    cursor = nextCursor;
+  }
+
+  return segments.map((segment) =>
+    segment.highlighted ? (
+      <span className="bg-red-950/50 text-red-300" key={`${segment.start}-${segment.text.length}`}>
+        {segment.text}
+      </span>
+    ) : (
+      <span key={`${segment.start}-${segment.text.length}`}>{segment.text}</span>
+    ),
+  );
+}
 
 export function CopyablePromptBlock({
   value,
@@ -19,6 +65,7 @@ export function CopyablePromptBlock({
   headerContent,
   className,
   preClassName,
+  highlightTexts = [],
 }: CopyablePromptBlockProps) {
   const [copied, setCopied] = useState(false);
 
@@ -51,7 +98,7 @@ export function CopyablePromptBlock({
           preClassName,
         )}
       >
-        {value}
+        {renderHighlightedText(value, highlightTexts)}
       </pre>
     </div>
   );
