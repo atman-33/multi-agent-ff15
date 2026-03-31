@@ -26,6 +26,23 @@ function buildUserRequestSection(userMessage: string): string {
   return buildTextSection("user-request", userMessage);
 }
 
+function composeUserToNoctisPayload(input: {
+  context: BuildSharedPromptContextOptions;
+  userMessage: string;
+  workflowExtension?: string | null;
+}): ComposedPromptPayload {
+  const workflowExtension = input.workflowExtension?.trim() || null;
+
+  return composePayload({
+    context: {
+      ...input.context,
+      allowedWorkers: workflowExtension ? undefined : input.context.allowedWorkers,
+    },
+    promptBody: buildUserRequestSection(input.userMessage),
+    workflowExtension,
+  });
+}
+
 function buildTaskInputSection(taskBody: string): string {
   return buildTextSection("task", taskBody);
 }
@@ -112,20 +129,23 @@ export function composeUserToNoctisPrompt(input: {
     lastNoctisResponse: input.lastNoctisResponse,
   });
 
-  const promptBody = buildUserRequestSection(input.userMessage);
-
   return {
-    ...composePayload({
-      context: {
-        ...input.context,
-        allowedWorkers: workflow.additionalContext ? undefined : input.context.allowedWorkers,
-      },
-      promptBody,
+    ...composeUserToNoctisPayload({
+      context: input.context,
+      userMessage: input.userMessage,
       workflowExtension: workflow.additionalContext,
     }),
     operationActivated: workflow.operationActivated,
     stateTransition: workflow.stateTransition,
   };
+}
+
+export function composeUserToNoctisPromptPreview(input: {
+  context: BuildSharedPromptContextOptions;
+  userMessage: string;
+  workflowExtension?: string | null;
+}): ComposedPromptPayload {
+  return composeUserToNoctisPayload(input);
 }
 
 export function composeWorkerTaskPrompt(input: {

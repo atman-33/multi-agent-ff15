@@ -210,4 +210,36 @@ describe("prompt composition engine", () => {
     expect(dispatchStep?.effectivePrompt).toBe(composed.effectivePrompt);
     expect(dispatchStep?.internalContext).toBe(composed.sharedContext);
   });
+
+  it("keeps debug preview aligned with composed Noctis activation prompt structure", () => {
+    const root = getProjectRoot();
+    const bundle = buildOperationDebugBundle({
+      operationName: "openspec-dev",
+    });
+    const selfStep = bundle.flowSteps.find(
+      (step) => step.kind === "self" && step.to === "Noctis",
+    );
+
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "debug-noctis-session",
+        missionId: "debug-self-step-preview",
+        allowedWorkers: ["ignis", "gladiolus", "prompto"],
+      },
+      userMessage: "This is a synthetic User message for operation activation.",
+      missionId: "debug-self-step-preview",
+      sessionId: "debug-noctis-session",
+      isNewMission: true,
+      selectedOperation: "openspec-dev",
+    });
+
+    expect(selfStep).toBeTruthy();
+    expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
+    expect(selfStep?.internalContext).toBe(composed.sharedContext);
+    expect(selfStep?.sourceInput).toBe(composed.promptBody);
+    expect(selfStep?.injectedPrompt).toBe(composed.workflowExtension);
+    expect(selfStep?.effectivePrompt).not.toContain("allowed_workers:");
+  });
 });

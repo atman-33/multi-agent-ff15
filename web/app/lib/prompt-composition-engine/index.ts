@@ -3,6 +3,7 @@ export {
   composeGenericSessionPrompt,
   composePromptPreview,
   composeTeamMessagePrompt,
+  composeUserToNoctisPromptPreview,
   composeUserToNoctisPrompt,
   composeWorkerTaskPrompt,
 } from "./composer";

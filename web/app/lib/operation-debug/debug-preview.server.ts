@@ -4,15 +4,14 @@ import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import type { OperationDefinition, ResolvedFacets, StepDefinition } from "@/lib/operation-definition/types";
 import {
-  composePromptPreview,
   composeTeamMessagePrompt,
+  composeUserToNoctisPromptPreview,
   composeWorkerTaskPrompt,
 } from "@/lib/prompt-composition-engine";
 import {
   buildActivationInstruction,
   buildOperationContextSummary,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
-import { buildTextSection } from "@/lib/prompt-composition-engine/prompt-xml";
 import type { AgentId, ReportStatus, StepHistoryEntry, WorkerAgentId } from "@/lib/types/mission";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
@@ -124,7 +123,6 @@ export function buildOperationDebugBundle(input: {
 
     if (step.agent === "noctis") {
       const facets = resolveStepFacets(operation, step, readOperationLanguage());
-      const routedUserMessage = buildTextSection("user-request", userMessageBase);
       const injectedPrompt = buildActivationInstruction({
         operation,
         step,
@@ -132,7 +130,7 @@ export function buildOperationDebugBundle(input: {
         facets,
         reportDir: stepState.reportDir,
       });
-      const composed = composePromptPreview({
+      const composed = composeUserToNoctisPromptPreview({
         context: {
           missionId: "debug-mission",
           sessionId: "debug-noctis-session",
@@ -141,8 +139,8 @@ export function buildOperationDebugBundle(input: {
           appRoot: root,
           executionMode: "operation-debug",
         },
-        promptBody: routedUserMessage,
         workflowExtension: injectedPrompt,
+        userMessage: userMessageBase,
       });
 
       flowSteps.push({
@@ -155,7 +153,7 @@ export function buildOperationDebugBundle(input: {
         from: "User",
         to: "Noctis",
         summary: "User message enters Hook 1 and context is injected for Noctis.",
-        sourceInput: routedUserMessage,
+        sourceInput: composed.promptBody,
         internalContext: composed.sharedContext,
         suppressedContext: composed.suppressedContext,
         injectedPrompt,
