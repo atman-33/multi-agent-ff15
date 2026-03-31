@@ -41,7 +41,7 @@ function PrettyCode({ className, value }: { className?: string; value: string })
   return (
     <pre
       className={cn(
-        "max-h-[34rem] overflow-auto rounded-lg border border-slate-700 bg-slate-950 p-4 font-mono text-[12px] leading-5 whitespace-pre-wrap text-slate-100",
+        "max-h-136 overflow-auto rounded-lg border border-slate-700 bg-slate-950 p-4 font-mono text-[12px] leading-5 whitespace-pre-wrap text-slate-100",
         className,
       )}
     >
@@ -244,9 +244,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       return "No preview available.";
     }
 
-    return [selectedStep.internalContext, selectedStep.effectivePrompt ?? selectedStep.injectedPrompt]
-      .filter((value) => value && value.trim().length > 0)
-      .join("\n\n");
+    return selectedStep.effectivePrompt ?? selectedStep.injectedPrompt;
   }, [selectedStep]);
 
   const assemblyBlocks = useMemo(() => {
@@ -275,6 +273,16 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
         content: selectedStep.internalContext,
       },
     ];
+
+    if (selectedStep.suppressedContext?.trim()) {
+      blocks.push({
+        id: "suppressed",
+        title: "Suppressed Metadata",
+        placement: "Debug-only metadata panel",
+        rendering: "Displayed",
+        content: selectedStep.suppressedContext,
+      });
+    }
 
     if (selectedStep.kind === "self") {
       blocks.push(
@@ -345,7 +353,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       },
       {
         id: "context",
-        title: "Operation Context",
+        title: "Movement Context",
         content: selectedStep.operationContextSummary ?? "No context available.",
       },
       {

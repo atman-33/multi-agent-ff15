@@ -1,6 +1,12 @@
 import { basename } from "node:path";
 import type { MovementDefinition, OperationDefinition, ResolvedFacets } from "@/lib/operation-definition/types";
 import type { OperationState } from "@/lib/types/mission";
+import {
+  buildMarkdownSection,
+  buildTextSection,
+  buildYamlSection,
+  joinXmlSections,
+} from "./prompt-xml";
 
 export function describeMovementRole(jobFilePath: string): string {
   if (!jobFilePath.trim()) {
@@ -21,44 +27,52 @@ export function buildAugmentedInstruction(input: {
 }): string {
   const { movement, operation, operationState, originalInstruction, previousResponse, facets, reportDir } =
     input;
-  const sections: string[] = [];
+  const sections: Array<string | null> = [];
 
   if (facets.job) {
-    sections.push(`## Job\n\n${facets.job}`);
+    sections.push(buildMarkdownSection("job", facets.job, { source: movement.job_file }));
   }
 
-  if (facets.policies.length > 0) {
-    sections.push(`## Policy Summary\n\n${buildPolicySummary(facets.policies)}`);
-  }
-
-  sections.push(buildOperationContextSection(operation, operationState));
-  sections.push(`## Task\n\n${originalInstruction}`);
+  sections.push(buildMovementSection(operation, operationState));
+  sections.push(buildTextSection("task", originalInstruction));
 
   if (movement.pass_previous_response && previousResponse) {
-    sections.push(`## Previous Movement Output\n\n${previousResponse}`);
+    sections.push(buildTextSection("previous-movement-output", previousResponse));
   }
 
   if (facets.knowledge.length > 0) {
-    sections.push(`## Knowledge\n\n${facets.knowledge.join("\n\n---\n\n")}`);
+    for (let index = 0; index < facets.knowledge.length; index += 1) {
+      sections.push(
+        buildMarkdownSection("knowledge", facets.knowledge[index], {
+          source: movement.knowledge_files?.[index],
+        }),
+      );
+    }
   }
 
   if (facets.instruction) {
-    sections.push(`## Instruction\n\n${facets.instruction}`);
+    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: movement.instruction_file }));
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(buildOutputContractSection(movement, reportDir, facets.outputContracts));
+    sections.push(...buildOutputContractSections(movement, reportDir, facets.outputContracts));
   }
 
   if (facets.policies.length > 0) {
-    sections.push(`## Policy\n\n${facets.policies.join("\n\n---\n\n")}`);
+    for (let index = 0; index < facets.policies.length; index += 1) {
+      sections.push(
+        buildMarkdownSection("policy", facets.policies[index], {
+          source: movement.policy_files?.[index],
+        }),
+      );
+    }
   }
 
   if (movement.rules.length > 0) {
     sections.push(buildStatusOutputRules(movement));
   }
 
-  return sections.join("\n\n---\n\n");
+  return joinXmlSections(sections);
 }
 
 export function buildActivationInstruction(input: {
@@ -69,150 +83,114 @@ export function buildActivationInstruction(input: {
   reportDir: string;
 }): string {
   const { operation, movement, operationState, facets, reportDir } = input;
-  const sections: string[] = [];
-
-  sections.push(
-    [
-      "[OPERATION_ACTIVATED]",
-      `operation: ${operation.name}`,
-      `description: ${operation.description}`,
-      `current_movement: ${movement.name}`,
-      `your_role: ${describeMovementRole(movement.job_file)}`,
-    ].join("\n"),
-  );
+  const sections: Array<string | null> = [buildMovementSection(operation, operationState)];
 
   if (facets.job) {
-    sections.push(`## Job\n\n${facets.job}`);
+    sections.push(buildMarkdownSection("job", facets.job, { source: movement.job_file }));
   }
 
-  sections.push(buildOperationContextSection(operation, operationState));
-
   if (facets.knowledge.length > 0) {
-    sections.push(`## Knowledge\n\n${facets.knowledge.join("\n\n---\n\n")}`);
+    for (let index = 0; index < facets.knowledge.length; index += 1) {
+      sections.push(
+        buildMarkdownSection("knowledge", facets.knowledge[index], {
+          source: movement.knowledge_files?.[index],
+        }),
+      );
+    }
   }
 
   if (facets.instruction) {
-    sections.push(`## Instruction\n\n${facets.instruction}`);
+    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: movement.instruction_file }));
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(buildOutputContractSection(movement, reportDir, facets.outputContracts));
+    sections.push(...buildOutputContractSections(movement, reportDir, facets.outputContracts));
   }
 
   if (facets.policies.length > 0) {
-    sections.push(`## Policy\n\n${facets.policies.join("\n\n---\n\n")}`);
+    for (let index = 0; index < facets.policies.length; index += 1) {
+      sections.push(
+        buildMarkdownSection("policy", facets.policies[index], {
+          source: movement.policy_files?.[index],
+        }),
+      );
+    }
   }
 
   if (movement.rules.length > 0) {
     sections.push(buildStatusOutputRules(movement));
   }
 
-  return sections.join("\n\n---\n\n");
+  return joinXmlSections(sections);
 }
 
 export function buildOperationContextSummary(
   operation: OperationDefinition,
   operationState: OperationState,
 ): string {
-  const lastCompleted = operationState.movementHistory.filter((entry) => entry.status === "completed").at(-1);
   const currentMovement = operation.movements.find((movement) => movement.name === operationState.currentMovement);
-  const movementIndex = operation.movements.findIndex((movement) => movement.name === operationState.currentMovement) + 1;
-  const totalMovements = operation.movements.length;
-
   const lines = [
-    "[OPERATION_CONTEXT]",
     `operation: ${operation.name}`,
-    `current_movement: ${operationState.currentMovement} (${movementIndex}/${totalMovements})`,
-    `iteration: ${operationState.iteration} / ${operationState.maxMovements}`,
+    `current_movement: ${operationState.currentMovement}`,
   ];
 
-  if (lastCompleted) {
-    lines.push(`last_completed: ${lastCompleted.movement} → "${lastCompleted.ruleCondition ?? "completed"}"`);
+  if (currentMovement) {
+    lines.push(`role: ${describeMovementRole(currentMovement.job_file)}`);
   }
 
   if (currentMovement && currentMovement.agent !== "noctis") {
     lines.push(`next_expected_agent: ${currentMovement.agent}`);
   }
 
-  return lines.join("\n");
+  return buildYamlSection("movement", lines.join("\n"));
 }
 
-function buildOperationContextSection(operation: OperationDefinition, state: OperationState): string {
-  const movementIndex = operation.movements.findIndex((movement) => movement.name === state.currentMovement) + 1;
-  const total = operation.movements.length;
+function buildMovementSection(operation: OperationDefinition, state: OperationState): string {
+  const currentMovement = operation.movements.find((movement) => movement.name === state.currentMovement);
+  const lines = [
+    `operation: ${operation.name}`,
+    `current_movement: ${state.currentMovement}`,
+  ];
 
-  const flowLines = operation.movements.map((movement, index) => {
-    const number = index + 1;
-    const isCompleted = state.movementHistory.some(
-      (entry) => entry.movement === movement.name && entry.status === "completed",
-    );
-    const isCurrent = movement.name === state.currentMovement;
-    const prefix = isCompleted ? "✅" : isCurrent ? "→" : "○";
-    const suffix = isCurrent ? " — YOU ARE HERE" : "";
-    return `  ${number}. ${prefix} ${movement.name} (${movement.agent})${suffix}`;
-  });
-
-  return [
-    "## Operation Context",
-    "",
-    `Operation: ${operation.name} (${operation.description})`,
-    `Current Movement: ${state.currentMovement} (${movementIndex} of ${total})`,
-    `Iteration: ${state.iteration} / ${state.maxMovements}`,
-    "",
-    "Movement Flow:",
-    ...flowLines,
-  ].join("\n");
-}
-
-function buildPolicySummary(policies: string[]): string {
-  const rejectLines: string[] = [];
-  for (const policy of policies) {
-    for (const line of policy.split("\n")) {
-      if (line.includes("REJECT") && !line.startsWith("#")) {
-        rejectLines.push(line.trim());
-      }
-    }
+  if (currentMovement) {
+    lines.push(`role: ${describeMovementRole(currentMovement.job_file)}`);
   }
 
-  return rejectLines.length > 0 ? rejectLines.join("\n") : "(See full policy section below)";
+  return buildYamlSection("movement", lines.join("\n"));
 }
 
-function buildOutputContractSection(
+function buildOutputContractSections(
   movement: MovementDefinition,
   reportDir: string,
   contracts: string[],
-): string {
-  const lines = ["## Output Contract", ""];
+): string[] {
+  const sections: string[] = [];
 
   if (movement.output_contracts?.report) {
     for (let index = 0; index < movement.output_contracts.report.length; index += 1) {
       const report = movement.output_contracts.report[index];
-      lines.push(`**File**: ${report.name}`);
-      lines.push(`**Output path**: ${reportDir}/${report.name}`);
-      if (contracts[index]) {
-        lines.push(`**Format**:\n\n${contracts[index]}`);
-      }
-      lines.push("");
+      sections.push(
+        buildMarkdownSection("output-contract", contracts[index] ?? "", {
+          source: report.format_file,
+          name: report.name,
+          "output-path": `${reportDir}/${report.name}`,
+        }),
+      );
     }
   }
 
-  return lines.join("\n");
+  return sections;
 }
 
 function buildStatusOutputRules(movement: MovementDefinition): string {
-  const lines = [
-    "## Status Output Rules",
-    "",
-    "When your work is complete, output exactly **one** of the following status tags:",
-    "",
-  ];
+  const lines = ["When your work is complete, output exactly one of the following status tags:", ""];
 
   for (let index = 0; index < movement.rules.length; index += 1) {
     lines.push(`- [STEP:${index}] — ${movement.rules[index].condition}`);
   }
 
   lines.push("");
-  lines.push("Place the tag on its own line at the **end** of your response.");
+  lines.push("Place the tag on its own line at the end of your response.");
 
-  return lines.join("\n");
+  return buildMarkdownSection("status-output-rules", lines.join("\n"));
 }

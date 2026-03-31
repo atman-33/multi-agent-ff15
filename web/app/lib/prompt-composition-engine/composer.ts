@@ -1,8 +1,12 @@
 import { buildPromptPayloadParts, type PromptPart, type TextPromptPart } from "@/lib/prompt-parts";
-import { buildRoutedMessageEnvelope, buildTeamMessageEnvelope } from "@/lib/team-message-format";
 import type { ActivityActorId, AgentId, ReportStatus, TeamMessageType, WorkerAgentId } from "@/lib/types/mission";
 import type { OperationState, StateTransition } from "@/lib/operation-runtime/types";
-import { buildSharedPromptContext, type BuildSharedPromptContextOptions } from "./common-context.server";
+import {
+  buildSharedPromptContext,
+  buildSharedPromptContextBundle,
+  type BuildSharedPromptContextOptions,
+} from "./common-context.server";
+import { buildTextSection, joinXmlSections, wrapOperationPrompt } from "./prompt-xml";
 import {
   composeReportWorkflowExtension,
   composeUserWorkflowExtension,
@@ -11,29 +15,66 @@ import {
 
 export interface ComposedPromptPayload {
   sharedContext: string;
+  suppressedContext: string | null;
   promptBody: string;
   workflowExtension: string | null;
   effectivePrompt: string;
   payloadParts: TextPromptPart[];
 }
 
+function buildUserRequestSection(userMessage: string): string {
+  return buildTextSection("user-request", userMessage);
+}
+
+function buildTaskInputSection(taskBody: string): string {
+  return buildTextSection("task", taskBody);
+}
+
+function buildTeamMessageSection(input: {
+  body: string;
+  details?: string;
+  from?: ActivityActorId;
+  to?: AgentId;
+  type: TeamMessageType;
+}): string {
+  if (input.type === "report") {
+    return joinXmlSections([
+      buildTextSection("worker-report", input.body, {
+        from: input.from,
+        to: input.to,
+      }),
+      input.details ? buildTextSection("worker-report-details", input.details) : null,
+    ]);
+  }
+
+  return buildTextSection("team-message", input.body, {
+    from: input.from,
+    to: input.to,
+    type: input.type,
+  });
+}
+
 function composePayload(input: {
   context: BuildSharedPromptContextOptions;
-  promptBody: string;
+  promptBody?: string | null;
   workflowExtension?: string | null;
 }): ComposedPromptPayload {
-  const sharedContext = buildSharedPromptContext(input.context);
+  const { agentContext, suppressedContext } = buildSharedPromptContextBundle(input.context);
+  const promptBody = input.promptBody?.trim() || "";
   const workflowExtension = input.workflowExtension?.trim() || null;
   const effectivePrompt = workflowExtension
-    ? `${workflowExtension}\n\n${input.promptBody}`
-    : input.promptBody;
+    ? wrapOperationPrompt([agentContext, workflowExtension, promptBody])
+    : promptBody;
 
   return {
-    sharedContext,
-    promptBody: input.promptBody,
+    sharedContext: agentContext,
+    suppressedContext,
+    promptBody,
     workflowExtension,
     effectivePrompt,
-    payloadParts: buildPromptPayloadParts(sharedContext, [{ type: "text", text: effectivePrompt }]),
+    payloadParts: workflowExtension
+      ? [{ type: "text", text: effectivePrompt }]
+      : buildPromptPayloadParts(agentContext, [{ type: "text", text: effectivePrompt }]),
   };
 }
 
@@ -69,12 +110,7 @@ export function composeUserToNoctisPrompt(input: {
     lastNoctisResponse: input.lastNoctisResponse,
   });
 
-  const promptBody = buildRoutedMessageEnvelope({
-    speaker: "user",
-    to: "noctis",
-    messageType: "chat",
-    body: input.userMessage,
-  });
+  const promptBody = buildUserRequestSection(input.userMessage);
 
   return {
     ...composePayload({
@@ -104,7 +140,7 @@ export function composeWorkerTaskPrompt(input: {
   return {
     ...composePayload({
       context: input.context,
-      promptBody: workflow.promptText,
+      promptBody: workflow.usedWorkflowExtension ? null : buildTaskInputSection(workflow.promptText),
       workflowExtension: workflow.usedWorkflowExtension ? workflow.promptText : null,
     }),
     usedWorkflowExtension: workflow.usedWorkflowExtension,
@@ -124,15 +160,12 @@ export function composeTeamMessagePrompt(input: {
   artifacts?: string[];
   operationStateOverride?: OperationState;
 }): ComposedPromptPayload & { stateTransition: StateTransition | null } {
-  const promptBody = buildTeamMessageEnvelope({
+  const promptBody = buildTeamMessageSection({
+    body: input.body,
+    details: input.details,
     from: input.from,
     to: input.to,
     type: input.type,
-    body: input.body,
-    taskId: input.taskId,
-    reportStatus: input.reportStatus,
-    artifacts: input.artifacts,
-    details: input.details,
   });
 
   const workflow =

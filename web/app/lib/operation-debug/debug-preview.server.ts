@@ -12,7 +12,7 @@ import {
   buildActivationInstruction,
   buildOperationContextSummary,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
-import { buildRoutedMessageEnvelope, buildTeamMessageEnvelope } from "@/lib/team-message-format";
+import { buildTextSection } from "@/lib/prompt-composition-engine/prompt-xml";
 import type { AgentId, MovementHistoryEntry, ReportStatus, WorkerAgentId } from "@/lib/types/mission";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
@@ -31,6 +31,7 @@ export interface FlowStepPreview {
   summary: string;
   sourceInput: string;
   internalContext: string;
+  suppressedContext?: string | null;
   injectedPrompt: string;
   effectivePrompt?: string;
   ruleEvaluation?: string;
@@ -121,12 +122,7 @@ export function buildOperationDebugBundle(input: {
 
     if (movement.agent === "noctis") {
       const facets = resolveMovementFacets(operation, movement, readOperationLanguage());
-      const routedUserMessage = buildRoutedMessageEnvelope({
-        speaker: "user",
-        to: "noctis",
-        messageType: "chat",
-        body: userMessageBase,
-      });
+      const routedUserMessage = buildTextSection("user-request", userMessageBase);
       const injectedPrompt = buildActivationInstruction({
         operation,
         movement,
@@ -159,6 +155,7 @@ export function buildOperationDebugBundle(input: {
         summary: "User message enters Hook 1 and context is injected for Noctis.",
         sourceInput: routedUserMessage,
         internalContext: composed.sharedContext,
+        suppressedContext: composed.suppressedContext,
         injectedPrompt,
         effectivePrompt: composed.effectivePrompt,
         operationContextSummary,
@@ -199,6 +196,7 @@ export function buildOperationDebugBundle(input: {
       summary: "Task dispatch enters Hook 2 and worker instruction is augmented.",
       sourceInput: dispatchPrompt,
       internalContext: dispatchComposed.sharedContext,
+      suppressedContext: dispatchComposed.suppressedContext,
       injectedPrompt: dispatchComposed.workflowExtension || "(no workflow extension generated)",
       effectivePrompt: dispatchComposed.effectivePrompt,
       operationContextSummary,
@@ -210,15 +208,6 @@ export function buildOperationDebugBundle(input: {
     const reportState = buildStateForMovement(operation, movement, previousResponse);
     const reportSummary = `${reportSummaryBase}\n\n[movement:${movement.name}]`;
     const reportDetails = reportDetailsBase;
-    const reportEnvelope = buildTeamMessageEnvelope({
-      from: workerAgent,
-      to: "noctis",
-      type: "report",
-      body: reportSummary,
-      taskId: `debug-task-${movement.name}`,
-      reportStatus,
-      details: reportDetails,
-    });
     const reportComposed = composeTeamMessagePrompt({
       context: {
         missionId: "debug-mission",
@@ -265,8 +254,9 @@ export function buildOperationDebugBundle(input: {
       from: workerAgent,
       to: "Noctis",
       summary: "Worker report enters Hook 3, rules are evaluated, guidance is appended.",
-      sourceInput: reportEnvelope,
+      sourceInput: reportComposed.promptBody,
       internalContext: reportComposed.sharedContext,
+      suppressedContext: reportComposed.suppressedContext,
       injectedPrompt: reportComposed.workflowExtension || "(no guidance generated)",
       effectivePrompt: reportComposed.effectivePrompt,
       ruleEvaluation,

@@ -9,6 +9,7 @@ import {
   PROJECT_SCOPES,
   type ProjectScopedAgentId,
 } from "@/lib/project-scopes";
+import { buildYamlSection, joinXmlSections } from "./prompt-xml";
 
 function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | null {
   if (agent === "noctis-solo") {
@@ -73,6 +74,143 @@ export type BuildSharedPromptContextOptions = {
   sessionId: string;
 };
 
+export type SharedPromptContextBundle = {
+  agentContext: string;
+  suppressedContext: string | null;
+};
+
+function getInstructionFilePaths(project: RegisteredProjectDefinition): string[] {
+  return project.instructionFiles
+    .filter((file) => file.enabled && file.path && existsSync(file.path))
+    .map((file) => file.path);
+}
+
+function appendInstructionFiles(lines: string[], instructionFiles: string[], indent = ""): void {
+  if (instructionFiles.length === 0) {
+    lines.push(`${indent}instruction_files: []`);
+    return;
+  }
+
+  lines.push(`${indent}instruction_files:`);
+  for (const filePath of instructionFiles) {
+    lines.push(`${indent}  - ${filePath}`);
+  }
+}
+
+function buildWorkspaceContext(projects: RegisteredProjectDefinition[]): string {
+  if (projects.length === 0) {
+    return buildYamlSection("workspace-context", "projects: []");
+  }
+
+  if (projects.length === 1) {
+    const project = projects[0];
+    const lines = [`project_root: ${project.rootPath}`];
+    appendInstructionFiles(lines, getInstructionFilePaths(project));
+    return buildYamlSection("workspace-context", lines.join("\n"));
+  }
+
+  const lines = ["projects:"];
+  for (const project of projects) {
+    lines.push(`  - id: ${project.id}`);
+    lines.push(`    project_root: ${project.rootPath}`);
+    appendInstructionFiles(lines, getInstructionFilePaths(project), "    ");
+  }
+
+  return buildYamlSection("workspace-context", lines.join("\n"));
+}
+
+function buildToolingContext(projects: RegisteredProjectDefinition[]): string | null {
+  if (projects.length === 0) {
+    return null;
+  }
+
+  const firstProject = projects[0];
+  const lines = [
+    firstProject.serenaProject
+      ? `serena_project: ${firstProject.serenaProject}`
+      : `activate_project: ${firstProject.id}`,
+    `openspec_root: ${firstProject.rootPath || "not set"}`,
+  ];
+
+  return buildYamlSection("tooling-context", lines.join("\n"));
+}
+
+function buildDelegationContext(allowedWorkers: string[] | undefined): string | null {
+  if (!allowedWorkers) {
+    return null;
+  }
+
+  const lines =
+    allowedWorkers.length === 0
+      ? ["allowed_workers: []"]
+      : ["allowed_workers:", ...allowedWorkers.map((agentId) => `  - ${agentId}`)];
+
+  return buildYamlSection("delegation-context", lines.join("\n"));
+}
+
+function buildSuppressedPromptContext(input: {
+  executionMode?: string;
+  missionId?: string;
+  projects: RegisteredProjectDefinition[];
+  scopeLabel: string;
+  sessionId: string;
+}): string | null {
+  const { executionMode, missionId, projects, scopeLabel, sessionId } = input;
+  const lines = [`session_id: ${sessionId}`];
+
+  if (missionId) {
+    lines.unshift(`mission_id: ${missionId}`);
+  }
+
+  if (executionMode) {
+    lines.push(`execution_mode: ${executionMode}`);
+  }
+
+  lines.push(`project_scope: ${scopeLabel}`);
+
+  if (projects.length > 0) {
+    lines.push("active_projects:");
+    for (const project of projects) {
+      lines.push(`  - id: ${project.id}`);
+      lines.push(`    root_path: ${project.rootPath}`);
+    }
+
+    const firstProject = projects[0];
+    lines.push(`serena_on_success: write successful value back to projects/${firstProject.id}/project.yaml as serena_project`);
+    lines.push(
+      `openspec_cli_hint: cd ${firstProject.rootPath || "<root_path>"} && openspec ...`,
+    );
+  }
+
+  return buildYamlSection("suppressed-metadata", lines.join("\n"));
+}
+
+export function buildSharedPromptContextBundle({
+  agent,
+  allowedWorkers,
+  appRoot,
+  executionMode,
+  missionId,
+  sessionId,
+}: BuildSharedPromptContextOptions): SharedPromptContextBundle {
+  const { projects, scopeLabel } = collectActiveProjects(appRoot, agent);
+
+  return {
+    agentContext: joinXmlSections([
+      buildWorkspaceContext(projects),
+      buildToolingContext(projects),
+      buildDelegationContext(allowedWorkers),
+    ]),
+    suppressedContext: buildSuppressedPromptContext({
+      executionMode,
+      missionId,
+      projects,
+      scopeLabel,
+      sessionId,
+    }),
+  };
+}
+
 export function buildSharedPromptContext({
   agent,
   allowedWorkers,
@@ -81,75 +219,12 @@ export function buildSharedPromptContext({
   missionId,
   sessionId,
 }: BuildSharedPromptContextOptions): string {
-  const lines = ["<internal-context>"];
-  if (missionId) {
-    lines.push(`mission_id: ${missionId}`);
-  }
-  lines.push(`session_id: ${sessionId}`);
-  if (executionMode) {
-    lines.push(`execution_mode: ${executionMode}`);
-  }
-  if (allowedWorkers) {
-    if (allowedWorkers.length === 0) {
-      lines.push("allowed_workers: []");
-    } else {
-      lines.push("allowed_workers:");
-      for (const agentId of allowedWorkers) {
-        lines.push(`  - ${agentId}`);
-      }
-    }
-  }
-
-  const { projects, scopeLabel } = collectActiveProjects(appRoot, agent);
-
-  lines.push(`project_scope: ${scopeLabel}`);
-  lines.push("active_projects:");
-
-  if (projects.length === 0) {
-    lines.push("  []");
-    lines.push("</internal-context>");
-    return lines.join("\n");
-  }
-
-  for (const project of projects) {
-    lines.push(`  - id: ${project.id}`);
-    lines.push(`    root_path: ${project.rootPath}`);
-
-    const existingFiles = project.instructionFiles.filter(
-      (file) => file.enabled && file.path && existsSync(file.path),
-    );
-    if (existingFiles.length === 0) {
-      lines.push("    instruction_files: []");
-      continue;
-    }
-
-    lines.push("    instruction_files:");
-    for (const file of existingFiles) {
-      lines.push(`      - ${file.path}`);
-    }
-  }
-
-  const firstProject = projects[0];
-  lines.push("serena_activation:");
-  lines.push(`  project_id: ${firstProject.id}`);
-  lines.push(
-    `  activate_project: ${
-      firstProject.serenaProject ||
-      `not set - try in order: "${firstProject.id}" -> "${firstProject.rootPath}" -> UNC path`
-    }`,
-  );
-  lines.push(
-    `  on_success: write successful value back to projects/${firstProject.id}/project.yaml as serena_project`,
-  );
-  lines.push("openspec_context:");
-  lines.push(`  root: ${firstProject.rootPath || "not set"}`);
-  lines.push(
-    `  instruction: When running any openspec CLI command new status list instructions archive etc execute from this directory: cd ${firstProject.rootPath || "<root_path>"} && openspec ...`,
-  );
-  lines.push(
-    "policy: (1) Activate Serena MCP for the first active project using serena_activation above. (2) Read instruction files on demand before implementation. (3) Use openspec_context.root for all openspec CLI commands when an active project is set.",
-  );
-  lines.push("</internal-context>");
-
-  return lines.join("\n");
+  return buildSharedPromptContextBundle({
+    agent,
+    allowedWorkers,
+    appRoot,
+    executionMode,
+    missionId,
+    sessionId,
+  }).agentContext;
 }

@@ -116,7 +116,7 @@ export const SQUAD_AGENT_META: Record<
   },
 };
 
-const INTERNAL_CONTEXT_REMOVE_REGEX = /<internal-context>[\s\S]*?<\/internal-context>/g;
+const INTERNAL_CONTEXT_REMOVE_REGEX = /<(workspace-context|tooling-context|delegation-context)[^>]*>[\s\S]*?<\/\1>/g;
 
 const CHOICES: Record<SquadAgentId, Record<string, string[]>> = {
   noctis: {

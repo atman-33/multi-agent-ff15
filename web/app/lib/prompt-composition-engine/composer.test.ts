@@ -109,8 +109,8 @@ describe("prompt composition engine", () => {
       parts: [{ type: "text", text: "Hello from User" }],
     });
 
-    expect(composed.payloadParts[0]?.text).toContain("<internal-context>");
-    expect(composed.payloadParts[0]?.text).toContain("project_scope: noctis_team");
+    expect(composed.payloadParts[0]?.text).toContain("<workspace-context");
+    expect(composed.payloadParts[0]?.text).toContain(`project_root: ${root}/external-alpha`);
     expect(composed.payloadParts[1]?.text).toBe("Hello from User");
     expect(composed.payloadParts[1]?.text).not.toContain("[OPERATION_");
   });
@@ -134,10 +134,12 @@ describe("prompt composition engine", () => {
       selectedOperation: "openspec-dev",
     });
 
-    expect(composed.workflowExtension).toContain("[OPERATION_ACTIVATED]");
-    expect(composed.payloadParts[0]?.text).toContain("<internal-context>");
-    expect(composed.payloadParts[1]?.text).toContain("[OPERATION_ACTIVATED]");
-    expect(composed.payloadParts[1]?.text).toContain("[NOCTIS_ROUTED_MESSAGE]");
+    expect(composed.workflowExtension).toContain("<movement");
+    expect(composed.sharedContext).toContain("<workspace-context");
+    expect(composed.payloadParts).toHaveLength(1);
+    expect(composed.payloadParts[0]?.text).toContain("<operation-prompt");
+    expect(composed.payloadParts[0]?.text).toContain("<user-request");
+    expect(composed.payloadParts[0]?.text).not.toContain("[NOCTIS_ROUTED_MESSAGE]");
   });
 
   it("builds worker prompts through the workflow extension when operation state is active", () => {
@@ -159,9 +161,10 @@ describe("prompt composition engine", () => {
     });
 
     expect(composed.usedWorkflowExtension).toBe(true);
-    expect(composed.workflowExtension).toContain("## Job");
-    expect(composed.effectivePrompt).toContain("## Task");
-    expect(composed.payloadParts[0]?.text).toContain("<internal-context>");
+    expect(composed.workflowExtension).toContain("<job");
+    expect(composed.effectivePrompt).toContain("<task");
+    expect(composed.sharedContext).toContain("<workspace-context");
+    expect(composed.payloadParts).toHaveLength(1);
   });
 
   it("keeps debug preview aligned with composed worker prompt structure", () => {

@@ -8,6 +8,7 @@ import {
   buildOperationContextSummary,
   describeMovementRole,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
+import { buildTextSection, buildYamlSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { checkAgentDeviation } from "./deviation-tracker";
 import { evaluateRules } from "./rule-evaluator";
 import {
@@ -163,7 +164,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
   saveOperationState(missionId, operationState);
 
   if (deviationNote) {
-    return `${augmented}\n\n---\n\n${deviationNote}`;
+    return joinXmlSections([augmented, buildTextSection("deviation-note", deviationNote)]);
   }
 
   return augmented;
@@ -186,9 +187,10 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
 
   if (!ruleMatch) {
     return {
-      noctisGuidance:
-        "[OPERATION_NOTE] Could not determine next movement from the agent's report. " +
-        "No [STEP:N] tag found. Please review the report and decide the next step.",
+      noctisGuidance: buildTextSection(
+        "operation-note",
+        "Could not determine next movement from the agent's report. No [STEP:N] tag found. Please review the report and decide the next step.",
+      ),
       stateTransition: null,
     };
   }
@@ -221,11 +223,7 @@ function buildTransitionGuidance(
   transition: StateTransition,
 ): string {
   const nextMovement = operation.movements.find((movement) => movement.name === transition.nextMovement);
-  const completedCount = state.movementHistory.filter((entry) => entry.status === "completed").length;
-  const total = operation.movements.length;
-
   const lines = [
-    "[OPERATION_PROGRESS]",
     `operation: ${operation.name}`,
     `completed_movement: ${transition.previousMovement}`,
     `matched_rule: [STEP:${transition.ruleMatched}] "${transition.ruleCondition}"`,
@@ -237,20 +235,17 @@ function buildTransitionGuidance(
     lines.push(`next_job: ${describeMovementRole(nextMovement.job_file)}`);
   }
 
-  lines.push(`progress: ${completedCount}/${total} movements complete`);
-  lines.push(`iteration: ${state.iteration} / ${state.maxMovements}`);
-
-  if (nextMovement) {
-    lines.push("");
-    lines.push("Suggested next action:");
-    if (nextMovement.agent === "noctis") {
-      lines.push(`  Begin the "${nextMovement.name}" movement yourself.`);
-    } else {
-      lines.push(`  Dispatch a task to ${nextMovement.agent} for the "${nextMovement.name}" movement.`);
-    }
-  }
-
-  return lines.join("\n");
+  return joinXmlSections([
+    buildYamlSection("movement-transition", lines.join("\n")),
+    nextMovement
+      ? buildTextSection(
+          "next-action",
+          nextMovement.agent === "noctis"
+            ? `Begin the \"${nextMovement.name}\" movement yourself.`
+            : `Dispatch a task to ${nextMovement.agent} for the \"${nextMovement.name}\" movement.`,
+        )
+      : null,
+  ]);
 }
 
 function buildTerminalGuidance(
@@ -258,34 +253,19 @@ function buildTerminalGuidance(
   state: OperationState,
   terminal: "COMPLETE" | "ABORT",
 ): string {
-  const historyLines = state.movementHistory
-    .filter((entry) => entry.status === "completed")
-    .map(
-      (entry, index) =>
-        `  ${index + 1}. ${entry.movement} (${entry.agent}) → "${entry.ruleCondition ?? "completed"}" → ${entry.nextMovement ?? "?"}`,
-    );
-
   const lines = [
-    `[OPERATION_${terminal}]`,
     `operation: ${operation.name}`,
     `final_movement: ${state.currentMovement}`,
-    `total_iterations: ${state.iteration}`,
     `status: ${terminal.toLowerCase()}`,
   ];
 
-  if (historyLines.length > 0) {
-    lines.push("movement_history:");
-    lines.push(...historyLines);
-  }
-
-  lines.push("");
-  if (terminal === "COMPLETE") {
-    lines.push("The operation has completed successfully.");
-    lines.push("Report final results to User.");
-  } else {
-    lines.push("The operation has been aborted.");
-    lines.push("Report the situation to User with relevant context.");
-  }
-
-  return lines.join("\n");
+  return joinXmlSections([
+    buildYamlSection("operation-terminal-status", lines.join("\n")),
+    buildTextSection(
+      "next-action",
+      terminal === "COMPLETE"
+        ? "Report final results to User."
+        : "Report the situation to User with relevant context.",
+    ),
+  ]);
 }

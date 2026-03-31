@@ -72,12 +72,12 @@ describe("buildInjectedPromptContext", () => {
       sessionId: "session-1",
     });
 
-    expect(promptContext).toContain(`      - ${projectRoot}/AGENTS.md`);
+    expect(promptContext).toContain(`  - ${projectRoot}/AGENTS.md`);
     expect(promptContext).not.toContain(`${projectRoot}/CLAUDE.md`);
     expect(promptContext).not.toContain(`${projectRoot}/GEMINI.md`);
-    expect(promptContext).toContain("project_scope: noctis_team");
-    expect(promptContext).toContain(
-      "on_success: write successful value back to projects/alpha/project.yaml as serena_project"
-    );
+    expect(promptContext).toContain("<workspace-context");
+    expect(promptContext).toContain(`project_root: ${projectRoot}`);
+    expect(promptContext).toContain("<tooling-context");
+    expect(promptContext).toContain("serena_project: alpha");
   });
 });
