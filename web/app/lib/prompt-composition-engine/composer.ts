@@ -36,12 +36,14 @@ function buildTeamMessageSection(input: {
   from?: ActivityActorId;
   to?: AgentId;
   type: TeamMessageType;
+  ruleIndex?: number;
 }): string {
   if (input.type === "report") {
     return joinXmlSections([
       buildTextSection("worker-report", input.body, {
         from: input.from,
         to: input.to,
+        ...(typeof input.ruleIndex === "number" ? { "rule-index": input.ruleIndex } : {}),
       }),
       input.details ? buildTextSection("worker-report-details", input.details) : null,
     ]);
@@ -114,7 +116,10 @@ export function composeUserToNoctisPrompt(input: {
 
   return {
     ...composePayload({
-      context: input.context,
+      context: {
+        ...input.context,
+        allowedWorkers: workflow.additionalContext ? undefined : input.context.allowedWorkers,
+      },
       promptBody,
       workflowExtension: workflow.additionalContext,
     }),
@@ -127,6 +132,7 @@ export function composeWorkerTaskPrompt(input: {
   context: BuildSharedPromptContextOptions;
   missionId: string;
   agentId: WorkerAgentId;
+  taskId: string;
   originalPrompt: string;
   operationStateOverride?: OperationState;
 }): ComposedPromptPayload & { usedWorkflowExtension: boolean } {
@@ -134,12 +140,13 @@ export function composeWorkerTaskPrompt(input: {
     missionId: input.missionId,
     originalPrompt: input.originalPrompt,
     agentId: input.agentId,
+    taskId: input.taskId,
     operationStateOverride: input.operationStateOverride,
   });
 
   return {
     ...composePayload({
-      context: input.context,
+      context: { ...input.context, allowedWorkers: undefined },
       promptBody: workflow.usedWorkflowExtension ? null : buildTaskInputSection(workflow.promptText),
       workflowExtension: workflow.usedWorkflowExtension ? workflow.promptText : null,
     }),
@@ -157,8 +164,11 @@ export function composeTeamMessagePrompt(input: {
   details?: string;
   taskId?: string;
   reportStatus?: ReportStatus;
+  ruleIndex?: number;
   artifacts?: string[];
   operationStateOverride?: OperationState;
+  workflowExtensionOverride?: string | null;
+  stateTransitionOverride?: StateTransition | null;
 }): ComposedPromptPayload & { stateTransition: StateTransition | null } {
   const promptBody = buildTeamMessageSection({
     body: input.body,
@@ -166,10 +176,17 @@ export function composeTeamMessagePrompt(input: {
     from: input.from,
     to: input.to,
     type: input.type,
+    ruleIndex: input.ruleIndex,
   });
 
   const workflow =
-    input.type === "report" && input.to === "noctis" && input.taskId && input.reportStatus
+    input.workflowExtensionOverride !== undefined
+      ? {
+          noctisGuidance: input.workflowExtensionOverride ?? "",
+          stateTransition: input.stateTransitionOverride ?? null,
+          nextWorkerDispatch: null,
+        }
+      : input.type === "report" && input.to === "noctis" && input.taskId && input.reportStatus
       ? composeReportWorkflowExtension({
           missionId: input.missionId,
           reportBody: input.body,
@@ -177,13 +194,17 @@ export function composeTeamMessagePrompt(input: {
           fromAgent: input.from as WorkerAgentId,
           taskId: input.taskId,
           reportStatus: input.reportStatus,
+          ruleIndex: input.ruleIndex,
           operationStateOverride: input.operationStateOverride,
         })
-      : { noctisGuidance: "", stateTransition: null };
+      : { noctisGuidance: "", stateTransition: null, nextWorkerDispatch: null };
 
   return {
     ...composePayload({
-      context: input.context,
+      context: {
+        ...input.context,
+        allowedWorkers: input.type === "report" ? undefined : input.context.allowedWorkers,
+      },
       promptBody,
       workflowExtension: workflow.noctisGuidance,
     }),

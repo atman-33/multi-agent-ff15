@@ -4,6 +4,7 @@ description: >
   Spec planning → Implementation → Refactoring → Code Review → Fix cycle.
   Noctis plans the spec, Gladiolus implements, Prompto refactors, Ignis reviews.
 initial_step: spec-planning
+handoff_mode: auto
 
 # --- Steps ---
 
@@ -11,6 +12,7 @@ steps:
   # 1. Noctis clarifies requirements with User and creates a spec plan
   - name: spec-planning
     agent: noctis
+    handoff_mode: manual
     job_file: ../facets/jobs/planner.md
     instruction_file: ../facets/instructions/openspec-planning.md
     pass_previous_response: false

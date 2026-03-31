@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("operation loader", () => {
-  it("loads the step-based schema without requiring output contracts", () => {
+  it("loads the step-based schema with manual handoff by default", () => {
     const filePath = writeTempOperation([
       "name: test-operation",
       "description: Test operation",
@@ -43,9 +43,33 @@ describe("operation loader", () => {
     const operation = loadOperationFromFile(filePath);
 
     expect(operation.initial_step).toBe("plan");
+    expect(operation.handoff_mode).toBe("manual");
     expect(operation.steps).toHaveLength(1);
     expect(operation.steps[0]?.name).toBe("plan");
     expect(operation.steps[0]?.output_contracts).toBeUndefined();
+    expect(operation.steps[0]?.handoff_mode).toBeUndefined();
+  });
+
+  it("loads operation and step handoff overrides when defined", () => {
+    const filePath = writeTempOperation([
+      "name: handoff-operation",
+      "description: Handoff operation",
+      "initial_step: implement",
+      "handoff_mode: auto",
+      "steps:",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    handoff_mode: manual",
+      "    job_file: ./implementer.md",
+      "    instruction_file: ./implement.md",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    const operation = loadOperationFromFile(filePath);
+
+    expect(operation.handoff_mode).toBe("auto");
+    expect(operation.steps[0]?.handoff_mode).toBe("manual");
   });
 
   it("loads step output contracts when they are defined", () => {

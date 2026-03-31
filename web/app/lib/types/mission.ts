@@ -42,6 +42,7 @@ export interface WorkerResult {
   status: ReportStatus;
   summary: string;
   artifacts: string[];
+  ruleIndex?: number;
 }
 
 export type TaskStatus = "pending" | "running" | "blocked" | "completed" | "failed";
@@ -137,6 +138,7 @@ export interface MissionActivitySource {
   messageId?: string;
   taskId?: string;
   reportStatus?: ReportStatus;
+  ruleIndex?: number;
   deliveryStatus?: "sent" | "failed";
 }
 
@@ -160,6 +162,7 @@ export interface TeamMessage {
   body: string;
   taskId?: string;
   reportStatus?: ReportStatus;
+  ruleIndex?: number;
   artifacts?: string[];
   createdAt: string;
 }

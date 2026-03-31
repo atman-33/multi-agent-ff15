@@ -27,6 +27,7 @@ export function composeWorkerWorkflowPrompt(input: {
   missionId: string;
   originalPrompt: string;
   agentId: WorkerAgentId;
+  taskId: string;
   operationStateOverride?: OperationState;
 }): { promptText: string; usedWorkflowExtension: boolean } {
   const operationState = input.operationStateOverride ?? getOperationState(input.missionId);
@@ -40,6 +41,7 @@ export function composeWorkerWorkflowPrompt(input: {
       originalPrompt: input.originalPrompt,
       agentId: input.agentId,
       missionId: input.missionId,
+      taskId: input.taskId,
     }),
     usedWorkflowExtension: true,
   };
@@ -52,6 +54,7 @@ export function composeReportWorkflowExtension(input: {
   fromAgent: WorkerAgentId;
   taskId: string;
   reportStatus: ReportStatus;
+  ruleIndex?: number;
   operationStateOverride?: OperationState;
 }): ProcessReportResult {
   const operationState = input.operationStateOverride ?? getOperationState(input.missionId);
@@ -59,6 +62,7 @@ export function composeReportWorkflowExtension(input: {
     return {
       noctisGuidance: "",
       stateTransition: null,
+      nextWorkerDispatch: null,
     };
   }
 
@@ -69,6 +73,7 @@ export function composeReportWorkflowExtension(input: {
     fromAgent: input.fromAgent,
     taskId: input.taskId,
     reportStatus: input.reportStatus,
+    ruleIndex: input.ruleIndex,
   });
 
   if (!input.operationStateOverride) {

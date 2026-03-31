@@ -8,7 +8,7 @@
 
 1. User -> Noctis: operation の開始、Noctis self-step の継続判定、進行中コンテキストの注入
 2. Noctis -> Worker: current step に応じた Job / Knowledge / Instruction / Policy / Output Contract の注入
-3. Worker -> Noctis: レポート中の `[STEP:N]` を評価し、次 step または終端ガイダンスを返す
+3. Worker -> Runtime: `ruleIndex` を評価し、manual なら Noctis guidance、auto なら次 worker への handoff を決める
 
 ---
 
@@ -19,8 +19,10 @@ Operation は `builtins/{language}/operations/*.yaml` に置かれる YAML 定�
 現在の正規 schema は次のとおりです。
 
 - `initial_step`: 最初に実行する step 名
+- `handoff_mode`: operation-level default (`manual` / `auto`)
 - `steps`: step 定義の配列
 - step 内の facet 参照:
+	- `handoff_mode`
 	- `job_file`
 	- `instruction_file`
 	- `knowledge_files`
@@ -52,6 +54,8 @@ Operation の進行状態は `mission.operationState` として保持されま�
 - `previousResponse`: 直前 step の要約
 - `stepHistory`: dispatch と完了の履歴
 - `deviations`: 想定 agent からの逸脱記録
+
+`handoff_mode` の effective value は `step.handoff_mode ?? operation.handoff_mode` で決まります。未指定の default は `manual` です。
 
 永続化は `saveOperationState()` が行い、`runtime/noctis-missions/{missionId}.json` に書き戻されます。`runtime/` は generated state とみなし、breaking rename 後に stale state が残ることは前提にしません。
 
@@ -88,6 +92,7 @@ Noctis に注入される step コンテキストには少なくとも次が含�
 ### 継続メッセージ
 
 継続時は、現在の step 担当が `noctis` で、直前応答に `[STEP:N]` が含まれる場合に `evaluateRules()` を実行します。
+この tag fallback は Noctis self-step に限定されます。
 
 遷移が発生すると `recordStepCompleted()` により以下が更新されます。
 
@@ -130,26 +135,34 @@ Noctis に注入される step コンテキストには少なくとも次が含�
 8. `Policy`
 9. `Status Output Rules`
 
+worker step の `Status Output Rules` は `[STEP:N]` ではなく、allowed outcome index と `send_report.sh --rule-index <index>` 契約を案内します。
 `Previous Step Output` は `pass_previous_response` が true のときだけ入ります。`output_contracts` の構造は維持され、prompt builder は `report.name` と `output-path` も含めて案内します。
 
 ---
 
-## 5. Hook 3: Worker -> Noctis
+## 5. Hook 3: Worker -> Runtime
 
 `processReport()` は Worker report を受け取り、現在の step の rules を評価します。
 
 処理の流れは次のとおりです。
 
 1. current step を取得する
-2. `reportBody` と `reportDetails` を連結する
-3. `evaluateRules()` で最後の `[STEP:N]` を評価する
-4. `recordStepCompleted()` で state を更新する
-5. `next_step` または終端ガイダンスを生成する
+2. progress report (`status=running`) なら遷移を確定せず、そのまま Noctis 共有へ進む
+3. final report なら transport の `ruleIndex` を現在 step の rules 範囲で検証する
+4. `evaluateRuleIndex()` で遷移先 rule を決定する
+5. `recordStepCompleted()` で state を更新する
+6. effective `handoff_mode` を判定する
+7. auto handoff 可能なら次 worker を server-side dispatch する
+8. manual/terminal の場合だけ Noctis 向け guidance を生成する
 
 生成される YAML guidance は step 用語に統一されています。
 
 - `completed_step`
+- `matched_rule_index`
+- `matched_rule_condition`
 - `next_step`
+- `effective_handoff_mode`
+- `next_action`
 - `final_step`
 - `step-transition`
 
@@ -179,6 +192,8 @@ Noctis に注入される step コンテキストには少なくとも次が含�
 - `max_movements` は削除済みで、state にも保持しない
 - step 内の `edit` は削除済みで、ローダーは reject する
 - `output_contracts` は従来どおり report 配列構造を維持する
+- worker report routing は本文 tag ではなく `ruleIndex` が単一ソースである
+- `handoff_mode: auto` でも次 step が `noctis` / terminal / User 確認待ちなら自動 dispatch しない
 - generated runtime state は migration 対象ではなく、必要なら再生成する
 
 ---
@@ -193,4 +208,4 @@ Noctis に注入される step コンテキストには少なくとも次が含�
 2. facet 解決が operation YAML からの相対パスで行われること
 3. `output_contracts` だけは従来構造を維持していること
 
-この前提を守れば、Operation は User -> Noctis -> Worker -> Noctis の 3 フックで一貫して進行します。
+この前提を守れば、Operation は User -> Noctis -> Worker -> Runtime を基本経路とし、manual path のときだけ Noctis が次 action を受け取る構造で一貫して進行します。

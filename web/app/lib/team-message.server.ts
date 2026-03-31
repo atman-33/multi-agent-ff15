@@ -28,10 +28,12 @@ export interface SendTeamMessageInput {
   details?: string;
   taskId?: string;
   reportStatus?: ReportStatus;
+  ruleIndex?: number;
   artifacts?: string[];
   activityActor?: ActivityActorId;
   activitySpeaker?: ActivityActorId;
   activityKind?: MissionActivityKind;
+  workflowGuidance?: string;
 }
 
 function createMessageId(): string {
@@ -82,6 +84,7 @@ function serializeMeta(message: TeamMessage, displayFrom: ActivityActorId): stri
     `message_type: ${message.type}`,
     `task_id: ${message.taskId ?? ""}`,
     `report_status: ${message.reportStatus ?? ""}`,
+    `rule_index: ${typeof message.ruleIndex === "number" ? message.ruleIndex : ""}`,
     `display_from: ${getActivityActorLabel(displayFrom)}`,
     `display_to: ${getActivityActorLabel(message.toAgent)}`,
     `artifacts: ${JSON.stringify(message.artifacts ?? [])}`,
@@ -139,6 +142,7 @@ async function deliverMissionMessage(
     body: input.body,
     taskId: input.taskId,
     reportStatus: input.reportStatus,
+    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
     createdAt: new Date().toISOString(),
   };
@@ -161,9 +165,11 @@ async function deliverMissionMessage(
     body: input.body,
     taskId: input.taskId,
     reportStatus: input.reportStatus,
+    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
     details: input.details,
     operationStateOverride: getOperationState(input.missionId),
+    workflowExtensionOverride: input.workflowGuidance,
   });
 
   const client = getOpencodeClient();
@@ -197,6 +203,7 @@ async function deliverMissionMessage(
         messageId: message.id,
         taskId: message.taskId,
         reportStatus: message.reportStatus,
+        ruleIndex: message.ruleIndex,
         deliveryStatus: "sent",
       },
     });
@@ -238,7 +245,9 @@ export async function sendWorkerReport(input: {
   status: ReportStatus;
   summary: string;
   details?: string;
+  ruleIndex?: number;
   artifacts?: string[];
+  workflowGuidance?: string;
 }): Promise<{ sessionId: string; messageId: string }> {
   return deliverMissionMessage({
     missionId: input.missionId,
@@ -248,10 +257,12 @@ export async function sendWorkerReport(input: {
     body: input.summary,
     taskId: input.taskId,
     reportStatus: input.status,
+    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
     activityActor: input.fromAgent,
     activitySpeaker: input.fromAgent,
     activityKind: "team_message",
     details: input.details,
+    workflowGuidance: input.workflowGuidance,
   });
 }

@@ -28,6 +28,7 @@ export interface AugmentTaskPromptInput {
   originalPrompt: string;
   agentId: WorkerAgentId;
   missionId: string;
+  taskId: string;
 }
 
 export interface ProcessReportInput {
@@ -37,9 +38,11 @@ export interface ProcessReportInput {
   fromAgent: WorkerAgentId;
   taskId: string;
   reportStatus: ReportStatus;
+  ruleIndex?: number;
 }
 
 export interface ProcessReportResult {
   noctisGuidance: string;
   stateTransition: StateTransition | null;
+  nextWorkerDispatch: { step: string; agentId: WorkerAgentId } | null;
 }

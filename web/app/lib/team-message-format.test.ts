@@ -21,9 +21,34 @@ describe("team message envelopes", () => {
       messageType: "report",
       taskId: "task-42",
       status: "completed",
+      ruleIndex: undefined,
       summary: "Mission complete",
       details: "All objectives met.",
       artifacts: ["docs/report.md"],
+    });
+  });
+
+  it("round-trips ruleIndex in routed report envelopes", () => {
+    const envelope = buildTeamMessageEnvelope({
+      from: "gladiolus",
+      to: "noctis",
+      type: "report",
+      body: "Implementation complete",
+      taskId: "task-99",
+      reportStatus: "completed",
+      ruleIndex: 1,
+    });
+
+    expect(parseRoutedMessageEnvelope(envelope)).toEqual({
+      speaker: "gladiolus",
+      to: "noctis",
+      messageType: "report",
+      taskId: "task-99",
+      status: "completed",
+      ruleIndex: 1,
+      summary: "Implementation complete",
+      details: undefined,
+      artifacts: undefined,
     });
   });
 

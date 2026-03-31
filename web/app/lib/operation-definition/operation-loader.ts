@@ -2,7 +2,24 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import type { OperationDefinition, RuleDefinition, StepDefinition } from "./types";
+import type { HandoffMode, OperationDefinition, RuleDefinition, StepDefinition } from "./types";
+
+function normalizeHandoffMode(
+  value: unknown,
+  location: string,
+): HandoffMode | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (value === "auto" || value === "manual") {
+    return value;
+  }
+
+  throw new Error(
+    `Operation schema contains invalid handoff_mode at ${location}: expected "auto" or "manual".`,
+  );
+}
 
 function normalizeStep(raw: Record<string, unknown>): StepDefinition {
   validateNoLegacyStepFields(raw, String(raw.name ?? ""));
@@ -23,6 +40,7 @@ function normalizeStep(raw: Record<string, unknown>): StepDefinition {
   return {
     name: String(raw.name ?? ""),
     agent: String(raw.agent ?? "noctis") as StepDefinition["agent"],
+    handoff_mode: normalizeHandoffMode(raw.handoff_mode, `step "${String(raw.name ?? "") || "(unnamed)"}"`),
     job_file: String(raw.job_file ?? ""),
     instruction_file: String(raw.instruction_file ?? ""),
     knowledge_files: Array.isArray(raw.knowledge_files)
@@ -96,6 +114,7 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
     name: String(raw.name ?? ""),
     description: String(raw.description ?? ""),
     initial_step: initialStep,
+    handoff_mode: normalizeHandoffMode(raw.handoff_mode, "operation root") ?? "manual",
     jobs: toStringRecord(raw.jobs),
     instructions: toStringRecord(raw.instructions),
     knowledge: toStringRecord(raw.knowledge),

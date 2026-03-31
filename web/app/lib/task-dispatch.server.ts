@@ -8,6 +8,8 @@ import {
   updateTask,
 } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
@@ -57,14 +59,50 @@ function buildCompactTaskPrompt(input: {
   lines.push("Reply:");
   lines.push("- Use the bash tool to run send_report.sh.");
   lines.push("- Do not print the command in chat. Run it with the bash tool.");
+  lines.push("- If the workflow prompt lists allowed outcomes, include --rule-index <index> in the report command.");
   lines.push(
-    `- Final: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} completed "<summary>"`
+    `- Progress example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} running "<progress update>"`
   );
   lines.push(
-    `- Blocked: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} blocked "<reason>"`
+    `- Final example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} completed "<summary>" --rule-index <index>`
+  );
+  lines.push(
+    `- Blocked example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} blocked "<reason>" --rule-index <index>`
   );
 
   return lines.join("\n");
+}
+
+export async function dispatchCurrentOperationStepToWorker(input: {
+  missionId: string;
+}): Promise<{ sessionId: string; taskId: string; stepName: string; agentId: WorkerAgentId }> {
+  const operationState = getOperationState(input.missionId);
+  if (!operationState) {
+    throw new Error("Operation state not found");
+  }
+
+  const operation = loadOperationByName(operationState.operationName, readOperationLanguage());
+  const currentStep = operation.steps.find((step) => step.name === operationState.currentStep);
+  if (!currentStep) {
+    throw new Error("Operation step not found");
+  }
+  if (currentStep.agent === "noctis") {
+    throw new Error("Current step is assigned to Noctis");
+  }
+
+  const mission = getMission(input.missionId);
+  const result = await dispatchTaskToWorker({
+    missionId: input.missionId,
+    agentId: currentStep.agent,
+    message: `Execute the active operation step "${currentStep.name}" for operation "${operation.name}".`,
+    missionObjective: mission?.objective,
+  });
+
+  return {
+    ...result,
+    stepName: currentStep.name,
+    agentId: currentStep.agent,
+  };
 }
 
 export async function dispatchTaskToWorker(input: {
@@ -157,6 +195,7 @@ export async function dispatchTaskToWorker(input: {
         },
         missionId: input.missionId,
         agentId: input.agentId,
+        taskId,
         originalPrompt: taskPrompt,
         operationStateOverride: operationState,
       });
@@ -215,6 +254,7 @@ export async function dispatchTaskToWorker(input: {
       },
       missionId: input.missionId,
       agentId: input.agentId,
+      taskId,
       originalPrompt: taskPrompt,
       operationStateOverride: operationState,
     });

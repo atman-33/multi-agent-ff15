@@ -8,6 +8,19 @@ export interface RuleMatch {
 
 const STEP_TAG_REGEX = /\[STEP:(\d+)\]/g;
 
+export function evaluateRuleIndex(ruleIndex: number, rules: RuleDefinition[]): RuleMatch | null {
+  if (!Number.isInteger(ruleIndex) || ruleIndex < 0 || ruleIndex >= rules.length) {
+    return null;
+  }
+
+  const rule = rules[ruleIndex];
+  return {
+    matchedIndex: ruleIndex,
+    condition: rule.condition,
+    next: rule.next,
+  };
+}
+
 export function evaluateRules(reportContent: string, rules: RuleDefinition[]): RuleMatch | null {
   if (rules.length === 0) {
     return null;
@@ -24,15 +37,5 @@ export function evaluateRules(reportContent: string, rules: RuleDefinition[]): R
     return null;
   }
 
-  const index = Number.parseInt(lastMatch[1], 10);
-  if (index < 0 || index >= rules.length) {
-    return null;
-  }
-
-  const rule = rules[index];
-  return {
-    matchedIndex: index,
-    condition: rule.condition,
-    next: rule.next,
-  };
+  return evaluateRuleIndex(Number.parseInt(lastMatch[1], 10), rules);
 }

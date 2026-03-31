@@ -10,9 +10,9 @@ operation の state machine を管理し、operation 定義の読み込み、各
 - operation の YAML 定義を読み込み、解析する
 - 現在の step、iteration 数、step 履歴を追跡する
 - facets（job、instruction、knowledge、policy、output-contract）を組み合わせて agent ごとの完全な instruction を構成する
-- 組み立てた instruction を `send_task.sh` 経由で担当 agent に dispatch する
-- agent の report を受け取り、`[STEP:N]` ステータスタグを抽出する
-- タグを step の rules に対応付けて、次の step へ遷移する
+- `handoff_mode` に従って、必要なら `send_task.sh` 経由で担当 agent に dispatch する
+- worker report に含まれる `ruleIndex` を現在 step の rules に対応付けて次の step を決定する
+- auto handoff 可能な場合は runtime が次 worker へ直接 dispatch する
 - 最終的な operation 結果を User に報告する
 
 ## Instruction 組み立てプロトコル
@@ -27,33 +27,40 @@ operation の state machine を管理し、operation 定義の読み込み、各
 6. **Instruction** — この step 専用の手順
 7. **Output Contract** — レポートテンプレート（step に定義がある場合）
 8. **Policy** — 品質基準と判断ルール（instruction の先頭と末尾の両方に挿入する）
-9. **Status Output Rules** — step の rules から自動生成した `[STEP:N]` タグ一覧
+9. **Status Output Rules** — step の rules から自動生成した allowed outcome 一覧と report 契約
 
-### Status Output Rules の形式
+### Worker 向け Status Output Rules の形式
 
-すべての dispatch 対象 instruction の末尾に次を追記する:
+worker step の instruction 末尾には、次を追記する:
 
 ```
 ## Status Output Rules
 
-作業完了後、以下のステータスタグのうち **1 つだけ** を出力すること:
+report 時は、以下の outcome index のうち **1 つだけ** を選び、
+`scripts/send_report.sh ... --rule-index <index>` で送ること:
 
-- [STEP:0] — {rule 0 の condition text}
-- [STEP:1] — {rule 1 の condition text}
+- 0 — {rule 0 の condition text}
+- 1 — {rule 1 の condition text}
 - ...
 
-タグは応答の**末尾**に独立した 1 行として出力すること。
+本文末尾の `[STEP:N]` は worker routing に使わない。
 ```
+
+### Noctis self-step の扱い
+
+`agent: noctis` の step は worker report transport を持たないため、現在は step 専用の status tag による manual fallback を許容する。
+この fallback は Noctis self-step に限定され、worker report には適用しない。
 
 ## Rule Evaluation
 
-1. agent の report 内容を読む
-2. 応答内の **最後の** `[STEP:N]` タグを見つける
+1. progress report (`status=running`) なら状況共有として扱い、遷移を確定しない
+2. final report なら `ruleIndex` を読む
 3. 現在の step の rules にある index N の rule を参照する
 4. 遷移を実行する: `current_step` を `rule.next` に設定する
-5. `next` が `COMPLETE` なら、成功を User に報告する
-6. `next` が `ABORT` なら、理由付きで失敗を User に報告する
-7. それ以外なら、次の step に進む
+5. effective `handoff_mode` が `auto` で次 step が worker なら、runtime が次 worker へ直接 dispatch する
+6. `next` が `COMPLETE` なら、成功を User に報告する
+7. `next` が `ABORT` なら、理由付きで失敗を User に報告する
+8. それ以外で manual handoff が必要なら、Noctis 向けの transition guidance を使って次 action を行う
 
 ## Operation State
 
@@ -66,3 +73,4 @@ operation 実行中は次の状態を維持する:
 - `previous_response` — コンテキスト引き継ぎ用の直前 agent 出力
 
 agent の report に `[STEP:N]` タグが見つからない場合は、確認を求めるか abort する。
+worker report に `ruleIndex` が無い、または範囲外なら validation error として再送を要求する。

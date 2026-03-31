@@ -36,6 +36,9 @@ export function buildAugmentedInstruction(input: {
   previousResponse: string | null;
   facets: ResolvedFacets;
   reportDir: string;
+  missionId: string;
+  agentId: StepDefinition["agent"];
+  taskId: string;
 }): string {
   const { step, operation, operationState, originalInstruction, previousResponse, facets, reportDir } =
     input;
@@ -89,7 +92,7 @@ export function buildAugmentedInstruction(input: {
   }
 
   if (step.rules.length > 0) {
-    sections.push(buildStatusOutputRules(step));
+    sections.push(buildStatusOutputRules(step, input));
   }
 
   return joinXmlSections(sections);
@@ -211,15 +214,48 @@ function buildOutputContractSections(
   return sections;
 }
 
-function buildStatusOutputRules(step: StepDefinition): string {
-  const lines = ["When your work is complete, output exactly one of the following status tags:", ""];
+function buildStatusOutputRules(
+  step: StepDefinition,
+  context?: { missionId: string; agentId: StepDefinition["agent"]; taskId: string },
+): string {
+  if (step.agent === "noctis") {
+    const lines = [
+      "When this Noctis-owned workflow step is complete, end your response with exactly one status tag:",
+      "",
+    ];
+
+    for (let index = 0; index < step.rules.length; index += 1) {
+      lines.push(`- [STEP:${index}] — ${step.rules[index].condition}`);
+    }
+
+    lines.push("");
+    lines.push("Place the tag on its own line at the end of your response.");
+
+    return buildMarkdownSection("status-output-rules", lines.join("\n"));
+  }
+
+  const lines = [
+    "When reporting this workflow step, choose exactly one allowed outcome index and send it with `--rule-index`.",
+    "",
+    "Allowed outcomes:",
+  ];
 
   for (let index = 0; index < step.rules.length; index += 1) {
-    lines.push(`- [STEP:${index}] — ${step.rules[index].condition}`);
+    lines.push(`- ${index} — ${step.rules[index].condition}`);
   }
 
   lines.push("");
-  lines.push("Place the tag on its own line at the end of your response.");
+  if (context) {
+    lines.push("Report with the bash tool using the same task ID:");
+    lines.push(
+      `scripts/send_report.sh ${context.missionId} ${context.agentId} ${context.taskId} completed "<summary>" --rule-index <index>`,
+    );
+  } else {
+    lines.push("Include the selected index when calling `scripts/send_report.sh`.");
+  }
+  lines.push("Use `running` for progress updates without a final outcome index.");
+  lines.push("Use the report status (`completed`, `blocked`, or `failed`) together with `--rule-index <index>` for final step completion.");
+  lines.push("Do not use `[STEP:N]` tags in the response body for worker routing.");
 
   return buildMarkdownSection("status-output-rules", lines.join("\n"));
 }

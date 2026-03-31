@@ -135,6 +135,7 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts).toHaveLength(1);
     expect(composed.payloadParts[0]?.text).toContain("<operation-prompt");
     expect(composed.payloadParts[0]?.text).toContain("<user-request");
+    expect(composed.payloadParts[0]?.text).not.toContain("allowed_workers:");
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
     );
@@ -159,6 +160,7 @@ describe("prompt composition engine", () => {
       },
       missionId: "mission-3",
       agentId: "gladiolus",
+      taskId: "task-1",
       originalPrompt: "Task ID: task-1\nTask: implement the change",
       operationStateOverride: operationState,
     });
@@ -166,7 +168,9 @@ describe("prompt composition engine", () => {
     expect(composed.usedWorkflowExtension).toBe(true);
     expect(composed.workflowExtension).toContain("<job");
     expect(composed.effectivePrompt).toContain("<task");
+    expect(composed.effectivePrompt).toContain("--rule-index <index>");
     expect(composed.sharedContext).toContain("<workspace-context");
+    expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/knowledge/openspec-workflow.md"`,
     );
@@ -197,6 +201,7 @@ describe("prompt composition engine", () => {
       },
       missionId: "debug-mission",
       agentId: "gladiolus",
+      taskId: "debug-task-implement",
       originalPrompt: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
       operationStateOverride: operationState,
     });

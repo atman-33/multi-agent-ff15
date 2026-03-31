@@ -12,6 +12,7 @@ export interface RoutedSessionMessage {
   messageType: RoutedMessageType;
   taskId?: string;
   status?: ReportStatus;
+  ruleIndex?: number;
   body?: string;
   summary?: string;
   details?: string;
@@ -75,6 +76,9 @@ export function buildRoutedMessageEnvelope(input: RoutedSessionMessage): string 
   if (input.status) {
     payload.status = input.status;
   }
+  if (typeof input.ruleIndex === "number") {
+    payload.rule_index = input.ruleIndex;
+  }
   if (typeof input.body === "string" && input.body.trim()) {
     payload.body = input.body.trim();
   }
@@ -98,6 +102,7 @@ export function buildTeamMessageEnvelope(input: {
   body: string;
   taskId?: string;
   reportStatus?: ReportStatus;
+  ruleIndex?: number;
   artifacts?: string[];
   details?: string;
 }): string {
@@ -107,6 +112,7 @@ export function buildTeamMessageEnvelope(input: {
     messageType: input.type === "report" ? "report" : "message",
     taskId: input.taskId,
     status: input.reportStatus,
+    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
     body: input.type === "report" ? undefined : input.body,
     summary: input.type === "report" ? input.body : undefined,
@@ -199,6 +205,7 @@ export function parseRoutedMessageEnvelope(value: string): RoutedSessionMessage 
         messageType,
         taskId: typeof parsed?.task_id === "string" ? parsed.task_id : undefined,
         status: typeof parsed?.status === "string" ? (parsed.status as ReportStatus) : undefined,
+        ruleIndex: typeof parsed?.rule_index === "number" ? parsed.rule_index : undefined,
         body: typeof parsed?.body === "string" ? parsed.body : undefined,
         summary: typeof parsed?.summary === "string" ? parsed.summary : undefined,
         details: typeof parsed?.details === "string" ? parsed.details : undefined,

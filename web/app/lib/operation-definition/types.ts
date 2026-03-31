@@ -1,10 +1,13 @@
 import type { WorkerAgentId } from "@/lib/types/mission";
 
+export type HandoffMode = "auto" | "manual";
+
 export interface OperationDefinition {
   sourcePath: string;
   name: string;
   description: string;
   initial_step: string;
+  handoff_mode: HandoffMode;
   jobs: Record<string, string>;
   instructions: Record<string, string>;
   knowledge: Record<string, string>;
@@ -17,6 +20,7 @@ export type StepAgent = WorkerAgentId | "noctis";
 export interface StepDefinition {
   name: string;
   agent: StepAgent;
+  handoff_mode?: HandoffMode;
   job_file: string;
   instruction_file: string;
   knowledge_files?: string[];
