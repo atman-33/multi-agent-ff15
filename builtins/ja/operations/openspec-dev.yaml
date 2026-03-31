@@ -3,18 +3,16 @@ description: >
   Standard OpenSpec Development Flow.
   Spec planning → Implementation → Refactoring → Code Review → Fix cycle.
   Noctis plans the spec, Gladiolus implements, Prompto refactors, Ignis reviews.
-max_movements: 20
-initial_movement: spec-planning
+initial_step: spec-planning
 
-# --- Movements ---
+# --- Steps ---
 
-movements:
+steps:
   # 1. Noctis clarifies requirements with User and creates a spec plan
   - name: spec-planning
     agent: noctis
     job_file: ../facets/jobs/planner.md
     instruction_file: ../facets/instructions/openspec-planning.md
-    edit: false
     pass_previous_response: false
     output_contracts:
       report:
@@ -35,7 +33,6 @@ movements:
       - ../facets/knowledge/openspec-workflow.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    edit: true
     pass_previous_response: true
     rules:
       - condition: Implementation complete and tests pass
@@ -50,7 +47,6 @@ movements:
     instruction_file: ../facets/instructions/refactor.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    edit: true
     pass_previous_response: true
     rules:
       - condition: Refactoring complete
@@ -65,7 +61,6 @@ movements:
     instruction_file: ../facets/instructions/review-code.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    edit: false
     pass_previous_response: true
     output_contracts:
       report:
@@ -86,7 +81,6 @@ movements:
     instruction_file: ../facets/instructions/fix-code.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    edit: true
     pass_previous_response: true
     rules:
       - condition: All blocking issues fixed

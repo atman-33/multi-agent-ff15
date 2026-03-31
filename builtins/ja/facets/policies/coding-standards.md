@@ -2,7 +2,7 @@
 
 ## 目的
 
-implementation movement と review movement のための品質基準および判断ルール。
+implementation step と review step のための品質基準および判断ルール。
 これらのルールは、何が受け入れ可能か（APPROVE）、何を修正しなければならないか（REJECT）を定義する。
 
 ---

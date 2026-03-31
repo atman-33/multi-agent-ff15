@@ -10,7 +10,7 @@
 | Item | Value |
 |------|-------|
 | **Operation** | {operation name} |
-| **Reviewed Movement** | {レビュー対象の movement} |
+| **Reviewed Step** | {レビュー対象の step} |
 | **Verdict** | Approved / Needs Fix / Critical Issues |
 
 ## Requirements Verification

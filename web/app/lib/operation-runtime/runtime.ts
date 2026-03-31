@@ -1,12 +1,12 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
-import { resolveMovementFacets } from "@/lib/operation-definition/facet-loader";
+import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { listAvailableOperations, loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import type { OperationDefinition } from "@/lib/operation-definition/types";
 import {
   buildActivationInstruction,
   buildAugmentedInstruction,
   buildOperationContextSummary,
-  describeMovementRole,
+  describeStepRole,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import { buildTextSection, buildYamlSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { checkAgentDeviation } from "./deviation-tracker";
@@ -14,8 +14,8 @@ import { evaluateRules } from "./rule-evaluator";
 import {
   createOperationState,
   getOperationState,
-  recordMovementCompleted,
-  recordMovementDispatched,
+  recordStepCompleted,
+  recordStepDispatched,
   saveOperationState,
 } from "./state";
 import type {
@@ -56,30 +56,26 @@ export function processUserMessage(
     }
 
     const operation = loadOperationByName(operationName, language);
-    const state = createOperationState(
-      operationName,
-      operation.initial_movement,
-      operation.max_movements,
-    );
+    const state = createOperationState(operationName, operation.initial_step);
     saveOperationState(missionId, state);
 
-    const initialMovement = operation.movements.find(
-      (movement) => movement.name === operation.initial_movement,
+    const initialStep = operation.steps.find(
+      (step) => step.name === operation.initial_step,
     );
-    if (!initialMovement) {
+    if (!initialStep) {
       return { additionalContext: null, operationActivated: operationName };
     }
 
-    const facets = resolveMovementFacets(operation, initialMovement, language);
+    const facets = resolveStepFacets(operation, initialStep, language);
     const activationText = buildActivationInstruction({
       operation,
-      movement: initialMovement,
+      step: initialStep,
       operationState: state,
       facets,
       reportDir: state.reportDir,
     });
 
-    recordMovementDispatched(state, initialMovement.name, initialMovement.agent);
+    recordStepDispatched(state, initialStep.name, initialStep.agent);
     saveOperationState(missionId, state);
 
     return {
@@ -90,21 +86,21 @@ export function processUserMessage(
 
   const operation = loadOperationByName(existingState.operationName, language);
   if (!isNewMission && lastNoctisResponse) {
-    const currentMovement = operation.movements.find(
-      (movement) => movement.name === existingState.currentMovement,
+    const currentStep = operation.steps.find(
+      (step) => step.name === existingState.currentStep,
     );
 
-    if (currentMovement?.agent === "noctis" && currentMovement.rules.length > 0) {
-      const ruleMatch = evaluateRules(lastNoctisResponse, currentMovement.rules);
+    if (currentStep?.agent === "noctis" && currentStep.rules.length > 0) {
+      const ruleMatch = evaluateRules(lastNoctisResponse, currentStep.rules);
       if (ruleMatch) {
         const transition: StateTransition = {
-          previousMovement: existingState.currentMovement,
-          nextMovement: ruleMatch.next,
+          previousStep: existingState.currentStep,
+          nextStep: ruleMatch.next,
           ruleMatched: ruleMatch.matchedIndex,
           ruleCondition: ruleMatch.condition,
         };
 
-        recordMovementCompleted(existingState, transition, lastNoctisResponse.slice(0, 500));
+        recordStepCompleted(existingState, transition, lastNoctisResponse.slice(0, 500));
         saveOperationState(missionId, existingState);
 
         if (ruleMatch.next === "COMPLETE" || ruleMatch.next === "ABORT") {
@@ -114,8 +110,8 @@ export function processUserMessage(
           };
         }
 
-        const nextMovement = operation.movements.find((movement) => movement.name === ruleMatch.next);
-        if (nextMovement) {
+        const nextStep = operation.steps.find((step) => step.name === ruleMatch.next);
+        if (nextStep) {
           return {
             additionalContext: buildTransitionGuidance(operation, existingState, transition),
             stateTransition: transition,
@@ -137,21 +133,21 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
   }
 
   const operation = loadOperationByName(operationState.operationName, language);
-  const currentMovement = operation.movements.find(
-    (movement) => movement.name === operationState.currentMovement,
+  const currentStep = operation.steps.find(
+    (step) => step.name === operationState.currentStep,
   );
-  if (!currentMovement) {
+  if (!currentStep) {
     return originalPrompt;
   }
 
-  const deviationNote = checkAgentDeviation(operationState, currentMovement.agent, agentId);
+  const deviationNote = checkAgentDeviation(operationState, currentStep.agent, agentId);
   if (deviationNote) {
     saveOperationState(missionId, operationState);
   }
 
-  const facets = resolveMovementFacets(operation, currentMovement, language);
+  const facets = resolveStepFacets(operation, currentStep, language);
   const augmented = buildAugmentedInstruction({
-    movement: currentMovement,
+    step: currentStep,
     operation,
     operationState,
     originalInstruction: originalPrompt,
@@ -160,7 +156,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     reportDir: operationState.reportDir,
   });
 
-  recordMovementDispatched(operationState, currentMovement.name, agentId);
+  recordStepDispatched(operationState, currentStep.name, agentId);
   saveOperationState(missionId, operationState);
 
   if (deviationNote) {
@@ -174,35 +170,35 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
   const { operationState, reportBody, reportDetails } = input;
   const language = readOperationLanguage();
   const operation = loadOperationByName(operationState.operationName, language);
-  const currentMovement = operation.movements.find(
-    (movement) => movement.name === operationState.currentMovement,
+  const currentStep = operation.steps.find(
+    (step) => step.name === operationState.currentStep,
   );
 
-  if (!currentMovement || currentMovement.rules.length === 0) {
+  if (!currentStep || currentStep.rules.length === 0) {
     return { noctisGuidance: "", stateTransition: null };
   }
 
   const fullReport = reportDetails ? `${reportBody}\n\n${reportDetails}` : reportBody;
-  const ruleMatch = evaluateRules(fullReport, currentMovement.rules);
+  const ruleMatch = evaluateRules(fullReport, currentStep.rules);
 
   if (!ruleMatch) {
     return {
       noctisGuidance: buildTextSection(
         "operation-note",
-        "Could not determine next movement from the agent's report. No [STEP:N] tag found. Please review the report and decide the next step.",
+        "Could not determine the next step from the agent's report. No [STEP:N] tag found. Please review the report and decide the next step.",
       ),
       stateTransition: null,
     };
   }
 
   const transition: StateTransition = {
-    previousMovement: operationState.currentMovement,
-    nextMovement: ruleMatch.next,
+    previousStep: operationState.currentStep,
+    nextStep: ruleMatch.next,
     ruleMatched: ruleMatch.matchedIndex,
     ruleCondition: ruleMatch.condition,
   };
 
-  recordMovementCompleted(operationState, transition, reportBody.slice(0, 500));
+  recordStepCompleted(operationState, transition, reportBody.slice(0, 500));
 
   if (ruleMatch.next === "COMPLETE" || ruleMatch.next === "ABORT") {
     return {
@@ -219,30 +215,30 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
 
 function buildTransitionGuidance(
   operation: OperationDefinition,
-  state: OperationState,
+  _state: OperationState,
   transition: StateTransition,
 ): string {
-  const nextMovement = operation.movements.find((movement) => movement.name === transition.nextMovement);
+  const nextStep = operation.steps.find((step) => step.name === transition.nextStep);
   const lines = [
     `operation: ${operation.name}`,
-    `completed_movement: ${transition.previousMovement}`,
+    `completed_step: ${transition.previousStep}`,
     `matched_rule: [STEP:${transition.ruleMatched}] "${transition.ruleCondition}"`,
-    `next_movement: ${transition.nextMovement}`,
+    `next_step: ${transition.nextStep}`,
   ];
 
-  if (nextMovement) {
-    lines.push(`next_agent: ${nextMovement.agent}`);
-    lines.push(`next_job: ${describeMovementRole(nextMovement.job_file)}`);
+  if (nextStep) {
+    lines.push(`next_agent: ${nextStep.agent}`);
+    lines.push(`next_job: ${describeStepRole(nextStep.job_file)}`);
   }
 
   return joinXmlSections([
-    buildYamlSection("movement-transition", lines.join("\n")),
-    nextMovement
+    buildYamlSection("step-transition", lines.join("\n")),
+    nextStep
       ? buildTextSection(
           "next-action",
-          nextMovement.agent === "noctis"
-            ? `Begin the \"${nextMovement.name}\" movement yourself.`
-            : `Dispatch a task to ${nextMovement.agent} for the \"${nextMovement.name}\" movement.`,
+          nextStep.agent === "noctis"
+            ? `Begin the "${nextStep.name}" step yourself.`
+            : `Dispatch a task to ${nextStep.agent} for the "${nextStep.name}" step.`,
         )
       : null,
   ]);
@@ -255,7 +251,7 @@ function buildTerminalGuidance(
 ): string {
   const lines = [
     `operation: ${operation.name}`,
-    `final_movement: ${state.currentMovement}`,
+    `final_step: ${state.currentStep}`,
     `status: ${terminal.toLowerCase()}`,
   ];
 

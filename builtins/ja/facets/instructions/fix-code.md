@@ -3,7 +3,7 @@
 ## 手順
 
 1. **レビュー報告を読む**
-   - 前の movement の code review findings を確認する
+   - 前の step の code review findings を確認する
    - 対応必須の **blocking** finding をすべて洗い出す
    - 任意改善として non-blocking finding も把握しておく
 

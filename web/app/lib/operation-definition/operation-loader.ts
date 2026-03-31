@@ -2,9 +2,11 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import type { MovementDefinition, OperationDefinition, RuleDefinition } from "./types";
+import type { OperationDefinition, RuleDefinition, StepDefinition } from "./types";
 
-function normalizeMovement(raw: Record<string, unknown>): MovementDefinition {
+function normalizeStep(raw: Record<string, unknown>): StepDefinition {
+  validateNoLegacyStepFields(raw, String(raw.name ?? ""));
+
   const rules = Array.isArray(raw.rules)
     ? (raw.rules as Record<string, unknown>[]).map(
         (rule): RuleDefinition => ({
@@ -20,7 +22,7 @@ function normalizeMovement(raw: Record<string, unknown>): MovementDefinition {
 
   return {
     name: String(raw.name ?? ""),
-    agent: String(raw.agent ?? "noctis") as MovementDefinition["agent"],
+    agent: String(raw.agent ?? "noctis") as StepDefinition["agent"],
     job_file: String(raw.job_file ?? ""),
     instruction_file: String(raw.instruction_file ?? ""),
     knowledge_files: Array.isArray(raw.knowledge_files)
@@ -29,11 +31,31 @@ function normalizeMovement(raw: Record<string, unknown>): MovementDefinition {
     policy_files: Array.isArray(raw.policy_files)
       ? raw.policy_files.map((value) => String(value ?? "")).filter(Boolean)
       : undefined,
-    edit: raw.edit === true,
     pass_previous_response: raw.pass_previous_response !== false,
     output_contracts: outputContracts?.report ? { report: outputContracts.report } : undefined,
     rules,
   };
+}
+
+function validateNoLegacyOperationFields(raw: Record<string, unknown>): void {
+  const removedFields = ["initial_movement", "movements", "max_movements"].filter(
+    (field) => field in raw,
+  );
+
+  if (removedFields.length > 0) {
+    throw new Error(
+      `Operation schema contains removed field(s): ${removedFields.join(", ")}. Use "initial_step" and "steps" instead.`,
+    );
+  }
+}
+
+function validateNoLegacyStepFields(raw: Record<string, unknown>, stepName: string): void {
+  if ("edit" in raw) {
+    const label = stepName || "(unnamed)";
+    throw new Error(
+      `Operation step "${label}" contains removed field "edit". Remove it from the schema.`,
+    );
+  }
 }
 
 function toStringRecord(value: unknown): Record<string, string> {
@@ -56,22 +78,30 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
   const content = readFileSync(absolutePath, "utf-8");
   const raw = parseYaml(content) as Record<string, unknown>;
 
-  const movements = Array.isArray(raw.movements)
-    ? (raw.movements as Record<string, unknown>[]).map(normalizeMovement)
-    : [];
+  validateNoLegacyOperationFields(raw);
+
+  const initialStep = String(raw.initial_step ?? "").trim();
+  if (!initialStep) {
+    throw new Error(`Operation schema must define "initial_step": ${absolutePath}`);
+  }
+
+  if (!Array.isArray(raw.steps)) {
+    throw new Error(`Operation schema must define "steps" as an array: ${absolutePath}`);
+  }
+
+  const steps = (raw.steps as Record<string, unknown>[]).map(normalizeStep);
 
   return {
     sourcePath: absolutePath,
     name: String(raw.name ?? ""),
     description: String(raw.description ?? ""),
-    max_movements: typeof raw.max_movements === "number" ? raw.max_movements : 20,
-    initial_movement: String(raw.initial_movement ?? ""),
+    initial_step: initialStep,
     jobs: toStringRecord(raw.jobs),
     instructions: toStringRecord(raw.instructions),
     knowledge: toStringRecord(raw.knowledge),
     policies: toStringRecord(raw.policies),
     output_contracts: toStringRecord(raw.output_contracts),
-    movements,
+    steps,
   };
 }
 

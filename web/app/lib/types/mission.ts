@@ -89,7 +89,7 @@ export interface Mission {
 
 export type OperationStatus = "running" | "waiting_for_report" | "complete" | "aborted";
 
-export type DeviationType = "agent_mismatch" | "movement_skip" | "order_deviation";
+export type DeviationType = "agent_mismatch" | "step_skip" | "order_deviation";
 
 export interface DeviationEntry {
   type: DeviationType;
@@ -103,16 +103,16 @@ export interface DeviationTracker {
   history: DeviationEntry[];
 }
 
-export type MovementHistoryStatus = "dispatched" | "completed" | "failed";
+export type StepHistoryStatus = "dispatched" | "completed" | "failed";
 
-export interface MovementHistoryEntry {
-  movement: string;
+export interface StepHistoryEntry {
+  step: string;
   agent: string;
   taskId?: string;
-  status: MovementHistoryStatus;
+  status: StepHistoryStatus;
   ruleMatched?: number;
   ruleCondition?: string;
-  nextMovement?: string;
+  nextStep?: string;
   dispatchedAt: string;
   completedAt?: string;
   summary?: string;
@@ -120,15 +120,14 @@ export interface MovementHistoryEntry {
 
 export interface OperationState {
   operationName: string;
-  currentMovement: string;
+  currentStep: string;
   iteration: number;
-  maxMovements: number;
   status: OperationStatus;
   activatedAt: string;
   updatedAt: string;
   reportDir: string;
   previousResponse: string | null;
-  movementHistory: MovementHistoryEntry[];
+  stepHistory: StepHistoryEntry[];
   deviations: DeviationTracker;
 }
 

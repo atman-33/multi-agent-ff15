@@ -61,8 +61,8 @@ function formatDeviationMessage(type: DeviationType, expected: string, actual: s
   switch (type) {
     case "agent_mismatch":
       return `Expected agent "${expected}" but dispatched to "${actual}".`;
-    case "movement_skip":
-      return `Expected movement "${expected}" but skipped to "${actual}".`;
+    case "step_skip":
+      return `Expected step "${expected}" but skipped to "${actual}".`;
     case "order_deviation":
       return `Expected flow through "${expected}" but deviated to "${actual}".`;
   }

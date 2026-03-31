@@ -62,26 +62,22 @@ function seedProjectConfig(root: string) {
 
 function buildSyntheticOperationState() {
   const operation = loadOperationByName("openspec-dev", "ja");
-  const movementIndex = operation.movements.findIndex((movement) => movement.name === "implement");
-  const state = createOperationState(
-    operation.name,
-    operation.initial_movement,
-    operation.max_movements,
-  );
-  state.currentMovement = "implement";
+  const stepIndex = operation.steps.findIndex((step) => step.name === "implement");
+  const state = createOperationState(operation.name, operation.initial_step);
+  state.currentStep = "implement";
   state.status = "running";
-  state.iteration = movementIndex;
-  state.previousResponse = "Synthetic previous movement output";
-  state.movementHistory = operation.movements.slice(0, movementIndex).map((movement, index) => ({
-    movement: movement.name,
-    agent: movement.agent,
+  state.iteration = stepIndex;
+  state.previousResponse = "Synthetic previous step output";
+  state.stepHistory = operation.steps.slice(0, stepIndex).map((step, index) => ({
+    step: step.name,
+    agent: step.agent,
     status: "completed" as const,
     dispatchedAt: "2026-03-31T00:00:00.000Z",
     completedAt: "2026-03-31T00:00:00.000Z",
     ruleMatched: 0,
-    ruleCondition: movement.rules[0]?.condition ?? "completed",
-    nextMovement: operation.movements[index + 1]?.name ?? "COMPLETE",
-    summary: `Synthetic summary for ${movement.name}`,
+    ruleCondition: step.rules[0]?.condition ?? "completed",
+    nextStep: operation.steps[index + 1]?.name ?? "COMPLETE",
+    summary: `Synthetic summary for ${step.name}`,
   }));
   return state;
 }
@@ -134,7 +130,7 @@ describe("prompt composition engine", () => {
       selectedOperation: "openspec-dev",
     });
 
-    expect(composed.workflowExtension).toContain("<movement");
+    expect(composed.workflowExtension).toContain("<step");
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts).toHaveLength(1);
     expect(composed.payloadParts[0]?.text).toContain("<operation-prompt");
@@ -172,7 +168,7 @@ describe("prompt composition engine", () => {
     const operationState = buildSyntheticOperationState();
     const bundle = buildOperationDebugBundle({
       operationName: "openspec-dev",
-      taskInstruction: "Synthetic task for gladiolus: implement the current movement as Noctis instructed.",
+      taskInstruction: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
     });
     const dispatchStep = bundle.flowSteps.find(
       (step) => step.kind === "dispatch" && step.to === "gladiolus",
@@ -187,7 +183,7 @@ describe("prompt composition engine", () => {
       },
       missionId: "debug-mission",
       agentId: "gladiolus",
-      originalPrompt: "Synthetic task for gladiolus: implement the current movement as Noctis instructed.",
+      originalPrompt: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
       operationStateOverride: operationState,
     });
 

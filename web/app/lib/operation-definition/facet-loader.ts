@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolveOperationFacetPath } from "./operation-loader";
-import type { MovementDefinition, OperationDefinition, ResolvedFacets } from "./types";
+import type { OperationDefinition, ResolvedFacets, StepDefinition } from "./types";
 
 const MAX_KNOWLEDGE_LENGTH = 2000;
 
@@ -17,15 +17,15 @@ function loadFacetFile(operation: OperationDefinition, relativePath: string | un
   return readFileSync(absolutePath, "utf-8");
 }
 
-export function resolveMovementFacets(
+export function resolveStepFacets(
   operation: OperationDefinition,
-  movement: MovementDefinition,
+  step: StepDefinition,
   _language: string,
 ): ResolvedFacets {
-  const job = loadFacetFile(operation, movement.job_file) ?? "";
-  const instruction = loadFacetFile(operation, movement.instruction_file) ?? "";
+  const job = loadFacetFile(operation, step.job_file) ?? "";
+  const instruction = loadFacetFile(operation, step.instruction_file) ?? "";
 
-  const knowledge = (movement.knowledge_files ?? [])
+  const knowledge = (step.knowledge_files ?? [])
     .map((path) => {
       const content = loadFacetFile(operation, path);
       if (!content) {
@@ -38,13 +38,13 @@ export function resolveMovementFacets(
     })
     .filter((item): item is string => item !== null);
 
-  const policies = (movement.policy_files ?? [])
+  const policies = (step.policy_files ?? [])
     .map((path) => loadFacetFile(operation, path))
     .filter((item): item is string => item !== null);
 
   const outputContracts: string[] = [];
-  if (movement.output_contracts?.report) {
-    for (const report of movement.output_contracts.report) {
+  if (step.output_contracts?.report) {
+    for (const report of step.output_contracts.report) {
       const content = loadFacetFile(operation, report.format_file);
       if (content) {
         outputContracts.push(content);

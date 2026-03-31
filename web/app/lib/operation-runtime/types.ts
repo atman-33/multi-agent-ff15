@@ -3,8 +3,8 @@ import type { OperationState, ReportStatus, WorkerAgentId } from "@/lib/types/mi
 export type { OperationState };
 
 export interface StateTransition {
-  previousMovement: string;
-  nextMovement: string;
+  previousStep: string;
+  nextStep: string;
   ruleMatched: number;
   ruleCondition: string;
 }

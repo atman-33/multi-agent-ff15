@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import type { MovementDefinition, OperationDefinition, ResolvedFacets } from "@/lib/operation-definition/types";
+import type { OperationDefinition, ResolvedFacets, StepDefinition } from "@/lib/operation-definition/types";
 import type { OperationState } from "@/lib/types/mission";
 import {
   buildMarkdownSection,
@@ -8,7 +8,7 @@ import {
   joinXmlSections,
 } from "./prompt-xml";
 
-export function describeMovementRole(jobFilePath: string): string {
+export function describeStepRole(jobFilePath: string): string {
   if (!jobFilePath.trim()) {
     return "";
   }
@@ -17,7 +17,7 @@ export function describeMovementRole(jobFilePath: string): string {
 }
 
 export function buildAugmentedInstruction(input: {
-  movement: MovementDefinition;
+  step: StepDefinition;
   operation: OperationDefinition;
   operationState: OperationState;
   originalInstruction: string;
@@ -25,51 +25,51 @@ export function buildAugmentedInstruction(input: {
   facets: ResolvedFacets;
   reportDir: string;
 }): string {
-  const { movement, operation, operationState, originalInstruction, previousResponse, facets, reportDir } =
+  const { step, operation, operationState, originalInstruction, previousResponse, facets, reportDir } =
     input;
   const sections: Array<string | null> = [];
 
   if (facets.job) {
-    sections.push(buildMarkdownSection("job", facets.job, { source: movement.job_file }));
+    sections.push(buildMarkdownSection("job", facets.job, { source: step.job_file }));
   }
 
-  sections.push(buildMovementSection(operation, operationState));
+  sections.push(buildStepSection(operation, operationState));
   sections.push(buildTextSection("task", originalInstruction));
 
-  if (movement.pass_previous_response && previousResponse) {
-    sections.push(buildTextSection("previous-movement-output", previousResponse));
+  if (step.pass_previous_response && previousResponse) {
+    sections.push(buildTextSection("previous-step-output", previousResponse));
   }
 
   if (facets.knowledge.length > 0) {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
       sections.push(
         buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: movement.knowledge_files?.[index],
+          source: step.knowledge_files?.[index],
         }),
       );
     }
   }
 
   if (facets.instruction) {
-    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: movement.instruction_file }));
+    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: step.instruction_file }));
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(...buildOutputContractSections(movement, reportDir, facets.outputContracts));
+    sections.push(...buildOutputContractSections(step, reportDir, facets.outputContracts));
   }
 
   if (facets.policies.length > 0) {
     for (let index = 0; index < facets.policies.length; index += 1) {
       sections.push(
         buildMarkdownSection("policy", facets.policies[index], {
-          source: movement.policy_files?.[index],
+          source: step.policy_files?.[index],
         }),
       );
     }
   }
 
-  if (movement.rules.length > 0) {
-    sections.push(buildStatusOutputRules(movement));
+  if (step.rules.length > 0) {
+    sections.push(buildStatusOutputRules(step));
   }
 
   return joinXmlSections(sections);
@@ -77,48 +77,48 @@ export function buildAugmentedInstruction(input: {
 
 export function buildActivationInstruction(input: {
   operation: OperationDefinition;
-  movement: MovementDefinition;
+  step: StepDefinition;
   operationState: OperationState;
   facets: ResolvedFacets;
   reportDir: string;
 }): string {
-  const { operation, movement, operationState, facets, reportDir } = input;
-  const sections: Array<string | null> = [buildMovementSection(operation, operationState)];
+  const { operation, step, operationState, facets, reportDir } = input;
+  const sections: Array<string | null> = [buildStepSection(operation, operationState)];
 
   if (facets.job) {
-    sections.push(buildMarkdownSection("job", facets.job, { source: movement.job_file }));
+    sections.push(buildMarkdownSection("job", facets.job, { source: step.job_file }));
   }
 
   if (facets.knowledge.length > 0) {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
       sections.push(
         buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: movement.knowledge_files?.[index],
+          source: step.knowledge_files?.[index],
         }),
       );
     }
   }
 
   if (facets.instruction) {
-    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: movement.instruction_file }));
+    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: step.instruction_file }));
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(...buildOutputContractSections(movement, reportDir, facets.outputContracts));
+    sections.push(...buildOutputContractSections(step, reportDir, facets.outputContracts));
   }
 
   if (facets.policies.length > 0) {
     for (let index = 0; index < facets.policies.length; index += 1) {
       sections.push(
         buildMarkdownSection("policy", facets.policies[index], {
-          source: movement.policy_files?.[index],
+          source: step.policy_files?.[index],
         }),
       );
     }
   }
 
-  if (movement.rules.length > 0) {
-    sections.push(buildStatusOutputRules(movement));
+  if (step.rules.length > 0) {
+    sections.push(buildStatusOutputRules(step));
   }
 
   return joinXmlSections(sections);
@@ -128,47 +128,47 @@ export function buildOperationContextSummary(
   operation: OperationDefinition,
   operationState: OperationState,
 ): string {
-  const currentMovement = operation.movements.find((movement) => movement.name === operationState.currentMovement);
+  const currentStep = operation.steps.find((step) => step.name === operationState.currentStep);
   const lines = [
     `operation: ${operation.name}`,
-    `current_movement: ${operationState.currentMovement}`,
+    `current_step: ${operationState.currentStep}`,
   ];
 
-  if (currentMovement) {
-    lines.push(`role: ${describeMovementRole(currentMovement.job_file)}`);
+  if (currentStep) {
+    lines.push(`role: ${describeStepRole(currentStep.job_file)}`);
   }
 
-  if (currentMovement && currentMovement.agent !== "noctis") {
-    lines.push(`next_expected_agent: ${currentMovement.agent}`);
+  if (currentStep && currentStep.agent !== "noctis") {
+    lines.push(`next_expected_agent: ${currentStep.agent}`);
   }
 
-  return buildYamlSection("movement", lines.join("\n"));
+  return buildYamlSection("step", lines.join("\n"));
 }
 
-function buildMovementSection(operation: OperationDefinition, state: OperationState): string {
-  const currentMovement = operation.movements.find((movement) => movement.name === state.currentMovement);
+function buildStepSection(operation: OperationDefinition, state: OperationState): string {
+  const currentStep = operation.steps.find((step) => step.name === state.currentStep);
   const lines = [
     `operation: ${operation.name}`,
-    `current_movement: ${state.currentMovement}`,
+    `current_step: ${state.currentStep}`,
   ];
 
-  if (currentMovement) {
-    lines.push(`role: ${describeMovementRole(currentMovement.job_file)}`);
+  if (currentStep) {
+    lines.push(`role: ${describeStepRole(currentStep.job_file)}`);
   }
 
-  return buildYamlSection("movement", lines.join("\n"));
+  return buildYamlSection("step", lines.join("\n"));
 }
 
 function buildOutputContractSections(
-  movement: MovementDefinition,
+  step: StepDefinition,
   reportDir: string,
   contracts: string[],
 ): string[] {
   const sections: string[] = [];
 
-  if (movement.output_contracts?.report) {
-    for (let index = 0; index < movement.output_contracts.report.length; index += 1) {
-      const report = movement.output_contracts.report[index];
+  if (step.output_contracts?.report) {
+    for (let index = 0; index < step.output_contracts.report.length; index += 1) {
+      const report = step.output_contracts.report[index];
       sections.push(
         buildMarkdownSection("output-contract", contracts[index] ?? "", {
           source: report.format_file,
@@ -182,11 +182,11 @@ function buildOutputContractSections(
   return sections;
 }
 
-function buildStatusOutputRules(movement: MovementDefinition): string {
+function buildStatusOutputRules(step: StepDefinition): string {
   const lines = ["When your work is complete, output exactly one of the following status tags:", ""];
 
-  for (let index = 0; index < movement.rules.length; index += 1) {
-    lines.push(`- [STEP:${index}] — ${movement.rules[index].condition}`);
+  for (let index = 0; index < step.rules.length; index += 1) {
+    lines.push(`- [STEP:${index}] — ${step.rules[index].condition}`);
   }
 
   lines.push("");

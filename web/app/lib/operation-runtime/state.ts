@@ -9,21 +9,19 @@ const DEFAULT_REPORT_DIR = "docs/reports";
 
 export function createOperationState(
   operationName: string,
-  initialMovement: string,
-  maxMovements: number,
+  initialStep: string,
 ): OperationState {
   const now = new Date().toISOString();
   return {
     operationName,
-    currentMovement: initialMovement,
+    currentStep: initialStep,
     iteration: 0,
-    maxMovements,
     status: "running",
     activatedAt: now,
     updatedAt: now,
     reportDir: DEFAULT_REPORT_DIR,
     previousResponse: null,
-    movementHistory: [],
+    stepHistory: [],
     deviations: { totalDeviations: 0, history: [] },
   };
 }
@@ -44,16 +42,16 @@ export function saveOperationState(missionId: string, state: OperationState): vo
   persistMissionDirect(mission);
 }
 
-export function recordMovementDispatched(
+export function recordStepDispatched(
   state: OperationState,
-  movement: string,
+  step: string,
   agent: string,
   taskId?: string,
 ): void {
   state.iteration++;
   state.status = "waiting_for_report";
-  state.movementHistory.push({
-    movement,
+  state.stepHistory.push({
+    step,
     agent,
     taskId,
     status: "dispatched",
@@ -61,18 +59,18 @@ export function recordMovementDispatched(
   });
 }
 
-export function recordMovementCompleted(
+export function recordStepCompleted(
   state: OperationState,
   transition: StateTransition,
   summary?: string,
 ): void {
-  const lastEntry = state.movementHistory.at(-1);
-  if (lastEntry && lastEntry.movement === transition.previousMovement) {
+  const lastEntry = state.stepHistory.at(-1);
+  if (lastEntry && lastEntry.step === transition.previousStep) {
     lastEntry.status = "completed";
     lastEntry.completedAt = new Date().toISOString();
     lastEntry.ruleMatched = transition.ruleMatched;
     lastEntry.ruleCondition = transition.ruleCondition;
-    lastEntry.nextMovement = transition.nextMovement;
+    lastEntry.nextStep = transition.nextStep;
     lastEntry.summary = summary;
   }
 
@@ -80,12 +78,12 @@ export function recordMovementCompleted(
     state.previousResponse = summary;
   }
 
-  if (transition.nextMovement === "COMPLETE") {
+  if (transition.nextStep === "COMPLETE") {
     state.status = "complete";
-  } else if (transition.nextMovement === "ABORT") {
+  } else if (transition.nextStep === "ABORT") {
     state.status = "aborted";
   } else {
-    state.currentMovement = transition.nextMovement;
+    state.currentStep = transition.nextStep;
     state.status = "running";
   }
 }
