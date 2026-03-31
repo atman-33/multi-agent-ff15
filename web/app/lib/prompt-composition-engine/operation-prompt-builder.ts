@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { resolveOperationFacetPath } from "@/lib/operation-definition/operation-loader";
 import type { OperationDefinition, ResolvedFacets, StepDefinition } from "@/lib/operation-definition/types";
 import type { OperationState } from "@/lib/types/mission";
 import {
@@ -16,6 +17,17 @@ export function describeStepRole(jobFilePath: string): string {
   return basename(jobFilePath).replace(/\.md$/i, "");
 }
 
+function resolveOperationSourcePath(
+  operation: OperationDefinition,
+  sourcePath: string | undefined,
+): string | undefined {
+  if (!sourcePath) {
+    return undefined;
+  }
+
+  return resolveOperationFacetPath(operation.sourcePath, sourcePath);
+}
+
 export function buildAugmentedInstruction(input: {
   step: StepDefinition;
   operation: OperationDefinition;
@@ -30,7 +42,11 @@ export function buildAugmentedInstruction(input: {
   const sections: Array<string | null> = [];
 
   if (facets.job) {
-    sections.push(buildMarkdownSection("job", facets.job, { source: step.job_file }));
+    sections.push(
+      buildMarkdownSection("job", facets.job, {
+        source: resolveOperationSourcePath(operation, step.job_file),
+      }),
+    );
   }
 
   sections.push(buildStepSection(operation, operationState));
@@ -44,25 +60,29 @@ export function buildAugmentedInstruction(input: {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
       sections.push(
         buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: step.knowledge_files?.[index],
+          source: resolveOperationSourcePath(operation, step.knowledge_files?.[index]),
         }),
       );
     }
   }
 
   if (facets.instruction) {
-    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: step.instruction_file }));
+    sections.push(
+      buildMarkdownSection("instruction", facets.instruction, {
+        source: resolveOperationSourcePath(operation, step.instruction_file),
+      }),
+    );
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(...buildOutputContractSections(step, reportDir, facets.outputContracts));
+    sections.push(...buildOutputContractSections(operation, step, reportDir, facets.outputContracts));
   }
 
   if (facets.policies.length > 0) {
     for (let index = 0; index < facets.policies.length; index += 1) {
       sections.push(
         buildMarkdownSection("policy", facets.policies[index], {
-          source: step.policy_files?.[index],
+          source: resolveOperationSourcePath(operation, step.policy_files?.[index]),
         }),
       );
     }
@@ -86,32 +106,40 @@ export function buildActivationInstruction(input: {
   const sections: Array<string | null> = [buildStepSection(operation, operationState)];
 
   if (facets.job) {
-    sections.push(buildMarkdownSection("job", facets.job, { source: step.job_file }));
+    sections.push(
+      buildMarkdownSection("job", facets.job, {
+        source: resolveOperationSourcePath(operation, step.job_file),
+      }),
+    );
   }
 
   if (facets.knowledge.length > 0) {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
       sections.push(
         buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: step.knowledge_files?.[index],
+          source: resolveOperationSourcePath(operation, step.knowledge_files?.[index]),
         }),
       );
     }
   }
 
   if (facets.instruction) {
-    sections.push(buildMarkdownSection("instruction", facets.instruction, { source: step.instruction_file }));
+    sections.push(
+      buildMarkdownSection("instruction", facets.instruction, {
+        source: resolveOperationSourcePath(operation, step.instruction_file),
+      }),
+    );
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(...buildOutputContractSections(step, reportDir, facets.outputContracts));
+    sections.push(...buildOutputContractSections(operation, step, reportDir, facets.outputContracts));
   }
 
   if (facets.policies.length > 0) {
     for (let index = 0; index < facets.policies.length; index += 1) {
       sections.push(
         buildMarkdownSection("policy", facets.policies[index], {
-          source: step.policy_files?.[index],
+          source: resolveOperationSourcePath(operation, step.policy_files?.[index]),
         }),
       );
     }
@@ -160,6 +188,7 @@ function buildStepSection(operation: OperationDefinition, state: OperationState)
 }
 
 function buildOutputContractSections(
+  operation: OperationDefinition,
   step: StepDefinition,
   reportDir: string,
   contracts: string[],
@@ -171,7 +200,7 @@ function buildOutputContractSections(
       const report = step.output_contracts.report[index];
       sections.push(
         buildMarkdownSection("output-contract", contracts[index] ?? "", {
-          source: report.format_file,
+          source: resolveOperationSourcePath(operation, report.format_file),
           name: report.name,
           "output-path": `${reportDir}/${report.name}`,
         }),

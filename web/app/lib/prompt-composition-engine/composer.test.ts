@@ -135,6 +135,13 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts).toHaveLength(1);
     expect(composed.payloadParts[0]?.text).toContain("<operation-prompt");
     expect(composed.payloadParts[0]?.text).toContain("<user-request");
+    expect(composed.payloadParts[0]?.text).toContain(
+      `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
+    );
+    expect(composed.payloadParts[0]?.text).toContain(
+      `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
+    );
+    expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
     expect(composed.payloadParts[0]?.text).not.toContain("[NOCTIS_ROUTED_MESSAGE]");
   });
 
@@ -160,6 +167,13 @@ describe("prompt composition engine", () => {
     expect(composed.workflowExtension).toContain("<job");
     expect(composed.effectivePrompt).toContain("<task");
     expect(composed.sharedContext).toContain("<workspace-context");
+    expect(composed.payloadParts[0]?.text).toContain(
+      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/openspec-workflow.md"`,
+    );
+    expect(composed.payloadParts[0]?.text).toContain(
+      `source="${getProjectRoot()}/builtins/ja/facets/policies/coding-standards.md"`,
+    );
+    expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
     expect(composed.payloadParts).toHaveLength(1);
   });
 
