@@ -13,8 +13,6 @@ steps:
     agent: noctis
     job_file: ../facets/jobs/planner.md
     instruction_file: ../facets/instructions/openspec-planning.md
-    knowledge_files:
-      - ../facets/knowledge/openspec-workflow.md
     pass_previous_response: false
     rules:
       - condition: Open Spec artifact has been generated and approved
