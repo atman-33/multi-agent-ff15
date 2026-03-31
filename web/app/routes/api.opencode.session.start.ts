@@ -1,9 +1,9 @@
 import type { ActionFunctionArgs } from "react-router";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import type { PromptPart } from "@/lib/prompt-parts";
-import { buildPromptPayloadParts, stringifyPromptParts } from "@/lib/prompt-parts";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { stringifyPromptParts } from "@/lib/prompt-parts";
 
 type StartSessionPayload = {
   parts?: unknown;
@@ -67,17 +67,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
     }
 
-    const injectedContext = buildInjectedPromptContext({
-      missionId: typeof body?.missionId === "string" ? body.missionId : undefined,
-      sessionId,
-      agent: body?.agent,
-      appRoot: projectRoot,
+    const composed = composeGenericSessionPrompt({
+      context: {
+        missionId: typeof body?.missionId === "string" ? body.missionId : undefined,
+        sessionId,
+        agent: body?.agent,
+        appRoot: projectRoot,
+      },
+      parts,
     });
 
     const promptResult = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: buildPromptPayloadParts(injectedContext, parts),
+        parts: composed.payloadParts,
         model: body?.model,
         agent: body?.agent,
       },

@@ -6,10 +6,8 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { processCrystalMessage } from "@/lib/operation-engine/engine";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
+import { composeCrystalToNoctisPrompt } from "@/lib/prompt-composition-engine";
+import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import type { ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.continue";
 
@@ -61,17 +59,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   const missionId = body.missionId.trim();
-  const routedPromptParts: PromptPart[] = [
-    {
-      type: "text",
-      text: buildRoutedMessageEnvelope({
-        speaker: "crystal",
-        to: "noctis",
-        messageType: "chat",
-        body: stringifyPromptParts(promptParts),
-      }),
-    },
-  ];
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
   const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
   const executionMode = getNoctisExecutionMode(allowedWorkers);
@@ -87,17 +74,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const appRoot = getProjectRoot();
-    const injectedContext = buildInjectedPromptContext({
-      missionId,
-      sessionId: mission.noctisSessionId,
-      agent: noctisAgentProfile,
-      allowedWorkers,
-      appRoot,
-      executionMode,
-    });
 
-    // Hook 1: Operation Engine – continue flow
-    // Retrieve last Noctis response for self-movement [STEP:N] detection
     let lastNoctisResponse: string | undefined;
     try {
       const msgs = await client.session.messages({
@@ -120,24 +97,26 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     const crystalMessage = stringifyPromptParts(promptParts);
-    const hookResult = processCrystalMessage(
-      {
+    const composed = composeCrystalToNoctisPrompt({
+      context: {
         missionId,
         sessionId: mission.noctisSessionId,
-        message: crystalMessage,
-        isNewMission: false,
+        agent: noctisAgentProfile,
+        allowedWorkers,
+        appRoot,
+        executionMode,
       },
+      crystalMessage,
+      missionId,
+      sessionId: mission.noctisSessionId,
+      isNewMission: false,
       lastNoctisResponse,
-    );
-
-    const finalParts: PromptPart[] = hookResult.additionalContext
-      ? [{ type: "text", text: hookResult.additionalContext }, ...routedPromptParts]
-      : routedPromptParts;
+    });
 
     const result = await client.session.promptAsync({
       path: { id: mission.noctisSessionId },
       body: {
-        parts: buildPromptPayloadParts(injectedContext, finalParts),
+        parts: composed.payloadParts,
         agent: noctisAgentProfile,
         ...(effectiveModel ? { model: effectiveModel } : {}),
       },

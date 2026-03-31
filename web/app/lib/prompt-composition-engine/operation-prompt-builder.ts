@@ -1,10 +1,6 @@
 import { basename } from "node:path";
+import type { MovementDefinition, OperationDefinition, ResolvedFacets } from "@/lib/operation-definition/types";
 import type { OperationState } from "@/lib/types/mission";
-import type {
-  MovementDefinition,
-  OperationDefinition,
-  ResolvedFacets,
-} from "./types";
 
 export function describeMovementRole(jobFilePath: string): string {
   if (!jobFilePath.trim()) {
@@ -14,11 +10,6 @@ export function describeMovementRole(jobFilePath: string): string {
   return basename(jobFilePath).replace(/\.md$/i, "");
 }
 
-/**
- * Build a composed instruction from resolved facets for a Worker movement.
- * Follows takt's InstructionBuilder pattern with "Lost in the Middle" policy
- * injection (policy summary near top, full policy near bottom).
- */
 export function buildAugmentedInstruction(input: {
   movement: MovementDefinition;
   operation: OperationDefinition;
@@ -32,49 +23,37 @@ export function buildAugmentedInstruction(input: {
     input;
   const sections: string[] = [];
 
-  // [1] Job — role definition
   if (facets.job) {
     sections.push(`## Job\n\n${facets.job}`);
   }
 
-  // [2] Policy Summary — top reminder ("Lost in the Middle" mitigation)
   if (facets.policies.length > 0) {
     sections.push(`## Policy Summary\n\n${buildPolicySummary(facets.policies)}`);
   }
 
-  // [3] Operation Context
   sections.push(buildOperationContextSection(operation, operationState));
-
-  // [4] Task — Noctis's original instruction
   sections.push(`## Task\n\n${originalInstruction}`);
 
-  // [5] Previous Response
   if (movement.pass_previous_response && previousResponse) {
     sections.push(`## Previous Movement Output\n\n${previousResponse}`);
   }
 
-  // [6] Knowledge
   if (facets.knowledge.length > 0) {
     sections.push(`## Knowledge\n\n${facets.knowledge.join("\n\n---\n\n")}`);
   }
 
-  // [7] Instruction
   if (facets.instruction) {
     sections.push(`## Instruction\n\n${facets.instruction}`);
   }
 
-  // [8] Output Contract
   if (facets.outputContracts.length > 0) {
-    const contractLines = buildOutputContractSection(movement, reportDir, facets.outputContracts);
-    sections.push(contractLines);
+    sections.push(buildOutputContractSection(movement, reportDir, facets.outputContracts));
   }
 
-  // [9] Policy (full) — bottom
   if (facets.policies.length > 0) {
     sections.push(`## Policy\n\n${facets.policies.join("\n\n---\n\n")}`);
   }
 
-  // [10] Status Output Rules
   if (movement.rules.length > 0) {
     sections.push(buildStatusOutputRules(movement));
   }
@@ -82,9 +61,6 @@ export function buildAugmentedInstruction(input: {
   return sections.join("\n\n---\n\n");
 }
 
-/**
- * Build an activation instruction for a Noctis self-movement (Hook 1).
- */
 export function buildActivationInstruction(input: {
   operation: OperationDefinition;
   movement: MovementDefinition;
@@ -134,22 +110,13 @@ export function buildActivationInstruction(input: {
   return sections.join("\n\n---\n\n");
 }
 
-/**
- * Build an operation context summary that can be injected into Crystal→Noctis messages.
- */
 export function buildOperationContextSummary(
   operation: OperationDefinition,
   operationState: OperationState,
 ): string {
-  const lastCompleted = operationState.movementHistory
-    .filter((h) => h.status === "completed")
-    .at(-1);
-
-  const currentMovement = operation.movements.find(
-    (m) => m.name === operationState.currentMovement,
-  );
-  const movementIndex =
-    operation.movements.findIndex((m) => m.name === operationState.currentMovement) + 1;
+  const lastCompleted = operationState.movementHistory.filter((entry) => entry.status === "completed").at(-1);
+  const currentMovement = operation.movements.find((movement) => movement.name === operationState.currentMovement);
+  const movementIndex = operation.movements.findIndex((movement) => movement.name === operationState.currentMovement) + 1;
   const totalMovements = operation.movements.length;
 
   const lines = [
@@ -160,9 +127,7 @@ export function buildOperationContextSummary(
   ];
 
   if (lastCompleted) {
-    lines.push(
-      `last_completed: ${lastCompleted.movement} → "${lastCompleted.ruleCondition ?? "completed"}"`,
-    );
+    lines.push(`last_completed: ${lastCompleted.movement} → "${lastCompleted.ruleCondition ?? "completed"}"`);
   }
 
   if (currentMovement && currentMovement.agent !== "noctis") {
@@ -172,27 +137,19 @@ export function buildOperationContextSummary(
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// Internal section builders
-// ---------------------------------------------------------------------------
-
-function buildOperationContextSection(
-  operation: OperationDefinition,
-  state: OperationState,
-): string {
-  const movementIndex = operation.movements.findIndex((m) => m.name === state.currentMovement) + 1;
+function buildOperationContextSection(operation: OperationDefinition, state: OperationState): string {
+  const movementIndex = operation.movements.findIndex((movement) => movement.name === state.currentMovement) + 1;
   const total = operation.movements.length;
 
-  const flowLines = operation.movements.map((m, i) => {
-    const num = i + 1;
+  const flowLines = operation.movements.map((movement, index) => {
+    const number = index + 1;
     const isCompleted = state.movementHistory.some(
-      (h) => h.movement === m.name && h.status === "completed",
+      (entry) => entry.movement === movement.name && entry.status === "completed",
     );
-    const isCurrent = m.name === state.currentMovement;
-
+    const isCurrent = movement.name === state.currentMovement;
     const prefix = isCompleted ? "✅" : isCurrent ? "→" : "○";
     const suffix = isCurrent ? " — YOU ARE HERE" : "";
-    return `  ${num}. ${prefix} ${m.name} (${m.agent})${suffix}`;
+    return `  ${number}. ${prefix} ${movement.name} (${movement.agent})${suffix}`;
   });
 
   return [
@@ -208,7 +165,6 @@ function buildOperationContextSection(
 }
 
 function buildPolicySummary(policies: string[]): string {
-  // Extract REJECT lines from policies for the top-level summary
   const rejectLines: string[] = [];
   for (const policy of policies) {
     for (const line of policy.split("\n")) {
@@ -217,9 +173,8 @@ function buildPolicySummary(policies: string[]): string {
       }
     }
   }
-  return rejectLines.length > 0
-    ? rejectLines.join("\n")
-    : "(See full policy section below)";
+
+  return rejectLines.length > 0 ? rejectLines.join("\n") : "(See full policy section below)";
 }
 
 function buildOutputContractSection(
@@ -230,12 +185,12 @@ function buildOutputContractSection(
   const lines = ["## Output Contract", ""];
 
   if (movement.output_contracts?.report) {
-    for (let i = 0; i < movement.output_contracts.report.length; i++) {
-      const report = movement.output_contracts.report[i];
+    for (let index = 0; index < movement.output_contracts.report.length; index += 1) {
+      const report = movement.output_contracts.report[index];
       lines.push(`**File**: ${report.name}`);
       lines.push(`**Output path**: ${reportDir}/${report.name}`);
-      if (contracts[i]) {
-        lines.push(`**Format**:\n\n${contracts[i]}`);
+      if (contracts[index]) {
+        lines.push(`**Format**:\n\n${contracts[index]}`);
       }
       lines.push("");
     }
@@ -252,8 +207,8 @@ function buildStatusOutputRules(movement: MovementDefinition): string {
     "",
   ];
 
-  for (let i = 0; i < movement.rules.length; i++) {
-    lines.push(`- [STEP:${i}] — ${movement.rules[i].condition}`);
+  for (let index = 0; index < movement.rules.length; index += 1) {
+    lines.push(`- [STEP:${index}] — ${movement.rules[index].condition}`);
   }
 
   lines.push("");

@@ -1,14 +1,14 @@
-import { readAppConfig } from "@/lib/app-config.server";
-import { getProjectRoot } from "@/lib/get-project-root.server";
-import { checkAgentDeviation } from "./deviation-tracker";
-import { resolveMovementFacets } from "./facet-loader";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { resolveMovementFacets } from "@/lib/operation-definition/facet-loader";
+import { listAvailableOperations, loadOperationByName } from "@/lib/operation-definition/operation-loader";
+import type { OperationDefinition } from "@/lib/operation-definition/types";
 import {
   buildActivationInstruction,
   buildAugmentedInstruction,
   buildOperationContextSummary,
   describeMovementRole,
-} from "./instruction-builder";
-import { listAvailableOperations, loadOperationByName } from "./operation-loader";
+} from "@/lib/prompt-composition-engine/operation-prompt-builder";
+import { checkAgentDeviation } from "./deviation-tracker";
 import { evaluateRules } from "./rule-evaluator";
 import {
   createOperationState,
@@ -19,7 +19,6 @@ import {
 } from "./state";
 import type {
   AugmentTaskPromptInput,
-  OperationDefinition,
   OperationState,
   ProcessCrystalMessageInput,
   ProcessCrystalMessageResult,
@@ -28,29 +27,8 @@ import type {
   StateTransition,
 } from "./types";
 
-// ---------------------------------------------------------------------------
-// Language helper
-// ---------------------------------------------------------------------------
-
-function getLanguage(): string {
-  try {
-    const config = readAppConfig(getProjectRoot());
-    return config.language || "en";
-  } catch {
-    return "en";
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Operation name detection
-// ---------------------------------------------------------------------------
-
-/**
- * Detect a known operation name in the user's message.
- * Returns the operation name if found, null otherwise.
- */
 function detectOperationName(message: string): string | null {
-  const language = getLanguage();
+  const language = readOperationLanguage();
   const knownOperations = listAvailableOperations(language);
   for (const name of knownOperations) {
     if (message.includes(name)) {
@@ -60,37 +38,22 @@ function detectOperationName(message: string): string | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Hook 1: Crystal → Noctis
-// ---------------------------------------------------------------------------
-
-/**
- * Process a Crystal→Noctis message.
- * Handles:
- *  (A) Operation activation when an operation name is detected
- *  (B) Noctis self-movement [STEP:N] detection on continue
- *  (C) Operation context injection when operation is active
- */
 export function processCrystalMessage(
   input: ProcessCrystalMessageInput,
   lastNoctisResponse?: string,
 ): ProcessCrystalMessageResult {
   const { missionId, message, isNewMission } = input;
-  const language = getLanguage();
-
-  // --- (A) Operation activation ---
+  const language = readOperationLanguage();
   const existingState = getOperationState(missionId);
 
   if (!existingState) {
-    const operationName =
-      Object.hasOwn(input, "selectedOperation")
-        ? input.selectedOperation?.trim() || null
-        : detectOperationName(message);
+    const operationName = Object.hasOwn(input, "selectedOperation")
+      ? input.selectedOperation?.trim() || null
+      : detectOperationName(message);
     if (!operationName) {
       return { additionalContext: null };
     }
 
-    // Activate the operation
     const operation = loadOperationByName(operationName, language);
     const state = createOperationState(
       operationName,
@@ -100,7 +63,7 @@ export function processCrystalMessage(
     saveOperationState(missionId, state);
 
     const initialMovement = operation.movements.find(
-      (m) => m.name === operation.initial_movement,
+      (movement) => movement.name === operation.initial_movement,
     );
     if (!initialMovement) {
       return { additionalContext: null, operationActivated: operationName };
@@ -115,7 +78,6 @@ export function processCrystalMessage(
       reportDir: state.reportDir,
     });
 
-    // Record initial movement as dispatched (self-movement)
     recordMovementDispatched(state, initialMovement.name, initialMovement.agent);
     saveOperationState(missionId, state);
 
@@ -125,13 +87,10 @@ export function processCrystalMessage(
     };
   }
 
-  // Operation is active
   const operation = loadOperationByName(existingState.operationName, language);
-
-  // --- (B) Noctis self-movement [STEP:N] detection ---
   if (!isNewMission && lastNoctisResponse) {
     const currentMovement = operation.movements.find(
-      (m) => m.name === existingState.currentMovement,
+      (movement) => movement.name === existingState.currentMovement,
     );
 
     if (currentMovement?.agent === "noctis" && currentMovement.rules.length > 0) {
@@ -147,21 +106,17 @@ export function processCrystalMessage(
         recordMovementCompleted(existingState, transition, lastNoctisResponse.slice(0, 500));
         saveOperationState(missionId, existingState);
 
-        // If the next movement is terminal, report that
         if (ruleMatch.next === "COMPLETE" || ruleMatch.next === "ABORT") {
-          const terminalGuidance = buildTerminalGuidance(operation, existingState, ruleMatch.next);
           return {
-            additionalContext: terminalGuidance,
+            additionalContext: buildTerminalGuidance(operation, existingState, ruleMatch.next),
             stateTransition: transition,
           };
         }
 
-        // Inject context for the next movement
-        const nextMovement = operation.movements.find((m) => m.name === ruleMatch.next);
+        const nextMovement = operation.movements.find((movement) => movement.name === ruleMatch.next);
         if (nextMovement) {
-          const guidance = buildTransitionGuidance(operation, existingState, transition);
           return {
-            additionalContext: guidance,
+            additionalContext: buildTransitionGuidance(operation, existingState, transition),
             stateTransition: transition,
           };
         }
@@ -169,21 +124,12 @@ export function processCrystalMessage(
     }
   }
 
-  // --- (C) Context injection for active operation ---
-  const contextSummary = buildOperationContextSummary(operation, existingState);
-  return { additionalContext: contextSummary };
+  return { additionalContext: buildOperationContextSummary(operation, existingState) };
 }
 
-// ---------------------------------------------------------------------------
-// Hook 2: Noctis → Worker (task dispatch)
-// ---------------------------------------------------------------------------
-
-/**
- * Augment a task prompt with operation-aware facets for a Worker.
- */
 export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
   const { operationState, originalPrompt, agentId, missionId } = input;
-  const language = getLanguage();
+  const language = readOperationLanguage();
 
   if (operationState.status !== "running" && operationState.status !== "waiting_for_report") {
     return originalPrompt;
@@ -191,14 +137,12 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
 
   const operation = loadOperationByName(operationState.operationName, language);
   const currentMovement = operation.movements.find(
-    (m) => m.name === operationState.currentMovement,
+    (movement) => movement.name === operationState.currentMovement,
   );
-
   if (!currentMovement) {
     return originalPrompt;
   }
 
-  // Check for agent deviation
   const deviationNote = checkAgentDeviation(operationState, currentMovement.agent, agentId);
   if (deviationNote) {
     saveOperationState(missionId, operationState);
@@ -215,7 +159,6 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     reportDir: operationState.reportDir,
   });
 
-  // Record this movement as dispatched
   recordMovementDispatched(operationState, currentMovement.name, agentId);
   saveOperationState(missionId, operationState);
 
@@ -226,30 +169,18 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
   return augmented;
 }
 
-// ---------------------------------------------------------------------------
-// Hook 3: Worker → Noctis (report receipt)
-// ---------------------------------------------------------------------------
-
-/**
- * Process a worker report and determine the next movement.
- */
 export function processReport(input: ProcessReportInput): ProcessReportResult {
   const { operationState, reportBody, reportDetails } = input;
-  const language = getLanguage();
-
+  const language = readOperationLanguage();
   const operation = loadOperationByName(operationState.operationName, language);
   const currentMovement = operation.movements.find(
-    (m) => m.name === operationState.currentMovement,
+    (movement) => movement.name === operationState.currentMovement,
   );
 
   if (!currentMovement || currentMovement.rules.length === 0) {
-    return {
-      noctisGuidance: "",
-      stateTransition: null,
-    };
+    return { noctisGuidance: "", stateTransition: null };
   }
 
-  // Combine body + details for tag extraction
   const fullReport = reportDetails ? `${reportBody}\n\n${reportDetails}` : reportBody;
   const ruleMatch = evaluateRules(fullReport, currentMovement.rules);
 
@@ -269,10 +200,8 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
     ruleCondition: ruleMatch.condition,
   };
 
-  // Apply transition
   recordMovementCompleted(operationState, transition, reportBody.slice(0, 500));
 
-  // Build guidance for Noctis
   if (ruleMatch.next === "COMPLETE" || ruleMatch.next === "ABORT") {
     return {
       noctisGuidance: buildTerminalGuidance(operation, operationState, ruleMatch.next),
@@ -286,20 +215,13 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Guidance builders
-// ---------------------------------------------------------------------------
-
 function buildTransitionGuidance(
   operation: OperationDefinition,
   state: OperationState,
   transition: StateTransition,
 ): string {
-  const nextMovement = operation.movements.find(
-    (m) => m.name === transition.nextMovement,
-  );
-
-  const completedCount = state.movementHistory.filter((h) => h.status === "completed").length;
+  const nextMovement = operation.movements.find((movement) => movement.name === transition.nextMovement);
+  const completedCount = state.movementHistory.filter((entry) => entry.status === "completed").length;
   const total = operation.movements.length;
 
   const lines = [
@@ -324,9 +246,7 @@ function buildTransitionGuidance(
     if (nextMovement.agent === "noctis") {
       lines.push(`  Begin the "${nextMovement.name}" movement yourself.`);
     } else {
-      lines.push(
-        `  Dispatch a task to ${nextMovement.agent} for the "${nextMovement.name}" movement.`,
-      );
+      lines.push(`  Dispatch a task to ${nextMovement.agent} for the "${nextMovement.name}" movement.`);
     }
   }
 
@@ -339,10 +259,10 @@ function buildTerminalGuidance(
   terminal: "COMPLETE" | "ABORT",
 ): string {
   const historyLines = state.movementHistory
-    .filter((h) => h.status === "completed")
+    .filter((entry) => entry.status === "completed")
     .map(
-      (h, i) =>
-        `  ${i + 1}. ${h.movement} (${h.agent}) → "${h.ruleCondition ?? "completed"}" → ${h.nextMovement ?? "?"}`,
+      (entry, index) =>
+        `  ${index + 1}. ${entry.movement} (${entry.agent}) → "${entry.ruleCondition ?? "completed"}" → ${entry.nextMovement ?? "?"}`,
     );
 
   const lines = [

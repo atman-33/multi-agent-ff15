@@ -1,4 +1,4 @@
-import type { RuleDefinition } from "./types";
+import type { RuleDefinition } from "@/lib/operation-definition/types";
 
 export interface RuleMatch {
   matchedIndex: number;
@@ -8,15 +8,10 @@ export interface RuleMatch {
 
 const STEP_TAG_REGEX = /\[STEP:(\d+)\]/g;
 
-/**
- * Extract [STEP:N] tags from content and match against the movement's rules.
- * Uses the **last** match when multiple tags appear (takt convention).
- */
-export function evaluateRules(
-  reportContent: string,
-  rules: RuleDefinition[],
-): RuleMatch | null {
-  if (rules.length === 0) return null;
+export function evaluateRules(reportContent: string, rules: RuleDefinition[]): RuleMatch | null {
+  if (rules.length === 0) {
+    return null;
+  }
 
   let lastMatch: RegExpExecArray | null = null;
   let match: RegExpExecArray | null;
@@ -25,10 +20,14 @@ export function evaluateRules(
     lastMatch = match;
   }
 
-  if (!lastMatch) return null;
+  if (!lastMatch) {
+    return null;
+  }
 
   const index = Number.parseInt(lastMatch[1], 10);
-  if (index < 0 || index >= rules.length) return null;
+  if (index < 0 || index >= rules.length) {
+    return null;
+  }
 
   const rule = rules[index];
   return {

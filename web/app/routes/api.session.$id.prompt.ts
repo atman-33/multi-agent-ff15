@@ -1,7 +1,7 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { buildPromptPayloadParts, type PromptPart } from "@/lib/prompt-parts";
+import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
+import { type PromptPart } from "@/lib/prompt-parts";
 import type { Route } from "./+types/api.session.$id.prompt";
 
 type PromptPayload = {
@@ -27,18 +27,20 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
   try {
     const client = getOpencodeClient();
-    const injectedContext = buildInjectedPromptContext({
-      missionId: typeof body.missionId === "string" ? body.missionId : undefined,
-      sessionId,
-      agent: body.agent,
-      appRoot: getProjectRoot(),
+    const composed = composeGenericSessionPrompt({
+      context: {
+        missionId: typeof body.missionId === "string" ? body.missionId : undefined,
+        sessionId,
+        agent: body.agent,
+        appRoot: getProjectRoot(),
+      },
+      parts: body.parts,
     });
-    const payloadParts = buildPromptPayloadParts(injectedContext, body.parts);
 
     const result = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: payloadParts,
+        parts: composed.payloadParts,
         model: body.model,
         agent: body.agent,
       },

@@ -4,15 +4,12 @@ import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type { MovementDefinition, OperationDefinition, RuleDefinition } from "./types";
 
-/**
- * Parse a raw YAML movement entry into a MovementDefinition.
- */
 function normalizeMovement(raw: Record<string, unknown>): MovementDefinition {
   const rules = Array.isArray(raw.rules)
     ? (raw.rules as Record<string, unknown>[]).map(
-        (r): RuleDefinition => ({
-          condition: String(r.condition ?? ""),
-          next: String(r.next ?? ""),
+        (rule): RuleDefinition => ({
+          condition: String(rule.condition ?? ""),
+          next: String(rule.next ?? ""),
         }),
       )
     : [];
@@ -34,29 +31,28 @@ function normalizeMovement(raw: Record<string, unknown>): MovementDefinition {
       : undefined,
     edit: raw.edit === true,
     pass_previous_response: raw.pass_previous_response !== false,
-    output_contracts: outputContracts?.report
-      ? { report: outputContracts.report }
-      : undefined,
+    output_contracts: outputContracts?.report ? { report: outputContracts.report } : undefined,
     rules,
   };
 }
 
 function toStringRecord(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object") return {};
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
   const result: Record<string, string> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    result[k] = String(v ?? "");
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    result[key] = String(item ?? "");
   }
   return result;
 }
 
-/**
- * Load and parse an operation YAML file from an absolute path.
- */
 export function loadOperationFromFile(absolutePath: string): OperationDefinition {
   if (!existsSync(absolutePath)) {
     throw new Error(`Operation file not found: ${absolutePath}`);
   }
+
   const content = readFileSync(absolutePath, "utf-8");
   const raw = parseYaml(content) as Record<string, unknown>;
 
@@ -79,48 +75,36 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
   };
 }
 
-/**
- * Resolve an operation by name using 2-layer resolution:
- *   1. builtins/{lang}/operations/{name}.yaml
- *   2. builtins/en/operations/{name}.yaml  (fallback for non-en languages)
- */
-export function loadOperationByName(
-  operationName: string,
-  language: string,
-): OperationDefinition {
+export function loadOperationByName(operationName: string, language: string): OperationDefinition {
   const root = getProjectRoot();
-
-  // Layer 1: language-specific builtins
-  const langPath = join(root, "builtins", language, "operations", `${operationName}.yaml`);
-  if (existsSync(langPath)) {
-    return loadOperationFromFile(langPath);
+  const languagePath = join(root, "builtins", language, "operations", `${operationName}.yaml`);
+  if (existsSync(languagePath)) {
+    return loadOperationFromFile(languagePath);
   }
 
-  // Layer 2: fallback to English builtins
   if (language !== "en") {
-    const enPath = join(root, "builtins", "en", "operations", `${operationName}.yaml`);
-    if (existsSync(enPath)) {
-      return loadOperationFromFile(enPath);
+    const fallbackPath = join(root, "builtins", "en", "operations", `${operationName}.yaml`);
+    if (existsSync(fallbackPath)) {
+      return loadOperationFromFile(fallbackPath);
     }
   }
 
   throw new Error(`Operation not found: ${operationName}`);
 }
 
-/**
- * List all available operation names from builtins.
- */
 export function listAvailableOperations(language: string): string[] {
   const root = getProjectRoot();
   const names = new Set<string>();
 
-  for (const lang of [language, "en"]) {
-    const dir = join(root, "builtins", lang, "operations");
-    if (existsSync(dir)) {
-      for (const file of readdirSync(dir)) {
-        if (file.endsWith(".yaml") || file.endsWith(".yml")) {
-          names.add(basename(file).replace(/\.ya?ml$/, ""));
-        }
+  for (const currentLanguage of [language, "en"]) {
+    const directory = join(root, "builtins", currentLanguage, "operations");
+    if (!existsSync(directory)) {
+      continue;
+    }
+
+    for (const file of readdirSync(directory)) {
+      if (file.endsWith(".yaml") || file.endsWith(".yml")) {
+        names.add(basename(file).replace(/\.ya?ml$/, ""));
       }
     }
   }
@@ -128,13 +112,6 @@ export function listAvailableOperations(language: string): string[] {
   return [...names];
 }
 
-/**
- * Resolve a relative facet path from the operation YAML's section map
- * to an absolute path based on the operation YAML's directory.
- */
-export function resolveOperationFacetPath(
-  operationFilePath: string,
-  relativePath: string,
-): string {
+export function resolveOperationFacetPath(operationFilePath: string, relativePath: string): string {
   return resolve(dirname(operationFilePath), relativePath);
 }

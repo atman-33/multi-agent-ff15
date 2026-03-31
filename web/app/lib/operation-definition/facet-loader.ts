@@ -17,9 +17,6 @@ function loadFacetFile(operation: OperationDefinition, relativePath: string | un
   return readFileSync(absolutePath, "utf-8");
 }
 
-/**
- * Resolve all facets referenced by a movement within an operation definition.
- */
 export function resolveMovementFacets(
   operation: OperationDefinition,
   movement: MovementDefinition,
@@ -31,7 +28,10 @@ export function resolveMovementFacets(
   const knowledge = (movement.knowledge_files ?? [])
     .map((path) => {
       const content = loadFacetFile(operation, path);
-      if (!content) return null;
+      if (!content) {
+        return null;
+      }
+
       return content.length > MAX_KNOWLEDGE_LENGTH
         ? `${content.slice(0, MAX_KNOWLEDGE_LENGTH)}\n\n[... truncated ...]`
         : content;

@@ -1,18 +1,20 @@
-import { readAppConfig } from "@/lib/app-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { buildRoutedMessageEnvelope, buildTeamMessageEnvelope } from "@/lib/team-message-format";
-import type { AgentId, MovementHistoryEntry, ReportStatus, WorkerAgentId } from "@/lib/types/mission";
-import { processReport } from "./engine";
-import { resolveMovementFacets } from "./facet-loader";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { resolveMovementFacets } from "@/lib/operation-definition/facet-loader";
+import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
+import type { MovementDefinition, OperationDefinition, ResolvedFacets } from "@/lib/operation-definition/types";
+import {
+  composePromptPreview,
+  composeTeamMessagePrompt,
+  composeWorkerTaskPrompt,
+} from "@/lib/prompt-composition-engine";
 import {
   buildActivationInstruction,
-  buildAugmentedInstruction,
   buildOperationContextSummary,
-} from "./instruction-builder";
-import { loadOperationByName } from "./operation-loader";
-import { createOperationState } from "./state";
-import type { MovementDefinition, OperationDefinition, ResolvedFacets } from "./types";
+} from "@/lib/prompt-composition-engine/operation-prompt-builder";
+import { buildRoutedMessageEnvelope, buildTeamMessageEnvelope } from "@/lib/team-message-format";
+import type { AgentId, MovementHistoryEntry, ReportStatus, WorkerAgentId } from "@/lib/types/mission";
+import { createOperationState } from "@/lib/operation-runtime/state";
 
 export type PreviewNodeId = "hook1" | "hook2" | "hook3";
 export type FlowStepKind = "self" | "dispatch" | "report";
@@ -43,15 +45,6 @@ export interface OperationDebugBundle {
   flowSteps: FlowStepPreview[];
   operation: OperationDefinition;
   reportDir: string;
-}
-
-function getLanguage(): string {
-  try {
-    const config = readAppConfig(getProjectRoot());
-    return config.language || "en";
-  } catch {
-    return "en";
-  }
 }
 
 function toWorkerAgent(agent: string): WorkerAgentId {
@@ -107,8 +100,7 @@ export function buildOperationDebugBundle(input: {
   taskInstruction?: string;
 }): OperationDebugBundle {
   const root = getProjectRoot();
-  const language = getLanguage();
-  const operation = loadOperationByName(input.operationName, language);
+  const operation = loadOperationByName(input.operationName, readOperationLanguage());
 
   const reportStatus = input.reportStatus ?? "completed";
   const crystalMessageBase =
@@ -123,34 +115,36 @@ export function buildOperationDebugBundle(input: {
 
   for (let index = 0; index < operation.movements.length; index += 1) {
     const movement = operation.movements[index];
-    const previousResponse =
-      previousResponseBase || `Synthetic previous movement output for ${movement.name}`;
+    const previousResponse = previousResponseBase || `Synthetic previous movement output for ${movement.name}`;
     const movementState = buildStateForMovement(operation, movement, previousResponse);
     const operationContextSummary = buildOperationContextSummary(operation, movementState);
 
     if (movement.agent === "noctis") {
-      const facets = resolveMovementFacets(operation, movement, language);
+      const facets = resolveMovementFacets(operation, movement, readOperationLanguage());
       const routedCrystalMessage = buildRoutedMessageEnvelope({
         speaker: "crystal",
         to: "noctis",
         messageType: "chat",
         body: crystalMessageBase,
       });
-      const internalContext = buildInjectedPromptContext({
-        missionId: "debug-mission",
-        sessionId: "debug-noctis-session",
-        agent: "noctis",
-        allowedWorkers: ["ignis", "gladiolus", "prompto"],
-        appRoot: root,
-        executionMode: "operation-debug",
-      });
-
       const injectedPrompt = buildActivationInstruction({
         operation,
         movement,
         operationState: movementState,
         facets,
         reportDir: movementState.reportDir,
+      });
+      const composed = composePromptPreview({
+        context: {
+          missionId: "debug-mission",
+          sessionId: "debug-noctis-session",
+          agent: "noctis",
+          allowedWorkers: ["ignis", "gladiolus", "prompto"],
+          appRoot: root,
+          executionMode: "operation-debug",
+        },
+        promptBody: routedCrystalMessage,
+        workflowExtension: injectedPrompt,
       });
 
       flowSteps.push({
@@ -164,9 +158,9 @@ export function buildOperationDebugBundle(input: {
         to: "Noctis",
         summary: "Crystal message enters Hook 1 and context is injected for Noctis.",
         sourceInput: routedCrystalMessage,
-        internalContext,
+        internalContext: composed.sharedContext,
         injectedPrompt,
-        effectivePrompt: `${injectedPrompt}\n\n${routedCrystalMessage}`,
+        effectivePrompt: composed.effectivePrompt,
         operationContextSummary,
         normalizedMovement: movement,
         resolvedFacets: facets,
@@ -176,25 +170,21 @@ export function buildOperationDebugBundle(input: {
     }
 
     const workerAgent = toWorkerAgent(movement.agent);
-    const workerFacets = resolveMovementFacets(operation, movement, language);
-
-    const dispatchInternalContext = buildInjectedPromptContext({
+    const workerFacets = resolveMovementFacets(operation, movement, readOperationLanguage());
+    const dispatchPrompt =
+      input.taskInstruction?.trim() ||
+      `Synthetic task for ${workerAgent}: implement the current movement as Noctis instructed.`;
+    const dispatchComposed = composeWorkerTaskPrompt({
+      context: {
+        missionId: "debug-mission",
+        sessionId: `debug-${workerAgent}-session`,
+        agent: workerAgent,
+        appRoot: root,
+      },
       missionId: "debug-mission",
-      sessionId: `debug-${workerAgent}-session`,
-      agent: workerAgent,
-      appRoot: root,
-    });
-
-    const dispatchPrompt = buildAugmentedInstruction({
-      movement,
-      operation,
-      operationState: movementState,
-      originalInstruction:
-        input.taskInstruction?.trim() ||
-        `Synthetic task for ${workerAgent}: implement the current movement as Noctis instructed.`,
-      previousResponse: movementState.previousResponse,
-      facets: workerFacets,
-      reportDir: movementState.reportDir,
+      agentId: workerAgent,
+      originalPrompt: dispatchPrompt,
+      operationStateOverride: movementState,
     });
 
     flowSteps.push({
@@ -203,16 +193,14 @@ export function buildOperationDebugBundle(input: {
       movementIndex: index + 1,
       kind: "dispatch",
       hookId: "hook2",
-      title: `${movement.name} (dispatch)` ,
+      title: `${movement.name} (dispatch)`,
       from: "Noctis",
       to: workerAgent,
       summary: "Task dispatch enters Hook 2 and worker instruction is augmented.",
-      sourceInput:
-        input.taskInstruction?.trim() ||
-        `Synthetic task for ${workerAgent}: implement the current movement as Noctis instructed.`,
-      internalContext: dispatchInternalContext,
-      injectedPrompt: dispatchPrompt,
-      effectivePrompt: dispatchPrompt,
+      sourceInput: dispatchPrompt,
+      internalContext: dispatchComposed.sharedContext,
+      injectedPrompt: dispatchComposed.workflowExtension || "(no workflow extension generated)",
+      effectivePrompt: dispatchComposed.effectivePrompt,
       operationContextSummary,
       normalizedMovement: movement,
       resolvedFacets: workerFacets,
@@ -222,16 +210,6 @@ export function buildOperationDebugBundle(input: {
     const reportState = buildStateForMovement(operation, movement, previousResponse);
     const reportSummary = `${reportSummaryBase}\n\n[movement:${movement.name}]`;
     const reportDetails = reportDetailsBase;
-
-    const reportResult = processReport({
-      operationState: reportState,
-      reportBody: reportSummary,
-      reportDetails,
-      fromAgent: workerAgent,
-      taskId: `debug-task-${movement.name}`,
-      reportStatus,
-    });
-
     const reportEnvelope = buildTeamMessageEnvelope({
       from: workerAgent,
       to: "noctis",
@@ -241,20 +219,29 @@ export function buildOperationDebugBundle(input: {
       reportStatus,
       details: reportDetails,
     });
-
-    const reportInternalContext = buildInjectedPromptContext({
+    const reportComposed = composeTeamMessagePrompt({
+      context: {
+        missionId: "debug-mission",
+        sessionId: "debug-noctis-session",
+        agent: "noctis",
+        allowedWorkers: ["ignis", "gladiolus", "prompto"],
+        appRoot: root,
+        executionMode: "operation-debug",
+      },
       missionId: "debug-mission",
-      sessionId: "debug-noctis-session",
-      agent: "noctis",
-      allowedWorkers: ["ignis", "gladiolus", "prompto"],
-      appRoot: root,
-      executionMode: "operation-debug",
+      from: workerAgent,
+      to: "noctis",
+      type: "report",
+      body: reportSummary,
+      taskId: `debug-task-${movement.name}`,
+      reportStatus,
+      details: reportDetails,
+      operationStateOverride: reportState,
     });
 
-    const transitionText = reportResult.stateTransition
-      ? JSON.stringify(reportResult.stateTransition, null, 2)
+    const transitionText = reportComposed.stateTransition
+      ? JSON.stringify(reportComposed.stateTransition, null, 2)
       : "No transition detected";
-
     const ruleEvaluation = [
       `report_status: ${reportStatus}`,
       "",
@@ -268,24 +255,20 @@ export function buildOperationDebugBundle(input: {
       transitionText,
     ].join("\n");
 
-    const effectivePrompt = reportResult.noctisGuidance
-      ? `${reportEnvelope}\n\n${reportResult.noctisGuidance}`
-      : reportEnvelope;
-
     flowSteps.push({
       id: `${movement.name}:report`,
       movementName: movement.name,
       movementIndex: index + 1,
       kind: "report",
       hookId: "hook3",
-      title: `${movement.name} (report)` ,
+      title: `${movement.name} (report)`,
       from: workerAgent,
       to: "Noctis",
       summary: "Worker report enters Hook 3, rules are evaluated, guidance is appended.",
       sourceInput: reportEnvelope,
-      internalContext: reportInternalContext,
-      injectedPrompt: reportResult.noctisGuidance || "(no guidance generated)",
-      effectivePrompt,
+      internalContext: reportComposed.sharedContext,
+      injectedPrompt: reportComposed.workflowExtension || "(no guidance generated)",
+      effectivePrompt: reportComposed.effectivePrompt,
       ruleEvaluation,
       ruleTransition: transitionText,
       operationContextSummary,

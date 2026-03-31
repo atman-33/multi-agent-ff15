@@ -6,10 +6,9 @@ import {
   setWorkerSession,
 } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { processReport } from "@/lib/operation-engine/engine";
-import { getOperationState, saveOperationState } from "@/lib/operation-engine/state";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { buildTeamMessageEnvelope, getActivityActorLabel } from "@/lib/team-message-format";
+import { getOperationState } from "@/lib/operation-runtime/state";
+import { composeTeamMessagePrompt } from "@/lib/prompt-composition-engine";
+import { getActivityActorLabel } from "@/lib/team-message-format";
 import type {
   ActivityActorId,
   AgentId,
@@ -18,7 +17,6 @@ import type {
   ReportStatus,
   TeamMessage,
   TeamMessageType,
-  WorkerAgentId,
 } from "@/lib/types/mission";
 
 export interface SendTeamMessageInput {
@@ -147,15 +145,16 @@ async function deliverMissionMessage(
 
   const sessionId = await resolveTargetSession(input.missionId, input.toAgent);
   const projectRoot = getProjectRoot();
-  const injectedContext = buildInjectedPromptContext({
-    missionId: input.missionId,
-    sessionId,
-    agent: input.toAgent,
-    appRoot: projectRoot,
-  });
 
   const system = serializeMeta(message, input.activitySpeaker ?? input.fromAgent);
-  const promptBody = buildTeamMessageEnvelope({
+  const composed = composeTeamMessagePrompt({
+    context: {
+      missionId: input.missionId,
+      sessionId,
+      agent: input.toAgent,
+      appRoot: projectRoot,
+    },
+    missionId: input.missionId,
     from: input.activitySpeaker ?? input.fromAgent,
     to: input.toAgent,
     type: input.type,
@@ -164,41 +163,8 @@ async function deliverMissionMessage(
     reportStatus: input.reportStatus,
     artifacts: input.artifacts,
     details: input.details,
+    operationStateOverride: getOperationState(input.missionId),
   });
-
-  // Hook 3: Operation Engine – process worker report and append guidance
-  let operationGuidance = "";
-  if (input.type === "report" && input.toAgent === "noctis") {
-    const opState = getOperationState(input.missionId);
-    if (opState && (opState.status === "running" || opState.status === "waiting_for_report")) {
-      const workers: WorkerAgentId[] = ["ignis", "gladiolus", "prompto"];
-      const workerAgent = workers.includes(input.fromAgent as WorkerAgentId)
-        ? (input.fromAgent as WorkerAgentId)
-        : undefined;
-
-      if (workerAgent && input.taskId && input.reportStatus) {
-        const hookResult = processReport({
-          operationState: opState,
-          reportBody: input.body,
-          reportDetails: input.details,
-          fromAgent: workerAgent,
-          taskId: input.taskId,
-          reportStatus: input.reportStatus,
-        });
-
-        if (hookResult.noctisGuidance) {
-          operationGuidance = `\n\n${hookResult.noctisGuidance}`;
-        }
-
-        // Persist updated operation state
-        saveOperationState(input.missionId, opState);
-      }
-    }
-  }
-
-  const effectivePromptBody = operationGuidance
-    ? `${promptBody}${operationGuidance}`
-    : promptBody;
 
   const client = getOpencodeClient();
 
@@ -206,10 +172,7 @@ async function deliverMissionMessage(
     const _result = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [
-          { type: "text", text: injectedContext },
-          { type: "text", text: effectivePromptBody },
-        ],
+        parts: composed.payloadParts,
         agent: input.toAgent,
         system,
       },

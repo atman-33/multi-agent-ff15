@@ -15,9 +15,6 @@ function getWarningLevel(tracker: DeviationTracker): WarningLevel {
   return "alert";
 }
 
-/**
- * Record a deviation and return a warning note to append to guidance (or null).
- */
 export function recordDeviation(
   state: OperationState,
   type: DeviationType,
@@ -48,23 +45,19 @@ export function recordDeviation(
   }
 }
 
-/**
- * Check for agent mismatch and record if found.
- */
 export function checkAgentDeviation(
   state: OperationState,
   expectedAgent: string,
   actualAgent: string,
 ): string | null {
-  if (expectedAgent === actualAgent) return null;
+  if (expectedAgent === actualAgent) {
+    return null;
+  }
+
   return recordDeviation(state, "agent_mismatch", expectedAgent, actualAgent);
 }
 
-function formatDeviationMessage(
-  type: DeviationType,
-  expected: string,
-  actual: string,
-): string {
+function formatDeviationMessage(type: DeviationType, expected: string, actual: string): string {
   switch (type) {
     case "agent_mismatch":
       return `Expected agent "${expected}" but dispatched to "${actual}".`;

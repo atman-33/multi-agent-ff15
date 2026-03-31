@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveMovementFacets } from "./facet-loader";
 import { loadOperationByName } from "./operation-loader";
 
-describe("operation-engine path-based facet resolution", () => {
+describe("operation-definition path-based facet resolution", () => {
   it("loads movement facets from markdown files relative to the operation yaml", () => {
     const operation = loadOperationByName("openspec-dev", "ja");
     const planning = operation.movements.find((movement) => movement.name === "spec-planning");

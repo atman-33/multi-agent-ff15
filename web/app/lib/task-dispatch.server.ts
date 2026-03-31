@@ -8,9 +8,8 @@ import {
   updateTask,
 } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { augmentTaskPrompt } from "@/lib/operation-engine/engine";
-import { getOperationState } from "@/lib/operation-engine/state";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { getOperationState } from "@/lib/operation-runtime/state";
+import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
@@ -124,21 +123,10 @@ export async function dispatchTaskToWorker(input: {
     agentId: input.agentId,
   });
 
-  // Hook 2: Operation Engine – augment task prompt with facets
-  let effectivePrompt = taskPrompt;
-  const operationState = getOperationState(input.missionId);
-  if (operationState && (operationState.status === "running" || operationState.status === "waiting_for_report")) {
-    effectivePrompt = augmentTaskPrompt({
-      operationState,
-      originalPrompt: taskPrompt,
-      agentId: input.agentId,
-      missionId: input.missionId,
-    });
-  }
-
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
   const existingSessionId = mission.workerSessions[input.agentId];
+  const operationState = getOperationState(input.missionId);
 
   const appendLog = (sessionId: string, deliveryStatus: "sent" | "failed", error?: string) => {
     const entry: MissionMessageLogEntry = {
@@ -160,10 +148,22 @@ export async function dispatchTaskToWorker(input: {
   if (existingSessionId) {
     try {
       const workerModel = mission.agentModels[input.agentId];
+      const composed = composeWorkerTaskPrompt({
+        context: {
+          missionId: input.missionId,
+          sessionId: existingSessionId,
+          agent: input.agentId,
+          appRoot: projectRoot,
+        },
+        missionId: input.missionId,
+        agentId: input.agentId,
+        originalPrompt: taskPrompt,
+        operationStateOverride: operationState,
+      });
       const promptResult = await client.session.promptAsync({
         path: { id: existingSessionId },
         body: {
-          parts: [{ type: "text", text: effectivePrompt }],
+          parts: composed.payloadParts,
           agent: input.agentId,
           ...(workerModel ? { model: workerModel } : {}),
         },
@@ -205,21 +205,23 @@ export async function dispatchTaskToWorker(input: {
 
   setWorkerSession(input.missionId, input.agentId, sessionId);
 
-  const injectedContext = buildInjectedPromptContext({
-    missionId: input.missionId,
-    sessionId,
-    agent: input.agentId,
-    appRoot: projectRoot,
-  });
-
   try {
+    const composed = composeWorkerTaskPrompt({
+      context: {
+        missionId: input.missionId,
+        sessionId,
+        agent: input.agentId,
+        appRoot: projectRoot,
+      },
+      missionId: input.missionId,
+      agentId: input.agentId,
+      originalPrompt: taskPrompt,
+      operationStateOverride: operationState,
+    });
     const promptResult = await client.session.promptAsync({
       path: { id: sessionId },
       body: {
-        parts: [
-          { type: "text", text: injectedContext },
-          { type: "text", text: effectivePrompt },
-        ],
+        parts: composed.payloadParts,
         agent: input.agentId,
         system: ledger,
         ...(mission.agentModels[input.agentId]

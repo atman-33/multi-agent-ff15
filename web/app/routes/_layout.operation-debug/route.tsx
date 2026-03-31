@@ -14,10 +14,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { readAppConfig } from "@/lib/app-config.server";
-import { getProjectRoot } from "@/lib/get-project-root.server";
-import { buildOperationDebugBundle } from "@/lib/operation-engine/debug-preview.server";
-import { listAvailableOperations } from "@/lib/operation-engine/operation-loader";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { listAvailableOperations } from "@/lib/operation-definition/operation-loader";
+import { buildOperationDebugBundle } from "@/lib/prompt-composition-engine/debug-preview.server";
 import { cn } from "@/lib/utils";
 import { CopyablePromptBlock } from "./components/copyable-prompt-block";
 import type { Route } from "./+types/route";
@@ -35,11 +34,7 @@ type LoaderData = {
 };
 
 function getLanguage(): string {
-  try {
-    return readAppConfig(getProjectRoot()).language || "en";
-  } catch {
-    return "en";
-  }
+  return readOperationLanguage();
 }
 
 function PrettyCode({ className, value }: { className?: string; value: string }) {
