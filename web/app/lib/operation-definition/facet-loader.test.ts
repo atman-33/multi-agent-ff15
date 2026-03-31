@@ -20,7 +20,22 @@ describe("operation-definition path-based facet resolution", () => {
 
     expect(facets.job).toContain("Planner (仕様計画担当)");
     expect(facets.instruction).toContain("Spec Planning — 手順指示");
-    expect(facets.outputContracts[0]).toContain("Spec Plan — Output Contract");
+    expect(facets.outputContracts).toEqual([]);
+  });
+
+  it("loads output contracts only for steps that define them", () => {
+    const operation = loadOperationByName("openspec-dev", "ja");
+    const review = operation.steps.find((step) => step.name === "review");
+
+    expect(review).toBeTruthy();
+
+    if (!review) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, review, "ja");
+
+    expect(facets.outputContracts[0]).toContain("Code Review Report");
   });
 
   it("loads worker knowledge and policy files from operation-relative paths", () => {

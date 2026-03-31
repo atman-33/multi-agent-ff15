@@ -100,7 +100,6 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
     instructions: toStringRecord(raw.instructions),
     knowledge: toStringRecord(raw.knowledge),
     policies: toStringRecord(raw.policies),
-    output_contracts: toStringRecord(raw.output_contracts),
     steps,
   };
 }

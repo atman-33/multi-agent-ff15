@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("operation loader", () => {
-  it("loads the step-based schema", () => {
+  it("loads the step-based schema without requiring output contracts", () => {
     const filePath = writeTempOperation([
       "name: test-operation",
       "description: Test operation",
@@ -36,10 +36,6 @@ describe("operation loader", () => {
       "    agent: noctis",
       "    job_file: ./planner.md",
       "    instruction_file: ./plan.md",
-      "    output_contracts:",
-      "      report:",
-      "        - name: spec-plan.md",
-      "          format_file: ./contract.md",
       "    rules: []",
       "",
     ].join("\n"));
@@ -49,7 +45,30 @@ describe("operation loader", () => {
     expect(operation.initial_step).toBe("plan");
     expect(operation.steps).toHaveLength(1);
     expect(operation.steps[0]?.name).toBe("plan");
-    expect(operation.steps[0]?.output_contracts?.report[0]?.name).toBe("spec-plan.md");
+    expect(operation.steps[0]?.output_contracts).toBeUndefined();
+  });
+
+  it("loads step output contracts when they are defined", () => {
+    const filePath = writeTempOperation([
+      "name: test-operation",
+      "description: Test operation",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: ignis",
+      "    job_file: ./reviewer.md",
+      "    instruction_file: ./review.md",
+      "    output_contracts:",
+      "      report:",
+      "        - name: code-review.md",
+      "          format_file: ./contract.md",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    const operation = loadOperationFromFile(filePath);
+
+    expect(operation.steps[0]?.output_contracts?.report[0]?.name).toBe("code-review.md");
   });
 
   it("rejects removed legacy root fields", () => {

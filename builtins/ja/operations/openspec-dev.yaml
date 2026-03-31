@@ -13,13 +13,11 @@ steps:
     agent: noctis
     job_file: ../facets/jobs/planner.md
     instruction_file: ../facets/instructions/openspec-planning.md
+    knowledge_files:
+      - ../facets/knowledge/openspec-workflow.md
     pass_previous_response: false
-    output_contracts:
-      report:
-        - name: spec-plan.md
-          format_file: ../facets/output-contracts/spec-plan.md
     rules:
-      - condition: Spec approved and requirements clear
+      - condition: Open Spec artifact has been generated and approved
         next: implement
       - condition: Requirements unclear or user requested abort
         next: ABORT

@@ -9,7 +9,6 @@ export interface OperationDefinition {
   instructions: Record<string, string>;
   knowledge: Record<string, string>;
   policies: Record<string, string>;
-  output_contracts: Record<string, string>;
   steps: StepDefinition[];
 }
 

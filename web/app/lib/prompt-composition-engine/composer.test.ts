@@ -138,7 +138,7 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
     );
-    expect(composed.payloadParts[0]?.text).toContain(
+    expect(composed.payloadParts[0]?.text).not.toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
     );
     expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
