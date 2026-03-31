@@ -27,7 +27,7 @@ describe("team message envelopes", () => {
     });
   });
 
-  it("parses legacy envelopes and normalizes actor aliases", () => {
+  it("parses legacy envelopes and normalizes the gladio alias", () => {
     const legacyEnvelope = [
       "[TEAM_MESSAGE]",
       "from: Gladio",

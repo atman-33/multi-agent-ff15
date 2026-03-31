@@ -39,7 +39,7 @@ export function recordDeviation(
     case "warning":
       return `⚠ Warning: Operation flow deviation (${state.deviations.totalDeviations} total). ${formatDeviationMessage(type, expected, actual)}`;
     case "alert":
-      return `⚠ Alert: Operation flow compliance is degrading (${state.deviations.totalDeviations} deviations). ${formatDeviationMessage(type, expected, actual)} Consider reporting the situation to Crystal.`;
+      return `⚠ Alert: Operation flow compliance is degrading (${state.deviations.totalDeviations} deviations). ${formatDeviationMessage(type, expected, actual)} Consider reporting the situation to User.`;
     default:
       return null;
   }

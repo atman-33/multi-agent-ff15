@@ -40,7 +40,7 @@ openspec/
 
 ## Skills 連携
 
-この project では `.opencode/skills/` と `.github/skills/` に OpenSpec skills が用意されている:
+この project では `.opencode/skills/` に OpenSpec skills が用意されている:
 - `openspec-new-change` — Start a new change
 - `openspec-apply-change` — Implement from a change artifact
 - `openspec-verify-change` — Verify implementation matches spec

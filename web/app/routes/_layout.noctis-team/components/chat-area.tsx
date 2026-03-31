@@ -212,7 +212,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   };
 
   messages.forEach((message) => {
-    const isOutgoing = message.sender === "crystal";
+    const isOutgoing = message.sender === "user";
     const canCollapseToIntermediate = message.sender === "noctis" && message.source === "session";
 
     if (isOutgoing) {
@@ -252,7 +252,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
 const MessageBubble = memo(
   ({ message, showCursor }: { message: RenderedChatMessage; showCursor: boolean }) => {
     const [detailsExpanded, setDetailsExpanded] = useState(false);
-    const isOutgoing = message.sender === "crystal";
+    const isOutgoing = message.sender === "user";
     const isNoctis = message.sender === "noctis";
     const senderLabel = getActivityActorLabel(message.sender);
     const avatarSrc = getSenderAvatar(message.sender);

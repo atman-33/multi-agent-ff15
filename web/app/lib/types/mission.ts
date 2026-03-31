@@ -1,6 +1,6 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
-export type ActivityActorId = AgentId | "crystal" | "iris" | "system";
+export type ActivityActorId = AgentId | "user" | "iris" | "system";
 export type TeamMessageType = "task" | "report" | "message";
 export type ReportStatus = "running" | "blocked" | "completed" | "failed";
 export type MissionActivityKind =

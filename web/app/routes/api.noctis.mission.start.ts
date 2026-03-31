@@ -7,7 +7,7 @@ import {
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getOperationState } from "@/lib/operation-runtime/state";
-import { composeCrystalToNoctisPrompt } from "@/lib/prompt-composition-engine";
+import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
@@ -107,7 +107,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);
 
-    const composed = composeCrystalToNoctisPrompt({
+    const composed = composeUserToNoctisPrompt({
       context: {
         missionId,
         sessionId,
@@ -116,7 +116,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         appRoot: projectRoot,
         executionMode,
       },
-      crystalMessage: message,
+      userMessage: message,
       missionId,
       sessionId,
       isNewMission: true,

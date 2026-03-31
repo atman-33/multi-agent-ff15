@@ -6,7 +6,7 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { composeCrystalToNoctisPrompt } from "@/lib/prompt-composition-engine";
+import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import type { ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.continue";
@@ -96,8 +96,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
       // Non-blocking: proceed without last response
     }
 
-    const crystalMessage = stringifyPromptParts(promptParts);
-    const composed = composeCrystalToNoctisPrompt({
+    const userMessage = stringifyPromptParts(promptParts);
+    const composed = composeUserToNoctisPrompt({
       context: {
         missionId,
         sessionId: mission.noctisSessionId,
@@ -106,7 +106,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         appRoot,
         executionMode,
       },
-      crystalMessage,
+      userMessage,
       missionId,
       sessionId: mission.noctisSessionId,
       isNewMission: false,

@@ -37,7 +37,7 @@ Inspired by FINAL FANTASY XV's Kingdom of Lucis.
 ### Agent Hierarchy
 
 ```
-Crystal (User)
+User
     │
     ▼
 ┌──────────┐
@@ -54,7 +54,7 @@ Crystal (User)
 
 ### Communication Flow
 
-- **Crystal → Noctis**: Mission dispatch via the Noctis Team screen
+- **User → Noctis**: Mission dispatch via the Noctis Team screen
 - **Noctis → Comrades**: Task delegation through OpenCode agent sessions
 - All agent sessions are visible live in the web dashboard
 
@@ -241,7 +241,7 @@ multi-agent-ff15/
 | Iris | Guardian / gatekeeper | 🌸 | 🔜 Planned |
 | Lunafreya | Oracle — independent advisor | ✨ | 🔜 Planned |
 
-The user is referred to as **Crystal** by all agents.
+The user is referred to as **User** by all agents.
 
 ---
 

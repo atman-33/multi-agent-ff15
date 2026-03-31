@@ -9,7 +9,7 @@ export interface StateTransition {
   ruleCondition: string;
 }
 
-export interface ProcessCrystalMessageInput {
+export interface ProcessUserMessageInput {
   missionId: string;
   sessionId: string;
   message: string;
@@ -17,7 +17,7 @@ export interface ProcessCrystalMessageInput {
   selectedOperation?: string | null;
 }
 
-export interface ProcessCrystalMessageResult {
+export interface ProcessUserMessageResult {
   additionalContext: string | null;
   operationActivated?: string;
   stateTransition?: StateTransition;

@@ -1,17 +1,17 @@
-import { augmentTaskPrompt, processCrystalMessage, processReport } from "@/lib/operation-runtime/runtime";
+import { augmentTaskPrompt, processReport, processUserMessage } from "@/lib/operation-runtime/runtime";
 import { getOperationState, saveOperationState } from "@/lib/operation-runtime/state";
-import type { OperationState, ProcessCrystalMessageResult, ProcessReportResult } from "@/lib/operation-runtime/types";
+import type { OperationState, ProcessReportResult, ProcessUserMessageResult } from "@/lib/operation-runtime/types";
 import type { ReportStatus, WorkerAgentId } from "@/lib/types/mission";
 
-export function composeCrystalWorkflowExtension(input: {
+export function composeUserWorkflowExtension(input: {
   missionId: string;
   sessionId: string;
   message: string;
   isNewMission: boolean;
   selectedOperation?: string | null;
   lastNoctisResponse?: string;
-}): ProcessCrystalMessageResult {
-  return processCrystalMessage(
+}): ProcessUserMessageResult {
+  return processUserMessage(
     {
       missionId: input.missionId,
       sessionId: input.sessionId,

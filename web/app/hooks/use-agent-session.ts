@@ -312,7 +312,7 @@ function toSessionChatMessages(messages: MessageInfo[]): ChatMessage[] {
       typeof rawId === "string" && rawId.length > 0 ? rawId : `restored-${index}-${createId()}`;
     const routedMessage =
       rawRole === "assistant" ? null : parseRoutedMessageEnvelope(fallbackContent);
-    const sender = rawRole === "assistant" ? "noctis" : (routedMessage?.speaker ?? "crystal");
+    const sender = rawRole === "assistant" ? "noctis" : (routedMessage?.speaker ?? "user");
     const displayContent = routedMessage
       ? routedMessage.messageType === "report"
         ? routedMessage.summary?.trim() || routedMessage.details?.trim() || ""
@@ -334,7 +334,7 @@ function toSessionChatMessages(messages: MessageInfo[]): ChatMessage[] {
       kind:
         rawRole === "assistant"
           ? "assistant_message"
-          : sender === "crystal"
+          : sender === "user"
             ? "user_message"
             : "team_message",
       content: displayContent,
@@ -1336,9 +1336,9 @@ export function useAgentSession({
       const text = stringifyPromptParts(parts);
       const userMessage: ChatMessage = {
         id: createId(),
-        sender: "crystal",
-        actor: "crystal",
-        speaker: "crystal",
+        sender: "user",
+        actor: "user",
+        speaker: "user",
         kind: "user_message",
         content: text,
         detailContent: text,

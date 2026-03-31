@@ -4,8 +4,8 @@ import type { ActivityActorId, AgentId, ReportStatus, TeamMessageType, WorkerAge
 import type { OperationState, StateTransition } from "@/lib/operation-runtime/types";
 import { buildSharedPromptContext, type BuildSharedPromptContextOptions } from "./common-context.server";
 import {
-  composeCrystalWorkflowExtension,
   composeReportWorkflowExtension,
+  composeUserWorkflowExtension,
   composeWorkerWorkflowPrompt,
 } from "./workflow-extension";
 
@@ -48,9 +48,9 @@ export function composeGenericSessionPrompt(input: {
   };
 }
 
-export function composeCrystalToNoctisPrompt(input: {
+export function composeUserToNoctisPrompt(input: {
   context: BuildSharedPromptContextOptions;
-  crystalMessage: string;
+  userMessage: string;
   missionId: string;
   sessionId: string;
   isNewMission: boolean;
@@ -60,20 +60,20 @@ export function composeCrystalToNoctisPrompt(input: {
   operationActivated?: string;
   stateTransition?: StateTransition;
 } {
-  const workflow = composeCrystalWorkflowExtension({
+  const workflow = composeUserWorkflowExtension({
     missionId: input.missionId,
     sessionId: input.sessionId,
-    message: input.crystalMessage,
+    message: input.userMessage,
     isNewMission: input.isNewMission,
     selectedOperation: input.selectedOperation,
     lastNoctisResponse: input.lastNoctisResponse,
   });
 
   const promptBody = buildRoutedMessageEnvelope({
-    speaker: "crystal",
+    speaker: "user",
     to: "noctis",
     messageType: "chat",
-    body: input.crystalMessage,
+    body: input.userMessage,
   });
 
   return {

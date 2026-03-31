@@ -3,7 +3,7 @@
 ## Agent Hierarchy
 
 ```text
-Crystal (User)
+User
 	|
 	v
 Noctis (King)
@@ -13,8 +13,8 @@ Noctis (King)
 	`-- Prompto (Gun / Recon)
 ```
 
-- `Crystal` is the canonical name for the user. All agents should refer to the user as Crystal.
-- The primary user-facing path is `Crystal -> Noctis`.
+- `User` is the canonical name for the user. All agents should refer to the user as User.
+- The primary user-facing path is `User -> Noctis`.
 - Ignis, Gladiolus, and Prompto work under Noctis and report back to Noctis.
 
 ## Reports

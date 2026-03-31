@@ -19,7 +19,7 @@ export interface RoutedSessionMessage {
 }
 
 const ACTOR_LABELS: Record<ActivityActorId, string> = {
-  crystal: "Crystal",
+  user: "User",
   noctis: "Noctis",
   ignis: "Ignis",
   gladiolus: "Gladiolus",

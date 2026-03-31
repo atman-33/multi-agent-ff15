@@ -121,7 +121,7 @@ const INTERNAL_CONTEXT_REMOVE_REGEX = /<internal-context>[\s\S]*?<\/internal-con
 const CHOICES: Record<SquadAgentId, Record<string, string[]>> = {
   noctis: {
     listening: [
-      "Crystal has the floor. Holding the line for the next directive.",
+      "User has the floor. Holding the line for the next directive.",
       "Awaiting the next order before I split the work.",
     ],
     delegating: [
@@ -129,7 +129,7 @@ const CHOICES: Record<SquadAgentId, Record<string, string[]>> = {
       "Prompto takes the sweep. Ignis takes the edges. Gladiolus holds the lane.",
     ],
     reporting: [
-      "Condensing the squad chatter into one answer for Crystal.",
+      "Condensing the squad chatter into one answer for User.",
       "I have enough signal. Turning it into a clean response now.",
     ],
     done: [
@@ -257,12 +257,12 @@ export function buildOrchestrationViewModel(options: {
   const seed = messages.length + streamingContent.length;
   const lastUserText = truncate(extractText(lastMessageByRole(messages, "user")), 150);
   const lastAssistantText = truncate(extractText(lastMessageByRole(messages, "assistant")), 150);
-  const latestDirective = lastUserText || "Awaiting Crystal's next directive.";
+  const latestDirective = lastUserText || "Awaiting User's next directive.";
   const latestReport = lastAssistantText || "Noctis is holding the line for the next report.";
 
   if (isSessionRunning) {
     return {
-      commandDeckLabel: "Crystal -> Noctis",
+      commandDeckLabel: "User -> Noctis",
       commandDeckSummary: "Main Thread stays curated while the squad works in parallel.",
       commandDeckHint: streamingContent
         ? "Noctis is actively synthesizing squad output into a user-facing response."
@@ -314,7 +314,7 @@ export function buildOrchestrationViewModel(options: {
           "evt-command",
           "noctis",
           "status",
-          "Noctis received a fresh directive from Crystal",
+          "Noctis received a fresh directive from User",
           truncate(latestDirective, 110),
           "Live",
           "info"
@@ -342,7 +342,7 @@ export function buildOrchestrationViewModel(options: {
           "gladiolus",
           "status",
           "Gladiolus is holding the execution lane",
-          "Implementation-ready thinking stays available without crowding Crystal.",
+          "Implementation-ready thinking stays available without crowding User.",
           "Live",
           "info"
         ),
@@ -365,9 +365,9 @@ export function buildOrchestrationViewModel(options: {
 
   if (messages.length > 0) {
     return {
-      commandDeckLabel: "Crystal -> Noctis",
+      commandDeckLabel: "User -> Noctis",
       commandDeckSummary:
-        "Crystal commands Noctis here. The squad remains visible as supporting context.",
+        "User commands Noctis here. The squad remains visible as supporting context.",
       commandDeckHint:
         "The main thread shows only curated updates. Teammate chatter stays ambient in the stage.",
       presences: [
@@ -442,16 +442,16 @@ export function buildOrchestrationViewModel(options: {
   }
 
   return {
-    commandDeckLabel: "Crystal -> Noctis",
+    commandDeckLabel: "User -> Noctis",
     commandDeckSummary:
-      "This deck is reserved for Crystal's directives and Noctis' curated replies.",
+      "This deck is reserved for User's directives and Noctis' curated replies.",
     commandDeckHint:
       "The squad stage stays visible even before work starts, so delegation never feels hidden.",
     presences: [
       {
         agentId: "noctis",
         state: "listening",
-        headline: "Awaiting Crystal's first directive",
+        headline: "Awaiting User's first directive",
         detail: "Noctis holds the command deck and decides when to fan work out to the squad.",
         chatter: [choose(CHOICES.noctis.listening ?? [], 0)],
         taskLabel: "Command ready",

@@ -13,7 +13,7 @@ operation の state machine を管理し、operation 定義の読み込み、各
 - 組み立てた instruction を `send_task.sh` 経由で担当 agent に dispatch する
 - agent の report を受け取り、`[STEP:N]` ステータスタグを抽出する
 - タグを movement の rules に対応付けて、次の movement へ遷移する
-- 最終的な operation 結果を Crystal に報告する
+- 最終的な operation 結果を User に報告する
 
 ## Instruction 組み立てプロトコル
 
@@ -51,8 +51,8 @@ operation の state machine を管理し、operation 定義の読み込み、各
 2. 応答内の **最後の** `[STEP:N]` タグを見つける
 3. 現在の movement の rules にある index N の rule を参照する
 4. 遷移を実行する: `current_movement` を `rule.next` に設定する
-5. `next` が `COMPLETE` なら、成功を Crystal に報告する
-6. `next` が `ABORT` なら、理由付きで失敗を Crystal に報告する
+5. `next` が `COMPLETE` なら、成功を User に報告する
+6. `next` が `ABORT` なら、理由付きで失敗を User に報告する
 7. それ以外なら、次の movement に進む
 
 ## Operation State

@@ -116,7 +116,7 @@ const MessageDetailSheet = ({
 
       {hasVisibleBody ? (
         <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-          {sender === "crystal" ? (
+          {sender === "user" ? (
             <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
               {displayContent}
             </p>

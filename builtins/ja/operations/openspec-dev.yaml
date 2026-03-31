@@ -2,20 +2,18 @@ name: openspec-dev
 description: >
   Standard OpenSpec Development Flow.
   Spec planning → Implementation → Refactoring → Code Review → Fix cycle.
-  Noctis orchestrates, Gladiolus implements, Prompto refactors, Ignis reviews.
+  Noctis plans the spec, Gladiolus implements, Prompto refactors, Ignis reviews.
 max_movements: 20
 initial_movement: spec-planning
 
 # --- Movements ---
 
 movements:
-  # 1. Noctis clarifies requirements with Crystal and creates a spec plan
+  # 1. Noctis clarifies requirements with User and creates a spec plan
   - name: spec-planning
     agent: noctis
-    job_file: ../facets/jobs/commander.md
-    instruction_file: ../facets/instructions/spec-planning.md
-    knowledge_files:
-      - ../facets/knowledge/openspec-workflow.md
+    job_file: ../facets/jobs/planner.md
+    instruction_file: ../facets/instructions/openspec-planning.md
     edit: false
     pass_previous_response: false
     output_contracts:

@@ -8,8 +8,8 @@ import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.s
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import {
-  composeCrystalToNoctisPrompt,
   composeGenericSessionPrompt,
+  composeUserToNoctisPrompt,
   composeWorkerTaskPrompt,
 } from "./index";
 
@@ -106,20 +106,20 @@ describe("prompt composition engine", () => {
         agent: "noctis",
         sessionId: "session-1",
       },
-      parts: [{ type: "text", text: "Hello from Crystal" }],
+      parts: [{ type: "text", text: "Hello from User" }],
     });
 
     expect(composed.payloadParts[0]?.text).toContain("<internal-context>");
     expect(composed.payloadParts[0]?.text).toContain("project_scope: noctis_team");
-    expect(composed.payloadParts[1]?.text).toBe("Hello from Crystal");
+    expect(composed.payloadParts[1]?.text).toBe("Hello from User");
     expect(composed.payloadParts[1]?.text).not.toContain("[OPERATION_");
   });
 
-  it("adds workflow extension for Crystal to Noctis activation", () => {
+  it("adds workflow extension for User to Noctis activation", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
 
-    const composed = composeCrystalToNoctisPrompt({
+    const composed = composeUserToNoctisPrompt({
       context: {
         appRoot: root,
         agent: "noctis",
@@ -127,7 +127,7 @@ describe("prompt composition engine", () => {
         missionId: "mission-2",
         allowedWorkers: ["ignis", "gladiolus", "prompto"],
       },
-      crystalMessage: "Open the openspec-dev workflow.",
+      userMessage: "Open the openspec-dev workflow.",
       missionId: "mission-2",
       sessionId: "session-2",
       isNewMission: true,

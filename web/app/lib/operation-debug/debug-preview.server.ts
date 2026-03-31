@@ -91,7 +91,7 @@ function buildStateForMovement(
 }
 
 export function buildOperationDebugBundle(input: {
-  crystalMessage?: string;
+  userMessage?: string;
   operationName: string;
   previousResponse?: string;
   reportDetails?: string;
@@ -103,8 +103,8 @@ export function buildOperationDebugBundle(input: {
   const operation = loadOperationByName(input.operationName, readOperationLanguage());
 
   const reportStatus = input.reportStatus ?? "completed";
-  const crystalMessageBase =
-    input.crystalMessage?.trim() || "This is a synthetic Crystal message for operation activation.";
+  const userMessageBase =
+    input.userMessage?.trim() || "This is a synthetic User message for operation activation.";
   const reportSummaryBase = input.reportSummary?.trim() || "Synthetic report from worker\n[STEP:0]";
   const reportDetailsBase =
     input.reportDetails?.trim() ||
@@ -121,11 +121,11 @@ export function buildOperationDebugBundle(input: {
 
     if (movement.agent === "noctis") {
       const facets = resolveMovementFacets(operation, movement, readOperationLanguage());
-      const routedCrystalMessage = buildRoutedMessageEnvelope({
-        speaker: "crystal",
+      const routedUserMessage = buildRoutedMessageEnvelope({
+        speaker: "user",
         to: "noctis",
         messageType: "chat",
-        body: crystalMessageBase,
+        body: userMessageBase,
       });
       const injectedPrompt = buildActivationInstruction({
         operation,
@@ -143,7 +143,7 @@ export function buildOperationDebugBundle(input: {
           appRoot: root,
           executionMode: "operation-debug",
         },
-        promptBody: routedCrystalMessage,
+        promptBody: routedUserMessage,
         workflowExtension: injectedPrompt,
       });
 
@@ -154,10 +154,10 @@ export function buildOperationDebugBundle(input: {
         kind: "self",
         hookId: "hook1",
         title: `${movement.name} (Noctis self-movement)`,
-        from: "Crystal",
+        from: "User",
         to: "Noctis",
-        summary: "Crystal message enters Hook 1 and context is injected for Noctis.",
-        sourceInput: routedCrystalMessage,
+        summary: "User message enters Hook 1 and context is injected for Noctis.",
+        sourceInput: routedUserMessage,
         internalContext: composed.sharedContext,
         injectedPrompt,
         effectivePrompt: composed.effectivePrompt,

@@ -23,7 +23,7 @@ import type { Route } from "./+types/route";
 
 type LoaderData = {
   activeStepId: string;
-  crystalMessage: string;
+  userMessage: string;
   operations: string[];
   previousResponse: string;
   preview: ReturnType<typeof buildOperationDebugBundle> | null;
@@ -62,8 +62,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 
   const taskInstruction =
     url.searchParams.get("task")?.trim() || "Implement the selected movement exactly as Noctis delegated it.";
-  const crystalMessage =
-    url.searchParams.get("crystalMessage")?.trim() || "This is a synthetic Crystal message for operation activation.";
+  const userMessage =
+    url.searchParams.get("userMessage")?.trim() || "This is a synthetic User message for operation activation.";
   const previousResponse =
     url.searchParams.get("previousResponse")?.trim() || "Synthetic previous movement output";
   const reportSummary =
@@ -75,7 +75,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   const preview =
     selectedOperation
       ? buildOperationDebugBundle({
-          crystalMessage,
+          userMessage,
           operationName: selectedOperation,
           taskInstruction,
           previousResponse,
@@ -92,7 +92,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 
   return {
     activeStepId,
-    crystalMessage,
+    userMessage,
     operations,
     selectedOperation,
     taskInstruction,
@@ -107,7 +107,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const [selectedOperation, setSelectedOperation] = useState(loaderData.selectedOperation ?? "");
   const [activeStepId, setActiveStepId] = useState(loaderData.activeStepId);
-  const [crystalMessage, setCrystalMessage] = useState(loaderData.crystalMessage);
+  const [userMessage, setUserMessage] = useState(loaderData.userMessage);
   const [taskInstruction, setTaskInstruction] = useState(loaderData.taskInstruction);
   const [previousResponse, setPreviousResponse] = useState(loaderData.previousResponse);
   const [reportSummary, setReportSummary] = useState(loaderData.reportSummary);
@@ -116,7 +116,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   useEffect(() => {
     setSelectedOperation(loaderData.selectedOperation ?? "");
     setActiveStepId(loaderData.activeStepId);
-    setCrystalMessage(loaderData.crystalMessage);
+    setUserMessage(loaderData.userMessage);
     setTaskInstruction(loaderData.taskInstruction);
     setPreviousResponse(loaderData.previousResponse);
     setReportSummary(loaderData.reportSummary);
@@ -124,7 +124,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   }, [loaderData]);
 
   const navigateWithPreviewParams = ({
-    crystalInput,
+    userInput,
     operation,
     previous,
     reportBody,
@@ -132,7 +132,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     stepId,
     task,
   }: {
-    crystalInput: string;
+    userInput: string;
     operation: string;
     previous: string;
     reportBody: string;
@@ -147,8 +147,8 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     if (stepId) {
       params.set("step", stepId);
     }
-    if (crystalInput.trim()) {
-      params.set("crystalMessage", crystalInput.trim());
+    if (userInput.trim()) {
+      params.set("userMessage", userInput.trim());
     }
     if (task.trim()) {
       params.set("task", task.trim());
@@ -167,7 +167,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
   const handleGenerate = () => {
     navigateWithPreviewParams({
-      crystalInput: crystalMessage,
+      userInput: userMessage,
       operation: selectedOperation,
       stepId: activeStepId,
       task: taskInstruction,
@@ -181,7 +181,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     const operation = loaderData.operations[0] ?? "";
     setSelectedOperation(operation);
     setActiveStepId("");
-    setCrystalMessage("This is a synthetic Crystal message for operation activation.");
+    setUserMessage("This is a synthetic User message for operation activation.");
     setTaskInstruction("Implement the selected movement exactly as Noctis delegated it.");
     setPreviousResponse("Synthetic previous movement output");
     setReportSummary("Synthetic report from worker\n[STEP:0]");
@@ -287,7 +287,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
         },
         {
           id: "source",
-          title: "Crystal Routed Message",
+          title: "User Routed Message",
           placement: "Block 3 in final prompt",
           rendering: "Displayed",
           content: selectedStep.sourceInput,
@@ -427,7 +427,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 onValueChange={(value) => {
                   setSelectedOperation(value);
                   navigateWithPreviewParams({
-                    crystalInput: crystalMessage,
+                    userInput: userMessage,
                     operation: value,
                     stepId: "",
                     task: taskInstruction,
@@ -475,7 +475,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                           onClick={() => {
                             setActiveStepId(step.id);
                             navigateWithPreviewParams({
-                              crystalInput: crystalMessage,
+                              userInput: userMessage,
                               operation: selectedOperation,
                               stepId: step.id,
                               task: taskInstruction,
@@ -534,14 +534,14 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
               <TabsContent className="min-h-0 flex-1 space-y-4 overflow-auto pr-1" value="inputs">
                 <div className="space-y-2 rounded-lg border border-blue-800 bg-blue-950/40 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="crystal-message">
-                    Crystal Message (Hook 1)
+                  <label className="font-medium text-sm" htmlFor="user-message">
+                    User Message (Hook 1)
                   </label>
                   <Textarea
-                    id="crystal-message"
-                    onChange={(event) => setCrystalMessage(event.target.value)}
+                    id="user-message"
+                    onChange={(event) => setUserMessage(event.target.value)}
                     rows={4}
-                    value={crystalMessage}
+                    value={userMessage}
                   />
                 </div>
 

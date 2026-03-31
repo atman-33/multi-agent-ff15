@@ -20,8 +20,8 @@ import {
 import type {
   AugmentTaskPromptInput,
   OperationState,
-  ProcessCrystalMessageInput,
-  ProcessCrystalMessageResult,
+  ProcessUserMessageInput,
+  ProcessUserMessageResult,
   ProcessReportInput,
   ProcessReportResult,
   StateTransition,
@@ -38,10 +38,10 @@ function detectOperationName(message: string): string | null {
   return null;
 }
 
-export function processCrystalMessage(
-  input: ProcessCrystalMessageInput,
+export function processUserMessage(
+  input: ProcessUserMessageInput,
   lastNoctisResponse?: string,
-): ProcessCrystalMessageResult {
+): ProcessUserMessageResult {
   const { missionId, message, isNewMission } = input;
   const language = readOperationLanguage();
   const existingState = getOperationState(missionId);
@@ -281,10 +281,10 @@ function buildTerminalGuidance(
   lines.push("");
   if (terminal === "COMPLETE") {
     lines.push("The operation has completed successfully.");
-    lines.push("Report final results to Crystal.");
+    lines.push("Report final results to User.");
   } else {
     lines.push("The operation has been aborted.");
-    lines.push("Report the situation to Crystal with relevant context.");
+    lines.push("Report the situation to User with relevant context.");
   }
 
   return lines.join("\n");
