@@ -11,6 +11,9 @@ describe("operation-definition path-based facet resolution", () => {
     expect(planning).toBeTruthy();
     expect(planning?.job_file).toBe("../facets/jobs/planner.md");
     expect(planning?.instruction_file).toBe("../facets/instructions/openspec-planning.md");
+    expect(planning?.knowledge_files).toEqual([
+      "../facets/knowledge/operation-engine-and-builtins-injection.md",
+    ]);
 
     if (!planning) {
       throw new Error("spec-planning step not found");
@@ -19,6 +22,7 @@ describe("operation-definition path-based facet resolution", () => {
     const facets = resolveStepFacets(operation, planning, "ja");
 
     expect(facets.job).toContain("Planner (仕様計画担当)");
+    expect(facets.knowledge[0]).toContain("Operation Runtime and Prompt Flow Knowledge");
     expect(facets.instruction).toContain("Spec Planning — 手順指示");
     expect(facets.outputContracts).toEqual([]);
   });
@@ -43,7 +47,9 @@ describe("operation-definition path-based facet resolution", () => {
     const implement = operation.steps.find((step) => step.name === "implement");
 
     expect(implement).toBeTruthy();
-    expect(implement?.knowledge_files).toEqual(["../facets/knowledge/openspec-workflow.md"]);
+    expect(implement?.knowledge_files).toEqual([
+      "../facets/knowledge/operation-engine-and-builtins-injection.md",
+    ]);
     expect(implement?.policy_files).toEqual(["../facets/policies/coding-standards.md"]);
 
     if (!implement) {
@@ -52,7 +58,7 @@ describe("operation-definition path-based facet resolution", () => {
 
     const facets = resolveStepFacets(operation, implement, "ja");
 
-    expect(facets.knowledge[0]).toContain("OpenSpec Development Workflow Knowledge");
+    expect(facets.knowledge[0]).toContain("Operation Runtime and Prompt Flow Knowledge");
     expect(facets.policies[0]).toContain("Coding Standards");
   });
 });

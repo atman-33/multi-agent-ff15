@@ -15,6 +15,8 @@ steps:
     handoff_mode: manual
     job_file: ../facets/jobs/planner.md
     instruction_file: ../facets/instructions/openspec-planning.md
+    knowledge_files:
+      - ../facets/knowledge/operation-engine-and-builtins-injection.md
     pass_previous_response: false
     rules:
       - condition: Open Spec artifact has been generated and approved
@@ -28,7 +30,7 @@ steps:
     job_file: ../facets/jobs/implementer.md
     instruction_file: ../facets/instructions/implement.md
     knowledge_files:
-      - ../facets/knowledge/openspec-workflow.md
+      - ../facets/knowledge/operation-engine-and-builtins-injection.md
     policy_files:
       - ../facets/policies/coding-standards.md
     pass_previous_response: true

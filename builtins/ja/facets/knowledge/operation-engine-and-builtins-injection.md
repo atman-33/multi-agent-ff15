@@ -1,180 +1,230 @@
-# Operation の仕組みと builtins 注入の実装メモ
+# Operation Runtime and Prompt Flow Knowledge
 
-## この文書の目的
+## Purpose
 
-この文書は、Operation runtime と prompt composition engine が、step ベースの operation schema をどのように処理し、どの builtins を各エージェントへ注入するかを整理した実装メモです。
+この文書は、Operation runtime が prompt composition engine を仲介して、User / Noctis / Worker の間の指示をどのように制御するかを、頻繁に参照できるように整理した knowledge です。
 
-現在の Operation は、次の 3 つのフックで進行します。
+特に次の用途を想定します。
 
-1. User -> Noctis: operation の開始、Noctis self-step の継続判定、進行中コンテキストの注入
-2. Noctis -> Worker: current step に応じた Job / Knowledge / Instruction / Policy / Output Contract の注入
-3. Worker -> Runtime: `ruleIndex` を評価し、manual なら Noctis guidance、auto なら次 worker への handoff を決める
+- `spec-planning` で workflow の全体像を踏まえて artifact を設計する
+- prompt preview と live prompt の差分をデバッグする
+- operation YAML / runtime / prompt builder / report transport の責務分担を確認する
 
----
+## System View
 
-## 1. Operation YAML schema
+この workflow の基本構造は、agent 同士の直接会話ではなく、runtime が state と rules を保持しながら prompt を組み替える構成です。
 
-Operation は `builtins/{language}/operations/*.yaml` に置かれる YAML 定義です。
+```text
+User
+	-> Hook 1: composeUserToNoctisPrompt()
+	-> Runtime: processUserMessage()
+	-> Prompt Builder: buildActivationInstruction() / buildOperationContextSummary()
+	-> Noctis
 
-現在の正規 schema は次のとおりです。
+Noctis
+	-> task transport (scripts/send_task.sh)
+	-> Tasks API: /api/missions/{missionId}/tasks
+	-> Dispatcher: dispatchTaskToWorker()
+	-> Hook 2: composeWorkerTaskPrompt() / augmentTaskPrompt()
+	-> Prompt Builder: buildAugmentedInstruction()
+	-> Worker (Ignis / Gladiolus / Prompto)
 
-- `initial_step`: 最初に実行する step 名
-- `handoff_mode`: operation-level default (`manual` / `auto`)
-- `steps`: step 定義の配列
-- step 内の facet 参照:
-	- `handoff_mode`
-	- `job_file`
-	- `instruction_file`
-	- `knowledge_files`
-	- `policy_files`
-	- `output_contracts.report[].format_file`
+Worker
+	-> report transport (scripts/send_report.sh + ruleIndex)
+	-> Reports API: /api/missions/{missionId}/reports
+	-> Hook 3: processReport()
+	-> Runtime decides: manual guidance to Noctis or auto handoff to next worker
+```
 
-次の legacy field は廃止されており、ローダーは受け付けません。
+重要なのは、Noctis -> Worker や Worker -> Noctis の見かけ上のやり取りも、実際には script -> API route -> runtime / dispatcher を挟んで制御されていることです。
+
+## Script-Aware Flow Summary
+
+shell script を含めて見ると、代表的な経路は次のとおりです。
+
+- Noctis から worker へ通常 dispatch する場合:
+  `Noctis -> scripts/send_task.sh -> /api/missions/{missionId}/tasks -> dispatchTaskToWorker() -> composeWorkerTaskPrompt() -> augmentTaskPrompt() -> Worker`
+- Worker が完了報告する場合:
+  `Worker -> scripts/send_report.sh -> /api/missions/{missionId}/reports -> processReport()`
+- report 後に `handoff_mode: manual` なら:
+  `Runtime -> sendWorkerReport() -> Noctis`
+- report 後に `handoff_mode: auto` なら:
+  `Runtime -> dispatchCurrentOperationStepToWorker() -> dispatchTaskToWorker() -> next Worker`
+
+つまり、`send_report.sh` は worker から runtime へ戻るための経路であり、Noctis -> Worker の通常 dispatch に使う script は `send_task.sh` です。
+
+## Component Responsibilities
+
+- Operation YAML: authored workflow definition。`initial_step`、`steps`、rule、facet path を定義する
+- Facet Markdown: step ごとの job / knowledge / instruction / policy / output contract の source of truth
+- Runtime: 現在 step、履歴、rule match、handoff mode、previous response を管理する
+- Prompt Composition Engine: shared context と workflow extension を合成して最終 prompt を作る
+- Report Transport: worker の完了報告を `status` と `ruleIndex` で runtime に返す
+- Operation Debug Preview: synthetic state を作って preview する補助系。live path と似ているが同一ではない場合がある
+
+## Hook 1: User -> Noctis
+
+`processUserMessage()` は operation の起動と Noctis self-step の継続判定を担当します。
+
+### New mission path
+
+新規ミッションでは次の順で処理します。
+
+1. `selectedOperation` または User message から operation 名を決める
+2. `loadOperationByName()` で operation YAML をロードする
+3. `createOperationState()` で `operationState` を初期化する
+4. `initial_step` を取得する
+5. `resolveStepFacets()` で初期 step の facet を読む
+6. `buildActivationInstruction()` で Noctis 向け workflow extension を作る
+7. `recordStepDispatched()` で step history を更新する
+
+Noctis activation prompt は概ね次の層で構成されます。
+
+1. shared context
+2. step-specific workflow extension
+3. user request body
+
+workflow extension に含まれる主な section は次のとおりです。
+
+- `step`
+- `job`
+- `knowledge`
+- `instruction`
+- `output contracts` when defined
+- `policy` when defined
+- `status-output-rules`
+
+### Continue path
+
+既存ミッションで current step owner が `noctis` の場合、runtime は直前の Noctis 応答から `[STEP:N]` を評価し、次 step を決めます。
+
+- Noctis self-step だけが `[STEP:N]` tag fallback を使う
+- rule がマッチしたら `recordStepCompleted()` で `nextStep`、`ruleMatched`、`previousResponse` などを更新する
+- terminal なら終端 guidance を返す
+- 継続なら遷移 guidance を返す
+- 遷移しないときは `buildOperationContextSummary()` を返す
+
+## Hook 2: Noctis -> Worker
+
+`augmentTaskPrompt()` は current step に応じて worker 用 prompt を再構成します。ただし、Noctis から worker へ task が届く全体経路は `augmentTaskPrompt()` 単体ではなく、`send_task.sh` と `/tasks` route を含みます。
+
+処理は次の順です。
+
+1. Noctis が `scripts/send_task.sh` を実行する
+2. `scripts/lib/send_task.mjs` が `/api/missions/{missionId}/tasks` に POST する
+3. tasks route が `dispatchTaskToWorker()` を呼ぶ
+4. dispatcher が `composeWorkerTaskPrompt()` を呼ぶ
+5. workflow active 時はその中で `augmentTaskPrompt()` が走る
+6. `operationState.currentStep` から対象 step を取得する
+7. `resolveStepFacets()` で facet を解決する
+8. `buildAugmentedInstruction()` で worker prompt を組み立てる
+9. `recordStepDispatched()` で dispatch 履歴を残す
+
+worker prompt の section 順序は次のとおりです。
+
+1. `job`
+2. `step`
+3. `task`
+4. `previous-step-output` when `pass_previous_response: true`
+5. `knowledge`
+6. `instruction`
+7. `output contracts` when defined
+8. `policy`
+9. `status-output-rules`
+
+worker step では `[STEP:N]` は使いません。worker は final report 時に `send_report.sh --rule-index <index>` 契約を守る必要があります。
+
+補足として、`handoff_mode: auto` による次 worker への自動遷移では、Noctis が `send_task.sh` を打つのではなく、reports route 側から `dispatchCurrentOperationStepToWorker()` が server-side に次 step を dispatch します。
+
+## Hook 3: Worker -> Runtime
+
+`processReport()` は worker report を受け、rule evaluation と次 action 決定を担当します。ここでは `send_report.sh` と `/reports` route が transport の入口です。
+
+処理は次の順です。
+
+1. Worker が `scripts/send_report.sh` を実行する
+2. `scripts/lib/send_report.mjs` が `/api/missions/{missionId}/reports` に POST する
+3. reports route が current step / taskId / `ruleIndex` を検証する
+4. `status=running` なら progress report として扱い、最終遷移は確定しない
+5. final report なら `processReport()` が `evaluateRuleIndex()` で matched rule を決める
+6. `recordStepCompleted()` で `stepHistory` と `previousResponse` を更新する
+7. effective `handoff_mode` を評価する
+8. auto handoff 可能なら `dispatchCurrentOperationStepToWorker()` で次 worker を server-side dispatch する
+9. manual か terminal なら `sendWorkerReport()` を通じて Noctis 向け guidance を返す
+
+ここでの source of truth は report body そのものではなく、transport で渡される `ruleIndex` です。
+
+## Shared Context vs Workflow Extension
+
+prompt composition engine は prompt を 2 層で組み立てます。
+
+### Shared context
+
+shared context は環境・プロジェクト共通知識です。
+
+- `workspace-context`
+- `tooling-context`
+- `delegation-context`
+
+### Workflow extension
+
+workflow extension は current step 固有の指示です。
+
+- step metadata
+- resolved facets
+- status contract
+- task / previous response / output-path guidance
+
+最終 prompt は `<operation-prompt schema="v2">` で包まれます。
+
+## Important Live vs Debug Difference
+
+operation-debug preview は live prompt の理解に有用ですが、完全に同じ経路ではない箇所があります。
+
+- live の `composeUserToNoctisPrompt()` では workflow extension があると `delegation-context` を suppress する
+- debug preview の self-step path は `composePromptPreview()` を直接使うため、実装によっては `delegation-context` を含むことがある
+- synthetic `user-request` や synthetic report は debug 用既定値であり、本番の user input や worker output ではない
+
+したがって prompt 差分を見るときは、preview だけでなく live path 側の composer test と runtime path を併せて確認する必要があります。
+
+## Source of Truth
+
+この workflow の source of truth は単一ではなく、層ごとに異なります。
+
+- authored workflow: `builtins/{lang}/operations/*.yaml`
+- authored facets: `builtins/{lang}/facets/**`
+- live execution state: `runtime/noctis-missions/{missionId}.json`
+- report routing contract: `status` + `ruleIndex`
+- composition behavior: prompt builder / composer / runtime tests
+
+問題を調べるときは、どの層で差分が生じているかを先に分けて考える必要があります。
+
+## Operation Schema Reference
+
+現在の operation schema で頻繁に見る項目は次のとおりです。
+
+- `initial_step`
+- `handoff_mode`
+- `steps[]`
+- `steps[].job_file`
+- `steps[].instruction_file`
+- `steps[].knowledge_files`
+- `steps[].policy_files`
+- `steps[].output_contracts.report[].format_file`
+- `steps[].rules[]`
+
+現在の vocabulary は `step` に統一されています。次の legacy field は扱いません。
 
 - `initial_movement`
 - `movements`
 - `max_movements`
-- step 内の `edit`
+- `edit`
 
-`loadOperationByName()` は、まず `builtins/{language}/operations/{operationName}.yaml` を読み、見つからなければ `builtins/en/operations/{operationName}.yaml` へフォールバックします。
+## Facet Resolution Rules
 
----
+facet 解決は symbolic key ではなく、operation YAML からの相対パス解決です。
 
-## 2. Operation State
-
-Operation の進行状態は `mission.operationState` として保持されます。
-
-主な状態は次のとおりです。
-
-- `operationName`: 起動中の operation 名
-- `currentStep`: 現在の step
-- `iteration`: step dispatch 回数
-- `status`: `running` / `waiting_for_report` / `complete` / `aborted`
-- `reportDir`: 既定では `docs/reports`
-- `previousResponse`: 直前 step の要約
-- `stepHistory`: dispatch と完了の履歴
-- `deviations`: 想定 agent からの逸脱記録
-
-`handoff_mode` の effective value は `step.handoff_mode ?? operation.handoff_mode` で決まります。未指定の default は `manual` です。
-
-永続化は `saveOperationState()` が行い、`runtime/noctis-missions/{missionId}.json` に書き戻されます。`runtime/` は generated state とみなし、breaking rename 後に stale state が残ることは前提にしません。
-
----
-
-## 3. Hook 1: User -> Noctis
-
-`processUserMessage()` は operation 起動と Noctis self-step の継続判定を担当します。
-
-### 新規ミッション
-
-新規ミッションでは次の順で処理します。
-
-1. 既存 `operationState` がないことを確認する
-2. `selectedOperation` または User メッセージから operation 名を決定する
-3. Operation YAML をロードする
-4. `createOperationState()` で state を初期化する
-5. `initial_step` を取得する
-6. `resolveStepFacets()` で current step の facet を解決する
-7. `buildActivationInstruction()` で Noctis 向けの workflow extension を組み立てる
-8. `recordStepDispatched()` で履歴登録する
-
-Noctis に注入される step コンテキストには少なくとも次が含まれます。
-
-- operation 名
-- `current_step`
-- role
-- knowledge
-- instruction
-- output contract
-- policy
-- status output rules
-
-### 継続メッセージ
-
-継続時は、現在の step 担当が `noctis` で、直前応答に `[STEP:N]` が含まれる場合に `evaluateRules()` を実行します。
-この tag fallback は Noctis self-step に限定されます。
-
-遷移が発生すると `recordStepCompleted()` により以下が更新されます。
-
-- 直前 step の完了状態
-- マッチした rule index
-- rule condition
-- `nextStep`
-- summary
-- `previousResponse`
-
-遷移後は次のどちらかが Noctis へ注入されます。
-
-- `COMPLETE` / `ABORT` なら終端ガイダンス
-- それ以外なら次 step への遷移ガイダンス
-
-遷移が発生しない場合は `buildOperationContextSummary()` が current step の要約だけを注入します。
-
----
-
-## 4. Hook 2: Noctis -> Worker
-
-`augmentTaskPrompt()` は worker 向け prompt を step ベースで拡張します。
-
-処理の流れは次のとおりです。
-
-1. `operationState` から current step を取得する
-2. `resolveStepFacets()` で step の facet を解決する
-3. `buildAugmentedInstruction()` で worker 向け prompt を合成する
-4. `recordStepDispatched()` で履歴登録する
-
-`buildAugmentedInstruction()` が組み立てる section 順序は次のとおりです。
-
-1. `Job`
-2. `Step`
-3. `Task`
-4. `Previous Step Output`
-5. `Knowledge`
-6. `Instruction`
-7. `Output Contract`
-8. `Policy`
-9. `Status Output Rules`
-
-worker step の `Status Output Rules` は `[STEP:N]` ではなく、allowed outcome index と `send_report.sh --rule-index <index>` 契約を案内します。
-`Previous Step Output` は `pass_previous_response` が true のときだけ入ります。`output_contracts` の構造は維持され、prompt builder は `report.name` と `output-path` も含めて案内します。
-
----
-
-## 5. Hook 3: Worker -> Runtime
-
-`processReport()` は Worker report を受け取り、現在の step の rules を評価します。
-
-処理の流れは次のとおりです。
-
-1. current step を取得する
-2. progress report (`status=running`) なら遷移を確定せず、そのまま Noctis 共有へ進む
-3. final report なら transport の `ruleIndex` を現在 step の rules 範囲で検証する
-4. `evaluateRuleIndex()` で遷移先 rule を決定する
-5. `recordStepCompleted()` で state を更新する
-6. effective `handoff_mode` を判定する
-7. auto handoff 可能なら次 worker を server-side dispatch する
-8. manual/terminal の場合だけ Noctis 向け guidance を生成する
-
-生成される YAML guidance は step 用語に統一されています。
-
-- `completed_step`
-- `matched_rule_index`
-- `matched_rule_condition`
-- `next_step`
-- `effective_handoff_mode`
-- `next_action`
-- `final_step`
-- `step-transition`
-
----
-
-## 6. Facet の解決方法
-
-現在の facet 解決は builtins key 名ではなく、operation YAML からの相対パス解決です。
-
-`resolveStepFacets()` は `resolveOperationFacetPath()` を通じて、operation file の場所を基準に各 Markdown を読み込みます。
-
-つまり、step が次のように書かれていれば、実際にその相対パスの Markdown を読みます。
+つまり、次のように書かれていれば、その相対パス先の Markdown がそのまま読まれます。
 
 - `job_file: ../facets/jobs/planner.md`
 - `instruction_file: ../facets/instructions/openspec-planning.md`
@@ -182,30 +232,51 @@ worker step の `Status Output Rules` は `[STEP:N]` ではなく、allowed outc
 - `policy_files:`
 - `output_contracts.report[].format_file`
 
-この path-based resolution が current implementation の正規動作です。
+このため、prompt の改善では operation YAML と facet Markdown の両方をセットで確認する必要があります。
 
----
+## File Map For Debugging
 
-## 7. 実装上の注意点
+実装を追うときは、次のファイルが主要ポイントです。
 
-- operation schema は breaking change として `step` 用語に統一されている
-- `max_movements` は削除済みで、state にも保持しない
-- step 内の `edit` は削除済みで、ローダーは reject する
-- `output_contracts` は従来どおり report 配列構造を維持する
-- worker report routing は本文 tag ではなく `ruleIndex` が単一ソースである
-- `handoff_mode: auto` でも次 step が `noctis` / terminal / User 確認待ちなら自動 dispatch しない
-- generated runtime state は migration 対象ではなく、必要なら再生成する
+- `scripts/send_task.sh`
+- `scripts/lib/send_task.mjs`
+- `scripts/send_report.sh`
+- `scripts/lib/send_report.mjs`
+- `web/app/routes/api.missions.$missionId.tasks.ts`
+- `web/app/routes/api.missions.$missionId.reports/route.ts`
+- `web/app/lib/task-dispatch.server.ts`
+- `web/app/lib/team-message.server.ts`
+- `web/app/lib/operation-runtime/runtime.ts`
+- `web/app/lib/operation-runtime/state.ts`
+- `web/app/lib/prompt-composition-engine/composer.ts`
+- `web/app/lib/prompt-composition-engine/common-context.server.ts`
+- `web/app/lib/prompt-composition-engine/operation-prompt-builder.ts`
+- `web/app/lib/operation-debug/debug-preview.server.ts`
+- `web/app/lib/operation-definition/facet-loader.ts`
+- `web/app/lib/prompt-composition-engine/composer.test.ts`
 
----
+## Practical Debug Checklist
 
-## 8. まとめ
+1. 今見ているのが Hook 1 / Hook 2 / Hook 3 のどれかを先に決める
+2. `operationState.currentStep` と current step owner を確認する
+3. operation YAML の rule と facet path が正しいかを見る
+4. Noctis 発の task なら `send_task.sh -> /tasks -> dispatchTaskToWorker()` の経路を確認する
+5. Worker report なら `send_report.sh -> /reports -> processReport()` の経路を確認する
+6. shared context と workflow extension のどちらに差分があるか切り分ける
+7. Noctis self-step なら `[STEP:N]` の評価結果を確認する
+8. Worker report なら `ruleIndex` が valid range か確認する
+9. auto handoff か manual guidance かを `handoff_mode` で確認する
+10. prompt contract を変えたら composer / runtime / facet-loader / debug preview のテストを確認する
 
-現在の Operation runtime は、step ベースの schema を唯一の正規形として扱い、Noctis と Worker の間で必要な facet を prompt composition engine を通じて注入します。
+## Planning Implication
 
-重要なのは次の 3 点です。
+`spec-planning` では、単に OpenSpec artifact を書くだけでなく、後続 step が runtime mediation によってどう実行されるかまで踏まえて計画する必要があります。
 
-1. authored schema と runtime state の vocabulary が `step` に統一されていること
-2. facet 解決が operation YAML からの相対パスで行われること
-3. `output_contracts` だけは従来構造を維持していること
+特に次を前提に考えるとよいです。
 
-この前提を守れば、Operation は User -> Noctis -> Worker -> Runtime を基本経路とし、manual path のときだけ Noctis が次 action を受け取る構造で一貫して進行します。
+- agent 間メッセージは direct chaining ではなく runtime-mediated dispatch で進む
+- Noctis self-step と worker step では status contract が異なる
+- prompt 改善は operation YAML、facet、composer、runtime、debug preview、tests が連動する
+- preview が正しく見えても live path と一致しているとは限らない
+
+この理解があると、spec-planning で「どのファイルを変えるか」だけでなく、「どの hook の契約を変えるか」まで明確に整理できます。

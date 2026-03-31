@@ -139,6 +139,9 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
     );
+    expect(composed.payloadParts[0]?.text).toContain(
+      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
+    );
     expect(composed.payloadParts[0]?.text).not.toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
     );
@@ -172,7 +175,7 @@ describe("prompt composition engine", () => {
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
     expect(composed.payloadParts[0]?.text).toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/openspec-workflow.md"`,
+      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
     );
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/policies/coding-standards.md"`,
