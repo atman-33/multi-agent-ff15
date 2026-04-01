@@ -115,7 +115,6 @@ export function composeUserToNoctisPrompt(input: {
   sessionId: string;
   isNewMission: boolean;
   selectedOperation?: string | null;
-  lastNoctisResponse?: string;
 }): ComposedPromptPayload & {
   operationActivated?: string;
   stateTransition?: StateTransition;
@@ -126,7 +125,6 @@ export function composeUserToNoctisPrompt(input: {
     message: input.userMessage,
     isNewMission: input.isNewMission,
     selectedOperation: input.selectedOperation,
-    lastNoctisResponse: input.lastNoctisResponse,
   });
 
   return {

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getMission } from "@/lib/mission-store";
-import type { Mission, OperationState } from "@/lib/types/mission";
+import type { AgentId, Mission, OperationState, StepHistoryEntry } from "@/lib/types/mission";
 import type { StateTransition } from "./types";
 
 const DEFAULT_REPORT_DIR = "docs/reports";
@@ -42,10 +42,43 @@ export function saveOperationState(missionId: string, state: OperationState): vo
   persistMissionDirect(mission);
 }
 
+function createStepTaskId(state: OperationState): string {
+  return `step_${state.currentStep}_${state.iteration + 1}`;
+}
+
+export function getActiveStepRecord(state: OperationState): StepHistoryEntry | undefined {
+  const latestEntry = state.stepHistory.at(-1);
+  if (!latestEntry) {
+    return undefined;
+  }
+
+  if (latestEntry.step !== state.currentStep || latestEntry.status !== "dispatched") {
+    return undefined;
+  }
+
+  return latestEntry;
+}
+
+export function getActiveStepTaskId(state: OperationState): string | undefined {
+  return getActiveStepRecord(state)?.taskId;
+}
+
+export function ensureActiveStepTaskId(state: OperationState, agent: AgentId): string {
+  const activeEntry = getActiveStepRecord(state);
+  if (activeEntry?.agent === agent && activeEntry.taskId) {
+    state.status = "waiting_for_report";
+    return activeEntry.taskId;
+  }
+
+  const taskId = createStepTaskId(state);
+  recordStepDispatched(state, state.currentStep, agent, taskId);
+  return taskId;
+}
+
 export function recordStepDispatched(
   state: OperationState,
   step: string,
-  agent: string,
+  agent: AgentId,
   taskId?: string,
 ): void {
   state.iteration++;

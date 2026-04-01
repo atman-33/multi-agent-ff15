@@ -37,13 +37,15 @@ export interface AgentContextUsage {
 
 export type MissionStatus = "active" | "completed" | "archived";
 
-export interface WorkerResult {
+export interface StepResult {
   task_id: string;
   status: ReportStatus;
   summary: string;
   artifacts: string[];
   ruleIndex?: number;
 }
+
+export type WorkerResult = StepResult;
 
 export type TaskStatus = "pending" | "running" | "blocked" | "completed" | "failed";
 
@@ -53,7 +55,7 @@ export interface Task {
   dependencies: string[];
   status: TaskStatus;
   message: string;
-  result?: WorkerResult;
+  result?: StepResult;
 }
 
 export interface DelegationLedger {
@@ -108,7 +110,7 @@ export type StepHistoryStatus = "dispatched" | "completed" | "failed";
 
 export interface StepHistoryEntry {
   step: string;
-  agent: string;
+  agent: AgentId;
   taskId?: string;
   status: StepHistoryStatus;
   ruleMatched?: number;
@@ -215,16 +217,16 @@ ${depSection}
 [CONSTRAINTS]
 - No new external dependencies
 - Chat output alone is not task completion
-- Workers return to Noctis only through scripts/send_report.sh
+- Step results return to runtime through scripts/send_report.sh
 - The report must include the same taskId: ${taskId}
-- A task is complete only after Noctis receives the report for ${taskId}
+- A task is complete only after runtime accepts the report for ${taskId}
 - Do not stop after printing JSON in chat
 
 [OUTPUT FORMAT]
-Return results in WorkerResult format: { task_id, status, summary, artifacts }
+Return results in StepResult format: { task_id, status, summary, artifacts }
 
 [MANDATORY DELIVERY]
-- Use scripts/send_report.sh to send your result back to Noctis
+- Use scripts/send_report.sh to send your result back to runtime
 - Use status=running for progress, status=blocked for blockers, status=completed for final success, status=failed for final failure
 - Include the same taskId in the report command
 

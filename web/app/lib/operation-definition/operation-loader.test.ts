@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("operation loader", () => {
-  it("loads the step-based schema with manual handoff by default", () => {
+  it("loads the step-based schema without handoff configuration", () => {
     const filePath = writeTempOperation([
       "name: test-operation",
       "description: Test operation",
@@ -43,19 +43,34 @@ describe("operation loader", () => {
     const operation = loadOperationFromFile(filePath);
 
     expect(operation.initial_step).toBe("plan");
-    expect(operation.handoff_mode).toBe("manual");
     expect(operation.steps).toHaveLength(1);
     expect(operation.steps[0]?.name).toBe("plan");
     expect(operation.steps[0]?.output_contracts).toBeUndefined();
-    expect(operation.steps[0]?.handoff_mode).toBeUndefined();
   });
 
-  it("loads operation and step handoff overrides when defined", () => {
+  it("rejects removed handoff configuration at the operation root", () => {
     const filePath = writeTempOperation([
       "name: handoff-operation",
       "description: Handoff operation",
       "initial_step: implement",
       "handoff_mode: auto",
+      "steps:",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    job_file: ./implementer.md",
+      "    instruction_file: ./implement.md",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/removed field\(s\): handoff_mode/i);
+  });
+
+  it("rejects removed handoff configuration inside steps", () => {
+    const filePath = writeTempOperation([
+      "name: step-handoff-operation",
+      "description: Step handoff operation",
+      "initial_step: implement",
       "steps:",
       "  - name: implement",
       "    agent: gladiolus",
@@ -66,10 +81,7 @@ describe("operation loader", () => {
       "",
     ].join("\n"));
 
-    const operation = loadOperationFromFile(filePath);
-
-    expect(operation.handoff_mode).toBe("auto");
-    expect(operation.steps[0]?.handoff_mode).toBe("manual");
+    expect(() => loadOperationFromFile(filePath)).toThrow(/removed field "handoff_mode"/i);
   });
 
   it("loads step output contracts when they are defined", () => {

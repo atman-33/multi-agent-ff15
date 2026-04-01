@@ -91,6 +91,7 @@ function buildStateForStep(
 }
 
 export function buildOperationDebugBundle(input: {
+  missionId?: string;
   userMessage?: string;
   operationName: string;
   previousResponse?: string;
@@ -102,6 +103,7 @@ export function buildOperationDebugBundle(input: {
 }): OperationDebugBundle {
   const root = getProjectRoot();
   const operation = loadOperationByName(input.operationName, readOperationLanguage());
+  const missionId = input.missionId?.trim() || "debug-mission";
 
   const reportRuleIndex = Number.isInteger(input.reportRuleIndex) ? input.reportRuleIndex : 0;
   const reportStatus = input.reportStatus ?? "completed";
@@ -129,10 +131,12 @@ export function buildOperationDebugBundle(input: {
         operationState: stepState,
         facets,
         reportDir: stepState.reportDir,
+        missionId,
+        taskId: `step_${step.name}_${index + 1}`,
       });
       const composed = composeUserToNoctisPromptPreview({
         context: {
-          missionId: "debug-mission",
+          missionId,
           sessionId: "debug-noctis-session",
           agent: "noctis",
           allowedWorkers: ["ignis", "gladiolus", "prompto"],
@@ -173,12 +177,12 @@ export function buildOperationDebugBundle(input: {
       `Synthetic task for ${workerAgent}: implement the current step as Noctis instructed.`;
     const dispatchComposed = composeWorkerTaskPrompt({
       context: {
-        missionId: "debug-mission",
+        missionId,
         sessionId: `debug-${workerAgent}-session`,
         agent: workerAgent,
         appRoot: root,
       },
-      missionId: "debug-mission",
+      missionId,
       agentId: workerAgent,
       taskId: `debug-task-${step.name}`,
       originalPrompt: dispatchPrompt,
@@ -211,14 +215,14 @@ export function buildOperationDebugBundle(input: {
     const reportDetails = reportDetailsBase;
     const reportComposed = composeTeamMessagePrompt({
       context: {
-        missionId: "debug-mission",
+        missionId,
         sessionId: "debug-noctis-session",
         agent: "noctis",
         allowedWorkers: ["ignis", "gladiolus", "prompto"],
         appRoot: root,
         executionMode: "operation-debug",
       },
-      missionId: "debug-mission",
+      missionId,
       from: workerAgent,
       to: "noctis",
       type: "report",

@@ -6,10 +6,10 @@ import { getOperationState, saveOperationState } from "@/lib/operation-runtime/s
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { dispatchCurrentOperationStepToWorker } from "@/lib/task-dispatch.server";
 import { sendWorkerReport } from "@/lib/team-message.server";
-import type { ReportStatus, WorkerAgentId, WorkerResult } from "@/lib/types/mission";
+import type { AgentId, ReportStatus, StepResult, WorkerAgentId } from "@/lib/types/mission";
 import type { Route } from "./+types/route";
 
-const WORKER_IDS: ReadonlySet<string> = new Set<WorkerAgentId>(["ignis", "gladiolus", "prompto"]);
+const AGENT_IDS: ReadonlySet<string> = new Set<AgentId>(["noctis", "ignis", "gladiolus", "prompto"]);
 const REPORT_STATUSES: ReadonlySet<string> = new Set<ReportStatus>([
   "running",
   "blocked",
@@ -17,8 +17,8 @@ const REPORT_STATUSES: ReadonlySet<string> = new Set<ReportStatus>([
   "failed",
 ]);
 
-function isWorkerId(value: unknown): value is WorkerAgentId {
-  return typeof value === "string" && WORKER_IDS.has(value);
+function isAgentId(value: unknown): value is AgentId {
+  return typeof value === "string" && AGENT_IDS.has(value);
 }
 
 function isReportStatus(value: unknown): value is ReportStatus {
@@ -60,7 +60,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     artifacts?: unknown;
   } | null;
 
-  if (!body || !isWorkerId(body.fromAgent)) {
+  if (!body || !isAgentId(body.fromAgent)) {
     return Response.json({ error: "Invalid fromAgent" }, { status: 400 });
   }
   if (typeof body.taskId !== "string" || !body.taskId.trim()) {
@@ -85,10 +85,14 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
     const operationState = getOperationState(missionId);
     let workflowGuidance: string | undefined;
-    let handoffMode: "auto" | "manual" = "manual";
     let autoDispatch:
       | { agentId: WorkerAgentId; stepName: string; taskId: string; sessionId: string }
       | undefined;
+    let nextStep: string | null = null;
+
+    if (body.fromAgent === "noctis" && !operationState) {
+      return Response.json({ error: "No active workflow step for Noctis report" }, { status: 409 });
+    }
 
     if (operationState && (operationState.status === "running" || operationState.status === "waiting_for_report")) {
       const operation = loadOperationByName(operationState.operationName, readOperationLanguage());
@@ -133,6 +137,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
       if (isTerminalReport) {
         const reportResult = processReport({
+          missionId,
           operationState,
           reportBody: summary,
           reportDetails: details,
@@ -143,6 +148,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         });
 
         workflowGuidance = reportResult.noctisGuidance || undefined;
+        nextStep = reportResult.stateTransition?.nextStep ?? null;
 
         if (reportResult.stateTransition) {
           saveOperationState(missionId, operationState);
@@ -151,7 +157,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         if (reportResult.nextWorkerDispatch) {
           try {
             const dispatched = await dispatchCurrentOperationStepToWorker({ missionId });
-            handoffMode = "auto";
             autoDispatch = {
               agentId: dispatched.agentId,
               stepName: dispatched.stepName,
@@ -160,6 +165,17 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
             };
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
+
+            if (body.fromAgent === "noctis") {
+              return Response.json(
+                {
+                  error: `Automatic dispatch failed: ${message}`,
+                  nextStep,
+                },
+                { status: 503 },
+              );
+            }
+
             workflowGuidance = joinXmlSections([
               buildTextSection("operation-note", `Automatic handoff failed: ${message}`),
               workflowGuidance ?? null,
@@ -169,7 +185,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       }
     }
 
-    const result: WorkerResult = {
+    const result: StepResult = {
       task_id: taskId,
       status: body.status,
       summary,
@@ -177,15 +193,24 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       ...(typeof ruleIndex === "number" ? { ruleIndex } : {}),
     };
 
-    updateTask(missionId, taskId, body.status, summary, result);
+    if (body.fromAgent !== "noctis") {
+      updateTask(missionId, taskId, body.status, summary, result);
+    }
 
     if (autoDispatch) {
       return Response.json({
-        handoffMode,
         dispatchedTo: autoDispatch.agentId,
         nextStep: autoDispatch.stepName,
         taskId: autoDispatch.taskId,
         sessionId: autoDispatch.sessionId,
+      });
+    }
+
+    if (body.fromAgent === "noctis") {
+      return Response.json({
+        acknowledged: true,
+        nextStep,
+        currentStep: operationState?.currentStep ?? null,
       });
     }
 
@@ -201,7 +226,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       workflowGuidance,
     });
 
-    return Response.json({ ...delivery, handoffMode });
+    return Response.json(delivery);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to send report";
     const status = message === "Mission not found" ? 404 : 503;

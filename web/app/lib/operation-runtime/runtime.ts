@@ -1,7 +1,7 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { listAvailableOperations, loadOperationByName } from "@/lib/operation-definition/operation-loader";
-import type { HandoffMode, OperationDefinition, StepDefinition } from "@/lib/operation-definition/types";
+import type { OperationDefinition, StepDefinition } from "@/lib/operation-definition/types";
 import {
   buildActivationInstruction,
   buildAugmentedInstruction,
@@ -10,12 +10,12 @@ import {
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import { buildTextSection, buildYamlSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { checkAgentDeviation } from "./deviation-tracker";
-import { evaluateRuleIndex, evaluateRules } from "./rule-evaluator";
+import { evaluateRuleIndex } from "./rule-evaluator";
 import {
   createOperationState,
+  ensureActiveStepTaskId,
   getOperationState,
   recordStepCompleted,
-  recordStepDispatched,
   saveOperationState,
 } from "./state";
 import type {
@@ -41,9 +41,8 @@ function detectOperationName(message: string): string | null {
 
 export function processUserMessage(
   input: ProcessUserMessageInput,
-  lastNoctisResponse?: string,
 ): ProcessUserMessageResult {
-  const { missionId, message, isNewMission } = input;
+  const { missionId, message } = input;
   const language = readOperationLanguage();
   const existingState = getOperationState(missionId);
 
@@ -66,16 +65,17 @@ export function processUserMessage(
       return { additionalContext: null, operationActivated: operationName };
     }
 
-    const facets = resolveStepFacets(operation, initialStep, language);
-    const activationText = buildActivationInstruction({
-      operation,
-      step: initialStep,
-      operationState: state,
-      facets,
-      reportDir: state.reportDir,
-    });
+    const activationText =
+      initialStep.agent === "noctis"
+        ? buildNoctisStepInstruction({
+            missionId,
+            operation,
+            operationState: state,
+            step: initialStep,
+            language,
+          })
+        : buildOperationContextSummary(operation, state);
 
-    recordStepDispatched(state, initialStep.name, initialStep.agent);
     saveOperationState(missionId, state);
 
     return {
@@ -85,40 +85,20 @@ export function processUserMessage(
   }
 
   const operation = loadOperationByName(existingState.operationName, language);
-  if (!isNewMission && lastNoctisResponse) {
-    const currentStep = operation.steps.find(
-      (step) => step.name === existingState.currentStep,
-    );
+  const currentStep = operation.steps.find(
+    (step) => step.name === existingState.currentStep,
+  );
 
-    if (currentStep?.agent === "noctis" && currentStep.rules.length > 0) {
-      const ruleMatch = evaluateRules(lastNoctisResponse, currentStep.rules);
-      if (ruleMatch) {
-        const transition: StateTransition = {
-          previousStep: existingState.currentStep,
-          nextStep: ruleMatch.next,
-          ruleMatched: ruleMatch.matchedIndex,
-          ruleCondition: ruleMatch.condition,
-        };
-
-        recordStepCompleted(existingState, transition, lastNoctisResponse.slice(0, 500));
-        saveOperationState(missionId, existingState);
-
-        if (ruleMatch.next === "COMPLETE" || ruleMatch.next === "ABORT") {
-          return {
-            additionalContext: buildTerminalGuidance(operation, existingState, ruleMatch.next),
-            stateTransition: transition,
-          };
-        }
-
-        const nextStep = operation.steps.find((step) => step.name === ruleMatch.next);
-        if (nextStep) {
-          return {
-            additionalContext: buildTransitionGuidance(operation, currentStep, transition),
-            stateTransition: transition,
-          };
-        }
-      }
-    }
+  if (currentStep?.agent === "noctis") {
+    const activationText = buildNoctisStepInstruction({
+      missionId,
+      operation,
+      operationState: existingState,
+      step: currentStep,
+      language,
+    });
+    saveOperationState(missionId, existingState);
+    return { additionalContext: activationText };
   }
 
   return { additionalContext: buildOperationContextSummary(operation, existingState) };
@@ -158,8 +138,6 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     agentId,
     taskId: input.taskId,
   });
-
-  recordStepDispatched(operationState, currentStep.name, agentId, input.taskId);
   saveOperationState(missionId, operationState);
 
   if (deviationNote) {
@@ -170,7 +148,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
 }
 
 export function processReport(input: ProcessReportInput): ProcessReportResult {
-  const { operationState, reportBody, ruleIndex } = input;
+  const { missionId, operationState, reportBody, ruleIndex } = input;
   const language = readOperationLanguage();
   const operation = loadOperationByName(operationState.operationName, language);
   const currentStep = operation.steps.find(
@@ -187,7 +165,7 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
     return {
       noctisGuidance: buildTextSection(
         "operation-note",
-        "Could not determine the next step from the worker report. Missing or invalid ruleIndex.",
+        "Could not determine the next step from the step report. Missing or invalid ruleIndex.",
       ),
       stateTransition: null,
       nextWorkerDispatch: null,
@@ -212,9 +190,25 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
   }
 
   const nextStep = operation.steps.find((step) => step.name === ruleMatch.next);
-  const guidance = buildTransitionGuidance(operation, currentStep, transition);
+  const guidance = buildTransitionGuidance(operation, transition);
 
-  if (nextStep && shouldAutoDispatch(operation, currentStep, nextStep)) {
+  if (nextStep?.agent === "noctis") {
+    const activationText = buildNoctisStepInstruction({
+      missionId,
+      operation,
+      operationState,
+      step: nextStep,
+      language,
+    });
+
+    return {
+      noctisGuidance: joinXmlSections([guidance, activationText]),
+      stateTransition: transition,
+      nextWorkerDispatch: null,
+    };
+  }
+
+  if (nextStep) {
     return {
       noctisGuidance: guidance,
       stateTransition: transition,
@@ -232,24 +226,28 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
   };
 }
 
-function getEffectiveHandoffMode(
-  operation: OperationDefinition,
-  step: StepDefinition,
-): HandoffMode {
-  return step.handoff_mode ?? operation.handoff_mode;
-}
-
-function shouldAutoDispatch(
-  operation: OperationDefinition,
-  currentStep: StepDefinition,
-  nextStep: StepDefinition,
-): nextStep is StepDefinition & { agent: "ignis" | "gladiolus" | "prompto" } {
-  return getEffectiveHandoffMode(operation, currentStep) === "auto" && nextStep.agent !== "noctis";
+function buildNoctisStepInstruction(input: {
+  missionId: string;
+  operation: OperationDefinition;
+  operationState: OperationState;
+  step: StepDefinition;
+  language: string;
+}): string {
+  const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
+  const facets = resolveStepFacets(input.operation, input.step, input.language);
+  return buildActivationInstruction({
+    operation: input.operation,
+    step: input.step,
+    operationState: input.operationState,
+    facets,
+    reportDir: input.operationState.reportDir,
+    missionId: input.missionId,
+    taskId,
+  });
 }
 
 function buildTransitionGuidance(
   operation: OperationDefinition,
-  currentStep: StepDefinition,
   transition: StateTransition,
 ): string {
   const nextStep = operation.steps.find((step) => step.name === transition.nextStep);
@@ -261,7 +259,6 @@ function buildTransitionGuidance(
     `matched_rule_index: ${transition.ruleMatched}`,
     `matched_rule_condition: ${JSON.stringify(transition.ruleCondition)}`,
     `next_step: ${transition.nextStep}`,
-    `effective_handoff_mode: ${getEffectiveHandoffMode(operation, currentStep)}`,
     `next_action: ${nextAction}`,
   ];
 
@@ -277,7 +274,7 @@ function buildTransitionGuidance(
           "next-action",
           nextStep.agent === "noctis"
             ? `Begin the "${nextStep.name}" step yourself.`
-            : `Dispatch a task to ${nextStep.agent} for the "${nextStep.name}" step.`,
+            : `Runtime will dispatch ${nextStep.agent} for the "${nextStep.name}" step.`,
         )
       : null,
   ]);

@@ -139,11 +139,11 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
     );
-    expect(composed.payloadParts[0]?.text).toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
-    );
     expect(composed.payloadParts[0]?.text).not.toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
+    );
+    expect(composed.payloadParts[0]?.text).not.toContain(
+      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
     );
     expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
     expect(composed.payloadParts[0]?.text).not.toContain("[NOCTIS_ROUTED_MESSAGE]");
@@ -217,6 +217,7 @@ describe("prompt composition engine", () => {
   it("keeps debug preview aligned with composed Noctis activation prompt structure", () => {
     const root = getProjectRoot();
     const bundle = buildOperationDebugBundle({
+      missionId: "debug-self-step-preview",
       operationName: "openspec-dev",
     });
     const selfStep = bundle.flowSteps.find(

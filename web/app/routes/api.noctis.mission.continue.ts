@@ -75,27 +75,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const client = getOpencodeClient();
     const appRoot = getProjectRoot();
 
-    let lastNoctisResponse: string | undefined;
-    try {
-      const msgs = await client.session.messages({
-        path: { id: mission.noctisSessionId },
-      });
-      if (msgs.data) {
-        for (let i = msgs.data.length - 1; i >= 0; i--) {
-          const msg = msgs.data[i];
-          if (msg?.info.role === "assistant") {
-            lastNoctisResponse = msg.parts
-              .filter((p) => p.type === "text")
-              .map((p) => p.text ?? "")
-              .join("");
-            break;
-          }
-        }
-      }
-    } catch {
-      // Non-blocking: proceed without last response
-    }
-
     const userMessage = stringifyPromptParts(promptParts);
     const composed = composeUserToNoctisPrompt({
       context: {
@@ -110,7 +89,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
       missionId,
       sessionId: mission.noctisSessionId,
       isNewMission: false,
-      lastNoctisResponse,
     });
 
     const result = await client.session.promptAsync({

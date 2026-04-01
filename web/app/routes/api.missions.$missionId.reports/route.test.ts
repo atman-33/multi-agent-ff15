@@ -38,7 +38,7 @@ function seedMission(input: {
   missionId: string;
   operationName: string;
   currentStep: string;
-  agent: "ignis" | "gladiolus" | "prompto";
+  agent: "noctis" | "ignis" | "gladiolus" | "prompto";
   taskId: string;
   taskStatus?: "pending" | "running";
 }) {
@@ -48,13 +48,15 @@ function seedMission(input: {
   });
   missionIds.push(input.missionId);
 
-  addTask(input.missionId, {
-    id: input.taskId,
-    assignedTo: input.agent,
-    dependencies: [],
-    status: input.taskStatus ?? "running",
-    message: `Task for ${input.currentStep}`,
-  });
+  if (input.agent !== "noctis") {
+    addTask(input.missionId, {
+      id: input.taskId,
+      assignedTo: input.agent,
+      dependencies: [],
+      status: input.taskStatus ?? "running",
+      message: `Task for ${input.currentStep}`,
+    });
+  }
 
   const state = createOperationState(input.operationName, input.currentStep);
   state.currentStep = input.currentStep;
@@ -164,7 +166,6 @@ describe("api.missions.$missionId.reports", () => {
 
     expect(response.status).toBe(200);
     await expect(readJson(response)).resolves.toMatchObject({
-      handoffMode: "manual",
       sessionId: "noctis-session",
       messageId: "msg-1",
     });
@@ -214,7 +215,6 @@ describe("api.missions.$missionId.reports", () => {
 
     expect(response.status).toBe(200);
     await expect(readJson(response)).resolves.toMatchObject({
-      handoffMode: "auto",
       dispatchedTo: "prompto",
       nextStep: "refactor",
       taskId: "task-refactor",
@@ -228,6 +228,52 @@ describe("api.missions.$missionId.reports", () => {
       ruleIndex: 0,
       status: "completed",
     });
+    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
+    expect(sendWorkerReport).not.toHaveBeenCalled();
+  });
+
+  it("accepts Noctis structured reports and dispatches the next worker step", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
+    const missionId = `mission-noctis-${crypto.randomUUID()}`;
+    seedMission({
+      missionId,
+      operationName: "openspec-dev",
+      currentStep: "spec-planning",
+      agent: "noctis",
+      taskId: "step_spec-planning_1",
+    });
+    vi.mocked(dispatchCurrentOperationStepToWorker).mockResolvedValue({
+      agentId: "gladiolus",
+      stepName: "implement",
+      taskId: "task-implement",
+      sessionId: "gladiolus-session",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAgent: "noctis",
+          taskId: "step_spec-planning_1",
+          status: "completed",
+          summary: "Plan is sufficient to start coding.",
+          ruleIndex: 0,
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson(response)).resolves.toMatchObject({
+      dispatchedTo: "gladiolus",
+      nextStep: "implement",
+      taskId: "task-implement",
+      sessionId: "gladiolus-session",
+    });
+
+    const mission = getMission(missionId);
+    expect(mission?.operationState?.currentStep).toBe("implement");
     expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
     expect(sendWorkerReport).not.toHaveBeenCalled();
   });

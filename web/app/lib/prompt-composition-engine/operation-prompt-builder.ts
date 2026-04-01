@@ -52,7 +52,7 @@ export function buildAugmentedInstruction(input: {
     );
   }
 
-  sections.push(buildStepSection(operation, operationState));
+  sections.push(buildStepSection(operation, operationState, input.taskId));
   sections.push(buildTextSection("task", originalInstruction));
 
   if (step.pass_previous_response && previousResponse) {
@@ -104,9 +104,11 @@ export function buildActivationInstruction(input: {
   operationState: OperationState;
   facets: ResolvedFacets;
   reportDir: string;
+  missionId: string;
+  taskId: string;
 }): string {
   const { operation, step, operationState, facets, reportDir } = input;
-  const sections: Array<string | null> = [buildStepSection(operation, operationState)];
+  const sections: Array<string | null> = [buildStepSection(operation, operationState, input.taskId)];
 
   if (facets.job) {
     sections.push(
@@ -149,7 +151,13 @@ export function buildActivationInstruction(input: {
   }
 
   if (step.rules.length > 0) {
-    sections.push(buildStatusOutputRules(step));
+    sections.push(
+      buildStatusOutputRules(step, {
+        missionId: input.missionId,
+        agentId: step.agent,
+        taskId: input.taskId,
+      }),
+    );
   }
 
   return joinXmlSections(sections);
@@ -173,10 +181,15 @@ export function buildOperationContextSummary(
     lines.push(`next_expected_agent: ${currentStep.agent}`);
   }
 
+  const latestStep = operationState.stepHistory.at(-1);
+  if (latestStep?.step === operationState.currentStep && latestStep.taskId) {
+    lines.push(`task_id: ${latestStep.taskId}`);
+  }
+
   return buildYamlSection("step", lines.join("\n"));
 }
 
-function buildStepSection(operation: OperationDefinition, state: OperationState): string {
+function buildStepSection(operation: OperationDefinition, state: OperationState, taskId?: string): string {
   const currentStep = operation.steps.find((step) => step.name === state.currentStep);
   const lines = [
     `operation: ${operation.name}`,
@@ -185,6 +198,15 @@ function buildStepSection(operation: OperationDefinition, state: OperationState)
 
   if (currentStep) {
     lines.push(`role: ${describeStepRole(currentStep.job_file)}`);
+  }
+
+  const resolvedTaskId =
+    taskId ??
+    (state.stepHistory.at(-1)?.step === state.currentStep
+      ? state.stepHistory.at(-1)?.taskId
+      : undefined);
+  if (resolvedTaskId) {
+    lines.push(`task_id: ${resolvedTaskId}`);
   }
 
   return buildYamlSection("step", lines.join("\n"));
@@ -218,24 +240,10 @@ function buildStatusOutputRules(
   step: StepDefinition,
   context?: { missionId: string; agentId: StepDefinition["agent"]; taskId: string },
 ): string {
-  if (step.agent === "noctis") {
-    const lines = [
-      "When this Noctis-owned workflow step is complete, end your response with exactly one status tag:",
-      "",
-    ];
-
-    for (let index = 0; index < step.rules.length; index += 1) {
-      lines.push(`- [STEP:${index}] — ${step.rules[index].condition}`);
-    }
-
-    lines.push("");
-    lines.push("Place the tag on its own line at the end of your response.");
-
-    return buildMarkdownSection("status-output-rules", lines.join("\n"));
-  }
-
   const lines = [
-    "When reporting this workflow step, choose exactly one allowed outcome index and send it with `--rule-index`.",
+    step.agent === "noctis"
+      ? "When this Noctis-owned workflow step is complete, choose exactly one allowed outcome index and send it with `--rule-index`."
+      : "When reporting this workflow step, choose exactly one allowed outcome index and send it with `--rule-index`.",
     "",
     "Allowed outcomes:",
   ];
@@ -250,12 +258,15 @@ function buildStatusOutputRules(
     lines.push(
       `scripts/send_report.sh ${context.missionId} ${context.agentId} ${context.taskId} completed "<summary>" --rule-index <index>`,
     );
+    if (step.agent === "noctis") {
+      lines.push("After sending any required User-facing response, run the report command to finalize the step.");
+    }
   } else {
     lines.push("Include the selected index when calling `scripts/send_report.sh`.");
   }
   lines.push("Use `running` for progress updates without a final outcome index.");
   lines.push("Use the report status (`completed`, `blocked`, or `failed`) together with `--rule-index <index>` for final step completion.");
-  lines.push("Do not use `[STEP:N]` tags in the response body for worker routing.");
+  lines.push("Do not use `[STEP:N]` tags in the response body for routing.");
 
   return buildMarkdownSection("status-output-rules", lines.join("\n"));
 }

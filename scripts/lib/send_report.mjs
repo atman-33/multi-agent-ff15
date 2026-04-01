@@ -24,7 +24,7 @@ for (let index = 0; index < rest.length; index += 1) {
 
 if (!missionId || !fromAgent || !taskId || !status || !summary) {
   console.error(
-    "Usage: scripts/send_report.sh <missionId> <ignis|gladiolus|prompto> <taskId> <running|blocked|completed|failed> \"<summary>\" [details] [--rule-index <n>]"
+    "Usage: scripts/send_report.sh <missionId> <noctis|ignis|gladiolus|prompto> <taskId> <running|blocked|completed|failed> \"<summary>\" [details] [--rule-index <n>]"
   );
   process.exit(1);
 }

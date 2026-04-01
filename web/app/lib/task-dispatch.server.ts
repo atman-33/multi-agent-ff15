@@ -10,7 +10,7 @@ import {
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
-import { getOperationState } from "@/lib/operation-runtime/state";
+import { ensureActiveStepTaskId, getOperationState } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
@@ -59,6 +59,7 @@ function buildCompactTaskPrompt(input: {
   lines.push("Reply:");
   lines.push("- Use the bash tool to run send_report.sh.");
   lines.push("- Do not print the command in chat. Run it with the bash tool.");
+  lines.push("- send_report.sh returns the step result to runtime; runtime decides the next actor.");
   lines.push("- If the workflow prompt lists allowed outcomes, include --rule-index <index> in the report command.");
   lines.push(
     `- Progress example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} running "<progress update>"`
@@ -91,10 +92,12 @@ export async function dispatchCurrentOperationStepToWorker(input: {
   }
 
   const mission = getMission(input.missionId);
+  const taskId = ensureActiveStepTaskId(operationState, currentStep.agent);
   const result = await dispatchTaskToWorker({
     missionId: input.missionId,
     agentId: currentStep.agent,
     message: `Execute the active operation step "${currentStep.name}" for operation "${operation.name}".`,
+    taskId,
     missionObjective: mission?.objective,
   });
 

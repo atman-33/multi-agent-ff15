@@ -71,7 +71,6 @@ describe("operation runtime", () => {
         "name: auto-handoff",
         "description: Auto handoff test",
         "initial_step: implement",
-        "handoff_mode: auto",
         "steps:",
         "  - name: implement",
         "    agent: gladiolus",
@@ -99,6 +98,7 @@ describe("operation runtime", () => {
     });
 
     const result = processReport({
+      missionId: "mission-auto",
       operationState: state,
       reportBody: "Implementation complete.",
       fromAgent: "gladiolus",
@@ -110,49 +110,48 @@ describe("operation runtime", () => {
     expect(result.stateTransition?.nextStep).toBe("review");
     expect(result.nextWorkerDispatch).toEqual({ step: "review", agentId: "ignis" });
     expect(result.noctisGuidance).toContain("next_step: review");
-    expect(result.noctisGuidance).toContain("effective_handoff_mode: auto");
+    expect(result.noctisGuidance).toContain("next_action: dispatch_worker");
     expect(state.currentStep).toBe("review");
   });
 
-  it("keeps manual guidance when the current step overrides handoff_mode", () => {
+  it("prepares the next Noctis self-step when a worker resolves to Noctis", () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
     seedOperation(
       root,
-      "manual-handoff",
+      "noctis-transition",
       [
-        "name: manual-handoff",
-        "description: Manual handoff test",
+        "name: noctis-transition",
+        "description: Noctis transition test",
         "initial_step: implement",
-        "handoff_mode: auto",
         "steps:",
         "  - name: implement",
         "    agent: gladiolus",
-        "    handoff_mode: manual",
         "    job_file: ./implementer.md",
         "    instruction_file: ./implement.md",
         "    rules:",
         "      - condition: Implementation complete",
-        "        next: review",
-        "  - name: review",
-        "    agent: ignis",
-        "    job_file: ./reviewer.md",
-        "    instruction_file: ./review.md",
+        "        next: summarize",
+        "  - name: summarize",
+        "    agent: noctis",
+        "    job_file: ./planner.md",
+        "    instruction_file: ./summary.md",
         "    rules:",
-        "      - condition: Approved",
+        "      - condition: Reported to user",
         "        next: COMPLETE",
         "",
       ].join("\n"),
     );
 
     const state = buildDispatchedState({
-      operationName: "manual-handoff",
+      operationName: "noctis-transition",
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-2",
     });
 
     const result = processReport({
+      missionId: "mission-noctis",
       operationState: state,
       reportBody: "Implementation complete.",
       fromAgent: "gladiolus",
@@ -161,10 +160,15 @@ describe("operation runtime", () => {
       ruleIndex: 0,
     });
 
-    expect(result.stateTransition?.nextStep).toBe("review");
+    expect(result.stateTransition?.nextStep).toBe("summarize");
     expect(result.nextWorkerDispatch).toBeNull();
-    expect(result.noctisGuidance).toContain("effective_handoff_mode: manual");
-    expect(result.noctisGuidance).toContain("next_action: dispatch_worker");
+    expect(result.noctisGuidance).toContain("next_step: summarize");
+    expect(result.noctisGuidance).toContain("next_action: begin_self_step");
+    expect(result.noctisGuidance).toContain("scripts/send_report.sh mission-noctis noctis");
+    expect(state.currentStep).toBe("summarize");
+    expect(state.status).toBe("waiting_for_report");
+    expect(state.stepHistory.at(-1)?.step).toBe("summarize");
+    expect(state.stepHistory.at(-1)?.taskId).toBeTruthy();
   });
 
   it("returns terminal guidance without auto dispatch for COMPLETE", () => {
@@ -177,7 +181,6 @@ describe("operation runtime", () => {
         "name: terminal-handoff",
         "description: Terminal handoff test",
         "initial_step: review",
-        "handoff_mode: auto",
         "steps:",
         "  - name: review",
         "    agent: ignis",
@@ -198,6 +201,7 @@ describe("operation runtime", () => {
     });
 
     const result = processReport({
+      missionId: "mission-terminal",
       operationState: state,
       reportBody: "Approved.",
       fromAgent: "ignis",

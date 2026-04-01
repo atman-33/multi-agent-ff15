@@ -9,18 +9,14 @@ export function composeUserWorkflowExtension(input: {
   message: string;
   isNewMission: boolean;
   selectedOperation?: string | null;
-  lastNoctisResponse?: string;
 }): ProcessUserMessageResult {
-  return processUserMessage(
-    {
-      missionId: input.missionId,
-      sessionId: input.sessionId,
-      message: input.message,
-      isNewMission: input.isNewMission,
-      selectedOperation: input.selectedOperation,
-    },
-    input.lastNoctisResponse,
-  );
+  return processUserMessage({
+    missionId: input.missionId,
+    sessionId: input.sessionId,
+    message: input.message,
+    isNewMission: input.isNewMission,
+    selectedOperation: input.selectedOperation,
+  });
 }
 
 export function composeWorkerWorkflowPrompt(input: {
@@ -70,6 +66,7 @@ export function composeReportWorkflowExtension(input: {
     operationState,
     reportBody: input.reportBody,
     reportDetails: input.reportDetails,
+    missionId: input.missionId,
     fromAgent: input.fromAgent,
     taskId: input.taskId,
     reportStatus: input.reportStatus,

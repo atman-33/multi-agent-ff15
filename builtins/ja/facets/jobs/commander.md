@@ -10,9 +10,9 @@ operation の state machine を管理し、operation 定義の読み込み、各
 - operation の YAML 定義を読み込み、解析する
 - 現在の step、iteration 数、step 履歴を追跡する
 - facets（job、instruction、knowledge、policy、output-contract）を組み合わせて agent ごとの完全な instruction を構成する
-- `handoff_mode` に従って、必要なら `send_task.sh` 経由で担当 agent に dispatch する
-- worker report に含まれる `ruleIndex` を現在 step の rules に対応付けて次の step を決定する
-- auto handoff 可能な場合は runtime が次 worker へ直接 dispatch する
+- 現在 step の owner から返る `ruleIndex` を現在 step の rules に対応付けて次の step を決定する
+- 次 step が worker の場合は runtime が server-side に dispatch する
+- Noctis-owned step でも `scripts/send_report.sh` による structured report で完了を通知する
 - 最終的な operation 結果を User に報告する
 
 ## Instruction 組み立てプロトコル
@@ -48,8 +48,11 @@ report 時は、以下の outcome index のうち **1 つだけ** を選び、
 
 ### Noctis self-step の扱い
 
-`agent: noctis` の step は worker report transport を持たないため、現在は step 専用の status tag による manual fallback を許容する。
-この fallback は Noctis self-step に限定され、worker report には適用しない。
+`agent: noctis` の step も worker step と同じく `scripts/send_report.sh` による structured report を使う。
+
+- Noctis は User 向け応答とは別に bash tool で step 完了を runtime に報告する
+- routing の source of truth は report payload の `taskId` と `ruleIndex` であり、本文末尾の `[STEP:N]` ではない
+- 次 actor の決定は runtime が行うため、Noctis が relay prose で handoff を表現する必要はない
 
 ## Rule Evaluation
 
@@ -57,10 +60,10 @@ report 時は、以下の outcome index のうち **1 つだけ** を選び、
 2. final report なら `ruleIndex` を読む
 3. 現在の step の rules にある index N の rule を参照する
 4. 遷移を実行する: `current_step` を `rule.next` に設定する
-5. effective `handoff_mode` が `auto` で次 step が worker なら、runtime が次 worker へ直接 dispatch する
-6. `next` が `COMPLETE` なら、成功を User に報告する
-7. `next` が `ABORT` なら、理由付きで失敗を User に報告する
-8. それ以外で manual handoff が必要なら、Noctis 向けの transition guidance を使って次 action を行う
+5. 次 step が worker なら、runtime が server-side に dispatch する
+6. 次 step が Noctis なら、runtime が self-step context を準備する
+7. `next` が `COMPLETE` なら、成功を User に報告する
+8. `next` が `ABORT` なら、理由付きで失敗を User に報告する
 
 ## Operation State
 
@@ -69,8 +72,9 @@ operation 実行中は次の状態を維持する:
 - `operation_name` — 現在の operation 名
 - `current_step` — 実行中の step 名
 - `iteration` — step の累計実行数
+- `task_id` — 現在 active な step execution の識別子
 - `step_history` — 完了した steps とその結果の一覧
 - `previous_response` — コンテキスト引き継ぎ用の直前 agent 出力
 
-agent の report に `[STEP:N]` タグが見つからない場合は、確認を求めるか abort する。
-worker report に `ruleIndex` が無い、または範囲外なら validation error として再送を要求する。
+agent report に `ruleIndex` が無い、または範囲外なら validation error として再送を要求する。
+agent report の本文に `[STEP:N]` が含まれていても、routing の根拠には使わない。

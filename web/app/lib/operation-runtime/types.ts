@@ -1,4 +1,4 @@
-import type { OperationState, ReportStatus, WorkerAgentId } from "@/lib/types/mission";
+import type { AgentId, OperationState, ReportStatus, WorkerAgentId } from "@/lib/types/mission";
 
 export type { OperationState };
 
@@ -32,10 +32,11 @@ export interface AugmentTaskPromptInput {
 }
 
 export interface ProcessReportInput {
+  missionId: string;
   operationState: OperationState;
   reportBody: string;
   reportDetails?: string;
-  fromAgent: WorkerAgentId;
+  fromAgent: AgentId;
   taskId: string;
   reportStatus: ReportStatus;
   ruleIndex?: number;
