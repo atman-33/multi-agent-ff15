@@ -1,7 +1,7 @@
 import { augmentTaskPrompt, processReport, processUserMessage } from "@/lib/operation-runtime/runtime";
 import { getOperationState, saveOperationState } from "@/lib/operation-runtime/state";
 import type { OperationState, ProcessReportResult, ProcessUserMessageResult } from "@/lib/operation-runtime/types";
-import type { ReportStatus, WorkerAgentId } from "@/lib/types/mission";
+import type { WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 
 export function composeUserWorkflowExtension(input: {
   missionId: string;
@@ -46,11 +46,9 @@ export function composeWorkerWorkflowPrompt(input: {
 export function composeReportWorkflowExtension(input: {
   missionId: string;
   reportBody: string;
-  reportDetails?: string;
   fromAgent: WorkerAgentId;
   taskId: string;
-  reportStatus: ReportStatus;
-  ruleIndex?: number;
+  next?: WorkflowNext;
   operationStateOverride?: OperationState;
 }): ProcessReportResult {
   const operationState = input.operationStateOverride ?? getOperationState(input.missionId);
@@ -65,12 +63,10 @@ export function composeReportWorkflowExtension(input: {
   const result = processReport({
     operationState,
     reportBody: input.reportBody,
-    reportDetails: input.reportDetails,
     missionId: input.missionId,
     fromAgent: input.fromAgent,
     taskId: input.taskId,
-    reportStatus: input.reportStatus,
-    ruleIndex: input.ruleIndex,
+    next: input.next,
   });
 
   if (!input.operationStateOverride) {

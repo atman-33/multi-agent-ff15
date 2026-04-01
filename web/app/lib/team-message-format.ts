@@ -1,5 +1,5 @@
 import { parse, stringify } from "yaml";
-import type { ActivityActorId, ReportStatus, TeamMessageType } from "@/lib/types/mission";
+import type { ActivityActorId, ReportStatus, TeamMessageType, WorkflowNext } from "@/lib/types/mission";
 
 export const TEAM_MESSAGE_MARKER = "[TEAM_MESSAGE]";
 export const ROUTED_MESSAGE_MARKER = "[NOCTIS_ROUTED_MESSAGE]";
@@ -11,8 +11,8 @@ export interface RoutedSessionMessage {
   to: ActivityActorId;
   messageType: RoutedMessageType;
   taskId?: string;
+  next?: WorkflowNext;
   status?: ReportStatus;
-  ruleIndex?: number;
   body?: string;
   summary?: string;
   details?: string;
@@ -73,11 +73,11 @@ export function buildRoutedMessageEnvelope(input: RoutedSessionMessage): string 
   if (input.taskId) {
     payload.task_id = input.taskId;
   }
+  if (typeof input.next === "string" && input.next.trim()) {
+    payload.next = input.next.trim();
+  }
   if (input.status) {
     payload.status = input.status;
-  }
-  if (typeof input.ruleIndex === "number") {
-    payload.rule_index = input.ruleIndex;
   }
   if (typeof input.body === "string" && input.body.trim()) {
     payload.body = input.body.trim();
@@ -101,8 +101,8 @@ export function buildTeamMessageEnvelope(input: {
   type: TeamMessageType;
   body: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
-  ruleIndex?: number;
   artifacts?: string[];
   details?: string;
 }): string {
@@ -111,11 +111,11 @@ export function buildTeamMessageEnvelope(input: {
     to: input.to,
     messageType: input.type === "report" ? "report" : "message",
     taskId: input.taskId,
+    next: input.next,
     status: input.reportStatus,
-    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
-    body: input.type === "report" ? undefined : input.body,
-    summary: input.type === "report" ? input.body : undefined,
+    body: input.body,
+    summary: undefined,
     details: input.type === "report" ? input.details : undefined,
   });
 }
@@ -166,6 +166,7 @@ function parseLegacyTeamMessageEnvelope(value: string): RoutedSessionMessage | n
       to,
       messageType: "report",
       taskId: meta.task_id,
+      next: meta.next,
       status: meta.status as ReportStatus | undefined,
       summary: summaryMatch?.[1]?.trim() || contentLines,
       details: detailMatch?.[1]?.trim() || undefined,
@@ -204,8 +205,8 @@ export function parseRoutedMessageEnvelope(value: string): RoutedSessionMessage 
         to,
         messageType,
         taskId: typeof parsed?.task_id === "string" ? parsed.task_id : undefined,
+        next: typeof parsed?.next === "string" ? parsed.next : undefined,
         status: typeof parsed?.status === "string" ? (parsed.status as ReportStatus) : undefined,
-        ruleIndex: typeof parsed?.rule_index === "number" ? parsed.rule_index : undefined,
         body: typeof parsed?.body === "string" ? parsed.body : undefined,
         summary: typeof parsed?.summary === "string" ? parsed.summary : undefined,
         details: typeof parsed?.details === "string" ? parsed.details : undefined,

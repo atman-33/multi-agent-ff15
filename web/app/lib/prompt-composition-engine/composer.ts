@@ -1,5 +1,5 @@
 import { buildPromptPayloadParts, type PromptPart, type TextPromptPart } from "@/lib/prompt-parts";
-import type { ActivityActorId, AgentId, ReportStatus, TeamMessageType, WorkerAgentId } from "@/lib/types/mission";
+import type { ActivityActorId, AgentId, ReportStatus, TeamMessageType, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 import type { OperationState, StateTransition } from "@/lib/operation-runtime/types";
 import {
   buildSharedPromptContext,
@@ -53,14 +53,14 @@ function buildTeamMessageSection(input: {
   from?: ActivityActorId;
   to?: AgentId;
   type: TeamMessageType;
-  ruleIndex?: number;
+  next?: WorkflowNext;
 }): string {
   if (input.type === "report") {
     return joinXmlSections([
       buildTextSection("worker-report", input.body, {
         from: input.from,
         to: input.to,
-        ...(typeof input.ruleIndex === "number" ? { "rule-index": input.ruleIndex } : {}),
+        ...(typeof input.next === "string" && input.next.trim() ? { next: input.next.trim() } : {}),
       }),
       input.details ? buildTextSection("worker-report-details", input.details) : null,
     ]);
@@ -181,8 +181,8 @@ export function composeTeamMessagePrompt(input: {
   body: string;
   details?: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
-  ruleIndex?: number;
   artifacts?: string[];
   operationStateOverride?: OperationState;
   workflowExtensionOverride?: string | null;
@@ -194,7 +194,7 @@ export function composeTeamMessagePrompt(input: {
     from: input.from,
     to: input.to,
     type: input.type,
-    ruleIndex: input.ruleIndex,
+    next: input.next,
   });
 
   const workflow =
@@ -204,15 +204,13 @@ export function composeTeamMessagePrompt(input: {
           stateTransition: input.stateTransitionOverride ?? null,
           nextWorkerDispatch: null,
         }
-      : input.type === "report" && input.to === "noctis" && input.taskId && input.reportStatus
+        : input.type === "report" && input.to === "noctis" && input.taskId && input.next
       ? composeReportWorkflowExtension({
           missionId: input.missionId,
           reportBody: input.body,
-          reportDetails: input.details,
           fromAgent: input.from as WorkerAgentId,
           taskId: input.taskId,
-          reportStatus: input.reportStatus,
-          ruleIndex: input.ruleIndex,
+          next: input.next,
           operationStateOverride: input.operationStateOverride,
         })
       : { noctisGuidance: "", stateTransition: null, nextWorkerDispatch: null };

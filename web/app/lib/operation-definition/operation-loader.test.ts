@@ -88,8 +88,15 @@ describe("operation loader", () => {
     const filePath = writeTempOperation([
       "name: test-operation",
       "description: Test operation",
-      "initial_step: review",
+      "initial_step: plan",
       "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job_file: ./planner.md",
+      "    instruction_file: ./plan.md",
+      "    rules:",
+      "      - condition: Ready for review",
+      "        next: review",
       "  - name: review",
       "    agent: ignis",
       "    job_file: ./reviewer.md",
@@ -104,7 +111,7 @@ describe("operation loader", () => {
 
     const operation = loadOperationFromFile(filePath);
 
-    expect(operation.steps[0]?.output_contracts?.report[0]?.name).toBe("code-review.md");
+    expect(operation.steps[1]?.output_contracts?.report[0]?.name).toBe("code-review.md");
   });
 
   it("rejects removed legacy root fields", () => {
@@ -140,5 +147,43 @@ describe("operation loader", () => {
     ].join("\n"));
 
     expect(() => loadOperationFromFile(filePath)).toThrow(/removed field "edit"/i);
+  });
+
+  it("rejects initial steps that are not assigned to Noctis", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-operation",
+      "description: Invalid operation",
+      "initial_step: implement",
+      "steps:",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    job_file: ./implementer.md",
+      "    instruction_file: ./implement.md",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/initial_step must be assigned to noctis/i);
+  });
+
+  it("rejects terminal next values in the initial Noctis step", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-operation",
+      "description: Invalid operation",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job_file: ./planner.md",
+      "    instruction_file: ./plan.md",
+      "    rules:",
+      "      - condition: Abort",
+      "        next: ABORT",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/must not use terminal next values/i);
   });
 });

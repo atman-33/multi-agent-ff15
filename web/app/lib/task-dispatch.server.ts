@@ -60,15 +60,13 @@ function buildCompactTaskPrompt(input: {
   lines.push("- Use the bash tool to run send_report.sh.");
   lines.push("- Do not print the command in chat. Run it with the bash tool.");
   lines.push("- send_report.sh returns the step result to runtime; runtime decides the next actor.");
-  lines.push("- If the workflow prompt lists allowed outcomes, include --rule-index <index> in the report command.");
+  lines.push("- If the workflow prompt includes <step-completion-contract>, follow its allowed next values exactly.");
+  lines.push("- If no workflow-specific next values are provided, use COMPLETE for success and ABORT for failure.");
   lines.push(
-    `- Progress example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} running "<progress update>"`
+    `- Success example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} COMPLETE "<message>"`
   );
   lines.push(
-    `- Final example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} completed "<summary>" --rule-index <index>`
-  );
-  lines.push(
-    `- Blocked example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} blocked "<reason>" --rule-index <index>`
+    `- Failure example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} ABORT "<message>"`
   );
 
   return lines.join("\n");
@@ -150,7 +148,7 @@ export async function dispatchTaskToWorker(input: {
     .map((depId) => {
       const summary = mission.delegationLedger.completedSummaries[depId];
       return summary
-        ? { task_id: depId, status: "completed" as const, summary, artifacts: [] }
+        ? { task_id: depId, next: "COMPLETE", message: summary, summary, artifacts: [] }
         : null;
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);

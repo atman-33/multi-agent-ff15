@@ -10,9 +10,9 @@ describe("team message envelopes", () => {
       type: "report",
       body: "Mission complete",
       taskId: "task-42",
+      next: "COMPLETE",
       reportStatus: "completed",
       artifacts: ["docs/report.md"],
-      details: "All objectives met.",
     });
 
     expect(parseRoutedMessageEnvelope(envelope)).toEqual({
@@ -20,23 +20,24 @@ describe("team message envelopes", () => {
       to: "noctis",
       messageType: "report",
       taskId: "task-42",
+      next: "COMPLETE",
       status: "completed",
-      ruleIndex: undefined,
-      summary: "Mission complete",
-      details: "All objectives met.",
+      body: "Mission complete",
+      summary: undefined,
+      details: undefined,
       artifacts: ["docs/report.md"],
     });
   });
 
-  it("round-trips ruleIndex in routed report envelopes", () => {
+  it("round-trips next in routed report envelopes", () => {
     const envelope = buildTeamMessageEnvelope({
       from: "gladiolus",
       to: "noctis",
       type: "report",
       body: "Implementation complete",
       taskId: "task-99",
+      next: "refactor",
       reportStatus: "completed",
-      ruleIndex: 1,
     });
 
     expect(parseRoutedMessageEnvelope(envelope)).toEqual({
@@ -44,9 +45,10 @@ describe("team message envelopes", () => {
       to: "noctis",
       messageType: "report",
       taskId: "task-99",
+      next: "refactor",
       status: "completed",
-      ruleIndex: 1,
-      summary: "Implementation complete",
+      body: "Implementation complete",
+      summary: undefined,
       details: undefined,
       artifacts: undefined,
     });

@@ -92,7 +92,7 @@ export function buildAugmentedInstruction(input: {
   }
 
   if (step.rules.length > 0) {
-    sections.push(buildStatusOutputRules(step, input));
+    sections.push(buildStepCompletionContract(operation, step, input));
   }
 
   return joinXmlSections(sections);
@@ -152,7 +152,7 @@ export function buildActivationInstruction(input: {
 
   if (step.rules.length > 0) {
     sections.push(
-      buildStatusOutputRules(step, {
+      buildStepCompletionContract(operation, step, {
         missionId: input.missionId,
         agentId: step.agent,
         taskId: input.taskId,
@@ -236,37 +236,45 @@ function buildOutputContractSections(
   return sections;
 }
 
-function buildStatusOutputRules(
+function buildStepCompletionContract(
+  operation: OperationDefinition,
   step: StepDefinition,
   context?: { missionId: string; agentId: StepDefinition["agent"]; taskId: string },
 ): string {
+  const isInitialNoctisStep = step.agent === "noctis" && step.name === operation.initial_step;
+  const nextCandidates = [...new Set(step.rules.map((rule) => rule.next.trim()).filter(Boolean))];
   const lines = [
-    step.agent === "noctis"
-      ? "When this Noctis-owned workflow step is complete, choose exactly one allowed outcome index and send it with `--rule-index`."
-      : "When reporting this workflow step, choose exactly one allowed outcome index and send it with `--rule-index`.",
+    isInitialNoctisStep
+      ? "Continue the conversation normally until you are ready to advance this workflow step. Do not run `scripts/send_report.sh` until you choose one of the allowed `next` values below."
+      : step.agent === "noctis"
+        ? "When this Noctis-owned workflow step is ready to finish, choose one allowed `next` value and send one canonical `message` payload."
+        : "When this workflow step is complete, choose one allowed `next` value and send one canonical `message` payload.",
     "",
-    "Allowed outcomes:",
+    "Allowed next values:",
   ];
 
-  for (let index = 0; index < step.rules.length; index += 1) {
-    lines.push(`- ${index} — ${step.rules[index].condition}`);
+  for (const nextCandidate of nextCandidates) {
+    const exampleRule = step.rules.find((rule) => rule.next === nextCandidate);
+    const description = exampleRule?.condition?.trim();
+    lines.push(description ? `- ${nextCandidate} — ${description}` : `- ${nextCandidate}`);
   }
 
   lines.push("");
   if (context) {
-    lines.push("Report with the bash tool using the same task ID:");
-    lines.push(
-      `scripts/send_report.sh ${context.missionId} ${context.agentId} ${context.taskId} completed "<summary>" --rule-index <index>`,
-    );
-    if (step.agent === "noctis") {
-      lines.push("After sending any required User-facing response, run the report command to finalize the step.");
+    lines.push("Report with the bash tool using the same task ID and one quoted message:");
+    for (const nextCandidate of nextCandidates) {
+      lines.push(
+        `- scripts/send_report.sh ${context.missionId} ${context.agentId} ${context.taskId} ${nextCandidate} "<message>"`,
+      );
+    }
+    lines.push("");
+    lines.push("Use `message` as the canonical handoff text for the next workflow step.");
+    if (step.agent === "noctis" && !isInitialNoctisStep) {
+      lines.push("After sending any required User-facing response, run exactly one report command to finalize the step.");
     }
   } else {
-    lines.push("Include the selected index when calling `scripts/send_report.sh`.");
+    lines.push("Use one allowed `next` value and one quoted `message` when calling `scripts/send_report.sh`.");
   }
-  lines.push("Use `running` for progress updates without a final outcome index.");
-  lines.push("Use the report status (`completed`, `blocked`, or `failed`) together with `--rule-index <index>` for final step completion.");
-  lines.push("Do not use `[STEP:N]` tags in the response body for routing.");
 
-  return buildMarkdownSection("status-output-rules", lines.join("\n"));
+  return buildMarkdownSection("step-completion-contract", lines.join("\n"));
 }

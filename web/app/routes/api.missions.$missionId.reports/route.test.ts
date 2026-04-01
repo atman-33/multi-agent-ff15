@@ -99,7 +99,7 @@ afterEach(() => {
 });
 
 describe("api.missions.$missionId.reports", () => {
-  it("does not mutate task state when ruleIndex validation fails", async () => {
+  it("does not mutate task state when next validation fails", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
     const missionId = `mission-invalid-${crypto.randomUUID()}`;
     seedMission({
@@ -118,8 +118,8 @@ describe("api.missions.$missionId.reports", () => {
         body: JSON.stringify({
           fromAgent: "gladiolus",
           taskId: "task-invalid",
-          status: "completed",
-          summary: "Implementation complete",
+          next: "review",
+          message: "Implementation complete",
         }),
       }),
       params: { missionId },
@@ -127,7 +127,7 @@ describe("api.missions.$missionId.reports", () => {
 
     expect(response.status).toBe(400);
     await expect(readJson(response)).resolves.toMatchObject({
-      error: "Invalid ruleIndex",
+      error: "Invalid next",
     });
 
     const mission = getMission(missionId);
@@ -137,7 +137,7 @@ describe("api.missions.$missionId.reports", () => {
     expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
   });
 
-  it("accepts progress reports without ruleIndex and forwards them to Noctis", async () => {
+  it("forwards terminal worker reports to Noctis when no auto-dispatch occurs", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
     const missionId = `mission-progress-${crypto.randomUUID()}`;
     seedMission({
@@ -157,8 +157,8 @@ describe("api.missions.$missionId.reports", () => {
         body: JSON.stringify({
           fromAgent: "gladiolus",
           taskId: "task-progress",
-          status: "running",
-          summary: "Halfway done",
+          next: "ABORT",
+          message: "Blocked on a missing prerequisite.",
         }),
       }),
       params: { missionId },
@@ -173,8 +173,9 @@ describe("api.missions.$missionId.reports", () => {
       expect.objectContaining({
         missionId,
         taskId: "task-progress",
-        status: "running",
-        ruleIndex: undefined,
+        next: "ABORT",
+        message: "Blocked on a missing prerequisite.",
+        reportStatus: "failed",
       }),
     );
     expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
@@ -205,9 +206,8 @@ describe("api.missions.$missionId.reports", () => {
         body: JSON.stringify({
           fromAgent: "gladiolus",
           taskId: "task-auto",
-          status: "completed",
-          summary: "Implementation complete and tests pass",
-          ruleIndex: 0,
+          next: "refactor",
+          message: "Implementation complete and tests pass",
         }),
       }),
       params: { missionId },
@@ -225,8 +225,9 @@ describe("api.missions.$missionId.reports", () => {
     expect(mission?.operationState?.currentStep).toBe("refactor");
     expect(mission?.taskGraph.find((task) => task.id === "task-auto")?.status).toBe("completed");
     expect(mission?.taskGraph.find((task) => task.id === "task-auto")?.result).toMatchObject({
-      ruleIndex: 0,
-      status: "completed",
+      next: "refactor",
+      message: "Implementation complete and tests pass",
+      reportStatus: "completed",
     });
     expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
     expect(sendWorkerReport).not.toHaveBeenCalled();
@@ -256,9 +257,8 @@ describe("api.missions.$missionId.reports", () => {
         body: JSON.stringify({
           fromAgent: "noctis",
           taskId: "step_spec-planning_1",
-          status: "completed",
-          summary: "Plan is sufficient to start coding.",
-          ruleIndex: 0,
+          next: "implement",
+          message: "Plan is sufficient to start coding.",
         }),
       }),
       params: { missionId },

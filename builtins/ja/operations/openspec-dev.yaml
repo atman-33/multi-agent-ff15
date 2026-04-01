@@ -17,8 +17,6 @@ steps:
     rules:
       - condition: Open Spec artifact has been generated and approved
         next: implement
-      - condition: Requirements unclear or user requested abort
-        next: ABORT
 
   # 2. Gladiolus implements based on the spec plan
   - name: implement

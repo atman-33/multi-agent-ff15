@@ -17,6 +17,7 @@ import type {
   ReportStatus,
   TeamMessage,
   TeamMessageType,
+  WorkflowNext,
 } from "@/lib/types/mission";
 
 export interface SendTeamMessageInput {
@@ -27,8 +28,8 @@ export interface SendTeamMessageInput {
   body: string;
   details?: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
-  ruleIndex?: number;
   artifacts?: string[];
   activityActor?: ActivityActorId;
   activitySpeaker?: ActivityActorId;
@@ -50,7 +51,7 @@ function assertHubSafe(fromAgent: AgentId, toAgent: AgentId): void {
  * Validate simple protocol contract:
  * - task: Noctis -> worker only
  * - message: one-way supplemental message
- * - report: worker -> Noctis only, MUST include taskId and reportStatus
+ * - report: worker -> Noctis only, MUST include taskId and next
  */
 function assertIntentContract(message: SendTeamMessageInput): void {
   if (message.type === "task" && message.fromAgent !== "noctis") {
@@ -65,8 +66,8 @@ function assertIntentContract(message: SendTeamMessageInput): void {
     if (!message.taskId) {
       throw new Error("Report messages must include taskId");
     }
-    if (!message.reportStatus) {
-      throw new Error("Report messages must include reportStatus");
+    if (!message.next) {
+      throw new Error("Report messages must include next");
     }
     if (message.toAgent !== "noctis") {
       throw new Error("Report messages must target Noctis");
@@ -83,8 +84,8 @@ function serializeMeta(message: TeamMessage, displayFrom: ActivityActorId): stri
     `to_agent: ${message.toAgent}`,
     `message_type: ${message.type}`,
     `task_id: ${message.taskId ?? ""}`,
+    `next: ${message.next ?? ""}`,
     `report_status: ${message.reportStatus ?? ""}`,
-    `rule_index: ${typeof message.ruleIndex === "number" ? message.ruleIndex : ""}`,
     `display_from: ${getActivityActorLabel(displayFrom)}`,
     `display_to: ${getActivityActorLabel(message.toAgent)}`,
     `artifacts: ${JSON.stringify(message.artifacts ?? [])}`,
@@ -141,8 +142,8 @@ async function deliverMissionMessage(
     type: input.type,
     body: input.body,
     taskId: input.taskId,
+    next: input.next,
     reportStatus: input.reportStatus,
-    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
     createdAt: new Date().toISOString(),
   };
@@ -164,8 +165,8 @@ async function deliverMissionMessage(
     type: input.type,
     body: input.body,
     taskId: input.taskId,
+    next: input.next,
     reportStatus: input.reportStatus,
-    ruleIndex: input.ruleIndex,
     artifacts: input.artifacts,
     details: input.details,
     operationStateOverride: getOperationState(input.missionId),
@@ -202,8 +203,8 @@ async function deliverMissionMessage(
         sessionId,
         messageId: message.id,
         taskId: message.taskId,
+        next: message.next,
         reportStatus: message.reportStatus,
-        ruleIndex: message.ruleIndex,
         deliveryStatus: "sent",
       },
     });
@@ -242,10 +243,9 @@ export async function sendWorkerReport(input: {
   missionId: string;
   fromAgent: AgentId;
   taskId: string;
-  status: ReportStatus;
-  summary: string;
-  details?: string;
-  ruleIndex?: number;
+  next: WorkflowNext;
+  message: string;
+  reportStatus?: ReportStatus;
   artifacts?: string[];
   workflowGuidance?: string;
 }): Promise<{ sessionId: string; messageId: string }> {
@@ -254,15 +254,14 @@ export async function sendWorkerReport(input: {
     fromAgent: input.fromAgent,
     toAgent: "noctis",
     type: "report",
-    body: input.summary,
+    body: input.message,
     taskId: input.taskId,
-    reportStatus: input.status,
-    ruleIndex: input.ruleIndex,
+    next: input.next,
+    reportStatus: input.reportStatus,
     artifacts: input.artifacts,
     activityActor: input.fromAgent,
     activitySpeaker: input.fromAgent,
     activityKind: "team_message",
-    details: input.details,
     workflowGuidance: input.workflowGuidance,
   });
 }

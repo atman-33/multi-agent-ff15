@@ -3,6 +3,7 @@ export type AgentId = "noctis" | WorkerAgentId;
 export type ActivityActorId = AgentId | "user" | "iris" | "system";
 export type TeamMessageType = "task" | "report" | "message";
 export type ReportStatus = "running" | "blocked" | "completed" | "failed";
+export type WorkflowNext = string;
 export type MissionActivityKind =
   | "user_message"
   | "assistant_message"
@@ -39,10 +40,11 @@ export type MissionStatus = "active" | "completed" | "archived";
 
 export interface StepResult {
   task_id: string;
-  status: ReportStatus;
-  summary: string;
+  next: WorkflowNext;
+  message: string;
   artifacts: string[];
-  ruleIndex?: number;
+  summary?: string;
+  reportStatus?: ReportStatus;
 }
 
 export type WorkerResult = StepResult;
@@ -139,8 +141,8 @@ export interface MissionActivitySource {
   sessionId?: string;
   messageId?: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
-  ruleIndex?: number;
   deliveryStatus?: "sent" | "failed";
 }
 
@@ -163,8 +165,8 @@ export interface TeamMessage {
   type: TeamMessageType;
   body: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
-  ruleIndex?: number;
   artifacts?: string[];
   createdAt: string;
 }
@@ -200,7 +202,7 @@ export function buildTaskContext(params: TaskContextParams): string {
 
   const depSection =
     dependencyResults.length > 0
-      ? dependencyResults.map((r) => `${r.task_id}: ${r.summary}`).join("\n")
+      ? dependencyResults.map((r) => `${r.task_id}: ${r.summary ?? r.message}`).join("\n")
       : "(none)";
 
   return `[GLOBAL CONTEXT]
@@ -223,11 +225,11 @@ ${depSection}
 - Do not stop after printing JSON in chat
 
 [OUTPUT FORMAT]
-Return results in StepResult format: { task_id, status, summary, artifacts }
+Return results in StepResult format: { task_id, next, message, artifacts }
 
 [MANDATORY DELIVERY]
 - Use scripts/send_report.sh to send your result back to runtime
-- Use status=running for progress, status=blocked for blockers, status=completed for final success, status=failed for final failure
+- Use one next value plus one quoted message payload
 - Include the same taskId in the report command
 
 [EXPECTED OUTPUT]

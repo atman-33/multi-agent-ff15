@@ -6,14 +6,20 @@ export interface RuleMatch {
   next: string;
 }
 
-export function evaluateRuleIndex(ruleIndex: number, rules: RuleDefinition[]): RuleMatch | null {
-  if (!Number.isInteger(ruleIndex) || ruleIndex < 0 || ruleIndex >= rules.length) {
+export function evaluateNextStep(next: string, rules: RuleDefinition[]): RuleMatch | null {
+  const normalizedNext = next.trim();
+  if (!normalizedNext) {
     return null;
   }
 
-  const rule = rules[ruleIndex];
+  const matchedIndex = rules.findIndex((rule) => rule.next === normalizedNext);
+  if (matchedIndex < 0) {
+    return null;
+  }
+
+  const rule = rules[matchedIndex];
   return {
-    matchedIndex: ruleIndex,
+    matchedIndex,
     condition: rule.condition,
     next: rule.next,
   };

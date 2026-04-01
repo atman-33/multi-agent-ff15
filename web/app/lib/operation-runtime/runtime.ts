@@ -10,7 +10,7 @@ import {
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import { buildTextSection, buildYamlSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { checkAgentDeviation } from "./deviation-tracker";
-import { evaluateRuleIndex } from "./rule-evaluator";
+import { evaluateNextStep } from "./rule-evaluator";
 import {
   createOperationState,
   ensureActiveStepTaskId,
@@ -148,7 +148,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
 }
 
 export function processReport(input: ProcessReportInput): ProcessReportResult {
-  const { missionId, operationState, reportBody, ruleIndex } = input;
+  const { missionId, operationState, reportBody, next } = input;
   const language = readOperationLanguage();
   const operation = loadOperationByName(operationState.operationName, language);
   const currentStep = operation.steps.find(
@@ -159,13 +159,15 @@ export function processReport(input: ProcessReportInput): ProcessReportResult {
     return { noctisGuidance: "", stateTransition: null, nextWorkerDispatch: null };
   }
 
-  const ruleMatch = typeof ruleIndex === "number" ? evaluateRuleIndex(ruleIndex, currentStep.rules) : null;
+  const ruleMatch = typeof next === "string" && next.trim()
+    ? evaluateNextStep(next, currentStep.rules)
+    : null;
 
   if (!ruleMatch) {
     return {
       noctisGuidance: buildTextSection(
         "operation-note",
-        "Could not determine the next step from the step report. Missing or invalid ruleIndex.",
+        "Could not determine the next step from the step report. Missing or invalid next.",
       ),
       stateTransition: null,
       nextWorkerDispatch: null,
@@ -256,7 +258,6 @@ function buildTransitionGuidance(
   const lines = [
     `operation: ${operation.name}`,
     `completed_step: ${transition.previousStep}`,
-    `matched_rule_index: ${transition.ruleMatched}`,
     `matched_rule_condition: ${JSON.stringify(transition.ruleCondition)}`,
     `next_step: ${transition.nextStep}`,
     `next_action: ${nextAction}`,

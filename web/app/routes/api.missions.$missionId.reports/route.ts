@@ -10,34 +10,30 @@ import type { AgentId, ReportStatus, StepResult, WorkerAgentId } from "@/lib/typ
 import type { Route } from "./+types/route";
 
 const AGENT_IDS: ReadonlySet<string> = new Set<AgentId>(["noctis", "ignis", "gladiolus", "prompto"]);
-const REPORT_STATUSES: ReadonlySet<string> = new Set<ReportStatus>([
-  "running",
-  "blocked",
-  "completed",
-  "failed",
-]);
 
 function isAgentId(value: unknown): value is AgentId {
   return typeof value === "string" && AGENT_IDS.has(value);
 }
 
-function isReportStatus(value: unknown): value is ReportStatus {
-  return typeof value === "string" && REPORT_STATUSES.has(value);
+function deriveReportStatus(next: string): ReportStatus {
+  return next === "ABORT" ? "failed" : "completed";
 }
 
-function toRuleIndex(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
+function deriveTaskStatus(next: string): "completed" | "failed" {
+  return next === "ABORT" ? "failed" : "completed";
+}
+
+function summarizeMessage(message: string): string {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "";
   }
 
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isInteger(parsed)) {
-      return parsed;
-    }
-  }
+  return normalized.length > 160 ? `${normalized.slice(0, 157).trimEnd()}...` : normalized;
+}
 
-  return undefined;
+function listAllowedNextValues(rules: Array<{ condition: string; next: string }>): string[] {
+  return [...new Set(rules.map((rule) => rule.next).filter((value) => value.trim().length > 0))];
 }
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -53,10 +49,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   const body = (await request.json().catch(() => null)) as {
     fromAgent?: unknown;
     taskId?: unknown;
-    status?: unknown;
-    summary?: unknown;
-    details?: unknown;
-    ruleIndex?: unknown;
+    next?: unknown;
+    message?: unknown;
     artifacts?: unknown;
   } | null;
 
@@ -66,19 +60,20 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   if (typeof body.taskId !== "string" || !body.taskId.trim()) {
     return Response.json({ error: "Missing taskId" }, { status: 400 });
   }
-  if (!isReportStatus(body.status)) {
-    return Response.json({ error: "Invalid status" }, { status: 400 });
+  if (typeof body.next !== "string" || !body.next.trim()) {
+    return Response.json({ error: "Missing next" }, { status: 400 });
   }
-  if (typeof body.summary !== "string" || !body.summary.trim()) {
-    return Response.json({ error: "Missing summary" }, { status: 400 });
+  if (typeof body.message !== "string" || !body.message.trim()) {
+    return Response.json({ error: "Missing message" }, { status: 400 });
   }
 
   try {
     const taskId = body.taskId.trim();
-    const summary = body.summary.trim();
-    const details = typeof body.details === "string" ? body.details.trim() : undefined;
-    const ruleIndex = toRuleIndex(body.ruleIndex);
-    const isTerminalReport = body.status !== "running";
+    const next = body.next.trim();
+    const message = body.message.trim();
+    const summary = summarizeMessage(message);
+    const reportStatus = deriveReportStatus(next);
+    const taskStatus = deriveTaskStatus(next);
     const artifacts = Array.isArray(body.artifacts)
       ? body.artifacts.filter((item): item is string => typeof item === "string")
       : [];
@@ -120,13 +115,14 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         );
       }
 
-      if (isTerminalReport && currentStep && currentStep.rules.length > 0) {
-        if (ruleIndex === undefined || ruleIndex < 0 || ruleIndex >= currentStep.rules.length) {
+      if (currentStep && currentStep.rules.length > 0) {
+        const allowedNextValues = listAllowedNextValues(currentStep.rules);
+        if (!allowedNextValues.includes(next)) {
           return Response.json(
             {
-              error: "Invalid ruleIndex",
-              allowedRuleIndices: currentStep.rules.map((rule, index) => ({
-                index,
+              error: "Invalid next",
+              allowedNext: currentStep.rules.map((rule) => ({
+                next: rule.next,
                 condition: rule.condition,
               })),
             },
@@ -135,66 +131,63 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         }
       }
 
-      if (isTerminalReport) {
-        const reportResult = processReport({
-          missionId,
-          operationState,
-          reportBody: summary,
-          reportDetails: details,
-          fromAgent: body.fromAgent,
-          taskId,
-          reportStatus: body.status,
-          ruleIndex,
-        });
+      const reportResult = processReport({
+        missionId,
+        operationState,
+        reportBody: message,
+        fromAgent: body.fromAgent,
+        taskId,
+        next,
+      });
 
-        workflowGuidance = reportResult.noctisGuidance || undefined;
-        nextStep = reportResult.stateTransition?.nextStep ?? null;
+      workflowGuidance = reportResult.noctisGuidance || undefined;
+      nextStep = reportResult.stateTransition?.nextStep ?? null;
 
-        if (reportResult.stateTransition) {
-          saveOperationState(missionId, operationState);
-        }
+      if (reportResult.stateTransition) {
+        saveOperationState(missionId, operationState);
+      }
 
-        if (reportResult.nextWorkerDispatch) {
-          try {
-            const dispatched = await dispatchCurrentOperationStepToWorker({ missionId });
-            autoDispatch = {
-              agentId: dispatched.agentId,
-              stepName: dispatched.stepName,
-              taskId: dispatched.taskId,
-              sessionId: dispatched.sessionId,
-            };
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+      if (reportResult.nextWorkerDispatch) {
+        try {
+          const dispatched = await dispatchCurrentOperationStepToWorker({ missionId });
+          autoDispatch = {
+            agentId: dispatched.agentId,
+            stepName: dispatched.stepName,
+            taskId: dispatched.taskId,
+            sessionId: dispatched.sessionId,
+          };
+        } catch (error) {
+          const dispatchError = error instanceof Error ? error.message : String(error);
 
-            if (body.fromAgent === "noctis") {
-              return Response.json(
-                {
-                  error: `Automatic dispatch failed: ${message}`,
-                  nextStep,
-                },
-                { status: 503 },
-              );
-            }
-
-            workflowGuidance = joinXmlSections([
-              buildTextSection("operation-note", `Automatic handoff failed: ${message}`),
-              workflowGuidance ?? null,
-            ]);
+          if (body.fromAgent === "noctis") {
+            return Response.json(
+              {
+                error: `Automatic dispatch failed: ${dispatchError}`,
+                nextStep,
+              },
+              { status: 503 },
+            );
           }
+
+          workflowGuidance = joinXmlSections([
+            buildTextSection("operation-note", `Automatic handoff failed: ${dispatchError}`),
+            workflowGuidance ?? null,
+          ]);
         }
       }
     }
 
     const result: StepResult = {
       task_id: taskId,
-      status: body.status,
-      summary,
+      next,
+      message,
       artifacts,
-      ...(typeof ruleIndex === "number" ? { ruleIndex } : {}),
+      ...(summary ? { summary } : {}),
+      reportStatus,
     };
 
     if (body.fromAgent !== "noctis") {
-      updateTask(missionId, taskId, body.status, summary, result);
+      updateTask(missionId, taskId, taskStatus, summary, result);
     }
 
     if (autoDispatch) {
@@ -218,10 +211,9 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       missionId,
       fromAgent: body.fromAgent,
       taskId,
-      status: body.status,
-      summary,
-      details,
-      ruleIndex,
+      next,
+      message,
+      reportStatus,
       artifacts,
       workflowGuidance,
     });

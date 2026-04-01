@@ -70,8 +70,15 @@ describe("operation runtime", () => {
       [
         "name: auto-handoff",
         "description: Auto handoff test",
-        "initial_step: implement",
+        "initial_step: plan",
         "steps:",
+        "  - name: plan",
+        "    agent: noctis",
+        "    job_file: ./planner.md",
+        "    instruction_file: ./plan.md",
+        "    rules:",
+        "      - condition: Ready to implement",
+        "        next: implement",
         "  - name: implement",
         "    agent: gladiolus",
         "    job_file: ./implementer.md",
@@ -103,8 +110,7 @@ describe("operation runtime", () => {
       reportBody: "Implementation complete.",
       fromAgent: "gladiolus",
       taskId: "task-1",
-      reportStatus: "completed",
-      ruleIndex: 0,
+      next: "review",
     });
 
     expect(result.stateTransition?.nextStep).toBe("review");
@@ -123,8 +129,15 @@ describe("operation runtime", () => {
       [
         "name: noctis-transition",
         "description: Noctis transition test",
-        "initial_step: implement",
+        "initial_step: plan",
         "steps:",
+        "  - name: plan",
+        "    agent: noctis",
+        "    job_file: ./planner.md",
+        "    instruction_file: ./plan.md",
+        "    rules:",
+        "      - condition: Ready to implement",
+        "        next: implement",
         "  - name: implement",
         "    agent: gladiolus",
         "    job_file: ./implementer.md",
@@ -156,8 +169,7 @@ describe("operation runtime", () => {
       reportBody: "Implementation complete.",
       fromAgent: "gladiolus",
       taskId: "task-2",
-      reportStatus: "completed",
-      ruleIndex: 0,
+      next: "summarize",
     });
 
     expect(result.stateTransition?.nextStep).toBe("summarize");
@@ -180,8 +192,15 @@ describe("operation runtime", () => {
       [
         "name: terminal-handoff",
         "description: Terminal handoff test",
-        "initial_step: review",
+        "initial_step: plan",
         "steps:",
+        "  - name: plan",
+        "    agent: noctis",
+        "    job_file: ./planner.md",
+        "    instruction_file: ./plan.md",
+        "    rules:",
+        "      - condition: Ready to review",
+        "        next: review",
         "  - name: review",
         "    agent: ignis",
         "    job_file: ./reviewer.md",
@@ -206,8 +225,7 @@ describe("operation runtime", () => {
       reportBody: "Approved.",
       fromAgent: "ignis",
       taskId: "task-3",
-      reportStatus: "completed",
-      ruleIndex: 0,
+      next: "COMPLETE",
     });
 
     expect(result.stateTransition?.nextStep).toBe("COMPLETE");

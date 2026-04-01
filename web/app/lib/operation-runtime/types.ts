@@ -1,4 +1,4 @@
-import type { AgentId, OperationState, ReportStatus, WorkerAgentId } from "@/lib/types/mission";
+import type { AgentId, OperationState, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 
 export type { OperationState };
 
@@ -35,11 +35,9 @@ export interface ProcessReportInput {
   missionId: string;
   operationState: OperationState;
   reportBody: string;
-  reportDetails?: string;
   fromAgent: AgentId;
   taskId: string;
-  reportStatus: ReportStatus;
-  ruleIndex?: number;
+  next?: WorkflowNext;
 }
 
 export interface ProcessReportResult {

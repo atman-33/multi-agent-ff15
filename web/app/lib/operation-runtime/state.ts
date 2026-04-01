@@ -95,7 +95,7 @@ export function recordStepDispatched(
 export function recordStepCompleted(
   state: OperationState,
   transition: StateTransition,
-  summary?: string,
+  message?: string,
 ): void {
   const lastEntry = state.stepHistory.at(-1);
   if (lastEntry && lastEntry.step === transition.previousStep) {
@@ -104,11 +104,11 @@ export function recordStepCompleted(
     lastEntry.ruleMatched = transition.ruleMatched;
     lastEntry.ruleCondition = transition.ruleCondition;
     lastEntry.nextStep = transition.nextStep;
-    lastEntry.summary = summary;
+    lastEntry.summary = message;
   }
 
-  if (summary) {
-    state.previousResponse = summary;
+  if (message) {
+    state.previousResponse = message;
   }
 
   if (transition.nextStep === "COMPLETE") {

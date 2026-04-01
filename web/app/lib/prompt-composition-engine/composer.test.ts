@@ -171,7 +171,11 @@ describe("prompt composition engine", () => {
     expect(composed.usedWorkflowExtension).toBe(true);
     expect(composed.workflowExtension).toContain("<job");
     expect(composed.effectivePrompt).toContain("<task");
-    expect(composed.effectivePrompt).toContain("--rule-index <index>");
+    expect(composed.effectivePrompt).toContain("<step-completion-contract");
+    expect(composed.effectivePrompt).toContain(
+      'scripts/send_report.sh mission-3 gladiolus task-1 refactor "<message>"',
+    );
+    expect(composed.effectivePrompt).not.toContain("--rule-index <index>");
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
     expect(composed.payloadParts[0]?.text).toContain(

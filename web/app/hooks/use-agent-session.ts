@@ -315,12 +315,12 @@ function toSessionChatMessages(messages: MessageInfo[]): ChatMessage[] {
     const sender = rawRole === "assistant" ? "noctis" : (routedMessage?.speaker ?? "user");
     const displayContent = routedMessage
       ? routedMessage.messageType === "report"
-        ? routedMessage.summary?.trim() || routedMessage.details?.trim() || ""
+        ? routedMessage.body?.trim() || routedMessage.summary?.trim() || routedMessage.details?.trim() || ""
         : routedMessage.body?.trim() || ""
       : fallbackContent;
     const detailContent = routedMessage
       ? routedMessage.messageType === "report"
-        ? [routedMessage.summary?.trim(), routedMessage.details?.trim()]
+        ? [routedMessage.body?.trim(), routedMessage.summary?.trim(), routedMessage.details?.trim()]
             .filter(Boolean)
             .join("\n\n")
         : routedMessage.body?.trim() || fallbackContent

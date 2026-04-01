@@ -97,6 +97,25 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
   }
 
   const steps = (raw.steps as Record<string, unknown>[]).map(normalizeStep);
+  const initialStepDefinition = steps.find((step) => step.name === initialStep);
+
+  if (!initialStepDefinition) {
+    throw new Error(`Operation initial_step must reference a defined step: ${absolutePath}`);
+  }
+
+  if (initialStepDefinition.agent !== "noctis") {
+    throw new Error(`Operation initial_step must be assigned to noctis: ${absolutePath}`);
+  }
+
+  const terminalInitialRule = initialStepDefinition.rules.find(
+    (rule) => rule.next === "ABORT" || rule.next === "COMPLETE",
+  );
+
+  if (terminalInitialRule) {
+    throw new Error(
+      `Operation initial_step rules must not use terminal next values ABORT or COMPLETE: ${absolutePath}`,
+    );
+  }
 
   return {
     sourcePath: absolutePath,
