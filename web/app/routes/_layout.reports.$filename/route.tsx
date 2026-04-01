@@ -1,4 +1,4 @@
-import { Archive, Check, Clipboard, Clock, RefreshCw, RotateCcw, User, X } from "lucide-react";
+import { Archive, Check, Clipboard, Clock, Copy, RefreshCw, RotateCcw, User, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useNavigate, useOutletContext, useParams, useSearchParams } from "react-router";
@@ -79,6 +79,15 @@ interface ReportsOutletContext {
   archiveReport: (filename: string, action: "archive" | "restore") => Promise<void>;
 }
 
+type ReportResponse = {
+  author?: string;
+  content?: string;
+  date?: string;
+  error?: string;
+  filePath?: string;
+  title?: string;
+};
+
 const ReportDetail = (_props: Route.ComponentProps) => {
   const { filename } = useParams<{ filename: string }>();
   const [searchParams] = useSearchParams();
@@ -88,29 +97,51 @@ const ReportDetail = (_props: Route.ComponentProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const tocContainerRef = useRef<HTMLDivElement | null>(null);
   const markdownBodyRef = useRef<HTMLDivElement | null>(null);
+  const copiedTimeoutRef = useRef<number | null>(null);
 
   const [content, setContent] = useState<string>("");
   const [title, setTitle] = useState<string>("");
   const [author, setAuthor] = useState<string>("");
   const [date, setDate] = useState<string>("");
+  const [reportFilePath, setReportFilePath] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"content" | "path" | null>(null);
   const headings = useMemo(() => buildToc(content), [content]);
+
+  const setCopiedFeedback = (value: "content" | "path") => {
+    if (copiedTimeoutRef.current !== null) {
+      window.clearTimeout(copiedTimeoutRef.current);
+    }
+
+    setCopied(value);
+    copiedTimeoutRef.current = window.setTimeout(() => {
+      copiedTimeoutRef.current = null;
+      setCopied(null);
+    }, 2000);
+  };
 
   const fetchContent = useCallback(async () => {
     if (!filename) {
       return;
     }
+
+    if (copiedTimeoutRef.current !== null) {
+      window.clearTimeout(copiedTimeoutRef.current);
+      copiedTimeoutRef.current = null;
+    }
+
+    setCopied(null);
     setLoading(true);
     setContent("");
+    setReportFilePath("");
     try {
       const archivedParam = isArchived ? "&archived=true" : "";
       const res = await fetch(`/api/report?file=${encodeURIComponent(filename)}${archivedParam}`);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data = (await res.json()) as ReportResponse;
       if (data.error) {
         throw new Error(data.error);
       }
@@ -118,6 +149,7 @@ const ReportDetail = (_props: Route.ComponentProps) => {
       setTitle(data.title || filename);
       setAuthor(data.author || "");
       setDate(data.date || "");
+      setReportFilePath(typeof data.filePath === "string" ? data.filePath : "");
     } catch (e) {
       setContent(`Failed to load content: ${e}`);
     } finally {
@@ -128,6 +160,14 @@ const ReportDetail = (_props: Route.ComponentProps) => {
   useEffect(() => {
     fetchContent();
   }, [fetchContent]);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current !== null) {
+        window.clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -191,13 +231,21 @@ const ReportDetail = (_props: Route.ComponentProps) => {
     };
   }, [headings.length]);
 
-  const handleCopy = async () => {
+  const handleCopyContent = async () => {
     if (!content) {
       return;
     }
     await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedFeedback("content");
+  };
+
+  const handleCopyPath = async () => {
+    if (!reportFilePath) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(reportFilePath);
+    setCopiedFeedback("path");
   };
 
   const handleArchiveAction = async () => {
@@ -256,11 +304,11 @@ const ReportDetail = (_props: Route.ComponentProps) => {
           <Button
             className="h-8 gap-1.5 text-xs"
             disabled={loading || !content}
-            onClick={handleCopy}
+            onClick={() => void handleCopyContent()}
             size="sm"
             variant="outline"
           >
-            {copied ? (
+            {copied === "content" ? (
               <>
                 <Check className="h-3.5 w-3.5 text-green-500" />
                 Copied!
@@ -269,6 +317,25 @@ const ReportDetail = (_props: Route.ComponentProps) => {
               <>
                 <Clipboard className="h-3.5 w-3.5" />
                 Copy
+              </>
+            )}
+          </Button>
+          <Button
+            className="h-8 gap-1.5 text-xs"
+            disabled={loading || !reportFilePath}
+            onClick={() => void handleCopyPath()}
+            size="sm"
+            variant="outline"
+          >
+            {copied === "path" ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-green-500" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                Copy absolute path
               </>
             )}
           </Button>
