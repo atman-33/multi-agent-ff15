@@ -264,7 +264,10 @@ function buildTransitionGuidance(
 
   if (nextStep) {
     lines.push(`next_agent: ${nextStep.agent}`);
-    lines.push(`next_job: ${describeStepRole(nextStep.job_file)}`);
+    const nextJob = describeStepRole(nextStep.job, nextStep.name);
+    if (nextJob) {
+      lines.push(`next_job: ${nextJob}`);
+    }
   }
 
   return joinXmlSections([

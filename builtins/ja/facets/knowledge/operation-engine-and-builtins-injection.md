@@ -61,8 +61,8 @@ script を含めて見ると、代表的な経路は次のとおりです。
 
 ## Component Responsibilities
 
-- Operation YAML: `initial_step`、`steps`、rules、facet path を定義する
-- Facet Markdown: step ごとの job / knowledge / instruction / policy / output contract の source of truth
+- Operation YAML: `initial_step`、`steps`、rules、step-local facet source を定義する
+- Facet Content: step ごとの job / knowledge / instruction / policy / output contract を file または inline から供給する
 - Runtime: 現在 step、taskId、履歴、allowed `next` に基づく遷移、次 actor dispatch を管理する
 - Prompt Composition Engine: shared context と current step 固有の workflow extension を合成する
 - Report Transport: Noctis / worker の両方の step 完了を `taskId`、`next`、canonical `message` で runtime に返す
@@ -109,7 +109,7 @@ worker prompt の section 順序は次のとおりです。
 
 1. `job`
 2. `task`
-3. `previous-step-output` when `pass_previous_response: true`
+3. `previous-step-output` when previous response is available and required for the current step
 4. `knowledge`
 5. `instruction`
 6. `output contracts` when defined
@@ -174,7 +174,8 @@ operation-debug preview は live prompt の理解に有用ですが、完全に�
 この workflow の source of truth は単一ではなく、層ごとに異なります。
 
 - authored workflow: `builtins/{lang}/operations/*.yaml`
-- authored facets: `builtins/{lang}/facets/**`
+- authored facet files: `builtins/{lang}/facets/**`
+- authored inline step facets: operation YAML の `steps[].job.inline` / `steps[].instruction.inline` / `steps[].knowledge[].inline` / `steps[].policies[].inline` / `steps[].output_contracts.report[].format.inline`
 - live execution state: `runtime/noctis-missions/{missionId}.json`
 - step execution identity: `OperationState.stepHistory[].taskId`
 - report routing contract: `taskId` + `next` + `message`
@@ -186,12 +187,39 @@ operation-debug preview は live prompt の理解に有用ですが、完全に�
 
 - `initial_step`
 - `steps[]`
+- `steps[].job`
+- `steps[].instruction`
+- `steps[].knowledge`
+- `steps[].policies`
+- `steps[].output_contracts.report[].format`
+- `steps[].rules[]`
+
+`job` と `instruction` は storage 形式ではなく意味で分けます。
+
+- `job`: その step の担当 agent が担う役割、責務、判断原則、禁止事項
+- `instruction`: その step で実行すべき具体的手順、参照先、完了に向けた進め方
+
+その他の facet も同じ方針で naming を揃えます。
+
+- `knowledge`: current step の実行に必要な背景知識や調査メモ。複数可
+- `policies`: current step が従う制約や規約。複数可
+- `output_contracts.report[].format`: report artifact の形式定義
+
+canonical な authored form は次の source object です。
+
+- `job.file` / `job.inline`
+- `instruction.file` / `instruction.inline`
+- `knowledge[].file` / `knowledge[].inline`
+- `policies[].file` / `policies[].inline`
+- `output_contracts.report[].format.file` / `output_contracts.report[].format.inline`
+
+次の旧 field 名は canonical schema ではなく、使用しません。
+
 - `steps[].job_file`
 - `steps[].instruction_file`
 - `steps[].knowledge_files`
 - `steps[].policy_files`
 - `steps[].output_contracts.report[].format_file`
-- `steps[].rules[]`
 
 現在の vocabulary は `step` に統一されています。次の legacy field は扱いません。
 
@@ -205,15 +233,27 @@ workflow を pause させたい場合は、manual handoff flag ではなく expl
 
 ## Facet Resolution Rules
 
-facet 解決は symbolic key ではなく、operation YAML からの相対パス解決です。
+facet 解決は symbolic key ではなく、operation YAML に書かれた source object をそのまま解決します。
 
-- `job_file: ../facets/jobs/planner.md`
-- `instruction_file: ../facets/instructions/openspec-planning.md`
-- `knowledge_files:`
-- `policy_files:`
-- `output_contracts.report[].format_file`
+- `job:`
+	`file: ../facets/jobs/planner.md`
+- `instruction:`
+	`inline: | ...`
+- `knowledge:`
+	`- file: ../facets/knowledge/operation-engine-and-builtins-injection.md`
+- `policies:`
+	`- file: ../facets/policies/coding-standards.md`
+- `output_contracts.report[].format:`
+	`file: ../facets/output-contracts/code-review.md`
 
-prompt 改善では operation YAML と facet Markdown の両方をセットで確認する必要があります。
+`job` / `instruction` / `knowledge` / `policies` / `format` の source 解決ルールは次のとおりです。
+
+- `file` の場合は operation YAML からの相対パスとして解決する
+- `inline` の場合は operation YAML 内の本文をそのまま採用する
+- list facet は authored order のまま解決して prompt に注入する
+- prompt builder の `source` attribute は file では絶対 path、inline では operation file を起点にした deterministic locator を使う
+
+prompt 改善では operation YAML と、file source を使っている facet Markdown の両方をセットで確認する必要があります。
 
 ## File Map For Debugging
 

@@ -1,5 +1,12 @@
 import type { AgentId } from "@/lib/types/mission";
 
+export type ContentSource = { file: string; inline?: never } | { inline: string; file?: never };
+
+export interface ReportOutputContractDefinition {
+  name: string;
+  format: ContentSource;
+}
+
 export interface OperationDefinition {
   sourcePath: string;
   name: string;
@@ -17,12 +24,12 @@ export type StepAgent = AgentId;
 export interface StepDefinition {
   name: string;
   agent: StepAgent;
-  job_file: string;
-  instruction_file: string;
-  knowledge_files?: string[];
-  policy_files?: string[];
+  job?: ContentSource;
+  instruction?: ContentSource;
+  knowledge?: ContentSource[];
+  policies?: ContentSource[];
   output_contracts?: {
-    report: Array<{ name: string; format_file: string }>;
+    report: ReportOutputContractDefinition[];
   };
   rules: RuleDefinition[];
 }

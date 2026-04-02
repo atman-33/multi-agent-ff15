@@ -1,6 +1,11 @@
 import { basename } from "node:path";
 import { resolveOperationFacetPath } from "@/lib/operation-definition/operation-loader";
-import type { OperationDefinition, ResolvedFacets, StepDefinition } from "@/lib/operation-definition/types";
+import type {
+  ContentSource,
+  OperationDefinition,
+  ResolvedFacets,
+  StepDefinition,
+} from "@/lib/operation-definition/types";
 import type { OperationState } from "@/lib/types/mission";
 import {
   buildMarkdownSection,
@@ -8,12 +13,16 @@ import {
   joinXmlSections,
 } from "./prompt-xml";
 
-export function describeStepRole(jobFilePath: string): string {
-  if (!jobFilePath.trim()) {
+export function describeStepRole(jobSource: ContentSource | undefined, fallbackName?: string): string {
+  if (!jobSource) {
     return "";
   }
 
-  return basename(jobFilePath).replace(/\.md$/i, "");
+  if ("file" in jobSource && typeof jobSource.file === "string") {
+    return basename(jobSource.file).replace(/\.md$/i, "");
+  }
+
+  return fallbackName ?? "";
 }
 
 function describeAgentName(agentId: StepDefinition["agent"]): string {
@@ -53,15 +62,20 @@ function describeNextMessageGuidance(
   return `Write \`message\` as the canonical handoff text for the "${nextCandidate}" step.`;
 }
 
-function resolveOperationSourcePath(
+function resolveContentSourceReference(
   operation: OperationDefinition,
-  sourcePath: string | undefined,
+  source: ContentSource | undefined,
+  inlineLocator: string,
 ): string | undefined {
-  if (!sourcePath) {
+  if (!source) {
     return undefined;
   }
 
-  return resolveOperationFacetPath(operation.sourcePath, sourcePath);
+  if ("file" in source && typeof source.file === "string") {
+    return resolveOperationFacetPath(operation.sourcePath, source.file);
+  }
+
+  return `${operation.sourcePath}#${inlineLocator}.inline`;
 }
 
 export function buildAugmentedInstruction(input: {
@@ -81,7 +95,7 @@ export function buildAugmentedInstruction(input: {
   if (facets.job) {
     sections.push(
       buildMarkdownSection("job", facets.job, {
-        source: resolveOperationSourcePath(operation, step.job_file),
+        source: resolveContentSourceReference(operation, step.job, `steps.${step.name}.job`),
       }),
     );
   }
@@ -92,7 +106,11 @@ export function buildAugmentedInstruction(input: {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
       sections.push(
         buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: resolveOperationSourcePath(operation, step.knowledge_files?.[index]),
+          source: resolveContentSourceReference(
+            operation,
+            step.knowledge?.[index],
+            `steps.${step.name}.knowledge[${index}]`,
+          ),
         }),
       );
     }
@@ -101,7 +119,11 @@ export function buildAugmentedInstruction(input: {
   if (facets.instruction) {
     sections.push(
       buildMarkdownSection("instruction", facets.instruction, {
-        source: resolveOperationSourcePath(operation, step.instruction_file),
+        source: resolveContentSourceReference(
+          operation,
+          step.instruction,
+          `steps.${step.name}.instruction`,
+        ),
       }),
     );
   }
@@ -114,7 +136,11 @@ export function buildAugmentedInstruction(input: {
     for (let index = 0; index < facets.policies.length; index += 1) {
       sections.push(
         buildMarkdownSection("policy", facets.policies[index], {
-          source: resolveOperationSourcePath(operation, step.policy_files?.[index]),
+          source: resolveContentSourceReference(
+            operation,
+            step.policies?.[index],
+            `steps.${step.name}.policies[${index}]`,
+          ),
         }),
       );
     }
@@ -142,7 +168,7 @@ export function buildActivationInstruction(input: {
   if (facets.job) {
     sections.push(
       buildMarkdownSection("job", facets.job, {
-        source: resolveOperationSourcePath(operation, step.job_file),
+        source: resolveContentSourceReference(operation, step.job, `steps.${step.name}.job`),
       }),
     );
   }
@@ -151,7 +177,11 @@ export function buildActivationInstruction(input: {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
       sections.push(
         buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: resolveOperationSourcePath(operation, step.knowledge_files?.[index]),
+          source: resolveContentSourceReference(
+            operation,
+            step.knowledge?.[index],
+            `steps.${step.name}.knowledge[${index}]`,
+          ),
         }),
       );
     }
@@ -160,7 +190,11 @@ export function buildActivationInstruction(input: {
   if (facets.instruction) {
     sections.push(
       buildMarkdownSection("instruction", facets.instruction, {
-        source: resolveOperationSourcePath(operation, step.instruction_file),
+        source: resolveContentSourceReference(
+          operation,
+          step.instruction,
+          `steps.${step.name}.instruction`,
+        ),
       }),
     );
   }
@@ -173,7 +207,11 @@ export function buildActivationInstruction(input: {
     for (let index = 0; index < facets.policies.length; index += 1) {
       sections.push(
         buildMarkdownSection("policy", facets.policies[index], {
-          source: resolveOperationSourcePath(operation, step.policy_files?.[index]),
+          source: resolveContentSourceReference(
+            operation,
+            step.policies?.[index],
+            `steps.${step.name}.policies[${index}]`,
+          ),
         }),
       );
     }
@@ -212,7 +250,11 @@ function buildOutputContractSections(
       const report = step.output_contracts.report[index];
       sections.push(
         buildMarkdownSection("output-contract", contracts[index] ?? "", {
-          source: resolveOperationSourcePath(operation, report.format_file),
+          source: resolveContentSourceReference(
+            operation,
+            report.format,
+            `steps.${step.name}.output_contracts.report[${index}].format`,
+          ),
           name: report.name,
           "output-path": `${reportDir}/${report.name}`,
         }),

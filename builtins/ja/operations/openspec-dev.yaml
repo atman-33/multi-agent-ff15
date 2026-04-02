@@ -11,8 +11,14 @@ steps:
   # 1. Noctis clarifies requirements with User and creates a spec plan
   - name: spec-planning
     agent: noctis
-    job_file: ../facets/jobs/planner.md
-    instruction_file: ../facets/instructions/openspec-planning.md
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+        inline: |
+          # Spec Planning — 手順指示
+
+          この step では `.opencode/command/opsx-ff.md` を実行指示として使う。
+          OpenSpec artifact の作成順、依存 artifact の参照、User への確認、完了条件はその記述に従うこと。
     rules:
       - condition: Open Spec artifact has been generated and approved
         next: implement
@@ -20,10 +26,12 @@ steps:
   # 2. Gladiolus implements based on the spec plan
   - name: implement
     agent: gladiolus
-    job_file: ../facets/jobs/implementer.md
-    instruction_file: ../facets/instructions/implement.md
-    policy_files:
-      - ../facets/policies/coding-standards.md
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      file: ../facets/instructions/implement.md
+    policies:
+      - file: ../facets/policies/coding-standards.md
     rules:
       - condition: Implementation complete and tests pass
         next: review
@@ -33,14 +41,17 @@ steps:
   # 3. Ignis reviews the code (read-only, produces structured report)
   - name: review
     agent: ignis
-    job_file: ../facets/jobs/reviewer.md
-    instruction_file: ../facets/instructions/review-code.md
-    policy_files:
-      - ../facets/policies/coding-standards.md
+    job:
+      file: ../facets/jobs/reviewer.md
+    instruction:
+      file: ../facets/instructions/review-code.md
+    policies:
+      - file: ../facets/policies/coding-standards.md
     output_contracts:
       report:
         - name: code-review.md
-          format_file: ../facets/output-contracts/code-review.md
+          format:
+            file: ../facets/output-contracts/code-review.md
     rules:
       - condition: Approved — no blocking issues
         next: refactor
@@ -52,10 +63,12 @@ steps:
   # 4. Gladiolus fixes issues found in review
   - name: fix
     agent: gladiolus
-    job_file: ../facets/jobs/implementer.md
-    instruction_file: ../facets/instructions/fix-code.md
-    policy_files:
-      - ../facets/policies/coding-standards.md
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      file: ../facets/instructions/fix-code.md
+    policies:
+      - file: ../facets/policies/coding-standards.md
     rules:
       - condition: All blocking issues fixed
         next: review
@@ -65,10 +78,12 @@ steps:
   # 5. Prompto performs the final cleanup after review approval
   - name: refactor
     agent: prompto
-    job_file: ../facets/jobs/refactorer.md
-    instruction_file: ../facets/instructions/refactor.md
-    policy_files:
-      - ../facets/policies/coding-standards.md
+    job:
+      file: ../facets/jobs/refactorer.md
+    instruction:
+      file: ../facets/instructions/refactor.md
+    policies:
+      - file: ../facets/policies/coding-standards.md
     rules:
       - condition: Refactoring complete
         next: COMPLETE

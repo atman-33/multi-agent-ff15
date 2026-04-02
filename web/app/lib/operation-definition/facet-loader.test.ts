@@ -53,28 +53,37 @@ function createTempOperationFixture(): string {
       "steps:",
       "  - name: spec-planning",
       "    agent: noctis",
-      "    job_file: ../facets/jobs/planner.md",
-      "    instruction_file: ../facets/instructions/openspec-planning.md",
-      "    knowledge_files:",
-      "      - ../facets/knowledge/operation-engine-and-builtins-injection.md",
+      "    job:",
+      "      file: ../facets/jobs/planner.md",
+      "    instruction:",
+      "      file: ../facets/instructions/openspec-planning.md",
+      "    knowledge:",
+      "      - file: ../facets/knowledge/operation-engine-and-builtins-injection.md",
       "    rules: []",
       "  - name: review",
       "    agent: ignis",
-      "    job_file: ../facets/jobs/reviewer.md",
-      "    instruction_file: ../facets/instructions/review-code.md",
+      "    job:",
+      "      file: ../facets/jobs/reviewer.md",
+      "    instruction:",
+      "      inline: Review the submitted code carefully.",
       "    output_contracts:",
       "      report:",
       "        - name: code-review.md",
-      "          format_file: ../facets/output-contracts/code-review.md",
+      "          format:",
+      "            inline: '# Inline Code Review Report'",
       "    rules: []",
       "  - name: implement",
       "    agent: gladiolus",
-      "    job_file: ../facets/jobs/implementer.md",
-      "    instruction_file: ../facets/instructions/implement.md",
-      "    knowledge_files:",
-      "      - ../facets/knowledge/operation-engine-and-builtins-injection.md",
-      "    policy_files:",
-      "      - ../facets/policies/coding-standards.md",
+      "    job:",
+      "      file: ../facets/jobs/implementer.md",
+      "    instruction:",
+      "      file: ../facets/instructions/implement.md",
+      "    knowledge:",
+      "      - file: ../facets/knowledge/operation-engine-and-builtins-injection.md",
+      "      - inline: Prefer runtime-owned dispatch.",
+      "    policies:",
+      "      - file: ../facets/policies/coding-standards.md",
+      "      - inline: Keep changes minimal.",
       "    rules: []",
       "",
     ].join("\n"),
@@ -99,10 +108,10 @@ describe("operation-definition path-based facet resolution", () => {
     const planning = operation.steps.find((step) => step.name === "spec-planning");
 
     expect(planning).toBeTruthy();
-    expect(planning?.job_file).toBe("../facets/jobs/planner.md");
-    expect(planning?.instruction_file).toBe("../facets/instructions/openspec-planning.md");
-    expect(planning?.knowledge_files).toEqual([
-      "../facets/knowledge/operation-engine-and-builtins-injection.md",
+    expect(planning?.job).toEqual({ file: "../facets/jobs/planner.md" });
+    expect(planning?.instruction).toEqual({ file: "../facets/instructions/openspec-planning.md" });
+    expect(planning?.knowledge).toEqual([
+      { file: "../facets/knowledge/operation-engine-and-builtins-injection.md" },
     ]);
 
     if (!planning) {
@@ -129,18 +138,23 @@ describe("operation-definition path-based facet resolution", () => {
 
     const facets = resolveStepFacets(operation, review, "ja");
 
-    expect(facets.outputContracts[0]).toContain("Code Review Report");
+    expect(facets.instruction).toContain("Review the submitted code carefully.");
+    expect(facets.outputContracts[0]).toContain("Inline Code Review Report");
   });
 
-  it("loads worker knowledge and policy files from operation-relative paths", () => {
+  it("loads worker knowledge and policy facets from file and inline sources", () => {
     const operation = loadOperationFromFile(createTempOperationFixture());
     const implement = operation.steps.find((step) => step.name === "implement");
 
     expect(implement).toBeTruthy();
-    expect(implement?.knowledge_files).toEqual([
-      "../facets/knowledge/operation-engine-and-builtins-injection.md",
+    expect(implement?.knowledge).toEqual([
+      { file: "../facets/knowledge/operation-engine-and-builtins-injection.md" },
+      { inline: "Prefer runtime-owned dispatch." },
     ]);
-    expect(implement?.policy_files).toEqual(["../facets/policies/coding-standards.md"]);
+    expect(implement?.policies).toEqual([
+      { file: "../facets/policies/coding-standards.md" },
+      { inline: "Keep changes minimal." },
+    ]);
 
     if (!implement) {
       throw new Error("implement step not found");
@@ -149,6 +163,8 @@ describe("operation-definition path-based facet resolution", () => {
     const facets = resolveStepFacets(operation, implement, "ja");
 
     expect(facets.knowledge[0]).toContain("Operation Runtime and Prompt Flow Knowledge");
+    expect(facets.knowledge[1]).toContain("Prefer runtime-owned dispatch.");
     expect(facets.policies[0]).toContain("Coding Standards");
+    expect(facets.policies[1]).toContain("Keep changes minimal.");
   });
 });

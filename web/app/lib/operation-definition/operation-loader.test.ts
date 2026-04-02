@@ -34,8 +34,10 @@ describe("operation loader", () => {
       "steps:",
       "  - name: plan",
       "    agent: noctis",
-      "    job_file: ./planner.md",
-      "    instruction_file: ./plan.md",
+      "    job:",
+      "      file: ./planner.md",
+      "    instruction:",
+      "      file: ./plan.md",
       "    rules: []",
       "",
     ].join("\n"));
@@ -57,8 +59,10 @@ describe("operation loader", () => {
       "steps:",
       "  - name: implement",
       "    agent: gladiolus",
-      "    job_file: ./implementer.md",
-      "    instruction_file: ./implement.md",
+      "    job:",
+      "      file: ./implementer.md",
+      "    instruction:",
+      "      file: ./implement.md",
       "    rules: []",
       "",
     ].join("\n"));
@@ -75,8 +79,10 @@ describe("operation loader", () => {
       "  - name: implement",
       "    agent: gladiolus",
       "    handoff_mode: manual",
-      "    job_file: ./implementer.md",
-      "    instruction_file: ./implement.md",
+      "    job:",
+      "      file: ./implementer.md",
+      "    instruction:",
+      "      file: ./implement.md",
       "    rules: []",
       "",
     ].join("\n"));
@@ -92,8 +98,10 @@ describe("operation loader", () => {
       "steps:",
       "  - name: implement",
       "    agent: noctis",
-      "    job_file: ./implementer.md",
-      "    instruction_file: ./implement.md",
+      "    job:",
+      "      file: ./implementer.md",
+      "    instruction:",
+      "      file: ./implement.md",
       "    pass_previous_response: true",
       "    rules: []",
       "",
@@ -110,19 +118,24 @@ describe("operation loader", () => {
       "steps:",
       "  - name: plan",
       "    agent: noctis",
-      "    job_file: ./planner.md",
-      "    instruction_file: ./plan.md",
+      "    job:",
+      "      file: ./planner.md",
+      "    instruction:",
+      "      file: ./plan.md",
       "    rules:",
       "      - condition: Ready for review",
       "        next: review",
       "  - name: review",
       "    agent: ignis",
-      "    job_file: ./reviewer.md",
-      "    instruction_file: ./review.md",
+      "    job:",
+      "      file: ./reviewer.md",
+      "    instruction:",
+      "      file: ./review.md",
       "    output_contracts:",
       "      report:",
       "        - name: code-review.md",
-      "          format_file: ./contract.md",
+      "          format:",
+      "            file: ./contract.md",
       "    rules: []",
       "",
     ].join("\n"));
@@ -130,6 +143,42 @@ describe("operation loader", () => {
     const operation = loadOperationFromFile(filePath);
 
     expect(operation.steps[1]?.output_contracts?.report[0]?.name).toBe("code-review.md");
+    expect(operation.steps[1]?.output_contracts?.report[0]?.format).toEqual({ file: "./contract.md" });
+  });
+
+  it("loads canonical inline and list facets", () => {
+    const filePath = writeTempOperation([
+      "name: inline-operation",
+      "description: Inline operation",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Planner role",
+      "    instruction:",
+      "      inline: Clarify the request",
+      "    knowledge:",
+      "      - inline: Runtime owns the dispatch",
+      "    policies:",
+      "      - inline: Stay focused",
+      "    output_contracts:",
+      "      report:",
+      "        - name: plan.md",
+      "          format:",
+      "            inline: '# Plan output'",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    const operation = loadOperationFromFile(filePath);
+    const planStep = operation.steps[0];
+
+    expect(planStep?.job).toEqual({ inline: "Planner role" });
+    expect(planStep?.instruction).toEqual({ inline: "Clarify the request" });
+    expect(planStep?.knowledge).toEqual([{ inline: "Runtime owns the dispatch" }]);
+    expect(planStep?.policies).toEqual([{ inline: "Stay focused" }]);
+    expect(planStep?.output_contracts?.report[0]?.format).toEqual({ inline: "# Plan output" });
   });
 
   it("rejects removed legacy root fields", () => {
@@ -157,8 +206,10 @@ describe("operation loader", () => {
       "steps:",
       "  - name: plan",
       "    agent: noctis",
-      "    job_file: ./planner.md",
-      "    instruction_file: ./plan.md",
+      "    job:",
+      "      file: ./planner.md",
+      "    instruction:",
+      "      file: ./plan.md",
       "    edit: true",
       "    rules: []",
       "",
@@ -175,8 +226,10 @@ describe("operation loader", () => {
       "steps:",
       "  - name: implement",
       "    agent: gladiolus",
-      "    job_file: ./implementer.md",
-      "    instruction_file: ./implement.md",
+      "    job:",
+      "      file: ./implementer.md",
+      "    instruction:",
+      "      file: ./implement.md",
       "    rules:",
       "      - condition: Done",
       "        next: COMPLETE",
@@ -194,8 +247,10 @@ describe("operation loader", () => {
       "steps:",
       "  - name: plan",
       "    agent: noctis",
-      "    job_file: ./planner.md",
-      "    instruction_file: ./plan.md",
+      "    job:",
+      "      file: ./planner.md",
+      "    instruction:",
+      "      file: ./plan.md",
       "    rules:",
       "      - condition: Abort",
       "        next: ABORT",
@@ -203,5 +258,44 @@ describe("operation loader", () => {
     ].join("\n"));
 
     expect(() => loadOperationFromFile(filePath)).toThrow(/must not use terminal next values/i);
+  });
+
+  it("rejects removed file-based facet field names", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-operation",
+      "description: Invalid operation",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job_file: ./planner.md",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/removed field "job_file"/i);
+  });
+
+  it("rejects removed output contract format_file field names", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-operation",
+      "description: Invalid operation",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job:",
+      "      file: ./planner.md",
+      "    instruction:",
+      "      file: ./plan.md",
+      "    output_contracts:",
+      "      report:",
+      "        - name: plan.md",
+      "          format_file: ./plan-format.md",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/removed field "format_file"/i);
   });
 });

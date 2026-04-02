@@ -2,10 +2,115 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import type { OperationDefinition, RuleDefinition, StepDefinition } from "./types";
+import type {
+  ContentSource,
+  OperationDefinition,
+  ReportOutputContractDefinition,
+  RuleDefinition,
+  StepDefinition,
+} from "./types";
+
+function normalizeContentSource(raw: unknown, fieldLabel: string): ContentSource {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${fieldLabel} must be an object with exactly one of "file" or "inline".`);
+  }
+
+  const record = raw as Record<string, unknown>;
+  const file = typeof record.file === "string" ? record.file.trim() : "";
+  const inline = typeof record.inline === "string" ? record.inline : "";
+  const hasFile = file.length > 0;
+  const hasInline = inline.trim().length > 0;
+
+  if (hasFile === hasInline) {
+    throw new Error(`${fieldLabel} must define exactly one of "file" or "inline".`);
+  }
+
+  return hasFile ? { file } : { inline };
+}
+
+function normalizeOptionalContentSource(raw: unknown, fieldLabel: string): ContentSource | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  return normalizeContentSource(raw, fieldLabel);
+}
+
+function normalizeContentSourceList(raw: unknown, fieldLabel: string): ContentSource[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new Error(`${fieldLabel} must be an array of content source objects.`);
+  }
+
+  return raw.map((item, index) => normalizeContentSource(item, `${fieldLabel}[${index}]`));
+}
+
+function normalizeOutputContractReport(
+  raw: unknown,
+  stepName: string,
+  index: number,
+): ReportOutputContractDefinition {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(
+      `Operation step "${stepName}" output_contracts.report[${index}] must be an object.`,
+    );
+  }
+
+  const record = raw as Record<string, unknown>;
+  if ("format_file" in record) {
+    throw new Error(
+      `Operation step "${stepName}" output_contracts.report[${index}] contains removed field "format_file". Use "format: { file: ... }" or "format: { inline: ... }" instead.`,
+    );
+  }
+
+  const name = String(record.name ?? "").trim();
+  if (!name) {
+    throw new Error(
+      `Operation step "${stepName}" output_contracts.report[${index}] must define "name".`,
+    );
+  }
+
+  return {
+    name,
+    format: normalizeContentSource(
+      record.format,
+      `Operation step "${stepName}" output_contracts.report[${index}].format`,
+    ),
+  };
+}
+
+function normalizeOutputContracts(
+  raw: unknown,
+  stepName: string,
+): StepDefinition["output_contracts"] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`Operation step "${stepName}" output_contracts must be an object.`);
+  }
+
+  const report = (raw as Record<string, unknown>).report;
+  if (report === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(report)) {
+    throw new Error(`Operation step "${stepName}" output_contracts.report must be an array.`);
+  }
+
+  return {
+    report: report.map((item, index) => normalizeOutputContractReport(item, stepName, index)),
+  };
+}
 
 function normalizeStep(raw: Record<string, unknown>): StepDefinition {
-  validateNoLegacyStepFields(raw, String(raw.name ?? ""));
+  const stepName = String(raw.name ?? "");
+  validateNoLegacyStepFields(raw, stepName);
 
   const rules = Array.isArray(raw.rules)
     ? (raw.rules as Record<string, unknown>[]).map(
@@ -16,22 +121,23 @@ function normalizeStep(raw: Record<string, unknown>): StepDefinition {
       )
     : [];
 
-  const outputContracts = raw.output_contracts as
-    | { report?: Array<{ name: string; format_file: string }> }
-    | undefined;
-
   return {
-    name: String(raw.name ?? ""),
+    name: stepName,
     agent: String(raw.agent ?? "noctis") as StepDefinition["agent"],
-    job_file: String(raw.job_file ?? ""),
-    instruction_file: String(raw.instruction_file ?? ""),
-    knowledge_files: Array.isArray(raw.knowledge_files)
-      ? raw.knowledge_files.map((value) => String(value ?? "")).filter(Boolean)
-      : undefined,
-    policy_files: Array.isArray(raw.policy_files)
-      ? raw.policy_files.map((value) => String(value ?? "")).filter(Boolean)
-      : undefined,
-    output_contracts: outputContracts?.report ? { report: outputContracts.report } : undefined,
+    job: normalizeOptionalContentSource(raw.job, `Operation step "${stepName}" field "job"`),
+    instruction: normalizeOptionalContentSource(
+      raw.instruction,
+      `Operation step "${stepName}" field "instruction"`,
+    ),
+    knowledge: normalizeContentSourceList(
+      raw.knowledge,
+      `Operation step "${stepName}" field "knowledge"`,
+    ),
+    policies: normalizeContentSourceList(
+      raw.policies,
+      `Operation step "${stepName}" field "policies"`,
+    ),
+    output_contracts: normalizeOutputContracts(raw.output_contracts, stepName),
     rules,
   };
 }
@@ -49,25 +155,38 @@ function validateNoLegacyOperationFields(raw: Record<string, unknown>): void {
 }
 
 function validateNoLegacyStepFields(raw: Record<string, unknown>, stepName: string): void {
+  const label = stepName || "(unnamed)";
+
   if ("edit" in raw) {
-    const label = stepName || "(unnamed)";
     throw new Error(
       `Operation step "${label}" contains removed field "edit". Remove it from the schema.`,
     );
   }
 
   if ("handoff_mode" in raw) {
-    const label = stepName || "(unnamed)";
     throw new Error(
       `Operation step "${label}" contains removed field "handoff_mode". Model pauses or approvals as explicit Noctis-owned steps instead.`,
     );
   }
 
   if ("pass_previous_response" in raw) {
-    const label = stepName || "(unnamed)";
     throw new Error(
       `Operation step "${label}" contains removed field "pass_previous_response". Previous step output is no longer injected by the operation runtime.`,
     );
+  }
+
+  const removedFieldMessages: Record<string, string> = {
+    job_file: 'Use "job: { file: ... }" or "job: { inline: ... }" instead.',
+    instruction_file:
+      'Use "instruction: { file: ... }" or "instruction: { inline: ... }" instead.',
+    knowledge_files: 'Use "knowledge:" with a list of content source objects instead.',
+    policy_files: 'Use "policies:" with a list of content source objects instead.',
+  };
+
+  for (const [field, guidance] of Object.entries(removedFieldMessages)) {
+    if (field in raw) {
+      throw new Error(`Operation step "${label}" contains removed field "${field}". ${guidance}`);
+    }
   }
 }
 
