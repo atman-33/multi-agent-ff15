@@ -118,7 +118,7 @@ describe("api.missions.$missionId.reports", () => {
         body: JSON.stringify({
           fromAgent: "gladiolus",
           taskId: "task-invalid",
-          next: "review",
+          next: "refactor",
           message: "Implementation complete",
         }),
       }),
@@ -193,10 +193,10 @@ describe("api.missions.$missionId.reports", () => {
       taskStatus: "running",
     });
     vi.mocked(dispatchCurrentOperationStepToWorker).mockResolvedValue({
-      agentId: "prompto",
-      stepName: "refactor",
-      taskId: "task-refactor",
-      sessionId: "prompto-session",
+      agentId: "ignis",
+      stepName: "review",
+      taskId: "task-review",
+      sessionId: "ignis-session",
     });
 
     const response = await action({
@@ -206,7 +206,7 @@ describe("api.missions.$missionId.reports", () => {
         body: JSON.stringify({
           fromAgent: "gladiolus",
           taskId: "task-auto",
-          next: "refactor",
+          next: "review",
           message: "Implementation complete and tests pass",
         }),
       }),
@@ -215,17 +215,17 @@ describe("api.missions.$missionId.reports", () => {
 
     expect(response.status).toBe(200);
     await expect(readJson(response)).resolves.toMatchObject({
-      dispatchedTo: "prompto",
-      nextStep: "refactor",
-      taskId: "task-refactor",
-      sessionId: "prompto-session",
+      dispatchedTo: "ignis",
+      nextStep: "review",
+      taskId: "task-review",
+      sessionId: "ignis-session",
     });
 
     const mission = getMission(missionId);
-    expect(mission?.operationState?.currentStep).toBe("refactor");
+    expect(mission?.operationState?.currentStep).toBe("review");
     expect(mission?.taskGraph.find((task) => task.id === "task-auto")?.status).toBe("completed");
     expect(mission?.taskGraph.find((task) => task.id === "task-auto")?.result).toMatchObject({
-      next: "refactor",
+      next: "review",
       message: "Implementation complete and tests pass",
       reportStatus: "completed",
     });

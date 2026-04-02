@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.server";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
+import { processReport } from "@/lib/operation-runtime/runtime";
+import { ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import {
   composeGenericSessionPrompt,
@@ -60,26 +62,22 @@ function seedProjectConfig(root: string) {
   );
 }
 
-function buildSyntheticOperationState() {
+function buildSyntheticOperationState(): { state: ReturnType<typeof createOperationState>; taskId: string } {
   const operation = loadOperationByName("openspec-dev", "ja");
-  const stepIndex = operation.steps.findIndex((step) => step.name === "implement");
   const state = createOperationState(operation.name, operation.initial_step);
-  state.currentStep = "implement";
-  state.status = "running";
-  state.iteration = stepIndex;
-  state.previousResponse = "Synthetic previous step output";
-  state.stepHistory = operation.steps.slice(0, stepIndex).map((step, index) => ({
-    step: step.name,
-    agent: step.agent,
-    status: "completed" as const,
-    dispatchedAt: "2026-03-31T00:00:00.000Z",
-    completedAt: "2026-03-31T00:00:00.000Z",
-    ruleMatched: 0,
-    ruleCondition: step.rules[0]?.condition ?? "completed",
-    nextStep: operation.steps[index + 1]?.name ?? "COMPLETE",
-    summary: `Synthetic summary for ${step.name}`,
-  }));
-  return state;
+
+  const specPlanningTaskId = ensureActiveStepTaskId(state, "noctis");
+  processReport({
+    missionId: "debug-mission",
+    operationState: state,
+    reportBody: "Synthetic report from worker\n\n[step:spec-planning]",
+    fromAgent: "noctis",
+    taskId: specPlanningTaskId,
+    next: "implement",
+  });
+
+  const taskId = ensureActiveStepTaskId(state, "gladiolus");
+  return { state, taskId };
 }
 
 afterEach(() => {
@@ -152,7 +150,7 @@ describe("prompt composition engine", () => {
   it("builds worker prompts through the workflow extension when operation state is active", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
-    const operationState = buildSyntheticOperationState();
+    const { state: operationState, taskId } = buildSyntheticOperationState();
 
     const composed = composeWorkerTaskPrompt({
       context: {
@@ -163,7 +161,7 @@ describe("prompt composition engine", () => {
       },
       missionId: "mission-3",
       agentId: "gladiolus",
-      taskId: "task-1",
+      taskId,
       originalPrompt: "Task ID: task-1\nTask: implement the change",
       operationStateOverride: operationState,
     });
@@ -173,14 +171,11 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("<task");
     expect(composed.effectivePrompt).toContain("<step-completion-contract");
     expect(composed.effectivePrompt).toContain(
-      'scripts/send_report.sh mission-3 gladiolus task-1 refactor "<message>"',
+      `scripts/send_report.sh mission-3 gladiolus ${taskId} review "<message>"`,
     );
     expect(composed.effectivePrompt).not.toContain("--rule-index <index>");
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
-    expect(composed.payloadParts[0]?.text).toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
-    );
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/policies/coding-standards.md"`,
     );
@@ -190,13 +185,13 @@ describe("prompt composition engine", () => {
 
   it("keeps debug preview aligned with composed worker prompt structure", () => {
     const root = getProjectRoot();
-    const operationState = buildSyntheticOperationState();
+    const { state: operationState, taskId } = buildSyntheticOperationState();
     const bundle = buildOperationDebugBundle({
       operationName: "openspec-dev",
       taskInstruction: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
     });
-    const dispatchStep = bundle.flowSteps.find(
-      (step) => step.kind === "dispatch" && step.to === "gladiolus",
+    const workerStep = bundle.flowSteps.find(
+      (step) => step.kind === "worker-step" && step.stepName === "implement",
     );
 
     const composed = composeWorkerTaskPrompt({
@@ -208,14 +203,35 @@ describe("prompt composition engine", () => {
       },
       missionId: "debug-mission",
       agentId: "gladiolus",
-      taskId: "debug-task-implement",
+      taskId,
       originalPrompt: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
       operationStateOverride: operationState,
     });
 
-    expect(dispatchStep).toBeTruthy();
-    expect(dispatchStep?.effectivePrompt).toBe(composed.effectivePrompt);
-    expect(dispatchStep?.internalContext).toBe(composed.sharedContext);
+    expect(workerStep).toBeTruthy();
+    expect(workerStep?.to).toBe("Gladiolus");
+    expect(workerStep?.pathSummary).toBe("Noctis -> Runtime -> Gladiolus");
+    expect(workerStep?.effectivePrompt).toBe(composed.effectivePrompt);
+    expect(workerStep?.internalContext).toBe(composed.sharedContext);
+  });
+
+  it("follows runtime step transitions in the debug flow", () => {
+    const bundle = buildOperationDebugBundle({
+      operationName: "openspec-dev",
+    });
+
+    expect(
+      bundle.flowSteps.map(
+        (step) =>
+          `${step.stepName}:${step.kind}:${step.pathSummary}:${step.decisionSummary}`,
+      ),
+    ).toEqual([
+      "spec-planning:noctis-step:User -> Runtime -> Noctis:dispatch_worker -> Gladiolus (implement)",
+      "implement:worker-step:Noctis -> Runtime -> Gladiolus:dispatch_worker -> Ignis (review)",
+      "review:worker-step:Gladiolus -> Runtime -> Ignis:dispatch_worker -> Prompto (refactor)",
+      "refactor:worker-step:Ignis -> Runtime -> Prompto:report_to_user -> COMPLETE",
+    ]);
+    expect(bundle.flowSteps.some((step) => step.stepName === "fix")).toBe(false);
   });
 
   it("keeps debug preview aligned with composed Noctis activation prompt structure", () => {
@@ -225,7 +241,7 @@ describe("prompt composition engine", () => {
       operationName: "openspec-dev",
     });
     const selfStep = bundle.flowSteps.find(
-      (step) => step.kind === "self" && step.to === "Noctis",
+      (step) => step.kind === "noctis-step" && step.to === "Noctis",
     );
 
     const composed = composeUserToNoctisPrompt({
@@ -244,6 +260,7 @@ describe("prompt composition engine", () => {
     });
 
     expect(selfStep).toBeTruthy();
+    expect(selfStep?.pathSummary).toBe("User -> Runtime -> Noctis");
     expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
     expect(selfStep?.internalContext).toBe(composed.sharedContext);
     expect(selfStep?.sourceInput).toBe(composed.promptBody);

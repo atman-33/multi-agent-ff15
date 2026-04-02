@@ -33,21 +33,34 @@ type LoaderData = {
   taskInstruction: string;
 };
 
+type PreviewStep = NonNullable<LoaderData["preview"]>["flowSteps"][number];
+
 function getLanguage(): string {
   return readOperationLanguage();
 }
 
-function PrettyCode({ className, value }: { className?: string; value: string }) {
-  return (
-    <pre
-      className={cn(
-        "max-h-136 overflow-auto rounded-lg border border-slate-700 bg-slate-950 p-4 font-mono text-[12px] leading-5 whitespace-pre-wrap text-slate-100",
-        className,
-      )}
-    >
-      {value}
-    </pre>
-  );
+function formatNextLabel(step?: PreviewStep | null): string {
+  if (!step) {
+    return "Next: -";
+  }
+
+  if (step.nextTarget === "COMPLETE") {
+    return "Complete";
+  }
+
+  if (step.nextTarget === "ABORT") {
+    return "Abort";
+  }
+
+  if (step.nextStep && step.nextTarget) {
+    return `Next: ${step.nextStep} by ${step.nextTarget}`;
+  }
+
+  if (step.nextStep) {
+    return `Next: ${step.nextStep}`;
+  }
+
+  return "Next: -";
 }
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -245,130 +258,88 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     return selectedStep.effectivePrompt ?? selectedStep.injectedPrompt;
   }, [selectedStep]);
 
-  const assemblyBlocks = useMemo(() => {
+  const completionContract = useMemo(() => {
     if (!selectedStep) {
-      return [] as Array<{
-        id: string;
-        title: string;
-        placement: string;
-        rendering: "Displayed" | "Embedded";
-        content: string;
-      }>;
+      return "No completion contract available.";
     }
 
-    const blocks: Array<{
-      id: string;
-      title: string;
-      placement: string;
-      rendering: "Displayed" | "Embedded";
-      content: string;
-    }> = [
+    return selectedStep.completionContract || "No completion contract available.";
+  }, [selectedStep]);
+
+  const runtimeDecision = useMemo(() => {
+    if (!selectedStep) {
+      return "No runtime decision available.";
+    }
+
+    return selectedStep.runtimeDecision || "No runtime decision available.";
+  }, [selectedStep]);
+
+  const advancedBlocks = useMemo(() => {
+    if (!selectedStep) {
+      return [] as Array<{ id: string; title: string; description: string; content: string }>;
+    }
+
+    const blocks: Array<{ id: string; title: string; description: string; content: string }> = [
       {
         id: "internal",
         title: "Internal Context",
-        placement: "Block 1 in final prompt",
-        rendering: "Displayed",
+        description: "Shared context injected before the workflow-specific prompt.",
         content: selectedStep.internalContext,
       },
+      {
+        id: "step-context",
+        title: "Step Context",
+        description: "Synthetic operation state summary for this step execution.",
+        content: selectedStep.operationContextSummary ?? "No context available.",
+      },
+      {
+        id: "source",
+        title: "Prompt Source Input",
+        description: "Raw input used to build the runtime -> agent prompt.",
+        content: selectedStep.sourceInput,
+      },
+      {
+        id: "transport",
+        title: "Synthetic Report Transport",
+        description: "Transport payload sent from the current agent back to Runtime.",
+        content: selectedStep.reportTransport,
+      },
+      {
+        id: "hooks",
+        title: "Hook Metadata",
+        description: "Low-level hook stages involved in this step.",
+        content: selectedStep.hookTrail.join(" -> "),
+      },
     ];
+
+    if (selectedStep.workflowGuidance?.trim()) {
+      blocks.push({
+        id: "guidance",
+        title: "Workflow Guidance",
+        description: "Raw runtime guidance generated after the synthetic report.",
+        content: selectedStep.workflowGuidance,
+      });
+    }
+
+    if (selectedStep.ruleEvaluation?.trim()) {
+      blocks.push({
+        id: "rule",
+        title: "Rule Evaluation",
+        description: "Expanded decision trace for the synthetic report.",
+        content: selectedStep.ruleEvaluation,
+      });
+    }
 
     if (selectedStep.suppressedContext?.trim()) {
       blocks.push({
         id: "suppressed",
         title: "Suppressed Metadata",
-        placement: "Debug-only metadata panel",
-        rendering: "Displayed",
+        description: "Debug-only metadata kept outside the agent-visible prompt.",
         content: selectedStep.suppressedContext,
       });
     }
 
-    if (selectedStep.kind === "self") {
-      blocks.push(
-        {
-          id: "injected",
-          title: "Operation Activation",
-          placement: "Block 2 in final prompt",
-          rendering: "Displayed",
-          content: selectedStep.injectedPrompt,
-        },
-        {
-          id: "source",
-          title: "User Routed Message",
-          placement: "Block 3 in final prompt",
-          rendering: "Displayed",
-          content: selectedStep.sourceInput,
-        },
-      );
-    } else if (selectedStep.kind === "dispatch") {
-      blocks.push(
-        {
-          id: "source",
-          title: "Source Task Input",
-          placement: "Embedded inside Injected Prompt > Task section",
-          rendering: "Embedded",
-          content: selectedStep.sourceInput,
-        },
-        {
-          id: "injected",
-          title: "Injected Worker Prompt",
-          placement: "Block 2 in final prompt",
-          rendering: "Displayed",
-          content: selectedStep.injectedPrompt,
-        },
-      );
-    } else {
-      blocks.push(
-        {
-          id: "source",
-          title: "Worker Report Envelope",
-          placement: "Block 2 in final prompt",
-          rendering: "Displayed",
-          content: selectedStep.sourceInput,
-        },
-        {
-          id: "injected",
-          title: "Noctis Guidance",
-          placement: "Appended after report envelope when generated",
-          rendering: "Displayed",
-          content: selectedStep.injectedPrompt,
-        },
-      );
-    }
-
     return blocks;
-  }, [selectedStep]);
-
-  const diagnosticsBlocks = useMemo(() => {
-    if (!selectedStep) {
-      return [] as Array<{ id: string; title: string; content: string }>;
-    }
-
-    return [
-      {
-        id: "rule",
-        title: "Rule / Transition",
-        content: selectedStep.ruleEvaluation ?? selectedStep.ruleTransition ?? "No rule diagnostics for this step.",
-      },
-      {
-        id: "context",
-        title: "Step Context",
-        content: selectedStep.operationContextSummary ?? "No context available.",
-      },
-      {
-        id: "facets",
-        title: "Resolved Facets",
-        content:
-          selectedStep.resolvedFacets
-            ? [
-                `job: ${selectedStep.resolvedFacets.job ? "loaded" : "missing"}`,
-                `instruction: ${selectedStep.resolvedFacets.instruction ? "loaded" : "missing"}`,
-                `knowledge: ${selectedStep.resolvedFacets.knowledge.length}`,
-                `policy: ${selectedStep.resolvedFacets.policies.length}`,
-                `output_contracts: ${selectedStep.resolvedFacets.outputContracts.length}`,
-              ].join("\n")
-            : "No facet data available.",
-      },
-    ];
   }, [selectedStep]);
 
   const flowToneClass = (kind: string, selected: boolean) => {
@@ -376,13 +347,11 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       return "border-blue-400 bg-blue-950/80 shadow-lg ring-2 ring-blue-400/60";
     }
 
-    if (kind === "self") {
+    if (kind === "noctis-step") {
       return "border-sky-950 bg-sky-950/20 opacity-60 hover:border-sky-800 hover:bg-sky-950/35 hover:opacity-80";
     }
-    if (kind === "dispatch") {
-      return "border-amber-950 bg-amber-950/20 opacity-60 hover:border-amber-800 hover:bg-amber-950/35 hover:opacity-80";
-    }
-    return "border-violet-950 bg-violet-950/20 opacity-60 hover:border-violet-800 hover:bg-violet-950/35 hover:opacity-80";
+
+    return "border-amber-950 bg-amber-950/20 opacity-60 hover:border-amber-800 hover:bg-amber-950/35 hover:opacity-80";
   };
 
   return (
@@ -398,8 +367,8 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               {selectedStepNumber ? <Badge variant="outline">Step {selectedStepNumber}</Badge> : null}
             </div>
             <p className="max-w-4xl text-slate-300 text-sm">
-              Flow blocks are generated from every step in the selected operation YAML.
-              Click a block to inspect exact injected prompt, internal context, and transition details.
+              Reachable runtime-mediated steps are generated from the selected operation YAML.
+              Select a step to inspect the injected prompt, completion contract, runtime decision, and low-level debug details.
             </p>
           </div>
 
@@ -421,7 +390,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
           <CardHeader className="border-b border-slate-800 bg-slate-900">
             <CardTitle className="text-lg">Flow</CardTitle>
             <CardDescription className="text-slate-400">
-              End-to-end handoff map. All steps in the selected operation are shown.
+              Runtime-mediated step flow for the currently reachable path.
             </CardDescription>
           </CardHeader>
           <CardContent className="min-h-0 flex flex-1 flex-col gap-4 overflow-hidden">
@@ -508,22 +477,13 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                 {step.title}
                               </div>
                             </div>
-                            <Badge
-                              className={cn(
-                                "border-slate-600",
-                                selected ? "text-blue-100" : "text-slate-400",
-                              )}
-                              variant="outline"
-                            >
-                              {step.hookId}
-                            </Badge>
                           </div>
                           <div className={cn("mt-1 flex items-center gap-2 text-xs", selected ? "text-slate-200" : "text-slate-500")}>
                             <Send className="h-3 w-3" />
-                            {step.from} -&gt; {step.to}
+                            {step.pathSummary}
                           </div>
-                          <div className={cn("mt-2 text-xs", selected ? "text-slate-300" : "text-slate-500")}>
-                            {step.summary}
+                          <div className={cn("mt-2 font-medium text-xs", selected ? "text-blue-100" : "text-slate-300")}>
+                            {formatNextLabel(step)}
                           </div>
                         </button>
 
@@ -541,7 +501,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               <TabsContent className="min-h-0 flex-1 space-y-4 overflow-auto pr-1" value="inputs">
                 <div className="space-y-2 rounded-lg border border-blue-800 bg-blue-950/40 p-3 text-slate-100">
                   <label className="font-medium text-sm" htmlFor="user-message">
-                    User Message (Hook 1)
+                    User Message
                   </label>
                   <Textarea
                     id="user-message"
@@ -553,7 +513,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
                 <div className="space-y-2 rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-slate-100">
                   <label className="font-medium text-sm" htmlFor="task-instruction">
-                    Synthetic Task (Dispatch)
+                    Worker Task Seed
                   </label>
                   <Textarea
                     id="task-instruction"
@@ -565,7 +525,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
                 <div className="space-y-2 rounded-lg border border-sky-800 bg-sky-950/40 p-3 text-slate-100">
                   <label className="font-medium text-sm" htmlFor="previous-response">
-                    Synthetic Previous Response
+                    Initial Previous Response
                   </label>
                   <Textarea
                     id="previous-response"
@@ -577,7 +537,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
                 <div className="space-y-2 rounded-lg border border-violet-800 bg-violet-950/40 p-3 text-slate-100">
                   <label className="font-medium text-sm" htmlFor="report-message">
-                    Synthetic Report Message (Report)
+                    Synthetic Report Message
                   </label>
                   <Textarea
                     id="report-message"
@@ -589,7 +549,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
                 <div className="space-y-2 rounded-lg border border-violet-800 bg-violet-950/40 p-3 text-slate-100">
                   <label className="font-medium text-sm" htmlFor="report-next">
-                    Synthetic Report Next Override (optional)
+                    Synthetic Report Next Override
                   </label>
                   <Textarea
                     id="report-next"
@@ -618,21 +578,15 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-semibold text-base text-slate-50">{selectedStep?.title ?? "-"}</div>
-                        <Badge className="border-slate-600 text-blue-100" variant="outline">
-                          {selectedStep?.hookId ?? "-"}
-                        </Badge>
-                        <Badge className="w-fit gap-1.5 border-slate-600 text-slate-200" variant="outline">
-                          {selectedStep?.targetAgent ?? "-"}
-                        </Badge>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                         <div className="font-mono text-slate-500">{selectedStep?.id ?? "-"}</div>
                         <div className="flex items-center gap-1.5 text-slate-300">
                           <Send className="h-3.5 w-3.5 shrink-0" />
-                          <span>{selectedStep ? `${selectedStep.from} -> ${selectedStep.to}` : "-"}</span>
+                          <span>{selectedStep?.pathSummary ?? "-"}</span>
                         </div>
-                        <div className="min-w-0 flex-1 truncate text-slate-400">
-                          {selectedStep?.summary ?? "-"}
+                        <div className="font-medium text-blue-100">
+                          {formatNextLabel(selectedStep)}
                         </div>
                       </div>
                     </div>
@@ -644,79 +598,65 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
           <Card className="border-slate-800 bg-slate-900 text-slate-100">
             <CardHeader>
-              <CardTitle className="text-lg">Prompt Details</CardTitle>
-              <CardDescription className="text-slate-400">
-                Final prompt first, then assembly order, then supporting diagnostics.
-              </CardDescription>
+              <CardTitle className="text-lg">Step Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="final">
+              <Tabs defaultValue="prompt">
                 <TabsList className="w-full justify-start border-slate-800" variant="line">
-                  <TabsTrigger className="" value="final" variant="line">
-                    Final Prompt
+                  <TabsTrigger className="" value="prompt" variant="line">
+                    Prompt
                   </TabsTrigger>
-                  <TabsTrigger className="" value="assembly" variant="line">
-                    Assembly
+                  <TabsTrigger className="" value="contract" variant="line">
+                    Contract
                   </TabsTrigger>
-                  <TabsTrigger className="" value="diagnostics" variant="line">
-                    Diagnostics
+                  <TabsTrigger className="" value="decision" variant="line">
+                    Decision
+                  </TabsTrigger>
+                  <TabsTrigger className="" value="advanced" variant="line">
+                    Advanced
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent className="space-y-4" value="final">
+                <TabsContent className="space-y-4" value="prompt">
                   <CopyablePromptBlock
                     className="border-blue-900 bg-blue-950/30"
-                    headerContent={
-                      <div>
-                        <div className="text-blue-200 text-xs uppercase tracking-wide">Rendered Order</div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                          {assemblyBlocks.map((block, index) => (
-                            <Badge className="border-slate-600 text-slate-200" key={block.id} variant="outline">
-                              {index + 1}. {block.title}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    }
+                    description={selectedStep?.promptDescription ?? ""}
                     highlightTexts={selectedStep?.sourceInput ? [selectedStep.sourceInput] : []}
                     preClassName="max-h-136"
-                    title="Final Prompt"
+                    title={selectedStep?.promptTitle ?? "Prompt"}
                     value={finalPrompt}
                   />
                 </TabsContent>
 
-                <TabsContent className="space-y-3" value="assembly">
-                  {assemblyBlocks.map((block, index) => (
-                    <CopyablePromptBlock
-                      key={block.id}
-                      preClassName="max-h-52"
-                      title={block.title}
-                      description={block.placement}
-                      value={block.content}
-                      headerContent={
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-100">
-                              {index + 1}
-                            </div>
-                            <div className="font-medium text-slate-100 text-sm">{block.title}</div>
-                          </div>
-                          <Badge
-                            className={cn(
-                              "border-slate-600",
-                              block.rendering === "Displayed" ? "text-blue-200" : "text-amber-200",
-                            )}
-                            variant="outline"
-                          >
-                            {block.rendering}
-                          </Badge>
-                        </div>
-                      }
-                    />
-                  ))}
+                <TabsContent className="space-y-3" value="contract">
+                  <CopyablePromptBlock
+                    preClassName="max-h-136"
+                    title={selectedStep?.completionTitle ?? "Completion Contract"}
+                    description={selectedStep?.completionDescription ?? ""}
+                    value={completionContract}
+                  />
                 </TabsContent>
 
-                <TabsContent className="space-y-4" value="diagnostics">
+                <TabsContent className="space-y-4" value="decision">
+                  <CopyablePromptBlock
+                    className="border-emerald-900 bg-emerald-950/20"
+                    preClassName="max-h-136"
+                    title="Runtime Decision"
+                    description="How Runtime interprets the synthetic report for this step."
+                    value={runtimeDecision}
+                  />
+
+                  {selectedStep?.workflowGuidance?.trim() ? (
+                    <CopyablePromptBlock
+                      preClassName="max-h-136"
+                      title="Workflow Guidance"
+                      description="Raw runtime guidance generated after the synthetic report."
+                      value={selectedStep.workflowGuidance}
+                    />
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent className="space-y-4" value="advanced">
                   <div className="grid gap-3 md:grid-cols-5">
                     {facetStats.map((stat) => (
                       <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100" key={stat.label}>
@@ -726,15 +666,16 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                     ))}
                   </div>
 
-                  {diagnosticsBlocks.map((block) => (
-                    <div className="space-y-2" key={block.id}>
-                      <div className="font-medium text-sm text-slate-200">{block.title}</div>
-                      <PrettyCode className="max-h-64" value={block.content} />
-                    </div>
+                  {advancedBlocks.map((block) => (
+                    <CopyablePromptBlock
+                      key={block.id}
+                      preClassName="max-h-64"
+                      title={block.title}
+                      description={block.description}
+                      value={block.content}
+                    />
                   ))}
                 </TabsContent>
-                
-                <TabsContent value="unused" />
               </Tabs>
             </CardContent>
           </Card>
