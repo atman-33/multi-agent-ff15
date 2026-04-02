@@ -128,7 +128,8 @@ describe("prompt composition engine", () => {
       selectedOperation: "openspec-dev",
     });
 
-    expect(composed.workflowExtension).toContain("<step");
+    expect(composed.workflowExtension).not.toContain('<step format="yaml">');
+    expect(composed.workflowExtension).toContain("<step-completion-contract");
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts).toHaveLength(1);
     expect(composed.payloadParts[0]?.text).toContain("<operation-prompt");
@@ -168,6 +169,7 @@ describe("prompt composition engine", () => {
 
     expect(composed.usedWorkflowExtension).toBe(true);
     expect(composed.workflowExtension).toContain("<job");
+    expect(composed.workflowExtension).not.toContain('<step format="yaml">');
     expect(composed.effectivePrompt).toContain("<task");
     expect(composed.effectivePrompt).toContain("<step-completion-contract");
     expect(composed.effectivePrompt).toContain(

@@ -5,7 +5,6 @@ import type { OperationState } from "@/lib/types/mission";
 import {
   buildMarkdownSection,
   buildTextSection,
-  buildYamlSection,
   joinXmlSections,
 } from "./prompt-xml";
 
@@ -40,7 +39,7 @@ export function buildAugmentedInstruction(input: {
   agentId: StepDefinition["agent"];
   taskId: string;
 }): string {
-  const { step, operation, operationState, originalInstruction, previousResponse, facets, reportDir } =
+  const { step, operation, originalInstruction, previousResponse, facets, reportDir } =
     input;
   const sections: Array<string | null> = [];
 
@@ -52,7 +51,6 @@ export function buildAugmentedInstruction(input: {
     );
   }
 
-  sections.push(buildStepSection(operation, operationState, input.taskId));
   sections.push(buildTextSection("task", originalInstruction));
 
   if (step.pass_previous_response && previousResponse) {
@@ -107,8 +105,8 @@ export function buildActivationInstruction(input: {
   missionId: string;
   taskId: string;
 }): string {
-  const { operation, step, operationState, facets, reportDir } = input;
-  const sections: Array<string | null> = [buildStepSection(operation, operationState, input.taskId)];
+  const { operation, step, facets, reportDir } = input;
+  const sections: Array<string | null> = [];
 
   if (facets.job) {
     sections.push(
@@ -164,52 +162,10 @@ export function buildActivationInstruction(input: {
 }
 
 export function buildOperationContextSummary(
-  operation: OperationDefinition,
-  operationState: OperationState,
+  _operation: OperationDefinition,
+  _operationState: OperationState,
 ): string {
-  const currentStep = operation.steps.find((step) => step.name === operationState.currentStep);
-  const lines = [
-    `operation: ${operation.name}`,
-    `current_step: ${operationState.currentStep}`,
-  ];
-
-  if (currentStep) {
-    lines.push(`role: ${describeStepRole(currentStep.job_file)}`);
-  }
-
-  if (currentStep && currentStep.agent !== "noctis") {
-    lines.push(`next_expected_agent: ${currentStep.agent}`);
-  }
-
-  const latestStep = operationState.stepHistory.at(-1);
-  if (latestStep?.step === operationState.currentStep && latestStep.taskId) {
-    lines.push(`task_id: ${latestStep.taskId}`);
-  }
-
-  return buildYamlSection("step", lines.join("\n"));
-}
-
-function buildStepSection(operation: OperationDefinition, state: OperationState, taskId?: string): string {
-  const currentStep = operation.steps.find((step) => step.name === state.currentStep);
-  const lines = [
-    `operation: ${operation.name}`,
-    `current_step: ${state.currentStep}`,
-  ];
-
-  if (currentStep) {
-    lines.push(`role: ${describeStepRole(currentStep.job_file)}`);
-  }
-
-  const resolvedTaskId =
-    taskId ??
-    (state.stepHistory.at(-1)?.step === state.currentStep
-      ? state.stepHistory.at(-1)?.taskId
-      : undefined);
-  if (resolvedTaskId) {
-    lines.push(`task_id: ${resolvedTaskId}`);
-  }
-
-  return buildYamlSection("step", lines.join("\n"));
+  return "";
 }
 
 function buildOutputContractSections(

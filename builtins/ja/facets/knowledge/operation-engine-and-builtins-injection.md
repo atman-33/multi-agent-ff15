@@ -108,14 +108,13 @@ worker dispatch は runtime-owned です。operation の step transition 後に�
 worker prompt の section 順序は次のとおりです。
 
 1. `job`
-2. `step`
-3. `task`
-4. `previous-step-output` when `pass_previous_response: true`
-5. `knowledge`
-6. `instruction`
-7. `output contracts` when defined
-8. `policy`
-9. `step-completion-contract`
+2. `task`
+3. `previous-step-output` when `pass_previous_response: true`
+4. `knowledge`
+5. `instruction`
+6. `output contracts` when defined
+7. `policy`
+8. `step-completion-contract`
 
 worker step は本文末尾の `[STEP:N]` を使わず、allowed `next` と単一の `message` を `send_report.sh` で返す。
 
@@ -152,11 +151,11 @@ shared context は環境・プロジェクト共通知識です。
 
 workflow extension は current step 固有の指示です。
 
-- step metadata
-- active step `task_id`
 - resolved facets
 - completion contract
 - task / previous response / output-path guidance
+
+standalone な `<step>` block は注入しません。routing の source of truth は runtime state と report transport の `taskId + next + message` です。
 
 最終 prompt は `<operation-prompt schema="v2">` で包まれます。
 
