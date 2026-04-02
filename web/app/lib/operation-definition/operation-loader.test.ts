@@ -84,6 +84,24 @@ describe("operation loader", () => {
     expect(() => loadOperationFromFile(filePath)).toThrow(/removed field "handoff_mode"/i);
   });
 
+  it("rejects removed previous response injection fields inside steps", () => {
+    const filePath = writeTempOperation([
+      "name: legacy-previous-response-operation",
+      "description: Legacy previous response operation",
+      "initial_step: implement",
+      "steps:",
+      "  - name: implement",
+      "    agent: noctis",
+      "    job_file: ./implementer.md",
+      "    instruction_file: ./implement.md",
+      "    pass_previous_response: true",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/removed field "pass_previous_response"/i);
+  });
+
   it("loads step output contracts when they are defined", () => {
     const filePath = writeTempOperation([
       "name: test-operation",

@@ -49,6 +49,9 @@ function readMissionFromDisk(id: string): Mission | null {
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
     parsed.archivedAt = typeof parsed.archivedAt === "string" ? parsed.archivedAt : undefined;
+    if (parsed.operationState && "previousResponse" in parsed.operationState) {
+      delete (parsed.operationState as { previousResponse?: string | null }).previousResponse;
+    }
     return parsed;
   } catch {
     return null;

@@ -31,7 +31,6 @@ function normalizeStep(raw: Record<string, unknown>): StepDefinition {
     policy_files: Array.isArray(raw.policy_files)
       ? raw.policy_files.map((value) => String(value ?? "")).filter(Boolean)
       : undefined,
-    pass_previous_response: raw.pass_previous_response !== false,
     output_contracts: outputContracts?.report ? { report: outputContracts.report } : undefined,
     rules,
   };
@@ -61,6 +60,13 @@ function validateNoLegacyStepFields(raw: Record<string, unknown>, stepName: stri
     const label = stepName || "(unnamed)";
     throw new Error(
       `Operation step "${label}" contains removed field "handoff_mode". Model pauses or approvals as explicit Noctis-owned steps instead.`,
+    );
+  }
+
+  if ("pass_previous_response" in raw) {
+    const label = stepName || "(unnamed)";
+    throw new Error(
+      `Operation step "${label}" contains removed field "pass_previous_response". Previous step output is no longer injected by the operation runtime.`,
     );
   }
 }

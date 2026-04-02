@@ -131,7 +131,6 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     operation,
     operationState,
     originalInstruction: originalPrompt,
-    previousResponse: operationState.previousResponse,
     facets,
     reportDir: operationState.reportDir,
     missionId,

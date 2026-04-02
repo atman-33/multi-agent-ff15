@@ -20,7 +20,6 @@ export function createOperationState(
     activatedAt: now,
     updatedAt: now,
     reportDir: DEFAULT_REPORT_DIR,
-    previousResponse: null,
     stepHistory: [],
     deviations: { totalDeviations: 0, history: [] },
   };
@@ -35,6 +34,11 @@ export function saveOperationState(missionId: string, state: OperationState): vo
   const mission = getMission(missionId);
   if (!mission) {
     return;
+  }
+
+  const legacyState = state as OperationState & { previousResponse?: string | null };
+  if ("previousResponse" in legacyState) {
+    delete legacyState.previousResponse;
   }
 
   state.updatedAt = new Date().toISOString();
@@ -105,10 +109,6 @@ export function recordStepCompleted(
     lastEntry.ruleCondition = transition.ruleCondition;
     lastEntry.nextStep = transition.nextStep;
     lastEntry.summary = message;
-  }
-
-  if (message) {
-    state.previousResponse = message;
   }
 
   if (transition.nextStep === "COMPLETE") {

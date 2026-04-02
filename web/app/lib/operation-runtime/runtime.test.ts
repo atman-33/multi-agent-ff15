@@ -33,7 +33,6 @@ function buildDispatchedState(input: {
   const state = createOperationState(input.operationName, input.currentStep);
   state.currentStep = input.currentStep;
   state.status = "waiting_for_report";
-  state.previousResponse = "Synthetic previous step output";
   state.stepHistory = [
     {
       step: input.currentStep,

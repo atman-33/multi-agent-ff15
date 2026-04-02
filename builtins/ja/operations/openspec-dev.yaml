@@ -13,7 +13,6 @@ steps:
     agent: noctis
     job_file: ../facets/jobs/planner.md
     instruction_file: ../facets/instructions/openspec-planning.md
-    pass_previous_response: false
     rules:
       - condition: Open Spec artifact has been generated and approved
         next: implement
@@ -25,7 +24,6 @@ steps:
     instruction_file: ../facets/instructions/implement.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    pass_previous_response: true
     rules:
       - condition: Implementation complete and tests pass
         next: review
@@ -39,7 +37,6 @@ steps:
     instruction_file: ../facets/instructions/review-code.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    pass_previous_response: true
     output_contracts:
       report:
         - name: code-review.md
@@ -59,7 +56,6 @@ steps:
     instruction_file: ../facets/instructions/fix-code.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    pass_previous_response: true
     rules:
       - condition: All blocking issues fixed
         next: review
@@ -73,7 +69,6 @@ steps:
     instruction_file: ../facets/instructions/refactor.md
     policy_files:
       - ../facets/policies/coding-standards.md
-    pass_previous_response: true
     rules:
       - condition: Refactoring complete
         next: COMPLETE

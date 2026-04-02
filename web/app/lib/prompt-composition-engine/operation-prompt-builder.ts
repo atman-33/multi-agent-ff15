@@ -69,15 +69,13 @@ export function buildAugmentedInstruction(input: {
   operation: OperationDefinition;
   operationState: OperationState;
   originalInstruction: string;
-  previousResponse: string | null;
   facets: ResolvedFacets;
   reportDir: string;
   missionId: string;
   agentId: StepDefinition["agent"];
   taskId: string;
 }): string {
-  const { step, operation, originalInstruction, previousResponse, facets, reportDir } =
-    input;
+  const { step, operation, originalInstruction, facets, reportDir } = input;
   const sections: Array<string | null> = [];
 
   if (facets.job) {
@@ -89,10 +87,6 @@ export function buildAugmentedInstruction(input: {
   }
 
   sections.push(buildTextSection("task", originalInstruction));
-
-  if (step.pass_previous_response && previousResponse) {
-    sections.push(buildTextSection("previous-step-output", previousResponse));
-  }
 
   if (facets.knowledge.length > 0) {
     for (let index = 0; index < facets.knowledge.length; index += 1) {

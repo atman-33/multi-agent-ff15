@@ -21,7 +21,6 @@ export interface StepDefinition {
   instruction_file: string;
   knowledge_files?: string[];
   policy_files?: string[];
-  pass_previous_response: boolean;
   output_contracts?: {
     report: Array<{ name: string; format_file: string }>;
   };

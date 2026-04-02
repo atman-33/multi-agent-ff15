@@ -208,7 +208,6 @@ export function buildOperationDebugBundle(input: {
   missionId?: string;
   userMessage?: string;
   operationName: string;
-  previousResponse?: string;
   reportMessage?: string;
   reportNext?: WorkflowNext;
   taskInstruction?: string;
@@ -222,11 +221,9 @@ export function buildOperationDebugBundle(input: {
   const userMessageBase =
     input.userMessage?.trim() || "This is a synthetic User message for operation activation.";
   const reportMessageBase = input.reportMessage?.trim() || "Synthetic report from worker";
-  const previousStepOutputBase = input.previousResponse?.trim() || "Synthetic previous step output";
 
   const flowSteps: FlowStepPreview[] = [];
   const operationState = createOperationState(operation.name, operation.initial_step);
-  operationState.previousResponse = previousStepOutputBase;
 
   const stepOccurrences = new Map<string, number>();
   const maxExecutions = Math.max(operation.steps.length * 4, 12);

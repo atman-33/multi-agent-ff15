@@ -131,7 +131,6 @@ export interface OperationState {
   activatedAt: string;
   updatedAt: string;
   reportDir: string;
-  previousResponse: string | null;
   stepHistory: StepHistoryEntry[];
   deviations: DeviationTracker;
 }
