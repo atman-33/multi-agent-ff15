@@ -211,6 +211,9 @@ describe("prompt composition engine", () => {
     expect(workerStep).toBeTruthy();
     expect(workerStep?.to).toBe("Gladiolus");
     expect(workerStep?.pathSummary).toBe("Noctis -> Runtime -> Gladiolus");
+    expect(workerStep?.inputHighlightText).toBe(
+      "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
+    );
     expect(workerStep?.effectivePrompt).toBe(composed.effectivePrompt);
     expect(workerStep?.internalContext).toBe(composed.sharedContext);
   });
@@ -264,6 +267,7 @@ describe("prompt composition engine", () => {
     expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
     expect(selfStep?.internalContext).toBe(composed.sharedContext);
     expect(selfStep?.sourceInput).toBe(composed.promptBody);
+    expect(selfStep?.inputHighlightText).toBe("This is a synthetic User message for operation activation.");
     expect(selfStep?.injectedPrompt).toBe(composed.workflowExtension);
     expect(selfStep?.effectivePrompt).not.toContain("allowed_workers:");
   });

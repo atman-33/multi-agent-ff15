@@ -36,6 +36,7 @@ export interface FlowStepPreview {
   promptTitle: string;
   promptDescription: string;
   sourceInput: string;
+  inputHighlightText: string;
   internalContext: string;
   suppressedContext?: string | null;
   injectedPrompt: string;
@@ -255,6 +256,7 @@ export function buildOperationDebugBundle(input: {
     let injectedPrompt = "";
     let effectivePrompt = "";
     let sourceInput = "";
+    let inputHighlightText = "";
     let internalContext = "";
     let suppressedContext: string | null | undefined;
     let promptTitle = "";
@@ -287,7 +289,8 @@ export function buildOperationDebugBundle(input: {
         userMessage: userMessageBase,
       });
 
-      sourceInput = composed.promptBody;
+  sourceInput = composed.promptBody;
+  inputHighlightText = userMessageBase;
       internalContext = composed.sharedContext;
       suppressedContext = composed.suppressedContext;
       effectivePrompt = composed.effectivePrompt ?? injectedPrompt;
@@ -313,6 +316,7 @@ export function buildOperationDebugBundle(input: {
       });
 
       sourceInput = dispatchPrompt;
+  inputHighlightText = dispatchPrompt;
       internalContext = dispatchComposed.sharedContext;
       suppressedContext = dispatchComposed.suppressedContext;
       injectedPrompt = dispatchComposed.workflowExtension || "(no workflow extension generated)";
@@ -360,6 +364,7 @@ export function buildOperationDebugBundle(input: {
       promptTitle,
       promptDescription,
       sourceInput,
+      inputHighlightText,
       internalContext,
       suppressedContext,
       injectedPrompt,

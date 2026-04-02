@@ -538,7 +538,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                   <CopyablePromptBlock
                     className="border-blue-900 bg-blue-950/30"
                     description={selectedStep?.promptDescription ?? ""}
-                    highlightTexts={selectedStep?.sourceInput ? [selectedStep.sourceInput] : []}
+                    highlightTexts={selectedStep?.inputHighlightText ? [selectedStep.inputHighlightText] : []}
                     preClassName="max-h-136"
                     title={selectedStep?.promptTitle ?? "Prompt"}
                     value={finalPrompt}
