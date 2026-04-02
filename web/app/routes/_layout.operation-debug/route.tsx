@@ -25,10 +25,7 @@ type LoaderData = {
   activeStepId: string;
   userMessage: string;
   operations: string[];
-  previousResponse: string;
   preview: ReturnType<typeof buildOperationDebugBundle> | null;
-  reportMessage: string;
-  reportNext: string;
   selectedOperation: string | null;
   taskInstruction: string;
 };
@@ -74,14 +71,9 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       : (operations[0] ?? null);
 
   const taskInstruction =
-    url.searchParams.get("task")?.trim() || "Implement the selected step exactly as Noctis delegated it.";
+    url.searchParams.get("task")?.trim() || "Execute the current step according to the workflow context.";
   const userMessage =
     url.searchParams.get("userMessage")?.trim() || "This is a synthetic User message for operation activation.";
-  const previousResponse =
-    url.searchParams.get("previousResponse")?.trim() || "Synthetic previous step output";
-  const reportMessage =
-    url.searchParams.get("reportMessage")?.trim() || "Synthetic report from worker";
-  const reportNext = url.searchParams.get("reportNext")?.trim() || "";
 
   const preview =
     selectedOperation
@@ -89,9 +81,6 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
           userMessage,
           operationName: selectedOperation,
           taskInstruction,
-          previousResponse,
-          reportMessage,
-          reportNext,
         })
       : null;
 
@@ -107,9 +96,6 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     operations,
     selectedOperation,
     taskInstruction,
-    previousResponse,
-    reportMessage,
-    reportNext,
     preview,
   } satisfies LoaderData;
 };
@@ -120,34 +106,22 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const [activeStepId, setActiveStepId] = useState(loaderData.activeStepId);
   const [userMessage, setUserMessage] = useState(loaderData.userMessage);
   const [taskInstruction, setTaskInstruction] = useState(loaderData.taskInstruction);
-  const [previousResponse, setPreviousResponse] = useState(loaderData.previousResponse);
-  const [reportMessage, setReportMessage] = useState(loaderData.reportMessage);
-  const [reportNext, setReportNext] = useState(loaderData.reportNext);
 
   useEffect(() => {
     setSelectedOperation(loaderData.selectedOperation ?? "");
     setActiveStepId(loaderData.activeStepId);
     setUserMessage(loaderData.userMessage);
     setTaskInstruction(loaderData.taskInstruction);
-    setPreviousResponse(loaderData.previousResponse);
-    setReportMessage(loaderData.reportMessage);
-    setReportNext(loaderData.reportNext);
   }, [loaderData]);
 
   const navigateWithPreviewParams = ({
     userInput,
     operation,
-    previous,
-    reportMessageValue,
-    reportNextValue,
     stepId,
     task,
   }: {
     userInput: string;
     operation: string;
-    previous: string;
-    reportMessageValue: string;
-    reportNextValue: string;
     stepId: string;
     task: string;
   }) => {
@@ -164,15 +138,6 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     if (task.trim()) {
       params.set("task", task.trim());
     }
-    if (previous.trim()) {
-      params.set("previousResponse", previous.trim());
-    }
-    if (reportMessageValue.trim()) {
-      params.set("reportMessage", reportMessageValue.trim());
-    }
-    if (reportNextValue.trim()) {
-      params.set("reportNext", reportNextValue.trim());
-    }
     void navigate(`/operation-debug?${params.toString()}`);
   };
 
@@ -182,9 +147,6 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       operation: selectedOperation,
       stepId: activeStepId,
       task: taskInstruction,
-      previous: previousResponse,
-      reportMessageValue: reportMessage,
-      reportNextValue: reportNext,
     });
   };
 
@@ -193,10 +155,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     setSelectedOperation(operation);
     setActiveStepId("");
     setUserMessage("This is a synthetic User message for operation activation.");
-    setTaskInstruction("Implement the selected step exactly as Noctis delegated it.");
-    setPreviousResponse("Synthetic previous step output");
-    setReportMessage("Synthetic report from worker");
-    setReportNext("");
+    setTaskInstruction("Execute the current step according to the workflow context.");
     void navigate("/operation-debug");
   };
 
@@ -406,9 +365,6 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                     operation: value,
                     stepId: "",
                     task: taskInstruction,
-                    previous: previousResponse,
-                    reportMessageValue: reportMessage,
-                    reportNextValue: reportNext,
                   });
                 }}
                 value={selectedOperation}
@@ -454,9 +410,6 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                               operation: selectedOperation,
                               stepId: step.id,
                               task: taskInstruction,
-                              previous: previousResponse,
-                              reportMessageValue: reportMessage,
-                              reportNextValue: reportNext,
                             });
                           }}
                           type="button"
@@ -520,42 +473,6 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                     onChange={(event) => setTaskInstruction(event.target.value)}
                     rows={4}
                     value={taskInstruction}
-                  />
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-sky-800 bg-sky-950/40 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="previous-response">
-                    Initial Previous Response
-                  </label>
-                  <Textarea
-                    id="previous-response"
-                    onChange={(event) => setPreviousResponse(event.target.value)}
-                    rows={3}
-                    value={previousResponse}
-                  />
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-violet-800 bg-violet-950/40 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="report-message">
-                    Synthetic Report Message
-                  </label>
-                  <Textarea
-                    id="report-message"
-                    onChange={(event) => setReportMessage(event.target.value)}
-                    rows={4}
-                    value={reportMessage}
-                  />
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-violet-800 bg-violet-950/40 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="report-next">
-                    Synthetic Report Next Override
-                  </label>
-                  <Textarea
-                    id="report-next"
-                    onChange={(event) => setReportNext(event.target.value)}
-                    rows={2}
-                    value={reportNext}
                   />
                 </div>
               </TabsContent>
