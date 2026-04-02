@@ -16,6 +16,43 @@ export function describeStepRole(jobFilePath: string): string {
   return basename(jobFilePath).replace(/\.md$/i, "");
 }
 
+function describeAgentName(agentId: StepDefinition["agent"]): string {
+  switch (agentId) {
+    case "noctis":
+      return "Noctis";
+    case "ignis":
+      return "Ignis";
+    case "gladiolus":
+      return "Gladiolus";
+    case "prompto":
+      return "Prompto";
+  }
+}
+
+function describeNextMessageGuidance(
+  operation: OperationDefinition,
+  nextCandidate: string,
+): string {
+  const nextStep = operation.steps.find((step) => step.name === nextCandidate);
+
+  if (nextStep) {
+    const agentName = describeAgentName(nextStep.agent);
+    return nextStep.agent === "noctis"
+      ? `Write \`message\` for ${agentName}. Runtime will pass it back as the canonical handoff text for the "${nextStep.name}" step. Do not write it as a User-facing summary.`
+      : `Write \`message\` for ${agentName}. Runtime will pass it as the canonical handoff text for the "${nextStep.name}" step. Do not write it as a User-facing summary.`;
+  }
+
+  if (nextCandidate === "COMPLETE") {
+    return "There is no next workflow step. Write `message` as the final completion summary that Noctis should report to User.";
+  }
+
+  if (nextCandidate === "ABORT") {
+    return "There is no next workflow step. Write `message` as the blocker summary that Noctis should use to explain why the workflow stopped.";
+  }
+
+  return `Write \`message\` as the canonical handoff text for the "${nextCandidate}" step.`;
+}
+
 function resolveOperationSourcePath(
   operation: OperationDefinition,
   sourcePath: string | undefined,
@@ -224,8 +261,12 @@ function buildStepCompletionContract(
       );
     }
     lines.push("");
-    lines.push("Use `message` as the canonical handoff text for the next workflow step.");
+    lines.push("How to write `message`:");
+    for (const nextCandidate of nextCandidates) {
+      lines.push(`- ${nextCandidate}: ${describeNextMessageGuidance(operation, nextCandidate)}`);
+    }
     if (step.agent === "noctis" && !isInitialNoctisStep) {
+      lines.push("");
       lines.push("After sending any required User-facing response, run exactly one report command to finalize the step.");
     }
   } else {

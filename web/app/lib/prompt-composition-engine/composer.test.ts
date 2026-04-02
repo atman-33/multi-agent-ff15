@@ -138,6 +138,9 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
     );
+    expect(composed.payloadParts[0]?.text).toContain(
+      'Write `message` for Gladiolus. Runtime will pass it as the canonical handoff text for the "implement" step.',
+    );
     expect(composed.payloadParts[0]?.text).not.toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
     );
@@ -174,6 +177,12 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("<step-completion-contract");
     expect(composed.effectivePrompt).toContain(
       `scripts/send_report.sh mission-3 gladiolus ${taskId} review "<message>"`,
+    );
+    expect(composed.effectivePrompt).toContain(
+      'Write `message` for Ignis. Runtime will pass it as the canonical handoff text for the "review" step.',
+    );
+    expect(composed.effectivePrompt).toContain(
+      'There is no next workflow step. Write `message` as the blocker summary that Noctis should use to explain why the workflow stopped.',
     );
     expect(composed.effectivePrompt).not.toContain("--rule-index <index>");
     expect(composed.sharedContext).toContain("<workspace-context");

@@ -251,5 +251,6 @@ prompt 改善では operation YAML と facet Markdown の両方をセットで�
 
 - agent 間メッセージは direct chaining ではなく runtime-mediated dispatch で進む
 - Noctis self-step も worker step も completion contract は `taskId + next + message` に揃う
+- completion contract の `message` guidance は `next` ごとに変わる。非 terminal では runtime が次 step owner に渡す canonical handoff text として書き、`COMPLETE` / `ABORT` では final summary または blocker summary として書く
 - manual handoff flag は存在せず、pause は explicit な Noctis-owned step で表現する
 - prompt 改善は operation YAML、facet、composer、runtime、debug preview、tests が連動する
