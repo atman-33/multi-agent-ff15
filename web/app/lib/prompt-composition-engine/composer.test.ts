@@ -226,7 +226,7 @@ function buildSyntheticOperationState(missionId: string): {
   processReport({
     missionId,
     operationState: state,
-    reportBody: "Synthetic report from worker\n\n[step:spec-planning]",
+    reportBody: "Synthetic report from worker",
     fromAgent: "noctis",
     taskId: specPlanningTaskId,
     next: "implement",
@@ -348,8 +348,9 @@ describe("prompt composition engine", () => {
 
     expect(composed.usedWorkflowExtension).toBe(true);
     expect(composed.workflowExtension).toContain("<job");
+    expect(composed.workflowExtension).toContain("<handoff>");
     expect(composed.workflowExtension).not.toContain("format=");
-    expect(composed.effectivePrompt).toContain("<task");
+    expect(composed.effectivePrompt).not.toContain("<task>");
     expect(composed.effectivePrompt).toContain("<step-completion-contract");
     expect(composed.effectivePrompt).not.toContain("source=");
     expect(composed.effectivePrompt).not.toContain("output-path=");
@@ -357,6 +358,9 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain(
       `scripts/send_report.sh ${missionId} gladiolus ${taskId} review "<message>"`,
     );
+    expect(composed.effectivePrompt).toContain("from_step: spec-planning");
+    expect(composed.effectivePrompt).toContain("from_agent: noctis");
+    expect(composed.effectivePrompt).toContain("Synthetic report from worker");
     expect(composed.effectivePrompt).toContain(
       'Write `message` for Ignis. Runtime will pass it as the canonical handoff text for the "review" step.',
     );

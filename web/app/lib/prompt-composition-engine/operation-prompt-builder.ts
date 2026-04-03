@@ -234,17 +234,51 @@ function buildKnowledgeCatalog(entries: ResolvedKnowledgeEntry[]): string | null
   return buildXmlSection("knowledge-catalog", joinXmlSections(catalogEntries));
 }
 
+function buildHandoffSection(input: {
+  stepName: string;
+  operationState: OperationState;
+}): string | null {
+  const handoffSource = [...input.operationState.stepHistory]
+    .reverse()
+    .find(
+      (entry) =>
+        entry.status === "completed" &&
+        entry.nextStep === input.stepName &&
+        typeof entry.summary === "string" &&
+        entry.summary.trim().length > 0,
+    );
+
+  if (!handoffSource?.summary) {
+    return null;
+  }
+
+  const lines = [
+    `from_step: ${handoffSource.step}`,
+    `from_agent: ${handoffSource.agent}`,
+  ];
+
+  if (handoffSource.taskId?.trim()) {
+    lines.push(`task_id: ${handoffSource.taskId}`);
+  }
+
+  lines.push("message: |");
+  for (const line of handoffSource.summary.trim().split(/\r?\n/)) {
+    lines.push(`  ${line}`);
+  }
+
+  return buildTextSection("handoff", lines.join("\n"));
+}
+
 export function buildAugmentedInstruction(input: {
   step: StepDefinition;
   operation: OperationDefinition;
   operationState: OperationState;
-  originalInstruction: string;
   facets: ResolvedFacets;
   missionId: string;
   agentId: StepDefinition["agent"];
   taskId: string;
 }): string {
-  const { step, operation, originalInstruction, facets } = input;
+  const { step, operation, facets } = input;
   const sections: Array<string | null> = [];
   const resolvedInstruction = facets.instruction
     ? resolveInstructionPlaceholders({
@@ -259,7 +293,12 @@ export function buildAugmentedInstruction(input: {
     sections.push(buildMarkdownSection("job", facets.job));
   }
 
-  sections.push(buildTextSection("task", originalInstruction));
+  sections.push(
+    buildHandoffSection({
+      stepName: step.name,
+      operationState: input.operationState,
+    }),
+  );
 
   sections.push(buildKnowledgeCatalog(facets.knowledge));
 
@@ -314,6 +353,13 @@ export function buildActivationInstruction(input: {
   if (facets.job) {
     sections.push(buildMarkdownSection("job", facets.job));
   }
+
+  sections.push(
+    buildHandoffSection({
+      stepName: step.name,
+      operationState: input.operationState,
+    }),
+  );
 
   sections.push(buildKnowledgeCatalog(facets.knowledge));
 

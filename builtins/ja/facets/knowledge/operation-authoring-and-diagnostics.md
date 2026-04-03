@@ -1,6 +1,6 @@
 ---
 name: operation-authoring-and-diagnostics
-description: operation YAML、facet の source 解決、output contract、output placeholder、workflow debug 経路、または prompt/routing 関連テストを変更するときに読むこと。
+description: operation YAML、facet source 解決、output contract、output placeholder、または workflow 関連テストを安全に変更するときに読むこと。
 critical:
   - Canonical な operation schema は `initial_step` と `steps` を使い、各 facet source は `file` または `inline` の source object で表現する。
   - knowledge と policy の list は authored order を保持する。
@@ -11,13 +11,21 @@ critical:
 
 ## 目的
 
-この文書は、この repository における operation の authoring 方法と、prompt/routing の挙動を変えたときの debug 観点を整理した reference です。
+この文書は、この repository における operation と facet を安全に変更するための authoring rule と diagnostics 観点を整理した reference です。
 
 operation YAML、facet file、output contract、placeholder 挙動、workflow 関連テストを変更するときに参照してください。
 
-## Operation Schema Reference
+## Change Surfaces
 
-頻繁に使う schema field は次のとおりです。
+- operation YAML の step ownership、rule、source object を変える変更
+- facet file の内容や path を変える変更
+- output contract や placeholder reference を変える変更
+- prompt builder / composer / report routing に影響する変更
+- workflow 関連テストを更新する変更
+
+## Runtime-Relevant Authoring Rules
+
+頻繁に確認する schema field は次のとおりです。
 
 - `initial_step`
 - `steps[]`
@@ -44,18 +52,19 @@ Canonical な source form は次のとおりです。
 - `policies[].file` / `policies[].inline`
 - `output_contracts.report[].format.file` / `output_contracts.report[].format.inline`
 
+次の制約は runtime failure に直結しやすいので、設計時に先に確認してください。
+
+- `initial_step` は `noctis` step を指すべきである
+- list facet は authored order を保持する
+- `file` source は operation YAML path からの相対パスで解決される
+- `inline` source は authored された text をそのまま使う
+- `output_contracts.report[].format` は output filename と downstream reference に整合している必要がある
+
 `initial_movement`、`movements`、`max_movements`、`edit`、`handoff_mode`、`job_file`、`knowledge_files` などの legacy field は canonical ではありません。
 
-## Facet Resolution Rules
+prompt を変えるときは operation YAML と参照先 facet file の両方をセットで確認してください。
 
-facet source は、operation YAML に authored された source object から直接解決されます。
-
-- `file` source は operation YAML path からの相対パスとして解決する
-- `inline` source は authored された inline text をそのまま使う
-- list facet は authored order を保持する
-- prompt を変えるときは operation YAML と参照先 facet file の両方をセットで確認する
-
-## Output Contract And Placeholder Rules
+## Output And Placeholder Failure Modes
 
 - step が `output_contracts.report[]` を定義している場合、prompt composition は mission-scoped output file 向けの guidance を注入する
 - canonical output path は `runtime/noctis-missions/{missionId}/outputs/{step}/{taskId}/{filename}` に置かれる
@@ -64,7 +73,42 @@ facet source は、operation YAML に authored された source object から直
 - placeholder が解決できない場合、prompt build は明示的に失敗しなければならない
 - `spec-plan.md` には `change_name` や `change_path` のような machine-readable frontmatter を持たせられる
 
-## Diagnostics Map
+よくある failure mode は次のとおりです。
+
+- output filename と `output(...)` reference が一致していない
+- facet path が operation YAML から見た相対パスになっていない
+- required output file が生成されず completion が reject される
+- placeholder が old taskId や存在しない artifact を参照している
+- prompt builder 側の変更で previously valid な placeholder 解決が壊れる
+
+## Symptom-To-Layer Triage
+
+### 次 actor が想定と違う
+
+- operation rules、active step owner、`next` を先に確認する
+- runtime state と report routing contract を確認する
+
+### prompt に knowledge や guidance が入らない
+
+- operation YAML の source object と facet path を確認する
+- prompt builder と composer の両方を見る
+
+### report が reject される
+
+- required output file、active `taskId`、allowed `next` を確認する
+- `send_report.sh -> /reports -> processReport()` を追う
+
+### placeholder が解決されない
+
+- output directory の実ファイル、taskId、filename を確認する
+- absolute path に解決されているかを確認する
+
+### preview と live の prompt が違う
+
+- synthetic input による差か、runtime behavior の差かを切り分ける
+- preview output と live composer/runtime behavior の両方を確認する
+
+## Files To Inspect
 
 よく確認する file は次のとおりです。
 
@@ -81,7 +125,14 @@ facet source は、operation YAML に authored された source object から直
 - `web/app/lib/prompt-composition-engine/operation-prompt-builder.ts`
 - `web/app/lib/operation-debug/debug-preview.server.ts`
 
-## Practical Debug Checklist
+## Tests To Revisit
+
+- operation definition や source object の変更なら `web/app/lib/operation-definition/` 配下の test を見直す
+- prompt shape の変更なら `web/app/lib/prompt-composition-engine/` 配下の test を見直す
+- report routing や completion の変更なら reports route と runtime まわりの test を見直す
+- preview の挙動差を変えるなら debug preview 関連の test を見直す
+
+## Safe Change Checklist
 
 1. 問題が Hook 1、Hook 2、Hook 3 のどこにあるかを先に切り分ける。
 2. `operationState.currentStep`、step owner、active `taskId` を確認する。

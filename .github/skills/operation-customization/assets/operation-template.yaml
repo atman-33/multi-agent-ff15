@@ -1,0 +1,60 @@
+# Copy this file to builtins/<lang>/operations/<operation-name>.yaml and replace every placeholder.
+# Keep facet paths relative to the operation file.
+# Use exactly one of file or inline for each content source.
+# initial_step must point to a noctis-owned step and that step must not route directly to COMPLETE or ABORT.
+
+name: <operation-name>
+description: >
+  <Summarize the workflow, participating agents, and expected step sequence.>
+initial_step: plan
+
+steps:
+  - name: plan
+    agent: noctis
+    job:
+      file: ../facets/jobs/<planner-job>.md
+      # inline: |
+      #   <Use inline only for step-local content.>
+    instruction:
+      file: ../facets/instructions/<plan-instruction>.md
+      # inline: |
+      #   # <Step title>
+      #   1. <Action>
+    knowledge:
+      - file: ../facets/knowledge/<shared-knowledge>.md
+      # - inline: |
+      #     <Step-local knowledge>
+    policies:
+      - file: ../facets/policies/<policy-file>.md
+    output_contracts:
+      report:
+        - name: <plan-output>.md
+          format:
+            file: ../facets/output-contracts/<plan-output-contract>.md
+    rules:
+      - condition: <Planning complete>
+        next: implement
+      - condition: <Cannot proceed>
+        next: ABORT
+
+  - name: implement
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/<implementer-job>.md
+    instruction:
+      inline: |
+        # <Implementation step title>
+
+        1. Read `{{ output("plan", "latest", "<plan-output>.md") }}` before starting.
+        2. <Implement the required change.>
+        3. If blocked, report why and include the recommended next action.
+    policies:
+      - file: ../facets/policies/<policy-file>.md
+    rules:
+      - condition: <Implementation complete>
+        next: COMPLETE
+      - condition: <Blocked>
+        next: ABORT
+
+# Duplicate and adapt step blocks as needed.
+# Valid agent values in this repository are noctis, ignis, gladiolus, and prompto.

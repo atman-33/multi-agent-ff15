@@ -104,8 +104,8 @@ function buildFlowTitle(stepName: string, occurrence: number): string {
   return occurrence > 1 ? `${stepName} #${occurrence}` : stepName;
 }
 
-function buildReportMessage(baseMessage: string, stepName: string): string {
-  return `${baseMessage}\n\n[step:${stepName}]`;
+function buildReportMessage(baseMessage: string): string {
+  return baseMessage;
 }
 
 function pickSyntheticNext(step: StepDefinition, override?: string): string {
@@ -301,7 +301,7 @@ export function buildOperationDebugBundle(input: {
       const to = displayActorName(step.agent);
       const pathSummary = `${from} -> Runtime -> ${to}`;
       const reportNext = pickSyntheticNext(step, reportNextOverride);
-      const reportMessage = buildReportMessage(reportMessageBase, step.name);
+      const reportMessage = buildReportMessage(reportMessageBase);
 
       let injectedPrompt = "";
       let effectivePrompt = "";

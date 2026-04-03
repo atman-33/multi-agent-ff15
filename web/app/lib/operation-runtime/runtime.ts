@@ -130,7 +130,6 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     step: currentStep,
     operation,
     operationState,
-    originalInstruction: originalPrompt,
     facets,
     missionId,
     agentId,

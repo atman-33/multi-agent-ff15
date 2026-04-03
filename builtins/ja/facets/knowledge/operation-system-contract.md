@@ -1,10 +1,10 @@
 ---
 name: operation-system-contract
-description: runtime-owned dispatch、report routing、activation prompt behavior、worker prompt composition、または live と debug の prompt 差分を変更するときに読むこと。
+description: runtime-owned dispatch、step-completion transport、prompt composition boundary、または live と debug の prompt 差分を変更するときに読むこと。
 critical:
-	- Runtime が次 actor を決定し、deterministic な worker dispatch を Noctis が手動 relay しない。
-	- Canonical な step-completion transport は `taskId + next + message` である。
-	- Live prompt delivery と operation-debug preview は関連しているが同一経路ではない。
+  - Runtime が次 actor を決定し、deterministic な worker dispatch を Noctis が手動 relay しない。
+  - Canonical な step-completion transport は `taskId + next + message` である。
+  - routing と prompt activation は message body token ではなく runtime state に依存する。
 ---
 
 # Operation System Contract
@@ -13,41 +13,45 @@ critical:
 
 この文書は、この repository における operation system の stable な runtime / prompt-composition contract を整理した reference です。
 
-workflow routing、runtime dispatch ownership、report handling、prompt composition behavior を変更するときに参照してください。
+workflow routing、runtime dispatch ownership、report handling、prompt composition boundary を変更するときに参照してください。
 
-## Runtime-Mediated Step Flow
+## Non-Negotiable Invariants
+
+- dispatch は direct な agent chaining ではなく runtime-mediated である。
+- Runtime が次 actor を決定し、worker dispatch を所有する。
+- step completion の canonical transport は `taskId + next + message` である。
+- routing は standalone な body tag や `[STEP:N]` token ではなく runtime state に依存する。
+- Noctis step と worker step は同じ completion contract を共有する。
+
+## Hook Boundaries
 
 canonical flow は runtime-mediated です。
 
 ```text
 User
-	-> Hook 1: composeUserToNoctisPrompt()
-	-> Runtime: processUserMessage()
-	-> Prompt Builder: buildActivationInstruction() / buildOperationContextSummary()
-	-> Noctis
+  -> Hook 1: composeUserToNoctisPrompt()
+  -> Runtime: processUserMessage()
+  -> Prompt Builder: buildActivationInstruction() / buildOperationContextSummary()
+  -> Noctis
 
 Noctis (self-step owner)
-	-> report transport (scripts/send_report.sh + taskId + next + message)
-	-> Reports API: /api/missions/{missionId}/reports
-	-> Hook 3: processReport()
-	-> Runtime decides: next worker dispatch / next Noctis step / terminal
+  -> report transport (scripts/send_report.sh + taskId + next + message)
+  -> Reports API: /api/missions/{missionId}/reports
+  -> Hook 3: processReport()
+  -> Runtime decides: next worker dispatch / next Noctis step / terminal
 
 Runtime
-	-> dispatchCurrentOperationStepToWorker()
-	-> dispatchTaskToWorker()
-	-> Hook 2: composeWorkerTaskPrompt() / augmentTaskPrompt()
-	-> Worker (Ignis / Gladiolus / Prompto)
+  -> dispatchCurrentOperationStepToWorker()
+  -> dispatchTaskToWorker()
+  -> Hook 2: composeWorkerTaskPrompt() / augmentTaskPrompt()
+  -> Worker (Ignis / Gladiolus / Prompto)
 
 Worker
-	-> report transport (scripts/send_report.sh + taskId + next + message)
-	-> Reports API: /api/missions/{missionId}/reports
-	-> Hook 3: processReport()
-	-> Runtime decides: next worker dispatch / next Noctis step / terminal
+  -> report transport (scripts/send_report.sh + taskId + next + message)
+  -> Reports API: /api/missions/{missionId}/reports
+  -> Hook 3: processReport()
+  -> Runtime decides: next worker dispatch / next Noctis step / terminal
 ```
-
-deterministic な step transition では、runtime が次 actor を選び、worker dispatch を所有します。
-
-## Hook Summary
 
 ### Hook 1: User -> Noctis
 
@@ -61,7 +65,7 @@ deterministic な step transition では、runtime が次 actor を選び、work
 
 `processReport()` は Noctis と worker からの step report を受け取り、active task ownership と allowed `next` を検証し、step history を更新して次 action を決定します。
 
-## Canonical Report Contract
+## Completion Contract
 
 step completion の source of truth は body tag ではなく transport metadata です。
 
@@ -69,9 +73,9 @@ step completion の source of truth は body tag ではなく transport metadata
 - `next` は次 step または terminal outcome を選ぶ。
 - `message` は runtime が保存し次へ渡す canonical handoff text である。
 
-Noctis step と worker step はこの completion contract を共有します。
+`message` の guidance は `next` に応じて変わりますが、transport contract 自体は変わりません。
 
-## Shared Context vs Workflow Extension
+## Prompt Composition Boundaries
 
 prompt composition は 2 層で構成されます。
 
@@ -84,10 +88,13 @@ prompt composition は 2 層で構成されます。
 ### Workflow extension
 
 - resolved facets
+- handoff summary from the most recent completed step when canonical `message` exists
+- output-path guidance / resolved prior-output references
 - completion contract
-- task / previous response / output-path guidance / resolved prior-output references
 
 routing は standalone な `<step>` block ではなく、runtime state と `taskId + next + message` に依存します。
+
+workflow-aware prompt を変更するときは、shared context と workflow extension のどちらを触っているかを先に明確にしてください。
 
 ## Live vs Debug Preview
 
@@ -99,22 +106,21 @@ routing は standalone な `<step>` block ではなく、runtime state と `task
 
 prompt 差分を debug するときは、preview output と live composer/runtime behavior の両方を確認してください。
 
-## Source Of Truth
+## Red Flags
+
+- Noctis が worker dispatch を message relay で代替している。
+- completion 判定が body text の token に依存している。
+- live prompt と debug preview の差を bug と決め打ちしている。
+- handoff や pause を runtime contract ではなく ad hoc field で表現しようとしている。
+- workflow extension の変更なのに shared context だけを見ている。
+
+## Minimal Source Of Truth
 
 - authored workflow: `builtins/{lang}/operations/*.yaml`
 - authored facet files: `builtins/{lang}/facets/**`
-- authored inline step facets: `steps[].job.inline`, `steps[].instruction.inline`, `steps[].knowledge[].inline`, `steps[].policies[].inline`, `steps[].output_contracts.report[].format.inline`
 - live execution state: `runtime/noctis-missions/{missionId}/mission.json`
 - live output artifacts: `runtime/noctis-missions/{missionId}/outputs/{step}/{taskId}/{filename}`
-- step execution identity: `OperationState.stepHistory[].taskId`
 - report routing contract: `taskId + next + message`
 - composition behavior: prompt builder / composer / runtime tests
 
-## Planning Implication
-
-workflow や prompt の変更を設計するときは、次を前提にしてください。
-
-- dispatch は direct な agent chaining ではなく runtime-mediated である
-- Noctis と worker の completion はどちらも `taskId + next + message` で解決される
-- `message` の guidance は `next` に応じて変わるが、transport contract 自体は変わらない
-- pause behavior は manual handoff flag ではなく explicit な Noctis-owned step で表現するべきである
+workflow や prompt の変更を設計するときは、まずこの source of truth のどこを変えるのかを明確にしてください。

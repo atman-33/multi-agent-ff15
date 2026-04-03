@@ -254,12 +254,60 @@ describe("operation prompt builder", () => {
     expect(prompt).toContain("<job>");
     expect(prompt).toContain("<instruction>");
     expect(prompt).toContain("<output-contract>");
+    expect(prompt).not.toContain("<handoff>");
+    expect(prompt).not.toContain("<task>");
     expect(prompt).not.toContain("source=");
     expect(prompt).not.toContain("format=");
     expect(prompt).not.toContain("output-path=");
     expect(prompt).not.toContain("name=");
     expect(prompt).toContain(expectedGuidance);
     expect(prompt.indexOf(expectedGuidance)).toBeLessThan(prompt.indexOf("## Format"));
+  });
+
+  it("injects a handoff section from the previous completed step summary", () => {
+    const operation = loadOperationFromFile(createInlinePromptFixture());
+    const step = operation.steps.find((candidate) => candidate.name === "implement");
+
+    if (!step) {
+      throw new Error("implement step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createOperationState(operation.name, operation.initial_step);
+    operationState.currentStep = "implement";
+    operationState.stepHistory = [
+      {
+        step: "spec-planning",
+        agent: "noctis",
+        taskId: "step_spec-planning_1",
+        status: "completed",
+        nextStep: "implement",
+        dispatchedAt: "2026-04-03T00:00:00.000Z",
+        completedAt: "2026-04-03T00:01:00.000Z",
+        summary: [
+          "OpenSpec planning is approved.",
+          "Read spec-plan.md before implementation.",
+        ].join("\n"),
+      },
+    ];
+
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-handoff",
+      taskId: "task-implement-1",
+    });
+
+    expect(prompt).toContain("<handoff>");
+    expect(prompt).toContain("from_step: spec-planning");
+    expect(prompt).toContain("from_agent: noctis");
+    expect(prompt).toContain("task_id: step_spec-planning_1");
+    expect(prompt).toContain("message: |");
+    expect(prompt).toContain("  OpenSpec planning is approved.");
+    expect(prompt).toContain("  Read spec-plan.md before implementation.");
+    expect(prompt).not.toContain("<task>");
   });
 
   it("emits a grouped knowledge catalog with reference and body entries", () => {
