@@ -59,7 +59,7 @@ function collectCommandSuggestions(root: string): SlashSuggestion[] {
 }
 
 function collectSkillSuggestions(root: string): SlashSuggestion[] {
-  const skillDirs = [".github/skills", ".opencode/skills", ".claude/skills", "opencode/skills"];
+  const skillDirs = [".opencode/skills", "opencode/skills", ".github/skills", ".claude/skills"];
   const seen = new Set<string>();
   const suggestions: SlashSuggestion[] = [];
 
