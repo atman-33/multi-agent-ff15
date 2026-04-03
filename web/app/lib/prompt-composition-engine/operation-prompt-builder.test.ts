@@ -128,6 +128,86 @@ function createPlaceholderPromptFixture(selector: string): string {
   return operationFilePath;
 }
 
+function createKnowledgeCatalogPromptFixture(): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-knowledge-catalog-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  const knowledgeDir = join(root, "builtins", "ja", "facets", "knowledge");
+  mkdirSync(operationDir, { recursive: true });
+  mkdirSync(knowledgeDir, { recursive: true });
+
+  writeFileSync(
+    join(knowledgeDir, "operation-system-contract.md"),
+    [
+      "---",
+      "name: operation-system-contract",
+      'description: Read when changing runtime-owned dispatch or report routing.',
+      "critical:",
+      "  - Runtime decides the next actor.",
+      "  - Reports use taskId + next + message.",
+      "---",
+      "# Full contract body",
+      "",
+      "This text should not be injected into the prompt.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    join(knowledgeDir, "broken-reference.md"),
+    [
+      "---",
+      "name: broken-reference",
+      "---",
+      "# Broken reference body",
+      "",
+      "Fallback to body-backed knowledge.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  const operationFilePath = join(operationDir, "knowledge-catalog-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: knowledge-catalog-operation",
+      "description: Knowledge catalog fixture",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Planner role",
+      "    instruction:",
+      "      inline: Clarify the request",
+      "    knowledge:",
+      "      - file: ../facets/knowledge/operation-system-contract.md",
+      "      - file: ../facets/knowledge/broken-reference.md",
+      "      - inline: Prefer runtime-owned dispatch.",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    instruction:",
+      "      inline: Implement the approved plan.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
 afterEach(() => {
   if (originalRootEnv === undefined) {
     delete process.env.MULTI_AGENT_FF15_ROOT;
@@ -180,6 +260,45 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain("name=");
     expect(prompt).toContain(expectedGuidance);
     expect(prompt.indexOf(expectedGuidance)).toBeLessThan(prompt.indexOf("## Format"));
+  });
+
+  it("emits a grouped knowledge catalog with reference and body entries", () => {
+    const operation = loadOperationFromFile(createKnowledgeCatalogPromptFixture());
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("spec-planning step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createOperationState(operation.name, operation.initial_step);
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-knowledge",
+      taskId: "task-knowledge",
+    });
+
+    expect(prompt).toContain("<knowledge-catalog>");
+    expect(prompt).toContain("<knowledge-ref>");
+    expect(prompt).toContain("Name: operation-system-contract");
+    expect(prompt).toContain(
+      "Description: Read when changing runtime-owned dispatch or report routing.",
+    );
+    expect(prompt).toContain("Source: ");
+    expect(prompt).toContain("This is a reference card, not the full knowledge document.");
+    expect(prompt).toContain("Critical facts:");
+    expect(prompt).toContain("- Runtime decides the next actor.");
+    expect(prompt).not.toContain("This text should not be injected into the prompt.");
+    expect(prompt).toContain("<knowledge-body>");
+    expect(prompt.indexOf("Name: operation-system-contract")).toBeLessThan(
+      prompt.indexOf("# Broken reference body"),
+    );
+    expect(prompt.indexOf("# Broken reference body")).toBeLessThan(
+      prompt.indexOf("Prefer runtime-owned dispatch."),
+    );
   });
 
   it("resolves latest output placeholders to absolute paths", () => {

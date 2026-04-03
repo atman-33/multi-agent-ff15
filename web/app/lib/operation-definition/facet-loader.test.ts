@@ -40,8 +40,33 @@ function createTempOperationFixture(): string {
     "utf-8",
   );
   writeFileSync(
-    join(facetsDir, "knowledge", "operation-engine-and-builtins-injection.md"),
-    "# Operation Runtime and Prompt Flow Knowledge\n",
+    join(facetsDir, "knowledge", "operation-system-contract.md"),
+    [
+      "---",
+      "name: operation-system-contract",
+      'description: Read when changing runtime-owned dispatch or report routing.',
+      "critical:",
+      "  - Runtime decides the next actor.",
+      "  - Reports use taskId + next + message.",
+      "---",
+      "# Operation Runtime and Prompt Flow Knowledge",
+      "",
+      "This is the full knowledge body.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    join(facetsDir, "knowledge", "broken-reference.md"),
+    [
+      "---",
+      "name: broken-reference",
+      "---",
+      "# Broken reference body",
+      "",
+      "Fallback to body-backed knowledge.",
+      "",
+    ].join("\n"),
     "utf-8",
   );
   writeFileSync(join(facetsDir, "jobs", "reviewer.md"), "# Code Review Report\n", "utf-8");
@@ -69,7 +94,7 @@ function createTempOperationFixture(): string {
       "    instruction:",
       "      file: ../facets/instructions/openspec-planning.md",
       "    knowledge:",
-      "      - file: ../facets/knowledge/operation-engine-and-builtins-injection.md",
+      "      - file: ../facets/knowledge/operation-system-contract.md",
       "    rules: []",
       "  - name: review",
       "    agent: ignis",
@@ -90,7 +115,8 @@ function createTempOperationFixture(): string {
       "    instruction:",
       "      file: ../facets/instructions/implement.md",
       "    knowledge:",
-      "      - file: ../facets/knowledge/operation-engine-and-builtins-injection.md",
+      "      - file: ../facets/knowledge/operation-system-contract.md",
+      "      - file: ../facets/knowledge/broken-reference.md",
       "      - inline: Prefer runtime-owned dispatch.",
       "    policies:",
       "      - file: ../facets/policies/coding-standards.md",
@@ -171,9 +197,7 @@ describe("operation-definition path-based facet resolution", () => {
     expect(planning).toBeTruthy();
     expect(planning?.job).toEqual({ file: "../facets/jobs/planner.md" });
     expect(planning?.instruction).toEqual({ file: "../facets/instructions/openspec-planning.md" });
-    expect(planning?.knowledge).toEqual([
-      { file: "../facets/knowledge/operation-engine-and-builtins-injection.md" },
-    ]);
+    expect(planning?.knowledge).toEqual([{ file: "../facets/knowledge/operation-system-contract.md" }]);
 
     if (!planning) {
       throw new Error("spec-planning step not found");
@@ -182,7 +206,15 @@ describe("operation-definition path-based facet resolution", () => {
     const facets = resolveStepFacets(operation, planning, "ja");
 
     expect(facets.job).toContain("Planner (仕様計画担当)");
-    expect(facets.knowledge[0]).toContain("Operation Runtime and Prompt Flow Knowledge");
+    expect(facets.knowledge[0]).toEqual(
+      expect.objectContaining({
+        kind: "reference",
+        name: "operation-system-contract",
+        description: "Read when changing runtime-owned dispatch or report routing.",
+        critical: ["Runtime decides the next actor.", "Reports use taskId + next + message."],
+        source: expect.stringContaining("operation-system-contract.md"),
+      }),
+    );
     expect(facets.instruction).toContain("Spec Planning — 手順指示");
     expect(facets.outputContracts).toEqual([]);
   });
@@ -205,13 +237,14 @@ describe("operation-definition path-based facet resolution", () => {
     expect(facets.outputContracts[0]).toContain("Inline Code Review Report");
   });
 
-  it("loads worker knowledge and policy facets from file and inline sources", () => {
+  it("loads mixed worker knowledge entries in authored order", () => {
     const operation = loadOperationFromFile(createTempOperationFixture());
     const implement = operation.steps.find((step) => step.name === "implement");
 
     expect(implement).toBeTruthy();
     expect(implement?.knowledge).toEqual([
-      { file: "../facets/knowledge/operation-engine-and-builtins-injection.md" },
+      { file: "../facets/knowledge/operation-system-contract.md" },
+      { file: "../facets/knowledge/broken-reference.md" },
       { inline: "Prefer runtime-owned dispatch." },
     ]);
     expect(implement?.policies).toEqual([
@@ -225,8 +258,27 @@ describe("operation-definition path-based facet resolution", () => {
 
     const facets = resolveStepFacets(operation, implement, "ja");
 
-    expect(facets.knowledge[0]).toContain("Operation Runtime and Prompt Flow Knowledge");
-    expect(facets.knowledge[1]).toContain("Prefer runtime-owned dispatch.");
+    expect(facets.knowledge.map((entry) => entry.kind)).toEqual(["reference", "body", "body"]);
+    expect(facets.knowledge[0]).toEqual(
+      expect.objectContaining({
+        kind: "reference",
+        name: "operation-system-contract",
+      }),
+    );
+    expect(facets.knowledge[1]).toEqual(
+      expect.objectContaining({
+        kind: "body",
+        content: expect.stringContaining("# Broken reference body"),
+      }),
+    );
+    if (facets.knowledge[1]?.kind !== "body") {
+      throw new Error("Expected second knowledge entry to be body-backed");
+    }
+    expect(facets.knowledge[1].content).not.toContain("name: broken-reference");
+    expect(facets.knowledge[2]).toEqual({
+      kind: "body",
+      content: "Prefer runtime-owned dispatch.",
+    });
     expect(facets.policies[0]).toContain("Coding Standards");
     expect(facets.policies[1]).toContain("Keep changes minimal.");
   });

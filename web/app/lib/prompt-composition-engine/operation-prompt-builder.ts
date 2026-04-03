@@ -6,10 +6,12 @@ import type {
   OperationDefinition,
   ReportOutputContractDefinition,
   ResolvedFacets,
+  ResolvedKnowledgeEntry,
   StepDefinition,
 } from "@/lib/operation-definition/types";
 import type { OperationState } from "@/lib/types/mission";
 import {
+  buildXmlSection,
   buildMarkdownSection,
   buildTextSection,
   joinXmlSections,
@@ -199,6 +201,39 @@ function resolveInstructionPlaceholders(input: {
   return resolved;
 }
 
+function buildKnowledgeReferenceContent(entry: Extract<ResolvedKnowledgeEntry, { kind: "reference" }>): string {
+  const lines = [
+    `Name: ${entry.name}`,
+    `Description: ${entry.description}`,
+    `Source: ${entry.source}`,
+    "This is a reference card, not the full knowledge document.",
+    "Read the source file when the current task matches this description.",
+  ];
+
+  if (entry.critical.length > 0) {
+    lines.push("", "Critical facts:");
+    for (const fact of entry.critical) {
+      lines.push(`- ${fact}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function buildKnowledgeCatalog(entries: ResolvedKnowledgeEntry[]): string | null {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const catalogEntries = entries.map((entry) =>
+    entry.kind === "reference"
+      ? buildMarkdownSection("knowledge-ref", buildKnowledgeReferenceContent(entry))
+      : buildMarkdownSection("knowledge-body", entry.content),
+  );
+
+  return buildXmlSection("knowledge-catalog", joinXmlSections(catalogEntries));
+}
+
 export function buildAugmentedInstruction(input: {
   step: StepDefinition;
   operation: OperationDefinition;
@@ -226,11 +261,7 @@ export function buildAugmentedInstruction(input: {
 
   sections.push(buildTextSection("task", originalInstruction));
 
-  if (facets.knowledge.length > 0) {
-    for (let index = 0; index < facets.knowledge.length; index += 1) {
-      sections.push(buildMarkdownSection("knowledge", facets.knowledge[index]));
-    }
-  }
+  sections.push(buildKnowledgeCatalog(facets.knowledge));
 
   if (resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));
@@ -284,11 +315,7 @@ export function buildActivationInstruction(input: {
     sections.push(buildMarkdownSection("job", facets.job));
   }
 
-  if (facets.knowledge.length > 0) {
-    for (let index = 0; index < facets.knowledge.length; index += 1) {
-      sections.push(buildMarkdownSection("knowledge", facets.knowledge[index]));
-    }
-  }
+  sections.push(buildKnowledgeCatalog(facets.knowledge));
 
   if (resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));

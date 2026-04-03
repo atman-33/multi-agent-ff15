@@ -107,6 +107,75 @@ function writeMalformedOutputContractOperation(root: string) {
   );
 }
 
+function writeKnowledgeCatalogOperation(root: string) {
+  const knowledgeDir = join(root, "builtins", "ja", "facets", "knowledge");
+  mkdirSync(knowledgeDir, { recursive: true });
+  writeFileSync(
+    join(knowledgeDir, "operation-system-contract.md"),
+    [
+      "---",
+      "name: operation-system-contract",
+      'description: Read when changing runtime-owned dispatch or report routing.',
+      "critical:",
+      "  - Runtime decides the next actor.",
+      "  - Reports use taskId + next + message.",
+      "---",
+      "# Full contract body",
+      "",
+      "This text should not be injected into the prompt.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    join(knowledgeDir, "broken-reference.md"),
+    [
+      "---",
+      "name: broken-reference",
+      "---",
+      "# Broken reference body",
+      "",
+      "Fallback to body-backed knowledge.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  const operationPath = join(root, "builtins", "ja", "operations", "knowledge-catalog-workflow.yaml");
+  mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
+  writeFileSync(
+    operationPath,
+    [
+      "name: knowledge-catalog-workflow",
+      "description: Knowledge catalog workflow fixture",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Planner role",
+      "    instruction:",
+      "      inline: Clarify the request",
+      "    knowledge:",
+      "      - file: ../facets/knowledge/operation-system-contract.md",
+      "      - file: ../facets/knowledge/broken-reference.md",
+      "      - inline: Prefer runtime-owned dispatch.",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    instruction:",
+      "      inline: Implement the approved plan.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function writeRequiredOutput(input: {
   missionId: string;
   stepName: string;
@@ -396,6 +465,46 @@ describe("prompt composition engine", () => {
     expect(selfStep?.inputHighlightText).toBe("This is a synthetic User message for operation activation.");
     expect(selfStep?.injectedPrompt).toBe(composed.workflowExtension);
     expect(selfStep?.effectivePrompt).not.toContain("allowed_workers:");
+  });
+
+  it("renders one knowledge catalog for workflow prompts and keeps debug preview aligned", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeKnowledgeCatalogOperation(root);
+    const missionId = "debug-knowledge-catalog";
+    const userMessage = "Open the knowledge-catalog workflow.";
+    const bundle = buildOperationDebugBundle({
+      missionId,
+      operationName: "knowledge-catalog-workflow",
+      userMessage,
+    });
+    const selfStep = bundle.flowSteps.find(
+      (step) => step.kind === "noctis-step" && step.stepName === "spec-planning",
+    );
+
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "debug-knowledge-catalog-session",
+        missionId,
+        allowedWorkers: ["ignis", "gladiolus", "prompto"],
+      },
+      userMessage,
+      missionId,
+      sessionId: "debug-knowledge-catalog-session",
+      isNewMission: true,
+      selectedOperation: "knowledge-catalog-workflow",
+    });
+
+    expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
+    expect(composed.effectivePrompt.match(/<knowledge-catalog>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain("<knowledge-ref>");
+    expect(composed.effectivePrompt).toContain("<knowledge-body>");
+    expect(composed.effectivePrompt).toContain("Name: operation-system-contract");
+    expect(composed.effectivePrompt).not.toContain("This text should not be injected into the prompt.");
+    expect(selfStep).toBeTruthy();
+    expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
   });
 
   it("fails Noctis activation prompt generation when an output contract is malformed", () => {

@@ -1,8 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
+import yaml from "yaml";
 import { resolveOperationFacetPath } from "./operation-loader";
-import type { ContentSource, OperationDefinition, ResolvedFacets, StepDefinition } from "./types";
+import type {
+  ContentSource,
+  OperationDefinition,
+  ResolvedFacets,
+  ResolvedKnowledgeEntry,
+  StepDefinition,
+} from "./types";
 
-const MAX_KNOWLEDGE_LENGTH = 2000;
+const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 function loadFacetSource(
   operation: OperationDefinition,
@@ -40,6 +47,73 @@ function describeContentSourceReference(
   return `${operation.sourcePath}#${inlineLocator}.inline`;
 }
 
+function parseKnowledgeEntry(
+  content: string,
+  sourceReference: string,
+): ResolvedKnowledgeEntry {
+  const frontmatterMatch = content.match(FRONTMATTER_REGEX);
+
+  if (!frontmatterMatch) {
+    return { kind: "body", content };
+  }
+
+  const body = content.slice(frontmatterMatch[0].length);
+
+  try {
+    const parsed = yaml.parse(frontmatterMatch[1]);
+
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.name === "string" &&
+      parsed.name.trim().length > 0 &&
+      typeof parsed.description === "string" &&
+      parsed.description.trim().length > 0
+    ) {
+      const critical = Array.isArray(parsed.critical)
+        ? parsed.critical
+            .filter((item: unknown): item is string => typeof item === "string")
+            .map((item: string) => item.trim())
+            .filter(Boolean)
+        : [];
+
+      return {
+        kind: "reference",
+        name: parsed.name.trim(),
+        description: parsed.description.trim(),
+        critical,
+        source: sourceReference,
+      };
+    }
+  } catch {
+    return { kind: "body", content: body };
+  }
+
+  return { kind: "body", content: body };
+}
+
+function resolveKnowledgeEntry(
+  operation: OperationDefinition,
+  step: StepDefinition,
+  source: ContentSource | undefined,
+  index: number,
+): ResolvedKnowledgeEntry | null {
+  const content = loadFacetSource(operation, source);
+
+  if (!content) {
+    return null;
+  }
+
+  if (!source || "inline" in source) {
+    return { kind: "body", content };
+  }
+
+  return parseKnowledgeEntry(
+    content,
+    describeContentSourceReference(operation, source, `steps.${step.name}.knowledge[${index}]`),
+  );
+}
+
 function findMarkdownHeadingPositions(content: string, heading: "Format" | "Rule"): number[] {
   return [...content.matchAll(new RegExp(`^##\\s+${heading}\\s*$`, "gm"))].map(
     (match) => match.index ?? -1,
@@ -70,17 +144,8 @@ export function resolveStepFacets(
   const instruction = loadFacetSource(operation, step.instruction) ?? "";
 
   const knowledge = (step.knowledge ?? [])
-    .map((source) => {
-      const content = loadFacetSource(operation, source);
-      if (!content) {
-        return null;
-      }
-
-      return content.length > MAX_KNOWLEDGE_LENGTH
-        ? `${content.slice(0, MAX_KNOWLEDGE_LENGTH)}\n\n[... truncated ...]`
-        : content;
-    })
-    .filter((item): item is string => item !== null);
+    .map((source, index) => resolveKnowledgeEntry(operation, step, source, index))
+    .filter((item): item is ResolvedKnowledgeEntry => item !== null);
 
   const policies = (step.policies ?? [])
     .map((source) => loadFacetSource(operation, source))

@@ -39,10 +39,29 @@ export interface RuleDefinition {
   next: string;
 }
 
+export interface KnowledgeReferenceMetadata {
+  name: string;
+  description: string;
+  critical: string[];
+}
+
+export type ResolvedKnowledgeEntry =
+  | {
+      kind: "body";
+      content: string;
+    }
+  | {
+      kind: "reference";
+      name: string;
+      description: string;
+      critical: string[];
+      source: string;
+    };
+
 export interface ResolvedFacets {
   job: string;
   instruction: string;
-  knowledge: string[];
+  knowledge: ResolvedKnowledgeEntry[];
   policies: string[];
   outputContracts: string[];
 }
