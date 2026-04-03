@@ -191,6 +191,43 @@ function writeKnowledgeCatalogOperation(root: string) {
   );
 }
 
+function writeNoctisReentryOperation(root: string) {
+  const operationPath = join(root, "builtins", "ja", "operations", "noctis-reentry-debug.yaml");
+  mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
+  writeFileSync(
+    operationPath,
+    [
+      "name: noctis-reentry-debug",
+      "description: Noctis reentry fixture for prompt highlight tests",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Plan the request.",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    instruction:",
+      "      inline: Implement the plan.",
+      "    rules:",
+      "      - condition: Need Noctis summary",
+      "        next: summarize",
+      "  - name: summarize",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Summarize the outcome for User.",
+      "    rules:",
+      "      - condition: Summary complete",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function writeRequiredOutput(input: {
   missionId: string;
   stepName: string;
@@ -421,9 +458,15 @@ describe("prompt composition engine", () => {
     expect(workerStep).toBeTruthy();
     expect(workerStep?.to).toBe("Gladiolus");
     expect(workerStep?.pathSummary).toBe("Noctis -> Runtime -> Gladiolus");
-    expect(workerStep?.inputHighlightText).toBe(
-      "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
-    );
+    expect(workerStep?.promptHighlights).toEqual([
+      {
+        source: "handoff",
+        text: "Synthetic report from worker",
+        stepName: "spec-planning",
+        agent: "noctis",
+        taskId: "step_spec-planning_1",
+      },
+    ]);
     expect(workerStep?.effectivePrompt).toBe(composed.effectivePrompt);
     expect(workerStep?.internalContext).toBe(composed.sharedContext);
   });
@@ -481,9 +524,47 @@ describe("prompt composition engine", () => {
     expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
     expect(selfStep?.internalContext).toBe(composed.sharedContext);
     expect(selfStep?.sourceInput).toBe(composed.promptBody);
-    expect(selfStep?.inputHighlightText).toBe("This is a synthetic User message for operation activation.");
+    expect(selfStep?.promptHighlights).toEqual([
+      {
+        source: "user-request",
+        text: "This is a synthetic User message for operation activation.",
+        agent: "user",
+      },
+    ]);
     expect(selfStep?.injectedPrompt).toBe(composed.workflowExtension);
     expect(selfStep?.effectivePrompt).not.toContain("allowed_workers:");
+  });
+
+  it("keeps both user-request and handoff highlights for Noctis reentry steps", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeNoctisReentryOperation(root);
+    const userMessage = "Please summarize the current workflow state.";
+    const bundle = buildOperationDebugBundle({
+      operationName: "noctis-reentry-debug",
+      userMessage,
+    });
+    const reentryStep = bundle.flowSteps.find(
+      (step) => step.kind === "noctis-step" && step.stepName === "summarize",
+    );
+
+    expect(reentryStep).toBeTruthy();
+    expect(reentryStep?.promptHighlights).toEqual([
+      {
+        source: "user-request",
+        text: userMessage,
+        agent: "user",
+      },
+      {
+        source: "handoff",
+        text: "Synthetic report from worker",
+        stepName: "implement",
+        agent: "gladiolus",
+        taskId: "step_implement_2",
+      },
+    ]);
+    expect(reentryStep?.effectivePrompt).toContain(userMessage);
+    expect(reentryStep?.effectivePrompt).toContain("Synthetic report from worker");
   });
 
   it("renders one knowledge catalog for workflow prompts and keeps debug preview aligned", () => {

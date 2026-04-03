@@ -20,11 +20,21 @@ import {
 import {
   buildActivationInstruction,
   buildOperationContextSummary,
+  findStepHandoffSource,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import type { AgentId, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 
 export type PreviewNodeId = "hook1" | "hook2" | "hook3";
 export type FlowStepKind = "noctis-step" | "worker-step";
+export type PromptHighlightSource = "user-request" | "handoff" | "task";
+
+export interface PromptHighlight {
+  source: PromptHighlightSource;
+  text: string;
+  stepName?: string;
+  agent?: AgentId | "user";
+  taskId?: string;
+}
 
 export interface FlowStepPreview {
   id: string;
@@ -40,7 +50,7 @@ export interface FlowStepPreview {
   promptTitle: string;
   promptDescription: string;
   sourceInput: string;
-  inputHighlightText: string;
+  promptHighlights: PromptHighlight[];
   internalContext: string;
   suppressedContext?: string | null;
   injectedPrompt: string;
@@ -102,6 +112,49 @@ function buildFlowId(stepName: string, occurrence: number): string {
 
 function buildFlowTitle(stepName: string, occurrence: number): string {
   return occurrence > 1 ? `${stepName} #${occurrence}` : stepName;
+}
+
+function buildPromptHighlights(input: {
+  step: StepDefinition;
+  operationState: ReturnType<typeof createOperationState>;
+  effectivePrompt: string;
+  userMessage: string;
+  taskInstruction?: string;
+}): PromptHighlight[] {
+  const candidates: PromptHighlight[] = [];
+
+  if (input.step.agent === "noctis" && input.userMessage.trim()) {
+    candidates.push({
+      source: "user-request",
+      text: input.userMessage.trim(),
+      agent: "user",
+    });
+  }
+
+  const handoffSource = findStepHandoffSource({
+    stepName: input.step.name,
+    operationState: input.operationState,
+  });
+  if (handoffSource) {
+    candidates.push({
+      source: "handoff",
+      text: handoffSource.summary,
+      stepName: handoffSource.step,
+      agent: handoffSource.agent,
+      taskId: handoffSource.taskId,
+    });
+  }
+
+  if (input.taskInstruction?.trim()) {
+    candidates.push({
+      source: "task",
+      text: input.taskInstruction.trim(),
+    });
+  }
+
+  return candidates.filter((candidate) =>
+    candidate.text.length > 0 && input.effectivePrompt.includes(candidate.text),
+  );
 }
 
 function buildReportMessage(baseMessage: string): string {
@@ -306,7 +359,7 @@ export function buildOperationDebugBundle(input: {
       let injectedPrompt = "";
       let effectivePrompt = "";
       let sourceInput = "";
-      let inputHighlightText = "";
+  let promptHighlights: PromptHighlight[] = [];
       let internalContext = "";
       let suppressedContext: string | null | undefined;
       let promptTitle = "";
@@ -339,10 +392,15 @@ export function buildOperationDebugBundle(input: {
         });
 
         sourceInput = composed.promptBody;
-        inputHighlightText = userMessageBase;
         internalContext = composed.sharedContext;
         suppressedContext = composed.suppressedContext;
         effectivePrompt = composed.effectivePrompt ?? injectedPrompt;
+        promptHighlights = buildPromptHighlights({
+          step,
+          operationState,
+          effectivePrompt,
+          userMessage: userMessageBase,
+        });
         promptTitle = "Runtime -> Noctis Prompt";
         promptDescription = "Activation prompt reconstructed from the current workflow state and user input.";
       } else {
@@ -365,11 +423,17 @@ export function buildOperationDebugBundle(input: {
         });
 
         sourceInput = dispatchPrompt;
-        inputHighlightText = dispatchPrompt;
         internalContext = dispatchComposed.sharedContext;
         suppressedContext = dispatchComposed.suppressedContext;
         injectedPrompt = dispatchComposed.workflowExtension || "(no workflow extension generated)";
         effectivePrompt = dispatchComposed.effectivePrompt ?? injectedPrompt;
+        promptHighlights = buildPromptHighlights({
+          step,
+          operationState,
+          effectivePrompt,
+          userMessage: userMessageBase,
+          taskInstruction: dispatchPrompt,
+        });
         promptTitle = `Runtime -> ${to} Prompt`;
         promptDescription = `Workflow prompt composed for the "${step.name}" step.`;
       }
@@ -414,7 +478,7 @@ export function buildOperationDebugBundle(input: {
         promptTitle,
         promptDescription,
         sourceInput,
-        inputHighlightText,
+        promptHighlights,
         internalContext,
         suppressedContext,
         injectedPrompt,

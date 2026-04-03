@@ -9,7 +9,7 @@ import type {
   ResolvedKnowledgeEntry,
   StepDefinition,
 } from "@/lib/operation-definition/types";
-import type { OperationState } from "@/lib/types/mission";
+import type { AgentId, OperationState } from "@/lib/types/mission";
 import {
   buildXmlSection,
   buildMarkdownSection,
@@ -245,10 +245,17 @@ function buildKnowledgeCatalog(entries: ResolvedKnowledgeEntry[]): string | null
   return buildXmlSection("knowledge-catalog", sections.join("\n\n"));
 }
 
-function buildHandoffSection(input: {
+export interface StepHandoffSource {
+  step: string;
+  agent: AgentId;
+  taskId?: string;
+  summary: string;
+}
+
+export function findStepHandoffSource(input: {
   stepName: string;
   operationState: OperationState;
-}): string | null {
+}): StepHandoffSource | null {
   const handoffSource = [...input.operationState.stepHistory]
     .reverse()
     .find(
@@ -263,6 +270,24 @@ function buildHandoffSection(input: {
     return null;
   }
 
+  return {
+    step: handoffSource.step,
+    agent: handoffSource.agent,
+    taskId: handoffSource.taskId,
+    summary: handoffSource.summary.trim(),
+  };
+}
+
+function buildHandoffSection(input: {
+  stepName: string;
+  operationState: OperationState;
+}): string | null {
+  const handoffSource = findStepHandoffSource(input);
+
+  if (!handoffSource) {
+    return null;
+  }
+
   const lines = [
     `from_step: ${handoffSource.step}`,
     `from_agent: ${handoffSource.agent}`,
@@ -273,7 +298,7 @@ function buildHandoffSection(input: {
   }
 
   lines.push("message: |");
-  for (const line of handoffSource.summary.trim().split(/\r?\n/)) {
+  for (const line of handoffSource.summary.split(/\r?\n/)) {
     lines.push(`  ${line}`);
   }
 
