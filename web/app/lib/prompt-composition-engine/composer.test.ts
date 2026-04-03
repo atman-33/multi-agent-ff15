@@ -128,6 +128,20 @@ function writeKnowledgeCatalogOperation(root: string) {
     "utf-8",
   );
   writeFileSync(
+    join(knowledgeDir, "agent-relationships.md"),
+    [
+      "---",
+      "name: agent-relationships",
+      'description: Read when you need a compact FF15 relationship cue.',
+      "---",
+      "# Agent relationships",
+      "",
+      "This text should also stay out of the prompt body.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
     join(knowledgeDir, "broken-reference.md"),
     [
       "---",
@@ -158,6 +172,7 @@ function writeKnowledgeCatalogOperation(root: string) {
       "      inline: Clarify the request",
       "    knowledge:",
       "      - file: ../facets/knowledge/operation-system-contract.md",
+      "      - file: ../facets/knowledge/agent-relationships.md",
       "      - file: ../facets/knowledge/broken-reference.md",
       "      - inline: Prefer runtime-owned dispatch.",
       "    rules:",
@@ -506,7 +521,15 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("<knowledge-ref>");
     expect(composed.effectivePrompt).toContain("<knowledge-body>");
     expect(composed.effectivePrompt).toContain("Name: operation-system-contract");
+    expect(composed.effectivePrompt).toContain("Name: agent-relationships");
+    expect(composed.effectivePrompt).toContain(
+      "Reference entries below are reference cards, not full knowledge documents.",
+    );
+    expect(
+      composed.effectivePrompt.match(/Reference entries below are reference cards, not full knowledge documents\./g) ?? [],
+    ).toHaveLength(1);
     expect(composed.effectivePrompt).not.toContain("This text should not be injected into the prompt.");
+    expect(composed.effectivePrompt).not.toContain("This text should also stay out of the prompt body.");
     expect(selfStep).toBeTruthy();
     expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
   });

@@ -4,7 +4,7 @@
 
 - This repository contains a browser-based multi-agent dashboard plus supporting scripts and configuration. Keep changes within the existing structure: `web/` for the React Router app, `config/` for YAML configuration, `projects/` for project definitions, `runtime/` for generated runtime data, `scripts/` for automation helpers, and `docs/reports/` for report artifacts.
 - Treat `runtime/` and log outputs as generated state unless the task explicitly requires changing the code that produces them.
-- Follow the FF15 agent hierarchy already defined in `AGENTS.md`: the user is `User`, the primary user-facing agent is `Noctis`, and supporting agents report back through that structure.
+- Use `User` as the canonical user name in FF15-facing instructions and artifacts.
 
 ## Conventions
 

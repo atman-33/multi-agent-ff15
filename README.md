@@ -34,29 +34,31 @@ Lunafreya and Iris are planned for a future release.
 Multi-agent parallel development framework using OpenCode.
 Inspired by FINAL FANTASY XV's Kingdom of Lucis.
 
-### Agent Hierarchy
+### Agent Relationships
 
+```mermaid
+flowchart TD
+  U[User]
+  N[Noctis<br/>Lead agent / main user-facing contact]
+  F[Active workflow step<br/>decides who acts next]
+  I[Ignis<br/>Analysis / planning / review]
+  G[Gladiolus<br/>Implementation / fixes / hardening]
+  P[Prompto<br/>Recon / reporting / cleanup]
+
+  U -->|request| N
+  N --> F
+
+  F --> N
+  F --> I
+  F --> G
+  F --> P
 ```
-User
-    │
-    ▼
-┌──────────┐
-│ NOCTIS   │ ← King (Leader + Task Mgr)
-│  (王)    │
-└────┬─────┘
-     │ missions / sessions
-     ▼
-┌────────────┬──────────┬────────────┐
-│   IGNIS    │GLADIOLUS │  PROMPTO   │ ← Comrades (3)
-│  (軍師)    │  (盾)    │   (銃)     │
-└────────────┴──────────┴────────────┘
-```
 
-### Communication Flow
-
-- **User → Noctis**: Mission dispatch via the Noctis Team screen
-- **Noctis → Comrades**: Task delegation through OpenCode agent sessions
-- All agent sessions are visible live in the web dashboard
+- User-facing requests start with Noctis.
+- Noctis is the lead agent and the main user-facing contact.
+- Ignis, Gladiolus, and Prompto are specialist teammates with distinct responsibilities.
+- The active workflow step determines whether work stays with Noctis or moves to a specialist.
+- Depending on the workflow, ownership may return to Noctis between steps or move across specialists before the final response.
 
 ---
 
@@ -234,7 +236,7 @@ multi-agent-ff15/
 
 | Agent | Role | Symbol | Status |
 |-------|------|--------|--------|
-| Noctis | King — receives missions, commands the comrades | 👑 | ✅ Implemented |
+| Noctis | King — lead agent and main user-facing contact | 👑 | ✅ Implemented |
 | Ignis | Strategist comrade | ⚔ | ✅ Implemented |
 | Gladiolus | Shield comrade | 🛡 | ✅ Implemented |
 | Prompto | Recon comrade | 🔫 | ✅ Implemented |

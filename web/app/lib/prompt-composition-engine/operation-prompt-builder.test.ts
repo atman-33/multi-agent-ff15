@@ -159,6 +159,20 @@ function createKnowledgeCatalogPromptFixture(): string {
     "utf-8",
   );
   writeFileSync(
+    join(knowledgeDir, "agent-relationships.md"),
+    [
+      "---",
+      "name: agent-relationships",
+      'description: Read when you need a compact FF15 relationship cue.',
+      "---",
+      "# Agent relationships",
+      "",
+      "This text should also stay out of the prompt body.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
     join(knowledgeDir, "broken-reference.md"),
     [
       "---",
@@ -188,6 +202,7 @@ function createKnowledgeCatalogPromptFixture(): string {
       "      inline: Clarify the request",
       "    knowledge:",
       "      - file: ../facets/knowledge/operation-system-contract.md",
+      "      - file: ../facets/knowledge/agent-relationships.md",
       "      - file: ../facets/knowledge/broken-reference.md",
       "      - inline: Prefer runtime-owned dispatch.",
       "    rules:",
@@ -332,16 +347,30 @@ describe("operation prompt builder", () => {
     expect(prompt).toContain("<knowledge-catalog>");
     expect(prompt).toContain("<knowledge-ref>");
     expect(prompt).toContain("Name: operation-system-contract");
+    expect(prompt).toContain("Name: agent-relationships");
     expect(prompt).toContain(
       "Description: Read when changing runtime-owned dispatch or report routing.",
     );
     expect(prompt).toContain("Source: ");
-    expect(prompt).toContain("This is a reference card, not the full knowledge document.");
+    expect(prompt).toContain(
+      "Reference entries below are reference cards, not full knowledge documents.",
+    );
+    expect(
+      prompt.match(/Reference entries below are reference cards, not full knowledge documents\./g) ?? [],
+    ).toHaveLength(1);
+    expect(prompt).not.toContain("This is a reference card, not the full knowledge document.");
+    expect(prompt).not.toContain(
+      "Read the source file when the current task matches this description.",
+    );
     expect(prompt).toContain("Critical facts:");
     expect(prompt).toContain("- Runtime decides the next actor.");
     expect(prompt).not.toContain("This text should not be injected into the prompt.");
+    expect(prompt).not.toContain("This text should also stay out of the prompt body.");
     expect(prompt).toContain("<knowledge-body>");
     expect(prompt.indexOf("Name: operation-system-contract")).toBeLessThan(
+      prompt.indexOf("Name: agent-relationships"),
+    );
+    expect(prompt.indexOf("Name: agent-relationships")).toBeLessThan(
       prompt.indexOf("# Broken reference body"),
     );
     expect(prompt.indexOf("# Broken reference body")).toBeLessThan(

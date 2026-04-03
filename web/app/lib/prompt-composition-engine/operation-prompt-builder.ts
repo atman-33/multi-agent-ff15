@@ -206,8 +206,6 @@ function buildKnowledgeReferenceContent(entry: Extract<ResolvedKnowledgeEntry, {
     `Name: ${entry.name}`,
     `Description: ${entry.description}`,
     `Source: ${entry.source}`,
-    "This is a reference card, not the full knowledge document.",
-    "Read the source file when the current task matches this description.",
   ];
 
   if (entry.critical.length > 0) {
@@ -231,7 +229,20 @@ function buildKnowledgeCatalog(entries: ResolvedKnowledgeEntry[]): string | null
       : buildMarkdownSection("knowledge-body", entry.content),
   );
 
-  return buildXmlSection("knowledge-catalog", joinXmlSections(catalogEntries));
+  const sections: string[] = [];
+
+  if (entries.some((entry) => entry.kind === "reference")) {
+    sections.push(
+      [
+        "Reference entries below are reference cards, not full knowledge documents.",
+        "Read a source file only when the current task matches its description.",
+      ].join("\n"),
+    );
+  }
+
+  sections.push(joinXmlSections(catalogEntries));
+
+  return buildXmlSection("knowledge-catalog", sections.join("\n\n"));
 }
 
 function buildHandoffSection(input: {
