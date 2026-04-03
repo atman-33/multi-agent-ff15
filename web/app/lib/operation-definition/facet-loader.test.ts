@@ -7,6 +7,17 @@ import { resolveStepFacets } from "./facet-loader";
 import { loadOperationFromFile } from "./operation-loader";
 
 const tempDirs: string[] = [];
+const CANONICAL_CODE_REVIEW_CONTRACT = [
+  "## Format",
+  "",
+  "````markdown",
+  "# Inline Code Review Report",
+  "````",
+  "",
+  "## Rule",
+  "",
+  "- Include evidence for blocking findings.",
+].join("\n");
 
 function createTempOperationFixture(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-facet-loader-"));
@@ -37,7 +48,7 @@ function createTempOperationFixture(): string {
   writeFileSync(join(facetsDir, "instructions", "review-code.md"), "# Review\n", "utf-8");
   writeFileSync(
     join(facetsDir, "output-contracts", "code-review.md"),
-    "# Code Review Report\n",
+    `${CANONICAL_CODE_REVIEW_CONTRACT}\n`,
     "utf-8",
   );
   writeFileSync(join(facetsDir, "jobs", "implementer.md"), "# Implementer\n", "utf-8");
@@ -70,7 +81,7 @@ function createTempOperationFixture(): string {
       "      report:",
       "        - name: code-review.md",
       "          format:",
-      "            inline: '# Inline Code Review Report'",
+      `            inline: ${JSON.stringify(CANONICAL_CODE_REVIEW_CONTRACT)}`,
       "    rules: []",
       "  - name: implement",
       "    agent: gladiolus",
@@ -91,6 +102,56 @@ function createTempOperationFixture(): string {
   );
 
   return join(operationDir, "test-operation.yaml");
+}
+
+function createMalformedOutputContractFixture(sourceType: "inline" | "file"): string {
+  const root = mkdtempSync(join(tmpdir(), `multi-agent-ff15-facet-loader-${sourceType}-`));
+  tempDirs.push(root);
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  const facetsDir = join(root, "builtins", "ja", "facets");
+
+  mkdirSync(join(facetsDir, "output-contracts"), { recursive: true });
+  mkdirSync(operationDir, { recursive: true });
+
+  const brokenContractPath = join(facetsDir, "output-contracts", "broken-code-review.md");
+  writeFileSync(brokenContractPath, "# Broken Output Contract\n", "utf-8");
+
+  const formatSource =
+    sourceType === "inline"
+      ? `            inline: ${JSON.stringify("# Broken Output Contract")}`
+      : "            file: ../facets/output-contracts/broken-code-review.md";
+
+  writeFileSync(
+    join(operationDir, `malformed-${sourceType}-operation.yaml`),
+    [
+      `name: malformed-${sourceType}-operation`,
+      "description: Malformed output contract fixture",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Hand off to review.",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: review",
+      "  - name: review",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Review carefully.",
+      "    output_contracts:",
+      "      report:",
+      "        - name: code-review.md",
+      "          format:",
+      formatSource,
+      "    rules: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return join(operationDir, `malformed-${sourceType}-operation.yaml`);
 }
 
 afterEach(() => {
@@ -139,6 +200,8 @@ describe("operation-definition path-based facet resolution", () => {
     const facets = resolveStepFacets(operation, review, "ja");
 
     expect(facets.instruction).toContain("Review the submitted code carefully.");
+    expect(facets.outputContracts[0]).toContain("## Format");
+    expect(facets.outputContracts[0]).toContain("## Rule");
     expect(facets.outputContracts[0]).toContain("Inline Code Review Report");
   });
 
@@ -166,5 +229,31 @@ describe("operation-definition path-based facet resolution", () => {
     expect(facets.knowledge[1]).toContain("Prefer runtime-owned dispatch.");
     expect(facets.policies[0]).toContain("Coding Standards");
     expect(facets.policies[1]).toContain("Keep changes minimal.");
+  });
+
+  it("rejects malformed inline output contracts with source-aware errors", () => {
+    const operation = loadOperationFromFile(createMalformedOutputContractFixture("inline"));
+    const review = operation.steps.find((step) => step.name === "review");
+
+    if (!review) {
+      throw new Error("review step not found");
+    }
+
+    expect(() => resolveStepFacets(operation, review, "ja")).toThrow(
+      /output_contracts\.report\[0\]\.format\.inline.*## Format.*## Rule/i,
+    );
+  });
+
+  it("rejects malformed file output contracts with source-aware errors", () => {
+    const operation = loadOperationFromFile(createMalformedOutputContractFixture("file"));
+    const review = operation.steps.find((step) => step.name === "review");
+
+    if (!review) {
+      throw new Error("review step not found");
+    }
+
+    expect(() => resolveStepFacets(operation, review, "ja")).toThrow(
+      /broken-code-review\.md.*## Format.*## Rule/i,
+    );
   });
 });

@@ -50,6 +50,10 @@ function listMissingRequiredOutputs(input: {
     .filter((outputPath) => !existsSync(outputPath));
 }
 
+function buildMissingOutputRetryGuidance(): string {
+  return "Create the missing output files at the paths above, then rerun the same scripts/send_report.sh command.";
+}
+
 export const action = async ({ request, params }: Route.ActionArgs) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
@@ -157,6 +161,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
             {
               error: "Missing required output files",
               missingOutputs,
+              retryGuidance: buildMissingOutputRetryGuidance(),
             },
             { status: 400 },
           );

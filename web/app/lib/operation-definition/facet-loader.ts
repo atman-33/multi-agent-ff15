@@ -24,6 +24,43 @@ function loadFacetSource(
   return readFileSync(absolutePath, "utf-8");
 }
 
+function describeContentSourceReference(
+  operation: OperationDefinition,
+  source: ContentSource | undefined,
+  inlineLocator: string,
+): string {
+  if (!source) {
+    return `${operation.sourcePath}#${inlineLocator}`;
+  }
+
+  if ("file" in source && typeof source.file === "string") {
+    return resolveOperationFacetPath(operation.sourcePath, source.file);
+  }
+
+  return `${operation.sourcePath}#${inlineLocator}.inline`;
+}
+
+function findMarkdownHeadingPositions(content: string, heading: "Format" | "Rule"): number[] {
+  return [...content.matchAll(new RegExp(`^##\\s+${heading}\\s*$`, "gm"))].map(
+    (match) => match.index ?? -1,
+  );
+}
+
+function assertValidOutputContractContent(content: string, sourceReference: string): void {
+  const formatHeadings = findMarkdownHeadingPositions(content, "Format");
+  const ruleHeadings = findMarkdownHeadingPositions(content, "Rule");
+
+  if (
+    formatHeadings.length !== 1 ||
+    ruleHeadings.length !== 1 ||
+    formatHeadings[0] > ruleHeadings[0]
+  ) {
+    throw new Error(
+      `Output contract format at ${sourceReference} must contain exactly one "## Format" section followed by one "## Rule" section.`,
+    );
+  }
+}
+
 export function resolveStepFacets(
   operation: OperationDefinition,
   step: StepDefinition,
@@ -51,9 +88,18 @@ export function resolveStepFacets(
 
   const outputContracts: string[] = [];
   if (step.output_contracts?.report) {
-    for (const report of step.output_contracts.report) {
+    for (let index = 0; index < step.output_contracts.report.length; index += 1) {
+      const report = step.output_contracts.report[index];
       const content = loadFacetSource(operation, report.format);
       if (content) {
+        assertValidOutputContractContent(
+          content,
+          describeContentSourceReference(
+            operation,
+            report.format,
+            `steps.${step.name}.output_contracts.report[${index}].format`,
+          ),
+        );
         outputContracts.push(content);
       }
     }

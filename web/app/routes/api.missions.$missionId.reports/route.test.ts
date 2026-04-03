@@ -236,6 +236,8 @@ describe("api.missions.$missionId.reports", () => {
       missingOutputs: [
         getMissionOutputFilePath(missionId, "review", "task-review-missing", "code-review.md"),
       ],
+      retryGuidance:
+        "Create the missing output files at the paths above, then rerun the same scripts/send_report.sh command.",
     });
 
     const mission = getMission(missionId);
@@ -278,6 +280,8 @@ describe("api.missions.$missionId.reports", () => {
       missingOutputs: [
         getMissionOutputFilePath(missionId, "spec-planning", "step_spec-planning_1", "spec-plan.md"),
       ],
+      retryGuidance:
+        "Create the missing output files at the paths above, then rerun the same scripts/send_report.sh command.",
     });
     expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
     expect(sendWorkerReport).not.toHaveBeenCalled();

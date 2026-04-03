@@ -70,6 +70,43 @@ function seedProjectConfig(root: string) {
   );
 }
 
+function writeMalformedOutputContractOperation(root: string) {
+  const operationPath = join(root, "builtins", "ja", "operations", "malformed-output-contract.yaml");
+  mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
+  writeFileSync(
+    operationPath,
+    [
+      "name: malformed-output-contract",
+      "description: Malformed output contract fixture",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Planner role",
+      "    instruction:",
+      "      inline: Produce the required output.",
+      "    output_contracts:",
+      "      report:",
+      "        - name: spec-plan.md",
+      "          format:",
+      `            inline: ${JSON.stringify("# Broken output contract")}`,
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    instruction:",
+      "      inline: Implement the approved plan.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function writeRequiredOutput(input: {
   missionId: string;
   stepName: string;
@@ -189,27 +226,28 @@ describe("prompt composition engine", () => {
       selectedOperation: "openspec-dev",
     });
 
-    expect(composed.workflowExtension).not.toContain('<step format="yaml">');
+    expect(composed.workflowExtension).not.toContain("format=");
     expect(composed.workflowExtension).toContain("<step-completion-contract");
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts).toHaveLength(1);
-    expect(composed.payloadParts[0]?.text).toContain("<operation-prompt");
+    expect(composed.payloadParts[0]?.text).toContain("<operation-prompt>");
     expect(composed.payloadParts[0]?.text).toContain("<user-request");
+    expect(composed.payloadParts[0]?.text).not.toContain("schema=");
+    expect(composed.payloadParts[0]?.text).not.toContain("source=");
+    expect(composed.payloadParts[0]?.text).not.toContain("output-path=");
+    expect(composed.payloadParts[0]?.text).not.toContain("name=");
     expect(composed.payloadParts[0]?.text).not.toContain("allowed_workers:");
-    expect(composed.payloadParts[0]?.text).toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/jobs/planner.md"`,
-    );
     expect(composed.payloadParts[0]?.text).toContain(
       'Write `message` for Gladiolus. Runtime will pass it as the canonical handoff text for the "implement" step.',
     );
     expect(composed.payloadParts[0]?.text).toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
+      `Create the file at ${expectedSpecPlanPath} using the following format.`,
     );
-    expect(composed.payloadParts[0]?.text).toContain(`output-path="${expectedSpecPlanPath}"`);
-    expect(composed.payloadParts[0]?.text).not.toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
-    );
-    expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
+    expect(
+      composed.payloadParts[0]?.text.indexOf(
+        `Create the file at ${expectedSpecPlanPath} using the following format.`,
+      ) ?? -1,
+    ).toBeLessThan(composed.payloadParts[0]?.text.indexOf("## Format") ?? Number.MAX_SAFE_INTEGER);
     expect(composed.payloadParts[0]?.text).not.toContain("[NOCTIS_ROUTED_MESSAGE]");
   });
 
@@ -241,9 +279,12 @@ describe("prompt composition engine", () => {
 
     expect(composed.usedWorkflowExtension).toBe(true);
     expect(composed.workflowExtension).toContain("<job");
-    expect(composed.workflowExtension).not.toContain('<step format="yaml">');
+    expect(composed.workflowExtension).not.toContain("format=");
     expect(composed.effectivePrompt).toContain("<task");
     expect(composed.effectivePrompt).toContain("<step-completion-contract");
+    expect(composed.effectivePrompt).not.toContain("source=");
+    expect(composed.effectivePrompt).not.toContain("output-path=");
+    expect(composed.effectivePrompt).not.toContain("name=");
     expect(composed.effectivePrompt).toContain(
       `scripts/send_report.sh ${missionId} gladiolus ${taskId} review "<message>"`,
     );
@@ -256,12 +297,8 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).not.toContain("--rule-index <index>");
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
-    expect(composed.payloadParts[0]?.text).toContain(
-      `source="${getProjectRoot()}/builtins/ja/facets/policies/coding-standards.md"`,
-    );
     expect(composed.effectivePrompt).toContain(expectedSpecPlanPath);
     expect(composed.effectivePrompt).not.toContain("{{ output(");
-    expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
     expect(composed.payloadParts).toHaveLength(1);
   });
 
@@ -359,5 +396,41 @@ describe("prompt composition engine", () => {
     expect(selfStep?.inputHighlightText).toBe("This is a synthetic User message for operation activation.");
     expect(selfStep?.injectedPrompt).toBe(composed.workflowExtension);
     expect(selfStep?.effectivePrompt).not.toContain("allowed_workers:");
+  });
+
+  it("fails Noctis activation prompt generation when an output contract is malformed", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeMalformedOutputContractOperation(root);
+
+    expect(() =>
+      composeUserToNoctisPrompt({
+        context: {
+          appRoot: root,
+          agent: "noctis",
+          sessionId: "session-malformed",
+          missionId: "mission-malformed",
+          allowedWorkers: ["ignis", "gladiolus", "prompto"],
+        },
+        userMessage: "Open the malformed workflow.",
+        missionId: "mission-malformed",
+        sessionId: "session-malformed",
+        isNewMission: true,
+        selectedOperation: "malformed-output-contract",
+      }),
+    ).toThrow(/## Format.*## Rule/i);
+  });
+
+  it("fails debug preview generation when an output contract is malformed", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeMalformedOutputContractOperation(root);
+
+    expect(() =>
+      buildOperationDebugBundle({
+        missionId: "mission-malformed-preview",
+        operationName: "malformed-output-contract",
+      }),
+    ).toThrow(/## Format.*## Rule/i);
   });
 });

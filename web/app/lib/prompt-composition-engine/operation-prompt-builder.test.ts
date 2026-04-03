@@ -11,6 +11,18 @@ import { buildActivationInstruction } from "./operation-prompt-builder";
 
 const tempDirs: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
+const CANONICAL_SPEC_PLAN_CONTRACT = [
+  "## Format",
+  "",
+  "````markdown",
+  "---",
+  "change_name: synthetic-spec-plan",
+  "````",
+  "",
+  "## Rule",
+  "",
+  "- `change_name` is required",
+].join("\n");
 
 function createInlinePromptFixture(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-prompt-builder-"));
@@ -45,7 +57,7 @@ function createInlinePromptFixture(): string {
       "      report:",
       "        - name: spec-plan.md",
       "          format:",
-      "            inline: '# Spec Plan Format'",
+      `            inline: ${JSON.stringify(CANONICAL_SPEC_PLAN_CONTRACT)}`,
       "    rules:",
       "      - condition: Ready",
       "        next: implement",
@@ -95,7 +107,7 @@ function createPlaceholderPromptFixture(selector: string): string {
       "      report:",
       "        - name: spec-plan.md",
       "          format:",
-      "            inline: '# Spec Plan Format'",
+      `            inline: ${JSON.stringify(CANONICAL_SPEC_PLAN_CONTRACT)}`,
       "    rules:",
       "      - condition: Ready",
       "        next: implement",
@@ -132,7 +144,7 @@ afterEach(() => {
 });
 
 describe("operation prompt builder", () => {
-  it("emits deterministic source locators and mission-scoped output paths", () => {
+  it("emits attribute-free prompts with mission-scoped output guidance", () => {
     const operationPath = createInlinePromptFixture();
     const operation = loadOperationFromFile(operationPath);
     const step = operation.steps[0];
@@ -157,21 +169,17 @@ describe("operation prompt builder", () => {
       "task-inline",
       "spec-plan.md",
     );
+    const expectedGuidance = `Create the file at ${expectedOutputPath} using the following format.`;
 
-    expect(prompt).toContain(`source="${operation.sourcePath}#steps.spec-planning.job.inline"`);
-    expect(prompt).toContain(
-      `source="${operation.sourcePath}#steps.spec-planning.instruction.inline"`,
-    );
-    expect(prompt).toContain(
-      `source="${operation.sourcePath}#steps.spec-planning.knowledge[0].inline"`,
-    );
-    expect(prompt).toContain(
-      `source="${operation.sourcePath}#steps.spec-planning.policies[0].inline"`,
-    );
-    expect(prompt).toContain(
-      `source="${operation.sourcePath}#steps.spec-planning.output_contracts.report[0].format.inline"`,
-    );
-    expect(prompt).toContain(`output-path="${expectedOutputPath}"`);
+    expect(prompt).toContain("<job>");
+    expect(prompt).toContain("<instruction>");
+    expect(prompt).toContain("<output-contract>");
+    expect(prompt).not.toContain("source=");
+    expect(prompt).not.toContain("format=");
+    expect(prompt).not.toContain("output-path=");
+    expect(prompt).not.toContain("name=");
+    expect(prompt).toContain(expectedGuidance);
+    expect(prompt.indexOf(expectedGuidance)).toBeLessThan(prompt.indexOf("## Format"));
   });
 
   it("resolves latest output placeholders to absolute paths", () => {

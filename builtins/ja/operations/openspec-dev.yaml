@@ -19,9 +19,6 @@ steps:
 
         この step では `.opencode/command/opsx-ff.md` を実行指示として使う。
         OpenSpec artifact の作成順、依存 artifact の参照、User への確認、完了条件はその記述に従うこと。
-
-        あわせて runtime が指定する `spec-plan.md` の required output を必ず作成すること。
-        output contract の format と `output-path` に従い、frontmatter に `change_name` と `change_path` を記録すること。
     output_contracts:
       report:
         - name: spec-plan.md

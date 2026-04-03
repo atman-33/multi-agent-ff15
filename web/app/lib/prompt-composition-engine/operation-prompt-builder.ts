@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
-import { resolveOperationFacetPath } from "@/lib/operation-definition/operation-loader";
 import type {
   ContentSource,
   OperationDefinition,
@@ -68,20 +67,14 @@ function describeNextMessageGuidance(
   return `Write \`message\` as the canonical handoff text for the "${nextCandidate}" step.`;
 }
 
-function resolveContentSourceReference(
-  operation: OperationDefinition,
-  source: ContentSource | undefined,
-  inlineLocator: string,
-): string | undefined {
-  if (!source) {
-    return undefined;
-  }
-
-  if ("file" in source && typeof source.file === "string") {
-    return resolveOperationFacetPath(operation.sourcePath, source.file);
-  }
-
-  return `${operation.sourcePath}#${inlineLocator}.inline`;
+function buildOutputContractGuidance(_operation: OperationDefinition, outputPath: string): string {
+  return [
+    `Create the file at ${outputPath} using the following format.`,
+    "",
+    "- Create the specified file before completing the step",
+    "- The file contents must follow the `Format` below",
+    "- Do not complete the step until the file exists",
+  ].join("\n");
 }
 
 function resolveOutputContract(
@@ -228,39 +221,19 @@ export function buildAugmentedInstruction(input: {
     : "";
 
   if (facets.job) {
-    sections.push(
-      buildMarkdownSection("job", facets.job, {
-        source: resolveContentSourceReference(operation, step.job, `steps.${step.name}.job`),
-      }),
-    );
+    sections.push(buildMarkdownSection("job", facets.job));
   }
 
   sections.push(buildTextSection("task", originalInstruction));
 
   if (facets.knowledge.length > 0) {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
-      sections.push(
-        buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: resolveContentSourceReference(
-            operation,
-            step.knowledge?.[index],
-            `steps.${step.name}.knowledge[${index}]`,
-          ),
-        }),
-      );
+      sections.push(buildMarkdownSection("knowledge", facets.knowledge[index]));
     }
   }
 
   if (resolvedInstruction) {
-    sections.push(
-      buildMarkdownSection("instruction", resolvedInstruction, {
-        source: resolveContentSourceReference(
-          operation,
-          step.instruction,
-          `steps.${step.name}.instruction`,
-        ),
-      }),
-    );
+    sections.push(buildMarkdownSection("instruction", resolvedInstruction));
   }
 
   if (facets.outputContracts.length > 0) {
@@ -277,15 +250,7 @@ export function buildAugmentedInstruction(input: {
 
   if (facets.policies.length > 0) {
     for (let index = 0; index < facets.policies.length; index += 1) {
-      sections.push(
-        buildMarkdownSection("policy", facets.policies[index], {
-          source: resolveContentSourceReference(
-            operation,
-            step.policies?.[index],
-            `steps.${step.name}.policies[${index}]`,
-          ),
-        }),
-      );
+      sections.push(buildMarkdownSection("policy", facets.policies[index]));
     }
   }
 
@@ -316,37 +281,17 @@ export function buildActivationInstruction(input: {
     : "";
 
   if (facets.job) {
-    sections.push(
-      buildMarkdownSection("job", facets.job, {
-        source: resolveContentSourceReference(operation, step.job, `steps.${step.name}.job`),
-      }),
-    );
+    sections.push(buildMarkdownSection("job", facets.job));
   }
 
   if (facets.knowledge.length > 0) {
     for (let index = 0; index < facets.knowledge.length; index += 1) {
-      sections.push(
-        buildMarkdownSection("knowledge", facets.knowledge[index], {
-          source: resolveContentSourceReference(
-            operation,
-            step.knowledge?.[index],
-            `steps.${step.name}.knowledge[${index}]`,
-          ),
-        }),
-      );
+      sections.push(buildMarkdownSection("knowledge", facets.knowledge[index]));
     }
   }
 
   if (resolvedInstruction) {
-    sections.push(
-      buildMarkdownSection("instruction", resolvedInstruction, {
-        source: resolveContentSourceReference(
-          operation,
-          step.instruction,
-          `steps.${step.name}.instruction`,
-        ),
-      }),
-    );
+    sections.push(buildMarkdownSection("instruction", resolvedInstruction));
   }
 
   if (facets.outputContracts.length > 0) {
@@ -363,15 +308,7 @@ export function buildActivationInstruction(input: {
 
   if (facets.policies.length > 0) {
     for (let index = 0; index < facets.policies.length; index += 1) {
-      sections.push(
-        buildMarkdownSection("policy", facets.policies[index], {
-          source: resolveContentSourceReference(
-            operation,
-            step.policies?.[index],
-            `steps.${step.name}.policies[${index}]`,
-          ),
-        }),
-      );
+      sections.push(buildMarkdownSection("policy", facets.policies[index]));
     }
   }
 
@@ -407,16 +344,11 @@ function buildOutputContractSections(
   if (step.output_contracts?.report) {
     for (let index = 0; index < step.output_contracts.report.length; index += 1) {
       const report = step.output_contracts.report[index];
+      const outputPath = getMissionOutputFilePath(missionId, step.name, taskId, report.name);
+      const guidance = buildOutputContractGuidance(operation, outputPath);
+      const contractBody = contracts[index] ?? "";
       sections.push(
-        buildMarkdownSection("output-contract", contracts[index] ?? "", {
-          source: resolveContentSourceReference(
-            operation,
-            report.format,
-            `steps.${step.name}.output_contracts.report[${index}].format`,
-          ),
-          name: report.name,
-          "output-path": getMissionOutputFilePath(missionId, step.name, taskId, report.name),
-        }),
+        buildMarkdownSection("output-contract", contractBody ? `${guidance}\n\n${contractBody}` : guidance),
       );
     }
   }
