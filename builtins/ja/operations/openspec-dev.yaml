@@ -55,7 +55,14 @@ steps:
     job:
       file: ../facets/jobs/reviewer.md
     instruction:
-      file: ../facets/instructions/review-code.md
+      inline: |
+        # Review Code — 手順指示
+
+        `.opencode/command/opsx-verify.md` に従って review する。
+        開始前に `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読み、frontmatter の `change_name` を verification 対象 change 名として使う。
+        spec の参照は `change_path` を優先し、未設定なら `openspec/changes/<change_name>/` を使う。
+        検証観点は `opsx-verify.md` に従うが、出力は `code-review` output contract の形式に合わせ、finding と verdict は policy に従って判定する。
+        コードは変更しない。
     policies:
       - file: ../facets/policies/coding-standards.md
     output_contracts:
@@ -98,7 +105,7 @@ steps:
     job:
       file: ../facets/jobs/refactorer.md
     instruction:
-      file: ../facets/instructions/refactor.md
+      file: ../facets/instructions/simplify-code.md
     policies:
       - file: ../facets/policies/coding-standards.md
     rules:
