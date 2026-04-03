@@ -34,7 +34,13 @@ steps:
     job:
       file: ../facets/jobs/implementer.md
     instruction:
-      file: ../facets/instructions/implement.md
+      inline: |
+        # Implement — 手順指示
+
+        `.opencode/command/opsx-apply.md` に従って実装する。
+        開始前に `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読み、frontmatter の `change_name` を OpenSpec change 名として使う。
+        spec の参照は `change_path` を優先し、未設定なら `openspec/changes/<change_name>/` を使う。
+        `change_name` / `change_path` を取得できない場合は blocked として報告する。
     policies:
       - file: ../facets/policies/coding-standards.md
     rules:
@@ -71,7 +77,13 @@ steps:
     job:
       file: ../facets/jobs/implementer.md
     instruction:
-      file: ../facets/instructions/fix-code.md
+      inline: |
+        # Fix Code — 手順指示
+
+        `{{ output("review", "latest", "code-review.md") }}` の blocking finding を解消する。
+        必要に応じて `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読み、`change_name` / `change_path` から元 spec を再参照する。
+        spec の参照は `change_path` を優先し、未設定なら `openspec/changes/<change_name>/` を使う。
+        解消できない finding があれば理由付きで blocked または abort を報告する。
     policies:
       - file: ../facets/policies/coding-standards.md
     rules:
