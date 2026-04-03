@@ -1,8 +1,11 @@
+import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { resolveOperationFacetPath } from "@/lib/operation-definition/operation-loader";
 import type {
   ContentSource,
   OperationDefinition,
+  ReportOutputContractDefinition,
   ResolvedFacets,
   StepDefinition,
 } from "@/lib/operation-definition/types";
@@ -12,6 +15,9 @@ import {
   buildTextSection,
   joinXmlSections,
 } from "./prompt-xml";
+
+const OUTPUT_PLACEHOLDER_PATTERN =
+  /\{\{\s*output\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
 
 export function describeStepRole(jobSource: ContentSource | undefined, fallbackName?: string): string {
   if (!jobSource) {
@@ -78,19 +84,148 @@ function resolveContentSourceReference(
   return `${operation.sourcePath}#${inlineLocator}.inline`;
 }
 
+function resolveOutputContract(
+  operation: OperationDefinition,
+  stepName: string,
+  fileName: string,
+): ReportOutputContractDefinition {
+  const step = operation.steps.find((candidate) => candidate.name === stepName);
+  if (!step) {
+    throw new Error(`Output placeholder references unknown step "${stepName}".`);
+  }
+
+  const report = step.output_contracts?.report.find((candidate) => candidate.name === fileName);
+  if (!report) {
+    throw new Error(
+      `Output placeholder references undeclared file "${fileName}" for step "${stepName}".`,
+    );
+  }
+
+  return report;
+}
+
+function resolveCompletedTaskId(
+  operationState: OperationState,
+  stepName: string,
+  selector: string,
+): string {
+  if (selector === "latest") {
+    const latestMatch = [...operationState.stepHistory]
+      .reverse()
+      .find(
+        (entry) =>
+          entry.step === stepName &&
+          entry.status === "completed" &&
+          typeof entry.taskId === "string" &&
+          entry.taskId.trim().length > 0,
+      );
+
+    if (!latestMatch?.taskId) {
+      throw new Error(`Could not resolve latest output for step "${stepName}".`);
+    }
+
+    return latestMatch.taskId;
+  }
+
+  if (!selector.startsWith("task:")) {
+    throw new Error(
+      `Unsupported output selector "${selector}". Use "latest" or "task:<taskId>".`,
+    );
+  }
+
+  const taskId = selector.slice("task:".length).trim();
+  if (!taskId) {
+    throw new Error(`Output selector for step "${stepName}" must include a taskId.`);
+  }
+
+  const explicitMatch = operationState.stepHistory.find(
+    (entry) => entry.step === stepName && entry.status === "completed" && entry.taskId === taskId,
+  );
+  if (!explicitMatch) {
+    throw new Error(`Could not resolve task-scoped output for step "${stepName}" and task "${taskId}".`);
+  }
+
+  return taskId;
+}
+
+function resolveOutputPlaceholderPath(input: {
+  operation: OperationDefinition;
+  operationState: OperationState;
+  missionId: string;
+  stepName: string;
+  selector: string;
+  fileName: string;
+}): string {
+  resolveOutputContract(input.operation, input.stepName, input.fileName);
+  const taskId = resolveCompletedTaskId(input.operationState, input.stepName, input.selector);
+  const outputPath = getMissionOutputFilePath(
+    input.missionId,
+    input.stepName,
+    taskId,
+    input.fileName,
+  );
+
+  if (!existsSync(outputPath)) {
+    throw new Error(
+      `Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". Missing file at ${outputPath}.`,
+    );
+  }
+
+  return outputPath;
+}
+
+function resolveInstructionPlaceholders(input: {
+  content: string;
+  operation: OperationDefinition;
+  operationState: OperationState;
+  missionId: string;
+}): string {
+  if (!input.content.includes("{{")) {
+    return input.content;
+  }
+
+  const resolved = input.content.replace(
+    OUTPUT_PLACEHOLDER_PATTERN,
+    (_match, stepName: string, selector: string, fileName: string) =>
+      resolveOutputPlaceholderPath({
+        operation: input.operation,
+        operationState: input.operationState,
+        missionId: input.missionId,
+        stepName,
+        selector,
+        fileName,
+      }),
+  );
+
+  if (resolved.includes("{{ output(")) {
+    throw new Error(
+      'Invalid output placeholder syntax. Use {{ output("step", "selector", "file") }}.',
+    );
+  }
+
+  return resolved;
+}
+
 export function buildAugmentedInstruction(input: {
   step: StepDefinition;
   operation: OperationDefinition;
   operationState: OperationState;
   originalInstruction: string;
   facets: ResolvedFacets;
-  reportDir: string;
   missionId: string;
   agentId: StepDefinition["agent"];
   taskId: string;
 }): string {
-  const { step, operation, originalInstruction, facets, reportDir } = input;
+  const { step, operation, originalInstruction, facets } = input;
   const sections: Array<string | null> = [];
+  const resolvedInstruction = facets.instruction
+    ? resolveInstructionPlaceholders({
+        content: facets.instruction,
+        operation,
+        operationState: input.operationState,
+        missionId: input.missionId,
+      })
+    : "";
 
   if (facets.job) {
     sections.push(
@@ -116,9 +251,9 @@ export function buildAugmentedInstruction(input: {
     }
   }
 
-  if (facets.instruction) {
+  if (resolvedInstruction) {
     sections.push(
-      buildMarkdownSection("instruction", facets.instruction, {
+      buildMarkdownSection("instruction", resolvedInstruction, {
         source: resolveContentSourceReference(
           operation,
           step.instruction,
@@ -129,7 +264,15 @@ export function buildAugmentedInstruction(input: {
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(...buildOutputContractSections(operation, step, reportDir, facets.outputContracts));
+    sections.push(
+      ...buildOutputContractSections(
+        operation,
+        step,
+        input.missionId,
+        input.taskId,
+        facets.outputContracts,
+      ),
+    );
   }
 
   if (facets.policies.length > 0) {
@@ -158,12 +301,19 @@ export function buildActivationInstruction(input: {
   step: StepDefinition;
   operationState: OperationState;
   facets: ResolvedFacets;
-  reportDir: string;
   missionId: string;
   taskId: string;
 }): string {
-  const { operation, step, facets, reportDir } = input;
+  const { operation, step, facets } = input;
   const sections: Array<string | null> = [];
+  const resolvedInstruction = facets.instruction
+    ? resolveInstructionPlaceholders({
+        content: facets.instruction,
+        operation,
+        operationState: input.operationState,
+        missionId: input.missionId,
+      })
+    : "";
 
   if (facets.job) {
     sections.push(
@@ -187,9 +337,9 @@ export function buildActivationInstruction(input: {
     }
   }
 
-  if (facets.instruction) {
+  if (resolvedInstruction) {
     sections.push(
-      buildMarkdownSection("instruction", facets.instruction, {
+      buildMarkdownSection("instruction", resolvedInstruction, {
         source: resolveContentSourceReference(
           operation,
           step.instruction,
@@ -200,7 +350,15 @@ export function buildActivationInstruction(input: {
   }
 
   if (facets.outputContracts.length > 0) {
-    sections.push(...buildOutputContractSections(operation, step, reportDir, facets.outputContracts));
+    sections.push(
+      ...buildOutputContractSections(
+        operation,
+        step,
+        input.missionId,
+        input.taskId,
+        facets.outputContracts,
+      ),
+    );
   }
 
   if (facets.policies.length > 0) {
@@ -240,7 +398,8 @@ export function buildOperationContextSummary(
 function buildOutputContractSections(
   operation: OperationDefinition,
   step: StepDefinition,
-  reportDir: string,
+  missionId: string,
+  taskId: string,
   contracts: string[],
 ): string[] {
   const sections: string[] = [];
@@ -256,7 +415,7 @@ function buildOutputContractSections(
             `steps.${step.name}.output_contracts.report[${index}].format`,
           ),
           name: report.name,
-          "output-path": `${reportDir}/${report.name}`,
+          "output-path": getMissionOutputFilePath(missionId, step.name, taskId, report.name),
         }),
       );
     }

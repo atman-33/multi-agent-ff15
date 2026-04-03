@@ -1,4 +1,8 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getMissionDir, getMissionOutputFilePath } from "@/lib/mission-store";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
@@ -128,6 +132,53 @@ function buildReportTransport(taskId: string, agent: AgentId, next: string, repo
   ].join("\n");
 }
 
+function buildSyntheticOutputContent(stepName: string, reportName: string): string {
+  if (stepName === "spec-planning" && reportName === "spec-plan.md") {
+    return [
+      "---",
+      "change_name: operation-debug-preview",
+      "change_path: openspec/changes/operation-debug-preview",
+      "proposal_path: openspec/changes/operation-debug-preview/proposal.md",
+      "design_path: openspec/changes/operation-debug-preview/design.md",
+      "tasks_path: openspec/changes/operation-debug-preview/tasks.md",
+      "---",
+      "",
+      "# Spec Plan",
+      "",
+      "Synthetic preview artifact for the spec-planning step.",
+      "",
+    ].join("\n");
+  }
+
+  if (reportName === "code-review.md") {
+    return [
+      "# Code Review Report",
+      "",
+      "Synthetic preview artifact for the review step.",
+      "",
+    ].join("\n");
+  }
+
+  return [`# ${reportName}`, "", `Synthetic preview artifact for ${stepName}.`, ""].join("\n");
+}
+
+function seedSyntheticOutputs(input: {
+  missionId: string;
+  step: StepDefinition;
+  taskId: string;
+}): void {
+  for (const report of input.step.output_contracts?.report ?? []) {
+    const outputPath = getMissionOutputFilePath(
+      input.missionId,
+      input.step.name,
+      input.taskId,
+      report.name,
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, buildSyntheticOutputContent(input.step.name, report.name), "utf-8");
+  }
+}
+
 function buildRuntimeDecision(input: {
   operation: OperationDefinition;
   step: StepDefinition;
@@ -215,7 +266,8 @@ export function buildOperationDebugBundle(input: {
   const root = getProjectRoot();
   const language = readOperationLanguage();
   const operation = loadOperationByName(input.operationName, language);
-  const missionId = input.missionId?.trim() || "debug-mission";
+  const missionId = input.missionId?.trim() || `__operation_preview__${input.operationName}`;
+  const shouldCleanupSyntheticMission = !input.missionId?.trim();
 
   const reportNextOverride = input.reportNext?.trim() || "";
   const userMessageBase =
@@ -231,166 +283,172 @@ export function buildOperationDebugBundle(input: {
   let previousActor: AgentId | "user" = "user";
   let executions = 0;
 
-  while (currentStepName && executions < maxExecutions) {
-    const step = findStep(operation, currentStepName);
-    if (!step) {
-      break;
-    }
+  try {
+    while (currentStepName && executions < maxExecutions) {
+      const step = findStep(operation, currentStepName);
+      if (!step) {
+        break;
+      }
 
-    const stepIndex = operation.steps.findIndex((item) => item.name === step.name) + 1;
-    const occurrence = (stepOccurrences.get(step.name) ?? 0) + 1;
-    stepOccurrences.set(step.name, occurrence);
+      const stepIndex = operation.steps.findIndex((item) => item.name === step.name) + 1;
+      const occurrence = (stepOccurrences.get(step.name) ?? 0) + 1;
+      stepOccurrences.set(step.name, occurrence);
 
-    const taskId = ensureActiveStepTaskId(operationState, step.agent);
-    const facets = resolveStepFacets(operation, step, language);
-    const operationContextSummary = buildOperationContextSummary(operation, operationState);
-    const from = displayActorName(previousActor);
-    const to = displayActorName(step.agent);
-    const pathSummary = `${from} -> Runtime -> ${to}`;
-    const reportNext = pickSyntheticNext(step, reportNextOverride);
-    const reportMessage = buildReportMessage(reportMessageBase, step.name);
+      const taskId = ensureActiveStepTaskId(operationState, step.agent);
+      const facets = resolveStepFacets(operation, step, language);
+      const operationContextSummary = buildOperationContextSummary(operation, operationState);
+      const from = displayActorName(previousActor);
+      const to = displayActorName(step.agent);
+      const pathSummary = `${from} -> Runtime -> ${to}`;
+      const reportNext = pickSyntheticNext(step, reportNextOverride);
+      const reportMessage = buildReportMessage(reportMessageBase, step.name);
 
-    let injectedPrompt = "";
-    let effectivePrompt = "";
-    let sourceInput = "";
-    let inputHighlightText = "";
-    let internalContext = "";
-    let suppressedContext: string | null | undefined;
-    let promptTitle = "";
-    let promptDescription = "";
-    let kind: FlowStepKind = "worker-step";
-    let hookTrail: PreviewNodeId[] = ["hook2", "hook3"];
+      let injectedPrompt = "";
+      let effectivePrompt = "";
+      let sourceInput = "";
+      let inputHighlightText = "";
+      let internalContext = "";
+      let suppressedContext: string | null | undefined;
+      let promptTitle = "";
+      let promptDescription = "";
+      let kind: FlowStepKind = "worker-step";
+      let hookTrail: PreviewNodeId[] = ["hook2", "hook3"];
 
-    if (step.agent === "noctis") {
-      kind = "noctis-step";
-      hookTrail = ["hook1", "hook3"];
-      injectedPrompt = buildActivationInstruction({
+      if (step.agent === "noctis") {
+        kind = "noctis-step";
+        hookTrail = ["hook1", "hook3"];
+        injectedPrompt = buildActivationInstruction({
+          operation,
+          step,
+          operationState,
+          facets,
+          missionId,
+          taskId,
+        });
+        const composed = composeUserToNoctisPromptPreview({
+          context: {
+            missionId,
+            sessionId: "debug-noctis-session",
+            agent: "noctis",
+            allowedWorkers: ["ignis", "gladiolus", "prompto"],
+            appRoot: root,
+            executionMode: "operation-debug",
+          },
+          workflowExtension: injectedPrompt,
+          userMessage: userMessageBase,
+        });
+
+        sourceInput = composed.promptBody;
+        inputHighlightText = userMessageBase;
+        internalContext = composed.sharedContext;
+        suppressedContext = composed.suppressedContext;
+        effectivePrompt = composed.effectivePrompt ?? injectedPrompt;
+        promptTitle = "Runtime -> Noctis Prompt";
+        promptDescription = "Activation prompt reconstructed from the current workflow state and user input.";
+      } else {
+        const workerAgent = toWorkerAgent(step.agent);
+        const dispatchPrompt =
+          input.taskInstruction?.trim() ||
+          `Synthetic task for ${workerAgent}: implement the current step as Noctis instructed.`;
+        const dispatchComposed = composeWorkerTaskPrompt({
+          context: {
+            missionId,
+            sessionId: `debug-${workerAgent}-session`,
+            agent: workerAgent,
+            appRoot: root,
+          },
+          missionId,
+          agentId: workerAgent,
+          taskId,
+          originalPrompt: dispatchPrompt,
+          operationStateOverride: operationState,
+        });
+
+        sourceInput = dispatchPrompt;
+        inputHighlightText = dispatchPrompt;
+        internalContext = dispatchComposed.sharedContext;
+        suppressedContext = dispatchComposed.suppressedContext;
+        injectedPrompt = dispatchComposed.workflowExtension || "(no workflow extension generated)";
+        effectivePrompt = dispatchComposed.effectivePrompt ?? injectedPrompt;
+        promptTitle = `Runtime -> ${to} Prompt`;
+        promptDescription = `Workflow prompt composed for the "${step.name}" step.`;
+      }
+
+      const completionContract =
+        extractXmlSection(effectivePrompt, "step-completion-contract") || "(no completion contract found)";
+
+      const reportResult = processReport({
+        missionId,
+        operationState,
+        reportBody: reportMessage,
+        fromAgent: step.agent,
+        taskId,
+        next: reportNext,
+      });
+      seedSyntheticOutputs({ missionId, step, taskId });
+      const runtimeDecision = buildRuntimeDecision({
         operation,
         step,
-        operationState,
-        facets,
-        reportDir: operationState.reportDir,
-        missionId,
-        taskId,
+        reportNext,
+        reportResult,
       });
-      const composed = composeUserToNoctisPromptPreview({
-        context: {
-          missionId,
-          sessionId: "debug-noctis-session",
-          agent: "noctis",
-          allowedWorkers: ["ignis", "gladiolus", "prompto"],
-          appRoot: root,
-          executionMode: "operation-debug",
-        },
-        workflowExtension: injectedPrompt,
-        userMessage: userMessageBase,
+      const workflowGuidance = reportResult.noctisGuidance || "";
+      const ruleEvaluation = [
+        runtimeDecision.runtimeDecision,
+        "",
+        "--- report message ---",
+        reportMessage,
+      ].join("\n");
+
+      flowSteps.push({
+        id: buildFlowId(step.name, occurrence),
+        stepName: step.name,
+        stepIndex,
+        occurrence,
+        kind,
+        title: buildFlowTitle(step.name, occurrence),
+        from,
+        to,
+        pathSummary,
+        summary: buildStepSummary(step.name, from, to, runtimeDecision.decisionSummary),
+        promptTitle,
+        promptDescription,
+        sourceInput,
+        inputHighlightText,
+        internalContext,
+        suppressedContext,
+        injectedPrompt,
+        effectivePrompt,
+        completionTitle: `${to} -> Runtime Completion Contract`,
+        completionDescription: `Allowed outcomes and report transport for the "${step.name}" step.`,
+        completionContract,
+        runtimeDecision: runtimeDecision.runtimeDecision,
+        decisionSummary: runtimeDecision.decisionSummary,
+        ruleEvaluation,
+        operationContextSummary,
+        normalizedStep: step,
+        resolvedFacets: facets,
+        targetAgent: step.agent,
+        nextStep: runtimeDecision.nextStep,
+        nextAction: runtimeDecision.nextAction,
+        nextTarget: runtimeDecision.nextTarget,
+        hookTrail,
+        reportTransport: buildReportTransport(taskId, step.agent, reportNext, reportMessage),
+        workflowGuidance,
       });
 
-  sourceInput = composed.promptBody;
-  inputHighlightText = userMessageBase;
-      internalContext = composed.sharedContext;
-      suppressedContext = composed.suppressedContext;
-      effectivePrompt = composed.effectivePrompt ?? injectedPrompt;
-      promptTitle = "Runtime -> Noctis Prompt";
-      promptDescription = "Activation prompt reconstructed from the current workflow state and user input.";
-    } else {
-      const workerAgent = toWorkerAgent(step.agent);
-      const dispatchPrompt =
-        input.taskInstruction?.trim() ||
-        `Synthetic task for ${workerAgent}: implement the current step as Noctis instructed.`;
-      const dispatchComposed = composeWorkerTaskPrompt({
-        context: {
-          missionId,
-          sessionId: `debug-${workerAgent}-session`,
-          agent: workerAgent,
-          appRoot: root,
-        },
-        missionId,
-        agentId: workerAgent,
-        taskId,
-        originalPrompt: dispatchPrompt,
-        operationStateOverride: operationState,
-      });
-
-      sourceInput = dispatchPrompt;
-  inputHighlightText = dispatchPrompt;
-      internalContext = dispatchComposed.sharedContext;
-      suppressedContext = dispatchComposed.suppressedContext;
-      injectedPrompt = dispatchComposed.workflowExtension || "(no workflow extension generated)";
-      effectivePrompt = dispatchComposed.effectivePrompt ?? injectedPrompt;
-      promptTitle = `Runtime -> ${to} Prompt`;
-      promptDescription = `Workflow prompt composed for the "${step.name}" step.`;
+      const nextStepName = runtimeDecision.nextStep;
+      currentStepName =
+        nextStepName && nextStepName !== "COMPLETE" && nextStepName !== "ABORT"
+          ? operationState.currentStep
+          : null;
+      previousActor = step.agent;
+      executions += 1;
     }
-
-    const completionContract =
-      extractXmlSection(effectivePrompt, "step-completion-contract") || "(no completion contract found)";
-
-    const reportResult = processReport({
-      missionId,
-      operationState,
-      reportBody: reportMessage,
-      fromAgent: step.agent,
-      taskId,
-      next: reportNext,
-    });
-    const runtimeDecision = buildRuntimeDecision({
-      operation,
-      step,
-      reportNext,
-      reportResult,
-    });
-    const workflowGuidance = reportResult.noctisGuidance || "";
-    const ruleEvaluation = [
-      runtimeDecision.runtimeDecision,
-      "",
-      "--- report message ---",
-      reportMessage,
-    ].join("\n");
-
-    flowSteps.push({
-      id: buildFlowId(step.name, occurrence),
-      stepName: step.name,
-      stepIndex,
-      occurrence,
-      kind,
-      title: buildFlowTitle(step.name, occurrence),
-      from,
-      to,
-      pathSummary,
-      summary: buildStepSummary(step.name, from, to, runtimeDecision.decisionSummary),
-      promptTitle,
-      promptDescription,
-      sourceInput,
-      inputHighlightText,
-      internalContext,
-      suppressedContext,
-      injectedPrompt,
-      effectivePrompt,
-      completionTitle: `${to} -> Runtime Completion Contract`,
-      completionDescription: `Allowed outcomes and report transport for the "${step.name}" step.`,
-      completionContract,
-      runtimeDecision: runtimeDecision.runtimeDecision,
-      decisionSummary: runtimeDecision.decisionSummary,
-      ruleEvaluation,
-      operationContextSummary,
-      normalizedStep: step,
-      resolvedFacets: facets,
-      targetAgent: step.agent,
-      nextStep: runtimeDecision.nextStep,
-      nextAction: runtimeDecision.nextAction,
-      nextTarget: runtimeDecision.nextTarget,
-      hookTrail,
-      reportTransport: buildReportTransport(taskId, step.agent, reportNext, reportMessage),
-      workflowGuidance,
-    });
-
-    const nextStepName = runtimeDecision.nextStep;
-    currentStepName =
-      nextStepName && nextStepName !== "COMPLETE" && nextStepName !== "ABORT"
-        ? operationState.currentStep
-        : null;
-    previousActor = step.agent;
-    executions += 1;
+  } finally {
+    if (shouldCleanupSyntheticMission) {
+      rmSync(getMissionDir(missionId), { force: true, recursive: true });
+    }
   }
 
   return {

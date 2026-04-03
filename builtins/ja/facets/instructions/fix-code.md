@@ -3,11 +3,13 @@
 ## 手順
 
 1. **レビュー報告を読む**
+   - canonical code review path `{{ output("review", "latest", "code-review.md") }}` を確認する
    - 前の step の code review findings を確認する
    - 対応必須の **blocking** finding をすべて洗い出す
    - 任意改善として non-blocking finding も把握しておく
 
 2. **修正方針を立てる**
+   - 必要に応じて `{{ output("spec-planning", "latest", "spec-plan.md") }}` を再読し、元のスコープと受け入れ条件を確認する
    - 各 blocking finding に対して適切な修正方法を決める
    - その修正で新たな問題が入らないことを確認する
    - finding が誤りまたは非該当なら、その理由を記録する

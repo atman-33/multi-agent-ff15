@@ -3,6 +3,8 @@
 ## 手順
 
 1. **実装内容を確認する**
+   - canonical spec plan path `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読む
+   - canonical latest review path `{{ output("review", "latest", "code-review.md") }}` を読む
    - 前の step の実装出力を読む
    - 何が作られ、どのファイルが変更されたかを把握する
    - リファクタリング対象の範囲を特定する（この operation で触れたファイルのみ）

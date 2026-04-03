@@ -1,18 +1,24 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { loadOperationFromFile } from "@/lib/operation-definition/operation-loader";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import { buildActivationInstruction } from "./operation-prompt-builder";
 
 const tempDirs: string[] = [];
+const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 
 function createInlinePromptFixture(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-prompt-builder-"));
   tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
 
   const operationDir = join(root, "builtins", "ja", "operations");
   mkdirSync(operationDir, { recursive: true });
@@ -60,7 +66,63 @@ function createInlinePromptFixture(): string {
   return operationFilePath;
 }
 
+function createPlaceholderPromptFixture(selector: string): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: placeholder-operation",
+      "description: Placeholder prompt builder fixture",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Planner role",
+      "    instruction:",
+      "      inline: Produce the spec plan output.",
+      "    output_contracts:",
+      "      report:",
+      "        - name: spec-plan.md",
+      "          format:",
+      "            inline: '# Spec Plan Format'",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    job:",
+      "      inline: Implementer role",
+      "    instruction:",
+      `      inline: Read {{ output("spec-planning", "${selector}", "spec-plan.md") }} before coding.`,
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
 afterEach(() => {
+  if (originalRootEnv === undefined) {
+    delete process.env.MULTI_AGENT_FF15_ROOT;
+  } else {
+    process.env.MULTI_AGENT_FF15_ROOT = originalRootEnv;
+  }
+
   while (tempDirs.length > 0) {
     const directory = tempDirs.pop();
     if (directory) {
@@ -70,8 +132,9 @@ afterEach(() => {
 });
 
 describe("operation prompt builder", () => {
-  it("emits deterministic source locators for inline facet content", () => {
-    const operation = loadOperationFromFile(createInlinePromptFixture());
+  it("emits deterministic source locators and mission-scoped output paths", () => {
+    const operationPath = createInlinePromptFixture();
+    const operation = loadOperationFromFile(operationPath);
     const step = operation.steps[0];
 
     if (!step) {
@@ -85,10 +148,15 @@ describe("operation prompt builder", () => {
       step,
       operationState,
       facets,
-      reportDir: "/tmp/reports",
       missionId: "mission-inline",
       taskId: "task-inline",
     });
+    const expectedOutputPath = getMissionOutputFilePath(
+      "mission-inline",
+      "spec-planning",
+      "task-inline",
+      "spec-plan.md",
+    );
 
     expect(prompt).toContain(`source="${operation.sourcePath}#steps.spec-planning.job.inline"`);
     expect(prompt).toContain(
@@ -103,5 +171,136 @@ describe("operation prompt builder", () => {
     expect(prompt).toContain(
       `source="${operation.sourcePath}#steps.spec-planning.output_contracts.report[0].format.inline"`,
     );
+    expect(prompt).toContain(`output-path="${expectedOutputPath}"`);
+  });
+
+  it("resolves latest output placeholders to absolute paths", () => {
+    const operation = loadOperationFromFile(createPlaceholderPromptFixture("latest"));
+    const step = operation.steps.find((candidate) => candidate.name === "implement");
+
+    if (!step) {
+      throw new Error("implement step not found");
+    }
+
+    const outputPath = getMissionOutputFilePath(
+      "mission-latest",
+      "spec-planning",
+      "step_spec-planning_1",
+      "spec-plan.md",
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, "---\nchange_name: test-change\n---\n", "utf-8");
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createOperationState(operation.name, operation.initial_step);
+    operationState.currentStep = "implement";
+    operationState.stepHistory = [
+      {
+        step: "spec-planning",
+        agent: "noctis",
+        taskId: "step_spec-planning_1",
+        status: "completed",
+        dispatchedAt: "2026-04-03T00:00:00.000Z",
+        completedAt: "2026-04-03T00:01:00.000Z",
+      },
+    ];
+
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-latest",
+      taskId: "task-implement-1",
+    });
+
+    expect(prompt).toContain(outputPath);
+  });
+
+  it("resolves explicit task output placeholders to absolute paths", () => {
+    const operation = loadOperationFromFile(
+      createPlaceholderPromptFixture("task:step_spec-planning_2"),
+    );
+    const step = operation.steps.find((candidate) => candidate.name === "implement");
+
+    if (!step) {
+      throw new Error("implement step not found");
+    }
+
+    const outputPath = getMissionOutputFilePath(
+      "mission-explicit",
+      "spec-planning",
+      "step_spec-planning_2",
+      "spec-plan.md",
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, "---\nchange_name: explicit-change\n---\n", "utf-8");
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createOperationState(operation.name, operation.initial_step);
+    operationState.currentStep = "implement";
+    operationState.stepHistory = [
+      {
+        step: "spec-planning",
+        agent: "noctis",
+        taskId: "step_spec-planning_1",
+        status: "completed",
+        dispatchedAt: "2026-04-03T00:00:00.000Z",
+        completedAt: "2026-04-03T00:01:00.000Z",
+      },
+      {
+        step: "spec-planning",
+        agent: "noctis",
+        taskId: "step_spec-planning_2",
+        status: "completed",
+        dispatchedAt: "2026-04-03T00:02:00.000Z",
+        completedAt: "2026-04-03T00:03:00.000Z",
+      },
+    ];
+
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-explicit",
+      taskId: "task-implement-2",
+    });
+
+    expect(prompt).toContain(outputPath);
+  });
+
+  it("fails prompt generation when an output placeholder cannot be resolved", () => {
+    const operation = loadOperationFromFile(createPlaceholderPromptFixture("latest"));
+    const step = operation.steps.find((candidate) => candidate.name === "implement");
+
+    if (!step) {
+      throw new Error("implement step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createOperationState(operation.name, operation.initial_step);
+    operationState.currentStep = "implement";
+    operationState.stepHistory = [
+      {
+        step: "spec-planning",
+        agent: "noctis",
+        taskId: "step_spec-planning_1",
+        status: "completed",
+        dispatchedAt: "2026-04-03T00:00:00.000Z",
+        completedAt: "2026-04-03T00:01:00.000Z",
+      },
+    ];
+
+    expect(() =>
+      buildActivationInstruction({
+        operation,
+        step,
+        operationState,
+        facets,
+        missionId: "mission-missing",
+        taskId: "task-implement-3",
+      }),
+    ).toThrow(/could not resolve output placeholder/i);
   });
 });

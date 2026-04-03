@@ -20,12 +20,33 @@ import type {
 
 const store = new Map<string, Mission>();
 
-function getMissionStoreDir(): string {
+export function getMissionStoreDir(): string {
   return join(getProjectRoot(), "runtime", "noctis-missions");
 }
 
-function getMissionFilePath(id: string): string {
-  return join(getMissionStoreDir(), `${id}.json`);
+export function getMissionDir(id: string): string {
+  return join(getMissionStoreDir(), id);
+}
+
+export function getMissionFilePath(id: string): string {
+  return join(getMissionDir(id), "mission.json");
+}
+
+export function getMissionOutputsDir(id: string): string {
+  return join(getMissionDir(id), "outputs");
+}
+
+export function getMissionTaskOutputDir(missionId: string, step: string, taskId: string): string {
+  return join(getMissionOutputsDir(missionId), step, taskId);
+}
+
+export function getMissionOutputFilePath(
+  missionId: string,
+  step: string,
+  taskId: string,
+  filename: string,
+): string {
+  return join(getMissionTaskOutputDir(missionId, step, taskId), filename);
 }
 
 function ensureMissionStoreDir(): void {
@@ -35,8 +56,16 @@ function ensureMissionStoreDir(): void {
   }
 }
 
-function persistMission(mission: Mission): void {
+function ensureMissionDir(id: string): void {
   ensureMissionStoreDir();
+  const dir = getMissionDir(id);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+export function persistMissionToDisk(mission: Mission): void {
+  ensureMissionDir(mission.id);
   writeFileSync(getMissionFilePath(mission.id), JSON.stringify(mission, null, 2), "utf-8");
 }
 
@@ -75,7 +104,7 @@ function touchMission(mission: Mission, status?: MissionStatus): void {
   if (status) {
     mission.status = status;
   }
-  persistMission(mission);
+  persistMissionToDisk(mission);
 }
 
 export function createMission(
@@ -104,7 +133,7 @@ export function createMission(
     activityLog: [],
   };
   store.set(id, mission);
-  persistMission(mission);
+  persistMissionToDisk(mission);
   return mission;
 }
 
@@ -132,9 +161,11 @@ export function listMissionSummaries(options?: { view?: "active" | "archived" | 
 
   const view = options?.view ?? "active";
 
-  const filenames = readdirSync(dir).filter((name) => name.endsWith(".json"));
-  const missions = filenames
-    .map((filename) => readMissionFromDisk(filename.replace(/\.json$/, "")))
+  const missionIds = readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  const missions = missionIds
+    .map((missionId) => readMissionFromDisk(missionId))
     .filter((mission): mission is Mission => mission !== null)
     .filter((mission) => {
       if (view === "all") {

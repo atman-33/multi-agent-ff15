@@ -3,7 +3,8 @@
 ## 手順
 
 1. **Spec Plan を読む**
-   - 前の step の spec plan を丁寧に確認する
+   - canonical spec plan path は `{{ output("spec-planning", "latest", "spec-plan.md") }}` とみなす
+   - まずその file を読み、frontmatter の `change_name` と `change_path` を確認する
    - スコープ、影響ファイル、実装方針、受け入れ条件を理解する
    - 技術的な blocker が見つからない限り、計画から逸脱しない
 

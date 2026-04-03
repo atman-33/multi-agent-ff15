@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
-import { updateTask } from "@/lib/mission-store";
+import { getMissionOutputFilePath, updateTask } from "@/lib/mission-store";
 import { processReport } from "@/lib/operation-runtime/runtime";
 import { getOperationState, saveOperationState } from "@/lib/operation-runtime/state";
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
@@ -34,6 +35,19 @@ function summarizeMessage(message: string): string {
 
 function listAllowedNextValues(rules: Array<{ condition: string; next: string }>): string[] {
   return [...new Set(rules.map((rule) => rule.next).filter((value) => value.trim().length > 0))];
+}
+
+function listMissingRequiredOutputs(input: {
+  missionId: string;
+  stepName: string;
+  taskId: string;
+  reports: Array<{ name: string }>;
+}): string[] {
+  return input.reports
+    .map((report) =>
+      getMissionOutputFilePath(input.missionId, input.stepName, input.taskId, report.name),
+    )
+    .filter((outputPath) => !existsSync(outputPath));
 }
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -125,6 +139,24 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
                 next: rule.next,
                 condition: rule.condition,
               })),
+            },
+            { status: 400 },
+          );
+        }
+      }
+
+      if (currentStep?.output_contracts?.report.length) {
+        const missingOutputs = listMissingRequiredOutputs({
+          missionId,
+          stepName: currentStep.name,
+          taskId,
+          reports: currentStep.output_contracts.report,
+        });
+        if (missingOutputs.length > 0) {
+          return Response.json(
+            {
+              error: "Missing required output files",
+              missingOutputs,
             },
             { status: 400 },
           );

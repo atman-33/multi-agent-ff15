@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.server";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { processReport } from "@/lib/operation-runtime/runtime";
@@ -16,10 +17,17 @@ import {
 } from "./index";
 
 const tempRoots: string[] = [];
+const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
+const repoRoot = getProjectRoot();
 
 function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-prompt-composer-"));
   tempRoots.push(root);
+  cpSync(join(repoRoot, "scripts"), join(root, "scripts"), { recursive: true });
+  cpSync(join(repoRoot, "config"), join(root, "config"), { recursive: true });
+  cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
+  cpSync(join(repoRoot, "opencode.json"), join(root, "opencode.json"));
+  process.env.MULTI_AGENT_FF15_ROOT = root;
   return root;
 }
 
@@ -62,13 +70,55 @@ function seedProjectConfig(root: string) {
   );
 }
 
-function buildSyntheticOperationState(): { state: ReturnType<typeof createOperationState>; taskId: string } {
+function writeRequiredOutput(input: {
+  missionId: string;
+  stepName: string;
+  taskId: string;
+  filename: string;
+  content: string;
+}) {
+  const outputPath = getMissionOutputFilePath(
+    input.missionId,
+    input.stepName,
+    input.taskId,
+    input.filename,
+  );
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, input.content, "utf-8");
+  return outputPath;
+}
+
+function buildSyntheticOperationState(missionId: string): {
+  state: ReturnType<typeof createOperationState>;
+  taskId: string;
+  specPlanningTaskId: string;
+} {
   const operation = loadOperationByName("openspec-dev", "ja");
   const state = createOperationState(operation.name, operation.initial_step);
 
   const specPlanningTaskId = ensureActiveStepTaskId(state, "noctis");
+  writeRequiredOutput({
+    missionId,
+    stepName: "spec-planning",
+    taskId: specPlanningTaskId,
+    filename: "spec-plan.md",
+    content: [
+      "---",
+      "change_name: synthetic-spec-plan",
+      "change_path: openspec/changes/synthetic-spec-plan",
+      "proposal_path: openspec/changes/synthetic-spec-plan/proposal.md",
+      "design_path: openspec/changes/synthetic-spec-plan/design.md",
+      "tasks_path: openspec/changes/synthetic-spec-plan/tasks.md",
+      "---",
+      "",
+      "# Spec Plan",
+      "",
+      "Synthetic spec planning output for composer tests.",
+      "",
+    ].join("\n"),
+  });
   processReport({
-    missionId: "debug-mission",
+    missionId,
     operationState: state,
     reportBody: "Synthetic report from worker\n\n[step:spec-planning]",
     fromAgent: "noctis",
@@ -77,7 +127,7 @@ function buildSyntheticOperationState(): { state: ReturnType<typeof createOperat
   });
 
   const taskId = ensureActiveStepTaskId(state, "gladiolus");
-  return { state, taskId };
+  return { state, taskId, specPlanningTaskId };
 }
 
 afterEach(() => {
@@ -86,6 +136,11 @@ afterEach(() => {
     if (root) {
       rmSync(root, { force: true, recursive: true });
     }
+  }
+  if (originalRootEnv === undefined) {
+    delete process.env.MULTI_AGENT_FF15_ROOT;
+  } else {
+    process.env.MULTI_AGENT_FF15_ROOT = originalRootEnv;
   }
 });
 
@@ -112,6 +167,12 @@ describe("prompt composition engine", () => {
   it("adds workflow extension for User to Noctis activation", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
+    const expectedSpecPlanPath = getMissionOutputFilePath(
+      "mission-2",
+      "spec-planning",
+      "step_spec-planning_1",
+      "spec-plan.md",
+    );
 
     const composed = composeUserToNoctisPrompt({
       context: {
@@ -141,9 +202,10 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).toContain(
       'Write `message` for Gladiolus. Runtime will pass it as the canonical handoff text for the "implement" step.',
     );
-    expect(composed.payloadParts[0]?.text).not.toContain(
+    expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/output-contracts/spec-plan.md"`,
     );
+    expect(composed.payloadParts[0]?.text).toContain(`output-path="${expectedSpecPlanPath}"`);
     expect(composed.payloadParts[0]?.text).not.toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/knowledge/operation-engine-and-builtins-injection.md"`,
     );
@@ -154,16 +216,23 @@ describe("prompt composition engine", () => {
   it("builds worker prompts through the workflow extension when operation state is active", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
-    const { state: operationState, taskId } = buildSyntheticOperationState();
+    const missionId = "mission-3";
+    const { state: operationState, taskId, specPlanningTaskId } = buildSyntheticOperationState(missionId);
+    const expectedSpecPlanPath = getMissionOutputFilePath(
+      missionId,
+      "spec-planning",
+      specPlanningTaskId,
+      "spec-plan.md",
+    );
 
     const composed = composeWorkerTaskPrompt({
       context: {
         appRoot: root,
         agent: "gladiolus",
         sessionId: "worker-session",
-        missionId: "mission-3",
+        missionId,
       },
-      missionId: "mission-3",
+      missionId,
       agentId: "gladiolus",
       taskId,
       originalPrompt: "Task ID: task-1\nTask: implement the change",
@@ -176,7 +245,7 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("<task");
     expect(composed.effectivePrompt).toContain("<step-completion-contract");
     expect(composed.effectivePrompt).toContain(
-      `scripts/send_report.sh mission-3 gladiolus ${taskId} review "<message>"`,
+      `scripts/send_report.sh ${missionId} gladiolus ${taskId} review "<message>"`,
     );
     expect(composed.effectivePrompt).toContain(
       'Write `message` for Ignis. Runtime will pass it as the canonical handoff text for the "review" step.',
@@ -190,14 +259,19 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).toContain(
       `source="${getProjectRoot()}/builtins/ja/facets/policies/coding-standards.md"`,
     );
+    expect(composed.effectivePrompt).toContain(expectedSpecPlanPath);
+    expect(composed.effectivePrompt).not.toContain("{{ output(");
     expect(composed.payloadParts[0]?.text).not.toContain('source="../facets/');
     expect(composed.payloadParts).toHaveLength(1);
   });
 
   it("keeps debug preview aligned with composed worker prompt structure", () => {
-    const root = getProjectRoot();
-    const { state: operationState, taskId } = buildSyntheticOperationState();
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    const missionId = "debug-mission";
+    const { state: operationState, taskId } = buildSyntheticOperationState(missionId);
     const bundle = buildOperationDebugBundle({
+      missionId,
       operationName: "openspec-dev",
       taskInstruction: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
     });
@@ -210,9 +284,9 @@ describe("prompt composition engine", () => {
         appRoot: root,
         agent: "gladiolus",
         sessionId: "debug-gladiolus-session",
-        missionId: "debug-mission",
+        missionId,
       },
-      missionId: "debug-mission",
+      missionId,
       agentId: "gladiolus",
       taskId,
       originalPrompt: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
@@ -230,6 +304,8 @@ describe("prompt composition engine", () => {
   });
 
   it("follows runtime step transitions in the debug flow", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
     const bundle = buildOperationDebugBundle({
       operationName: "openspec-dev",
     });
@@ -249,9 +325,11 @@ describe("prompt composition engine", () => {
   });
 
   it("keeps debug preview aligned with composed Noctis activation prompt structure", () => {
-    const root = getProjectRoot();
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    const missionId = "debug-self-step-preview";
     const bundle = buildOperationDebugBundle({
-      missionId: "debug-self-step-preview",
+      missionId,
       operationName: "openspec-dev",
     });
     const selfStep = bundle.flowSteps.find(
@@ -263,11 +341,11 @@ describe("prompt composition engine", () => {
         appRoot: root,
         agent: "noctis",
         sessionId: "debug-noctis-session",
-        missionId: "debug-self-step-preview",
+        missionId,
         allowedWorkers: ["ignis", "gladiolus", "prompto"],
       },
       userMessage: "This is a synthetic User message for operation activation.",
-      missionId: "debug-self-step-preview",
+      missionId,
       sessionId: "debug-noctis-session",
       isNewMission: true,
       selectedOperation: "openspec-dev",

@@ -102,19 +102,18 @@ worker dispatch は runtime-owned です。operation の step transition 後に�
 2. active step taskId を確定する
 3. `dispatchTaskToWorker()` が worker task を作成または再利用する
 4. `composeWorkerTaskPrompt()` が workflow-aware worker prompt を構成する
-5. `augmentTaskPrompt()` が current step の facets と report 契約を worker prompt に注入する
+5. `augmentTaskPrompt()` が current step の facets を注入し、instruction 内の `{{ output(...) }}` placeholder を absolute path に解決する
 6. worker session に最終 prompt を配信する
 
 worker prompt の section 順序は次のとおりです。
 
 1. `job`
 2. `task`
-3. `previous-step-output` when previous response is available and required for the current step
-4. `knowledge`
-5. `instruction`
-6. `output contracts` when defined
-7. `policy`
-8. `step-completion-contract`
+3. `knowledge`
+4. `instruction` with resolved prior output paths when placeholders are present
+5. `output contracts` when defined, each with canonical `output-path`
+6. `policy`
+7. `step-completion-contract`
 
 worker step は本文末尾の `[STEP:N]` を使わず、allowed `next` と単一の `message` を `send_report.sh` で返す。
 
@@ -127,11 +126,12 @@ worker step は本文末尾の `[STEP:N]` を使わず、allowed `next` と単�
 1. agent が `scripts/send_report.sh` を実行する
 2. `scripts/lib/send_report.mjs` が `/api/missions/{missionId}/reports` に POST する
 3. reports route が active step owner、taskId、allowed `next` を検証する
-4. `evaluateNextStep()` で current step の `rules[].next` から matched rule を決める
-5. `recordStepCompleted()` で `stepHistory` と `previousResponse` を canonical `message` で更新する
-6. next step が worker なら runtime が `dispatchCurrentOperationStepToWorker()` を呼ぶ
-7. next step が Noctis なら runtime が self-step taskId と context を準備する
-8. terminal なら final guidance を返す
+4. current step が `output_contracts.report[]` を持つ場合、reports route が required output file の存在を検証する
+5. `evaluateNextStep()` で current step の `rules[].next` から matched rule を決める
+6. `recordStepCompleted()` で `stepHistory` と `previousResponse` を canonical `message` で更新する
+7. next step が worker なら runtime が `dispatchCurrentOperationStepToWorker()` を呼ぶ
+8. next step が Noctis なら runtime が self-step taskId と context を準備する
+9. terminal なら final guidance を返す
 
 source of truth は report body 内のタグではなく、transport で渡される `taskId` と `next` です。
 
@@ -153,7 +153,7 @@ workflow extension は current step 固有の指示です。
 
 - resolved facets
 - completion contract
-- task / previous response / output-path guidance
+- task / previous response / output-path guidance / resolved prior-output references
 
 standalone な `<step>` block は注入しません。routing の source of truth は runtime state と report transport の `taskId + next + message` です。
 
@@ -176,7 +176,8 @@ operation-debug preview は live prompt の理解に有用ですが、完全に�
 - authored workflow: `builtins/{lang}/operations/*.yaml`
 - authored facet files: `builtins/{lang}/facets/**`
 - authored inline step facets: operation YAML の `steps[].job.inline` / `steps[].instruction.inline` / `steps[].knowledge[].inline` / `steps[].policies[].inline` / `steps[].output_contracts.report[].format.inline`
-- live execution state: `runtime/noctis-missions/{missionId}.json`
+- live execution state: `runtime/noctis-missions/{missionId}/mission.json`
+- live output artifacts: `runtime/noctis-missions/{missionId}/outputs/{step}/{taskId}/{filename}`
 - step execution identity: `OperationState.stepHistory[].taskId`
 - report routing contract: `taskId` + `next` + `message`
 - composition behavior: prompt builder / composer / runtime tests
@@ -255,6 +256,15 @@ facet 解決は symbolic key ではなく、operation YAML に書かれた sourc
 
 prompt 改善では operation YAML と、file source を使っている facet Markdown の両方をセットで確認する必要があります。
 
+## Output Contract and Placeholder Rules
+
+- current step が `output_contracts.report[]` を持つ場合、prompt builder は各 contract に mission-scoped absolute `output-path` を注入する
+- canonical output path は `runtime/noctis-missions/{missionId}/outputs/{step}/{taskId}/{filename}` である
+- step 完了時、reports route は required output file がすべて存在することを確認し、不足時は transition を拒否する
+- 後続 step instruction では `{{ output("step", "latest", "file") }}` または `{{ output("step", "task:<taskId>", "file") }}` を使って prior output path を参照する
+- placeholder を解決できない場合、prompt build は silent fallback せず error になる
+- `spec-planning` の `spec-plan.md` は Markdown + YAML frontmatter を使い、`change_name` と `change_path` を machine-readable に保持できる
+
 ## File Map For Debugging
 
 - `scripts/send_report.sh`
@@ -275,13 +285,15 @@ prompt 改善では operation YAML と、file source を使っている facet Ma
 
 1. 今見ているのが Hook 1 / Hook 2 / Hook 3 のどれかを先に決める
 2. `operationState.currentStep`、current step owner、active `task_id` を確認する
-3. operation YAML の rules と facet path が正しいかを見る
-4. Noctis self-step なら `composeUserToNoctisPrompt() -> processUserMessage()` の経路を確認する
-5. worker dispatch なら `dispatchCurrentOperationStepToWorker() -> dispatchTaskToWorker()` の経路を確認する
-6. step report なら `send_report.sh -> /reports -> processReport()` の経路を確認する
-7. routing が body text 内のタグではなく `taskId` と `next` に依存しているかを確認する
-8. next step が worker か Noctis か terminal かを current state から確認する
-9. prompt contract を変えたら composer / runtime / debug preview のテストを確認する
+3. required output がある step なら `runtime/noctis-missions/{missionId}/outputs/{step}/{taskId}/` を確認する
+4. operation YAML の rules と facet path が正しいかを見る
+5. Noctis self-step なら `composeUserToNoctisPrompt() -> processUserMessage()` の経路を確認する
+6. worker dispatch なら `dispatchCurrentOperationStepToWorker() -> dispatchTaskToWorker()` の経路を確認する
+7. step report なら `send_report.sh -> /reports -> processReport()` の経路を確認する
+8. placeholder を使う instruction なら `{{ output(...) }}` が absolute path に展開されているかを見る
+9. routing が body text 内のタグではなく `taskId` と `next` に依存しているかを確認する
+10. next step が worker か Noctis か terminal かを current state から確認する
+11. prompt contract を変えたら composer / runtime / debug preview のテストを確認する
 
 ## Planning Implication
 

@@ -1,10 +1,16 @@
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { addTask, createMission, deleteMission, getMission } from "@/lib/mission-store";
+import {
+  addTask,
+  createMission,
+  deleteMission,
+  getMission,
+  getMissionOutputFilePath,
+} from "@/lib/mission-store";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
 vi.mock("@/lib/team-message.server", () => ({
@@ -77,6 +83,24 @@ function seedMission(input: {
 
 async function readJson(response: Response) {
   return (await response.json()) as Record<string, unknown>;
+}
+
+function writeRequiredOutput(input: {
+  missionId: string;
+  stepName: string;
+  taskId: string;
+  filename: string;
+  content?: string;
+}) {
+  const outputPath = getMissionOutputFilePath(
+    input.missionId,
+    input.stepName,
+    input.taskId,
+    input.filename,
+  );
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, input.content ?? "# output\n", "utf-8");
+  return outputPath;
 }
 
 afterEach(() => {
@@ -180,6 +204,134 @@ describe("api.missions.$missionId.reports", () => {
     expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
   });
 
+  it("rejects reports when a required output file is missing", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
+    const missionId = `mission-missing-output-${crypto.randomUUID()}`;
+    seedMission({
+      missionId,
+      operationName: "openspec-dev",
+      currentStep: "review",
+      agent: "ignis",
+      taskId: "task-review-missing",
+      taskStatus: "running",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAgent: "ignis",
+          taskId: "task-review-missing",
+          next: "refactor",
+          message: "Review is approved.",
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(400);
+    await expect(readJson(response)).resolves.toMatchObject({
+      error: "Missing required output files",
+      missingOutputs: [
+        getMissionOutputFilePath(missionId, "review", "task-review-missing", "code-review.md"),
+      ],
+    });
+
+    const mission = getMission(missionId);
+    expect(mission?.operationState?.currentStep).toBe("review");
+    expect(mission?.taskGraph.find((task) => task.id === "task-review-missing")?.status).toBe(
+      "running",
+    );
+    expect(sendWorkerReport).not.toHaveBeenCalled();
+    expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
+  });
+
+  it("rejects Noctis reports when the spec plan output is missing", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
+    const missionId = `mission-noctis-missing-output-${crypto.randomUUID()}`;
+    seedMission({
+      missionId,
+      operationName: "openspec-dev",
+      currentStep: "spec-planning",
+      agent: "noctis",
+      taskId: "step_spec-planning_1",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAgent: "noctis",
+          taskId: "step_spec-planning_1",
+          next: "implement",
+          message: "Plan is sufficient to start coding.",
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(400);
+    await expect(readJson(response)).resolves.toMatchObject({
+      error: "Missing required output files",
+      missingOutputs: [
+        getMissionOutputFilePath(missionId, "spec-planning", "step_spec-planning_1", "spec-plan.md"),
+      ],
+    });
+    expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
+    expect(sendWorkerReport).not.toHaveBeenCalled();
+  });
+
+  it("accepts reports when the required output file exists", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
+    const missionId = `mission-output-present-${crypto.randomUUID()}`;
+    seedMission({
+      missionId,
+      operationName: "openspec-dev",
+      currentStep: "review",
+      agent: "ignis",
+      taskId: "task-review-present",
+      taskStatus: "running",
+    });
+    writeRequiredOutput({
+      missionId,
+      stepName: "review",
+      taskId: "task-review-present",
+      filename: "code-review.md",
+      content: "# Code Review Report\n\nApproved.\n",
+    });
+    vi.mocked(dispatchCurrentOperationStepToWorker).mockResolvedValue({
+      agentId: "prompto",
+      stepName: "refactor",
+      taskId: "task-refactor",
+      sessionId: "prompto-session",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAgent: "ignis",
+          taskId: "task-review-present",
+          next: "refactor",
+          message: "Review approved with no blocking issues.",
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson(response)).resolves.toMatchObject({
+      dispatchedTo: "prompto",
+      nextStep: "refactor",
+      taskId: "task-refactor",
+      sessionId: "prompto-session",
+    });
+    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
+  });
+
   it("auto-dispatches the next openspec-dev worker without relaying through Noctis", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
     const missionId = `mission-auto-${crypto.randomUUID()}`;
@@ -241,6 +393,26 @@ describe("api.missions.$missionId.reports", () => {
       currentStep: "spec-planning",
       agent: "noctis",
       taskId: "step_spec-planning_1",
+    });
+    writeRequiredOutput({
+      missionId,
+      stepName: "spec-planning",
+      taskId: "step_spec-planning_1",
+      filename: "spec-plan.md",
+      content: [
+        "---",
+        "change_name: reports-route-spec-plan",
+        "change_path: openspec/changes/reports-route-spec-plan",
+        "proposal_path: openspec/changes/reports-route-spec-plan/proposal.md",
+        "design_path: openspec/changes/reports-route-spec-plan/design.md",
+        "tasks_path: openspec/changes/reports-route-spec-plan/tasks.md",
+        "---",
+        "",
+        "# Spec Plan",
+        "",
+        "Synthetic spec plan for route testing.",
+        "",
+      ].join("\n"),
     });
     vi.mocked(dispatchCurrentOperationStepToWorker).mockResolvedValue({
       agentId: "gladiolus",

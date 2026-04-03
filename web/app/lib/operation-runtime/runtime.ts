@@ -132,7 +132,6 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     operationState,
     originalInstruction: originalPrompt,
     facets,
-    reportDir: operationState.reportDir,
     missionId,
     agentId,
     taskId: input.taskId,
@@ -241,7 +240,6 @@ function buildNoctisStepInstruction(input: {
     step: input.step,
     operationState: input.operationState,
     facets,
-    reportDir: input.operationState.reportDir,
     missionId: input.missionId,
     taskId,
   });

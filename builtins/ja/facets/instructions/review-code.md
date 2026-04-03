@@ -3,7 +3,8 @@
 ## 手順
 
 1. **前提コンテキストを理解する**
-   - planning step の spec plan を読む
+   - canonical spec plan path `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読む
+   - frontmatter の `change_name` / `change_path` と本文の要件・制約を確認する
    - 前の steps の実装レポートとリファクタリングレポートを読む
    - 何が依頼され、何が実際に提供されたかを把握する
 
