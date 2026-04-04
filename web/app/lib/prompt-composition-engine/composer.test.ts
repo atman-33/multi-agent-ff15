@@ -13,6 +13,7 @@ import { createOperationState } from "@/lib/operation-runtime/state";
 import { registerDelegatedTask } from "@/lib/operation-runtime/state";
 import {
   composeGenericSessionPrompt,
+  composeTeamMessagePrompt,
   composeUserToNoctisPrompt,
   composeWorkerTaskPrompt,
 } from "./index";
@@ -368,7 +369,7 @@ describe("prompt composition engine", () => {
     expect(composed.sharedContext).toContain("<workspace-context");
     expect(composed.payloadParts).toHaveLength(1);
     expect(composed.payloadParts[0]?.text).toContain("<operation-prompt>");
-    expect(composed.payloadParts[0]?.text).toContain("<user-request");
+    expect(composed.payloadParts[0]?.text).toContain('<user-request from="user" to="noctis">');
     expect(composed.payloadParts[0]?.text).not.toContain("schema=");
     expect(composed.payloadParts[0]?.text).not.toContain("source=");
     expect(composed.payloadParts[0]?.text).not.toContain("output-path=");
@@ -713,7 +714,7 @@ describe("prompt composition engine", () => {
     });
 
     expect(composed.usedWorkflowExtension).toBe(true);
-    expect(composed.effectivePrompt).toContain("<task>");
+    expect(composed.effectivePrompt).toContain('<task from="noctis" to="ignis">');
     expect(composed.effectivePrompt).toContain("Investigate the current issue and report back to Noctis.");
     expect(composed.effectivePrompt).toContain("<job>");
     expect(composed.effectivePrompt).toContain("Delegated Worker");
@@ -737,7 +738,55 @@ describe("prompt composition engine", () => {
       "worker-step:User -> Runtime -> Ignis -> Runtime -> Noctis:return_to_self_step -> Noctis (autonomous)",
     ]);
     expect(bundle.flowSteps[0]?.effectivePrompt).toContain("<delegation-guidance>");
-    expect(bundle.flowSteps[1]?.effectivePrompt).toContain("<task>");
+    expect(bundle.flowSteps[1]?.effectivePrompt).toContain('<task from="noctis" to="ignis">');
     expect(bundle.flowSteps[1]?.runtimeDecision).toContain("next_action: return_to_self_step");
+  });
+
+  it("embeds actor metadata in worker reports and does not emit worker-report-details", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+
+    const composed = composeTeamMessagePrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "session-report",
+        missionId: "mission-report",
+      },
+      missionId: "mission-report",
+      from: "ignis",
+      to: "noctis",
+      type: "report",
+      body: "Primary worker report.",
+      details: "Secondary report detail.",
+      taskId: "task-report-1",
+      next: "COMPLETE",
+    });
+
+    expect(composed.effectivePrompt).toContain('<worker-report from="ignis" to="noctis" next="COMPLETE">');
+    expect(composed.effectivePrompt).toContain("Primary worker report.");
+    expect(composed.effectivePrompt).toContain("Secondary report detail.");
+    expect(composed.effectivePrompt).not.toContain("<worker-report-details>");
+  });
+
+  it("embeds actor metadata in plain team messages", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+
+    const composed = composeTeamMessagePrompt({
+      context: {
+        appRoot: root,
+        agent: "ignis",
+        sessionId: "session-message",
+        missionId: "mission-message",
+      },
+      missionId: "mission-message",
+      from: "user",
+      to: "ignis",
+      type: "message",
+      body: "Please sanity-check this note.",
+    });
+
+    expect(composed.effectivePrompt).toContain('<team-message from="user" to="ignis" type="message">');
   });
 });

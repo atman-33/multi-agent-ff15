@@ -10,7 +10,7 @@ import type {
   StepDefinition,
 } from "@/lib/operation-definition/types";
 import { resolveEffectiveDelegationWorkers } from "@/lib/operation-runtime/autonomous";
-import type { AgentId, OperationState } from "@/lib/types/mission";
+import type { AgentId, OperationState, WorkerAgentId } from "@/lib/types/mission";
 import {
   buildXmlSection,
   buildMarkdownSection,
@@ -424,12 +424,18 @@ function buildDelegationGuidance(input: {
 export function buildDelegatedWorkerInstruction(input: {
   taskPrompt: string;
   step: StepDefinition;
+  agentId: WorkerAgentId;
   operation: OperationDefinition;
   operationState: OperationState;
   facets: ResolvedFacets;
   missionId: string;
 }): string {
-  const sections: Array<string | null> = [buildTextSection("task", input.taskPrompt)];
+  const sections: Array<string | null> = [
+    buildTextSection("task", input.taskPrompt, {
+      from: "noctis",
+      to: input.agentId,
+    }),
+  ];
   const resolvedInstruction = input.facets.instruction
     ? resolveInstructionPlaceholders({
         content: input.facets.instruction,

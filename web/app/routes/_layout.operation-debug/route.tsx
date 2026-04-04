@@ -14,9 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { readOperationLanguage } from "@/lib/operation-definition/language";
-import { listAvailableOperations } from "@/lib/operation-definition/operation-loader";
-import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
+import { listOperationDebugOptions } from "@/lib/operation-debug/operation-options.server";
+import type { OperationOption } from "@/lib/operation-presentation";
 import { buildOperationDebugBundle } from "@/lib/prompt-composition-engine/debug-preview.server";
 import { cn } from "@/lib/utils";
 import { CopyablePromptBlock } from "./components/copyable-prompt-block";
@@ -25,17 +24,13 @@ import type { Route } from "./+types/route";
 type LoaderData = {
   activeStepId: string;
   userMessage: string;
-  operations: string[];
+  operations: OperationOption[];
   preview: ReturnType<typeof buildOperationDebugBundle> | null;
   selectedOperation: string | null;
   taskInstruction: string;
 };
 
 type PreviewStep = NonNullable<LoaderData["preview"]>["flowSteps"][number];
-
-function getLanguage(): string {
-  return readOperationLanguage();
-}
 
 function formatNextLabel(step?: PreviewStep | null): string {
   if (!step) {
@@ -63,15 +58,12 @@ function formatNextLabel(step?: PreviewStep | null): string {
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const url = new URL(request.url);
-  const language = getLanguage();
-  const operations = listAvailableOperations(language)
-    .filter((operationName) => operationName !== INTERNAL_AUTONOMOUS_OPERATION_NAME)
-    .sort((left, right) => left.localeCompare(right));
+  const operations = listOperationDebugOptions();
   const requestedOperation = url.searchParams.get("operation")?.trim() || null;
   const selectedOperation =
-    requestedOperation && operations.includes(requestedOperation)
+    requestedOperation && operations.some((operation) => operation.value === requestedOperation)
       ? requestedOperation
-      : (operations[0] ?? null);
+      : (operations[0]?.value ?? null);
 
   const taskInstruction =
     url.searchParams.get("task")?.trim() || "Execute the current step according to the workflow context.";
@@ -103,7 +95,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   } satisfies LoaderData;
 };
 
-const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
+export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const [selectedOperation, setSelectedOperation] = useState(loaderData.selectedOperation ?? "");
   const [activeStepId, setActiveStepId] = useState(loaderData.activeStepId);
@@ -154,7 +146,7 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   };
 
   const handleReset = () => {
-    const operation = loaderData.operations[0] ?? "";
+    const operation = loaderData.operations[0]?.value ?? "";
     setSelectedOperation(operation);
     setActiveStepId("");
     setUserMessage("This is a synthetic User message for operation activation.");
@@ -377,8 +369,8 @@ const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 </SelectTrigger>
                 <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
                   {loaderData.operations.map((operation) => (
-                    <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={operation} value={operation}>
-                      {operation}
+                    <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={operation.value} value={operation.value}>
+                      {operation.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

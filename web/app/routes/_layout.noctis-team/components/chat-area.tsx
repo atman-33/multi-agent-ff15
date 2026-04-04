@@ -149,6 +149,13 @@ function getMessageDisplayText(
   return removeInternalContext(getMessageRawText(message)).trim();
 }
 
+function getMessageDisplaySender(
+  message: ChatMessage,
+  workflowPresentation?: WorkflowMessagePresentation | null,
+): ActivityActorId {
+  return workflowPresentation?.visibleBodyFrom ?? message.sender;
+}
+
 function getIntermediatePreview(parts: MessagePart[]): string | null {
   const reasoning = extractReasoning(parts)
     .split(/\r?\n/)
@@ -230,14 +237,18 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   };
 
   messages.forEach((message) => {
-    const isOutgoing = message.sender === "user";
-    const canCollapseToIntermediate = message.sender === "noctis" && message.source === "session";
     const workflowPresentation = parseWorkflowMessagePresentation(getMessageRawText(message));
+    const displaySender = getMessageDisplaySender(message, workflowPresentation);
+    const isOutgoing = displaySender === "user";
+    const canCollapseToIntermediate = displaySender === "noctis" && message.source === "session";
 
     if (isOutgoing) {
       flushPendingNoctis();
       rendered.push({
         ...message,
+        sender: displaySender,
+        actor: displaySender,
+        speaker: displaySender,
         displayContent: getMessageDisplayText(message, workflowPresentation),
         workflowPresentation,
       });
@@ -256,6 +267,9 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
 
     rendered.push({
       ...message,
+      sender: displaySender,
+      actor: displaySender,
+      speaker: displaySender,
       detailContent: buildDetailText(groupedMessages),
       parts: parts.length > 0 ? parts : undefined,
       displayContent,

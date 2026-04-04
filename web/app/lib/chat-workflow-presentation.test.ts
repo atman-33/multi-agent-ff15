@@ -25,7 +25,7 @@ Noctis Autonomous Orchestrator
 1. Understand the request.
 </instruction>
 
-<user-request>
+<user-request from="user" to="noctis">
 仲間たちに、今日の気分を聞いて
 </user-request>
 </operation-prompt>
@@ -33,6 +33,8 @@ Noctis Autonomous Orchestrator
 
     expect(presentation).toEqual({
       visibleBody: "仲間たちに、今日の気分を聞いて",
+      visibleBodyFrom: "user",
+      visibleBodyTo: "noctis",
       reportDetails: null,
       workflowPromptSections: [
         {
@@ -76,16 +78,18 @@ Noctis Autonomous Orchestrator
     });
   });
 
-  it("extracts worker report details separately from the visible body", () => {
+  it("extracts worker report sender metadata and keeps non-visible sections hidden", () => {
     const presentation = parseWorkflowMessagePresentation(`
 <operation-prompt>
-<worker-report>
+<worker-report from="gladiolus" to="noctis">
 Noctis、今日は気合十分だぜ。何があっても守る、任せろ。
+
+Gladiolus also said he can cover logistics if needed.
 </worker-report>
 
-<worker-report-details>
-Gladiolus also said he can cover logistics if needed.
-</worker-report-details>
+<legacy-note>
+This should stay hidden from the visible body.
+</legacy-note>
 
 <delegation-guidance>
 Stay in conversation with User.
@@ -94,15 +98,38 @@ Stay in conversation with User.
     `);
 
     expect(presentation?.visibleBody).toBe(
-      "Noctis、今日は気合十分だぜ。何があっても守る、任せろ。",
+      [
+        "Noctis、今日は気合十分だぜ。何があっても守る、任せろ。",
+        "Gladiolus also said he can cover logistics if needed.",
+      ].join("\n\n"),
     );
-    expect(presentation?.reportDetails).toBe(
-      "Gladiolus also said he can cover logistics if needed.",
-    );
+    expect(presentation?.visibleBodyFrom).toBe("gladiolus");
+    expect(presentation?.visibleBodyTo).toBe("noctis");
+    expect(presentation?.reportDetails).toBeNull();
     expect(presentation?.workflowPromptSections.map((section) => section.tagName)).toEqual([
+      "legacy-note",
       "delegation-guidance",
     ]);
     expect(presentation?.usedFallback).toBe(false);
+  });
+
+  it("keeps reading legacy worker-report-details during transition", () => {
+    const presentation = parseWorkflowMessagePresentation(`
+<operation-prompt>
+<worker-report from="ignis" to="noctis">
+Implemented the requested change.
+</worker-report>
+
+<worker-report-details>
+Legacy details block.
+</worker-report-details>
+</operation-prompt>
+    `);
+
+    expect(presentation?.visibleBody).toBe("Implemented the requested change.");
+    expect(presentation?.visibleBodyFrom).toBe("ignis");
+    expect(presentation?.visibleBodyTo).toBe("noctis");
+    expect(presentation?.reportDetails).toBe("Legacy details block.");
   });
 
   it("keeps hidden sections in the same order as the raw operation prompt", () => {
@@ -124,7 +151,7 @@ from_step: gather
 Follow the handoff.
 </instruction>
 
-<user-request>
+<user-request from="user" to="noctis">
 Please continue.
 </user-request>
 </operation-prompt>
@@ -150,6 +177,8 @@ Noctis Autonomous Orchestrator
 
     expect(presentation).toEqual({
       visibleBody: rawPrompt,
+      visibleBodyFrom: null,
+      visibleBodyTo: null,
       reportDetails: null,
       workflowPromptSections: [],
       rawPrompt,

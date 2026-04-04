@@ -1,10 +1,12 @@
+import type { ActivityActorId } from "@/lib/types/mission";
+
 const STRUCTURED_WORKFLOW_TAG_REGEX =
-  /<(operation-prompt|user-request|worker-report|worker-report-details)\b/i;
+  /<(operation-prompt|user-request|task|team-message|worker-report|worker-report-details)\b/i;
 
 const OPERATION_PROMPT_BODY_REGEX =
   /<operation-prompt\b[^>]*>([\s\S]*?)<\/operation-prompt>/i;
 
-const TOP_LEVEL_SECTION_REGEX = /<([a-z][a-z0-9-]*)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+const TOP_LEVEL_SECTION_REGEX = /<([a-z][a-z0-9-]*)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
 
 const WORKFLOW_PROMPT_SECTION_LABELS: Record<string, string> = {
   "analyze-mode": "Analyze Mode",
@@ -28,8 +30,19 @@ const WORKFLOW_PROMPT_SECTION_LABELS: Record<string, string> = {
   "team-message": "Team Message",
 };
 
-const VISIBLE_BODY_TAG_NAMES = new Set(["user-request", "worker-report"]);
-const NON_WORKFLOW_SECTION_TAG_NAMES = new Set(["user-request", "worker-report", "worker-report-details"]);
+const VISIBLE_BODY_TAG_NAMES = new Set(["user-request", "task", "team-message", "worker-report"]);
+const NON_WORKFLOW_SECTION_TAG_NAMES = new Set([
+  "user-request",
+  "task",
+  "team-message",
+  "worker-report",
+  "worker-report-details",
+]);
+
+type WorkflowSectionAttributes = {
+  from: ActivityActorId | null;
+  to: ActivityActorId | null;
+};
 
 export interface WorkflowPromptSection {
   key: string;
@@ -41,6 +54,8 @@ export interface WorkflowPromptSection {
 
 export interface WorkflowMessagePresentation {
   visibleBody: string;
+  visibleBodyFrom: ActivityActorId | null;
+  visibleBodyTo: ActivityActorId | null;
   reportDetails: string | null;
   workflowPromptSections: WorkflowPromptSection[];
   rawPrompt: string | null;
@@ -76,6 +91,61 @@ function toSectionLabel(tagName: string): string {
     .join(" ");
 }
 
+function decodeXmlAttribute(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
+}
+
+function normalizeActorId(value: string | null | undefined): ActivityActorId | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    normalized === "user" ||
+    normalized === "noctis" ||
+    normalized === "ignis" ||
+    normalized === "gladiolus" ||
+    normalized === "prompto" ||
+    normalized === "iris" ||
+    normalized === "system"
+  ) {
+    return normalized;
+  }
+
+  if (normalized === "gladio") {
+    return "gladiolus";
+  }
+
+  return null;
+}
+
+function parseXmlAttributes(rawAttributes: string): WorkflowSectionAttributes {
+  const parsed: Record<string, string> = {};
+
+  for (const match of rawAttributes.matchAll(/([a-z][a-z0-9-]*)\s*=\s*"([^"]*)"/gi)) {
+    const key = match[1]?.trim().toLowerCase() ?? "";
+    const value = match[2] ? decodeXmlAttribute(match[2]) : "";
+    if (!key) {
+      continue;
+    }
+    parsed[key] = value;
+  }
+
+  return {
+    from: normalizeActorId(parsed.from),
+    to: normalizeActorId(parsed.to),
+  };
+}
+
 function extractOperationPromptBody(document: string): string | null {
   return document.match(OPERATION_PROMPT_BODY_REGEX)?.[1]?.trim() ?? null;
 }
@@ -86,17 +156,26 @@ function extractXmlSectionBody(document: string, tagName: string): string | null
   return content.length > 0 ? content : null;
 }
 
-function extractTopLevelSections(document: string): Array<{ tagName: string; content: string }> {
-  const sections: Array<{ tagName: string; content: string }> = [];
+function extractTopLevelSections(document: string): Array<{
+  tagName: string;
+  content: string;
+  attributes: WorkflowSectionAttributes;
+}> {
+  const sections: Array<{
+    tagName: string;
+    content: string;
+    attributes: WorkflowSectionAttributes;
+  }> = [];
 
   for (const match of document.matchAll(TOP_LEVEL_SECTION_REGEX)) {
     const tagName = match[1]?.trim().toLowerCase() ?? "";
-    const content = match[2]?.trim() ?? "";
+    const attributes = parseXmlAttributes(match[2] ?? "");
+    const content = match[3]?.trim() ?? "";
     if (!tagName || !content) {
       continue;
     }
 
-    sections.push({ tagName, content });
+    sections.push({ tagName, content, attributes });
   }
 
   return sections;
@@ -115,14 +194,19 @@ export function parseWorkflowMessagePresentation(rawText: string): WorkflowMessa
   const operationPromptBody = extractOperationPromptBody(normalizedRawText);
   const sectionSource = operationPromptBody ?? normalizedRawText;
   const topLevelSections = extractTopLevelSections(sectionSource);
+  const visibleSection = topLevelSections.find((section) => VISIBLE_BODY_TAG_NAMES.has(section.tagName));
   const visibleBody =
-    topLevelSections.find((section) => VISIBLE_BODY_TAG_NAMES.has(section.tagName))?.content ??
+    visibleSection?.content ??
     extractXmlSectionBody(sectionSource, "user-request") ??
+    extractXmlSectionBody(sectionSource, "task") ??
+    extractXmlSectionBody(sectionSource, "team-message") ??
     extractXmlSectionBody(sectionSource, "worker-report");
 
   if (!visibleBody) {
     return {
       visibleBody: normalizedRawText,
+      visibleBodyFrom: null,
+      visibleBodyTo: null,
       reportDetails: null,
       workflowPromptSections: [],
       rawPrompt: normalizedRawText,
@@ -142,6 +226,8 @@ export function parseWorkflowMessagePresentation(rawText: string): WorkflowMessa
 
   return {
     visibleBody,
+    visibleBodyFrom: visibleSection?.attributes.from ?? null,
+    visibleBodyTo: visibleSection?.attributes.to ?? null,
     reportDetails:
       topLevelSections.find((section) => section.tagName === "worker-report-details")?.content ??
       extractXmlSectionBody(sectionSource, "worker-report-details"),

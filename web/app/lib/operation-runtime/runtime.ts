@@ -137,6 +137,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     const augmented = buildDelegatedWorkerInstruction({
       taskPrompt: originalPrompt,
       step: currentStep,
+      agentId,
       operation,
       operationState,
       facets,

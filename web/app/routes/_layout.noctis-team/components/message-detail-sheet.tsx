@@ -77,7 +77,11 @@ const MessageDetailSheet = ({
           : content,
     [content, rawText, resolvedWorkflowPresentation, sender],
   );
-  const senderLabel = useMemo(() => getActivityActorLabel(sender), [sender]);
+  const displaySender = useMemo(
+    () => resolvedWorkflowPresentation?.visibleBodyFrom ?? sender,
+    [resolvedWorkflowPresentation, sender],
+  );
+  const senderLabel = useMemo(() => getActivityActorLabel(displaySender), [displaySender]);
   const copyContent = useMemo(
     () => buildMessageMarkdown(displayContent, reasoning, tools),
     [displayContent, reasoning, tools],
@@ -105,7 +109,7 @@ const MessageDetailSheet = ({
 
       {hasVisibleBody ? (
         <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-          {sender === "user" ? (
+          {displaySender === "user" ? (
             <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
               {displayContent}
             </p>

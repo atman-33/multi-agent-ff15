@@ -6,7 +6,7 @@ import {
   buildSharedPromptContextBundle,
   type BuildSharedPromptContextOptions,
 } from "./common-context.server";
-import { buildTextSection, joinXmlSections, wrapOperationPrompt } from "./prompt-xml";
+import { buildTextSection, wrapOperationPrompt } from "./prompt-xml";
 import {
   composeReportWorkflowExtension,
   composeUserWorkflowExtension,
@@ -23,7 +23,10 @@ export interface ComposedPromptPayload {
 }
 
 function buildUserRequestSection(userMessage: string): string {
-  return buildTextSection("user-request", userMessage);
+  return buildTextSection("user-request", userMessage, {
+    from: "user",
+    to: "noctis",
+  });
 }
 
 function composeUserToNoctisPayload(input: {
@@ -43,8 +46,18 @@ function composeUserToNoctisPayload(input: {
   });
 }
 
-function buildTaskInputSection(taskBody: string): string {
-  return buildTextSection("task", taskBody);
+function buildTaskInputSection(taskBody: string, toAgent: WorkerAgentId): string {
+  return buildTextSection("task", taskBody, {
+    from: "noctis",
+    to: toAgent,
+  });
+}
+
+function buildWorkerReportBody(body: string, details?: string): string {
+  const normalizedBody = body.trim();
+  const normalizedDetails = details?.trim() ?? "";
+
+  return [normalizedBody, normalizedDetails].filter(Boolean).join("\n\n");
 }
 
 function buildTeamMessageSection(input: {
@@ -56,14 +69,11 @@ function buildTeamMessageSection(input: {
   next?: WorkflowNext;
 }): string {
   if (input.type === "report") {
-    return joinXmlSections([
-      buildTextSection("worker-report", input.body, {
-        from: input.from,
-        to: input.to,
-        ...(typeof input.next === "string" && input.next.trim() ? { next: input.next.trim() } : {}),
-      }),
-      input.details ? buildTextSection("worker-report-details", input.details) : null,
-    ]);
+    return buildTextSection("worker-report", buildWorkerReportBody(input.body, input.details), {
+      from: input.from,
+      to: input.to,
+      ...(typeof input.next === "string" && input.next.trim() ? { next: input.next.trim() } : {}),
+    });
   }
 
   return buildTextSection("team-message", input.body, {
@@ -165,7 +175,9 @@ export function composeWorkerTaskPrompt(input: {
   return {
     ...composePayload({
       context: { ...input.context, allowedWorkers: undefined },
-      promptBody: workflow.usedWorkflowExtension ? null : buildTaskInputSection(workflow.promptText),
+      promptBody: workflow.usedWorkflowExtension
+        ? null
+        : buildTaskInputSection(workflow.promptText, input.agentId),
       workflowExtension: workflow.usedWorkflowExtension ? workflow.promptText : null,
     }),
     usedWorkflowExtension: workflow.usedWorkflowExtension,
