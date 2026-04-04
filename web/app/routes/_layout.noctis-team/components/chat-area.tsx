@@ -376,7 +376,7 @@ export const ChatArea = ({
               <span className="truncate">{composerSummary}</span>
             </div>
           }
-          placeholder="Send a message to Noctis... Use @ for files/folders and / for commands/skills. Shift+Enter for new line"
+          placeholder="Send a message to Noctis"
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />
       }
