@@ -24,7 +24,7 @@ Create or revise operation workflows for this repository without breaking the ru
    - For facet-specific writing guidance, read [facet-authoring.md](./references/facet-authoring.md).
    - For routing, prompt, or placeholder failures, read [operation-diagnostics.md](./references/operation-diagnostics.md).
 3. Inspect the closest existing operation and neighboring facet files before drafting.
-4. When creating files from scratch, start from the matching templates in `./assets/`.
+4. When creating files from scratch, start from the matching templates in `./assets/`. Use the dedicated autonomous delegation template for rules-less Noctis-owned parent steps.
 5. Decide what should stay reusable in file-backed facets and what should remain step-local inline content.
 6. Edit the operation YAML and the required facet files.
 7. Validate step transitions, path resolution, output contracts, placeholders, and any delegated child-task return path.
@@ -32,7 +32,8 @@ Create or revise operation workflows for this repository without breaking the ru
 
 ## Bundled Assets
 
-- Use [operation-template.yaml](assets/operation-template.yaml) for new operations.
+- Use [operation-template.yaml](assets/operation-template.yaml) for standard routed operations.
+- Use [autonomous-delegation-template.yaml](assets/autonomous-delegation-template.yaml) for internal Noctis-owned autonomous flows that keep the parent step open while delegating child tasks.
 - Use [job-template.md](assets/facets/job-template.md) for reusable step roles.
 - Use [instruction-template.md](assets/facets/instruction-template.md) for file-backed instructions or inline content.
 - Use [knowledge-body-template.md](assets/facets/knowledge-body-template.md) when the full knowledge body should be injected.
@@ -44,6 +45,7 @@ Create or revise operation workflows for this repository without breaking the ru
 ## Ask Only If Blocked
 
 - Which operation should be created or changed?
+- Is this a standard routed workflow or a rules-less autonomous delegation flow?
 - Which step owners and transitions are expected?
 - Are there required outputs or placeholders that downstream steps will consume?
 - Which facet content must be reusable across workflows?
@@ -51,6 +53,7 @@ Create or revise operation workflows for this repository without breaking the ru
 ## Guardrails
 
 - Keep this file lean. Put detailed rules and examples in `references/`.
+- Do not stretch the generic operation template into a rules-less delegation pattern; use the dedicated autonomous delegation template instead.
 - Prefer adapting neighboring repository patterns over inventing new structures.
 - Treat unresolved placeholders, legacy schema fields, and malformed output contracts as blocking.
 - When runtime behavior changes, inspect both live-path and debug-preview implications before finishing.

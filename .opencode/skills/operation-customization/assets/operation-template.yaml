@@ -1,4 +1,5 @@
 # Copy this file to builtins/<lang>/operations/<operation-name>.yaml and replace every placeholder.
+# For a rules-less Noctis autonomous delegation flow, start from autonomous-delegation-template.yaml instead of adapting this generic template.
 # Keep facet paths relative to the operation file.
 # Use exactly one of file or inline for each content source.
 # initial_step must point to a noctis-owned step and that step must not route directly to COMPLETE or ABORT.
@@ -57,4 +58,57 @@ steps:
         next: ABORT
 
 # Duplicate and adapt step blocks as needed.
+# This generic template assumes normal rule-driven step transitions.
+# Valid agent values in this repository are noctis, ignis, gladiolus, and prompto.
+*** Add File: /home/atman/repos/multi-agent-ff15/.opencode/skills/operation-customization/assets/autonomous-delegation-template.yaml
+# Copy this file to builtins/<lang>/operations/<operation-name>.yaml and replace every placeholder.
+# Use this template only for a Noctis-owned autonomous parent step that stays open and delegates child tasks.
+# Keep facet paths relative to the operation file.
+# Use exactly one of file or inline for each content source.
+# This pattern intentionally omits parent-step rules so child reports return to the same Noctis step.
+
+name: <internal-operation-name>
+description: >
+  <Summarize the internal autonomous Noctis workflow and when child-task delegation is allowed.>
+initial_step: autonomous
+
+steps:
+  - name: autonomous
+    agent: noctis
+    job:
+      file: ../facets/jobs/<noctis-job>.md
+      # inline: |
+      #   <Use inline only for step-local content.>
+    instruction:
+      file: ../facets/instructions/<noctis-instruction>.md
+      # inline: |
+      #   # <Step title>
+      #   1. <Stay in conversation with User.>
+      #   2. <Delegate a child task only when it helps advance the work.>
+    knowledge:
+      - file: ../facets/knowledge/<shared-knowledge>.md
+      # - inline: |
+      #     <Step-local knowledge>
+    delegation:
+      allowed_workers:
+        - ignis
+        - gladiolus
+        - prompto
+      worker_job:
+        file: ../facets/jobs/<delegated-worker-job>.md
+        # inline: |
+        #   <Delegated worker role>
+      worker_instruction:
+        file: ../facets/instructions/<delegated-worker-instruction>.md
+        # inline: |
+        #   # <Delegated worker instruction>
+        #   1. <Read the child task prompt.>
+        #   2. <Return a concise handoff for Noctis.>
+      worker_knowledge:
+        - file: ../facets/knowledge/<delegated-worker-knowledge>.md
+      # worker_policies:
+      #   - file: ../facets/policies/<delegated-worker-policy>.md
+
+# Add parent-step rules only if you intentionally want this to behave like a normal routed workflow.
+# If this operation is internal-only, hide its operation name from normal user-facing operation lists.
 # Valid agent values in this repository are noctis, ignis, gladiolus, and prompto.
