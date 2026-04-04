@@ -3,6 +3,7 @@ import { useMemo, useRef } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import {
+  getPromptContextSourceLabel,
   parseWorkflowMessagePresentation,
   type WorkflowMessagePresentation,
 } from "@/lib/chat-workflow-presentation";
@@ -49,8 +50,8 @@ const MessageDetailSheet = ({
   const reportDetails = !resolvedWorkflowPresentation?.usedFallback
     ? resolvedWorkflowPresentation?.reportDetails ?? null
     : null;
-  const workflowPromptSections = !resolvedWorkflowPresentation?.usedFallback
-    ? resolvedWorkflowPresentation?.workflowPromptSections ?? []
+  const promptContextSections = !resolvedWorkflowPresentation?.usedFallback
+    ? resolvedWorkflowPresentation?.promptContextSections ?? []
     : [];
   const rawWorkflowPrompt = !resolvedWorkflowPresentation?.usedFallback
     ? resolvedWorkflowPresentation?.rawPrompt ?? null
@@ -91,7 +92,7 @@ const MessageDetailSheet = ({
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
     Boolean(reportDetails?.trim()) ||
-    workflowPromptSections.length > 0 ||
+    promptContextSections.length > 0 ||
     Boolean(rawWorkflowPrompt?.trim());
 
   return (
@@ -138,14 +139,17 @@ const MessageDetailSheet = ({
         </div>
       ) : null}
 
-      {workflowPromptSections.length > 0 ? (
+      {promptContextSections.length > 0 ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             <FileText className="h-3.5 w-3.5" />
-            Workflow Prompt
+            Prompt Context
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[9px] text-slate-300">
+              {getPromptContextSourceLabel("workflow")}
+            </span>
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
-            {workflowPromptSections.map((section) => (
+            {promptContextSections.map((section) => (
               <span
                 key={section.key}
                 className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-100/85"
@@ -155,7 +159,7 @@ const MessageDetailSheet = ({
             ))}
           </div>
           <div className="space-y-3">
-            {workflowPromptSections.map((section) => (
+            {promptContextSections.map((section) => (
               <details
                 className="rounded-xl border border-white/10 bg-black/20 p-3"
                 key={section.key}
@@ -174,6 +178,19 @@ const MessageDetailSheet = ({
               </details>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {rawWorkflowPrompt?.trim() ? (
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
+          <details>
+            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-slate-400">
+              Raw Prompt Payload
+            </summary>
+            <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
+              {rawWorkflowPrompt}
+            </pre>
+          </details>
         </div>
       ) : null}
 

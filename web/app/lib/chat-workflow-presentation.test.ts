@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseWorkflowMessagePresentation } from "./chat-workflow-presentation";
+import {
+  parseInjectedPromptContextSections,
+  parseWorkflowMessagePresentation,
+} from "./chat-workflow-presentation";
 
 describe("chat-workflow-presentation", () => {
   it("extracts the visible user request and hidden workflow sections", () => {
@@ -36,13 +39,14 @@ Noctis Autonomous Orchestrator
       visibleBodyFrom: "user",
       visibleBodyTo: "noctis",
       reportDetails: null,
-      workflowPromptSections: [
+      promptContextSections: [
         {
           key: "workspace-context:0",
           tagName: "workspace-context",
           label: "Workspace Context",
           content: "project_root: /tmp/example",
           preview: "project_root: /tmp/example",
+          source: "workflow",
         },
         {
           key: "tooling-context:1",
@@ -50,6 +54,7 @@ Noctis Autonomous Orchestrator
           label: "Tooling Context",
           content: "serena_project: multi-agent-ff15",
           preview: "serena_project: multi-agent-ff15",
+          source: "workflow",
         },
         {
           key: "analyze-mode:2",
@@ -57,6 +62,7 @@ Noctis Autonomous Orchestrator
           label: "Analyze Mode",
           content: "ANALYSIS MODE. Gather context before diving deep.",
           preview: "ANALYSIS MODE. Gather context before diving deep.",
+          source: "workflow",
         },
         {
           key: "job:3",
@@ -64,6 +70,7 @@ Noctis Autonomous Orchestrator
           label: "Job",
           content: "Noctis Autonomous Orchestrator",
           preview: "Noctis Autonomous Orchestrator",
+          source: "workflow",
         },
         {
           key: "instruction:4",
@@ -71,6 +78,7 @@ Noctis Autonomous Orchestrator
           label: "Instruction",
           content: "1. Understand the request.",
           preview: "1. Understand the request.",
+          source: "workflow",
         },
       ],
       rawPrompt: expect.stringContaining("<operation-prompt>"),
@@ -106,7 +114,7 @@ Stay in conversation with User.
     expect(presentation?.visibleBodyFrom).toBe("gladiolus");
     expect(presentation?.visibleBodyTo).toBe("noctis");
     expect(presentation?.reportDetails).toBeNull();
-    expect(presentation?.workflowPromptSections.map((section) => section.tagName)).toEqual([
+    expect(presentation?.promptContextSections.map((section) => section.tagName)).toEqual([
       "legacy-note",
       "delegation-guidance",
     ]);
@@ -157,7 +165,7 @@ Please continue.
 </operation-prompt>
     `);
 
-    expect(presentation?.workflowPromptSections.map((section) => section.tagName)).toEqual([
+    expect(presentation?.promptContextSections.map((section) => section.tagName)).toEqual([
       "workspace-context",
       "job",
       "handoff",
@@ -180,10 +188,56 @@ Noctis Autonomous Orchestrator
       visibleBodyFrom: null,
       visibleBodyTo: null,
       reportDetails: null,
-      workflowPromptSections: [],
+      promptContextSections: [],
       rawPrompt,
       usedFallback: true,
     });
+  });
+
+  it("extracts injected prompt context sections for generic session messages", () => {
+    expect(
+      parseInjectedPromptContextSections(`
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<tooling-context>
+serena_project: multi-agent-ff15
+</tooling-context>
+
+Hello from User
+      `),
+    ).toEqual([
+      {
+        key: "workspace-context:0",
+        tagName: "workspace-context",
+        label: "Workspace Context",
+        content: "project_root: /tmp/example",
+        preview: "project_root: /tmp/example",
+        source: "injected",
+      },
+      {
+        key: "tooling-context:1",
+        tagName: "tooling-context",
+        label: "Tooling Context",
+        content: "serena_project: multi-agent-ff15",
+        preview: "serena_project: multi-agent-ff15",
+        source: "injected",
+      },
+    ]);
+  });
+
+  it("ignores unknown or incomplete injected prompt metadata safely", () => {
+    expect(
+      parseInjectedPromptContextSections(`
+<workspace-context>
+project_root: /tmp/example
+
+<custom-context>
+do not render me
+</custom-context>
+      `),
+    ).toEqual([]);
   });
 
   it("returns null for plain chat messages", () => {

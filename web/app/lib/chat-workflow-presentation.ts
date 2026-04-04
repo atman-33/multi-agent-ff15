@@ -8,7 +8,7 @@ const OPERATION_PROMPT_BODY_REGEX =
 
 const TOP_LEVEL_SECTION_REGEX = /<([a-z][a-z0-9-]*)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
 
-const WORKFLOW_PROMPT_SECTION_LABELS: Record<string, string> = {
+const PROMPT_CONTEXT_SECTION_LABELS: Record<string, string> = {
   "analyze-mode": "Analyze Mode",
   "delegation-context": "Delegation Context",
   job: "Job",
@@ -30,6 +30,12 @@ const WORKFLOW_PROMPT_SECTION_LABELS: Record<string, string> = {
   "team-message": "Team Message",
 };
 
+const INJECTED_PROMPT_CONTEXT_TAG_NAMES = new Set([
+  "workspace-context",
+  "tooling-context",
+  "delegation-context",
+]);
+
 const VISIBLE_BODY_TAG_NAMES = new Set(["user-request", "task", "team-message", "worker-report"]);
 const NON_WORKFLOW_SECTION_TAG_NAMES = new Set([
   "user-request",
@@ -44,12 +50,15 @@ type WorkflowSectionAttributes = {
   to: ActivityActorId | null;
 };
 
-export interface WorkflowPromptSection {
+export type PromptContextSource = "workflow" | "injected";
+
+export interface PromptContextSection {
   key: string;
   tagName: string;
   label: string;
   content: string;
   preview: string;
+  source: PromptContextSource;
 }
 
 export interface WorkflowMessagePresentation {
@@ -57,7 +66,7 @@ export interface WorkflowMessagePresentation {
   visibleBodyFrom: ActivityActorId | null;
   visibleBodyTo: ActivityActorId | null;
   reportDetails: string | null;
-  workflowPromptSections: WorkflowPromptSection[];
+  promptContextSections: PromptContextSection[];
   rawPrompt: string | null;
   usedFallback: boolean;
 }
@@ -80,7 +89,7 @@ function buildSectionPreview(value: string): string {
 }
 
 function toSectionLabel(tagName: string): string {
-  const knownLabel = WORKFLOW_PROMPT_SECTION_LABELS[tagName];
+  const knownLabel = PROMPT_CONTEXT_SECTION_LABELS[tagName];
   if (knownLabel) {
     return knownLabel;
   }
@@ -89,6 +98,39 @@ function toSectionLabel(tagName: string): string {
     .split("-")
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+function toPromptContextSection(
+  section: {
+    tagName: string;
+    content: string;
+  },
+  index: number,
+  source: PromptContextSource,
+): PromptContextSection {
+  return {
+    key: `${section.tagName}:${index}`,
+    tagName: section.tagName,
+    label: toSectionLabel(section.tagName),
+    content: section.content,
+    preview: buildSectionPreview(section.content),
+    source,
+  };
+}
+
+export function getPromptContextSourceLabel(source: PromptContextSource): string {
+  return source === "workflow" ? "Workflow" : "Injected";
+}
+
+export function parseInjectedPromptContextSections(rawText: string): PromptContextSection[] {
+  const normalizedRawText = rawText.trim();
+  if (!normalizedRawText) {
+    return [];
+  }
+
+  return extractTopLevelSections(normalizedRawText)
+    .filter((section) => INJECTED_PROMPT_CONTEXT_TAG_NAMES.has(section.tagName))
+    .map((section, index) => toPromptContextSection(section, index, "injected"));
 }
 
 function decodeXmlAttribute(value: string): string {
@@ -208,21 +250,15 @@ export function parseWorkflowMessagePresentation(rawText: string): WorkflowMessa
       visibleBodyFrom: null,
       visibleBodyTo: null,
       reportDetails: null,
-      workflowPromptSections: [],
+      promptContextSections: [],
       rawPrompt: normalizedRawText,
       usedFallback: true,
     };
   }
 
-  const workflowPromptSections = topLevelSections
+  const promptContextSections = topLevelSections
     .filter((section) => !NON_WORKFLOW_SECTION_TAG_NAMES.has(section.tagName))
-    .map((section, index) => ({
-      key: `${section.tagName}:${index}`,
-      tagName: section.tagName,
-      label: toSectionLabel(section.tagName),
-      content: section.content,
-      preview: buildSectionPreview(section.content),
-    } satisfies WorkflowPromptSection));
+    .map((section, index) => toPromptContextSection(section, index, "workflow"));
 
   return {
     visibleBody,
@@ -231,7 +267,7 @@ export function parseWorkflowMessagePresentation(rawText: string): WorkflowMessa
     reportDetails:
       topLevelSections.find((section) => section.tagName === "worker-report-details")?.content ??
       extractXmlSectionBody(sectionSource, "worker-report-details"),
-    workflowPromptSections,
+    promptContextSections,
     rawPrompt: normalizedRawText,
     usedFallback: false,
   };

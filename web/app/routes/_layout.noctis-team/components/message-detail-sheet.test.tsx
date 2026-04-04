@@ -14,26 +14,40 @@ import MessageDetailSheet from "./message-detail-sheet";
 
 describe("message-detail-sheet", () => {
   it("uses workflow sender metadata for the visible sender label", () => {
+    const rawPrompt = `
+<operation-prompt>
+<instruction>
+Follow the handoff.
+</instruction>
+
+<worker-report from="ignis" to="noctis">
+Implemented the requested change.
+</worker-report>
+</operation-prompt>
+        `.trim();
     const markup = renderToStaticMarkup(
       <MessageDetailSheet
         content="Implemented the requested change."
         onOpenChange={() => undefined}
         open={true}
-        rawTextContent={`
-<operation-prompt>
-<worker-report from="ignis" to="noctis">
-Implemented the requested change.
-</worker-report>
-</operation-prompt>
-        `.trim()}
+        rawTextContent={rawPrompt}
         sender="user"
         workflowPresentation={{
           visibleBody: "Implemented the requested change.",
           visibleBodyFrom: "ignis",
           visibleBodyTo: "noctis",
           reportDetails: null,
-          workflowPromptSections: [],
-          rawPrompt: "<operation-prompt />",
+          promptContextSections: [
+            {
+              key: "instruction:0",
+              tagName: "instruction",
+              label: "Instruction",
+              content: "Follow the handoff.",
+              preview: "Follow the handoff.",
+              source: "workflow",
+            },
+          ],
+          rawPrompt,
           usedFallback: false,
         }}
       />,
@@ -41,5 +55,9 @@ Implemented the requested change.
 
     expect(markup).toContain("Ignis message detail");
     expect(markup).not.toContain("User message detail");
+    expect(markup).toContain("Prompt Context");
+    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Instruction");
+    expect(markup).toContain("Raw Prompt Payload");
   });
 });

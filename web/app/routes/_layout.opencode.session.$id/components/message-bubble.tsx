@@ -6,8 +6,9 @@ import {
   MessageIntermediateDetails,
   MessageIntermediateDetailsToggle,
 } from "@/components/chat/message-intermediate-details";
-import { parseInternalContext, removeInternalContext } from "@/lib/chat-internal-context";
+import { removeInternalContext } from "@/lib/chat-internal-context";
 import { buildMessageMarkdown, extractReasoning, extractTools } from "@/lib/chat-message-parts";
+import { parseInjectedPromptContextSections } from "@/lib/chat-workflow-presentation";
 import type { MessagePart } from "../types";
 import MessageDetailSheet from "./message-detail-sheet";
 
@@ -30,7 +31,7 @@ const MessageBubble = ({ message }: Props) => {
     .filter((part) => part.type === "text")
     .map((part) => part.text ?? "")
     .join("");
-  const internalContext = useMemo(() => parseInternalContext(rawText), [rawText]);
+  const promptContextSections = useMemo(() => parseInjectedPromptContextSections(rawText), [rawText]);
   const text = useMemo(() => removeInternalContext(rawText), [rawText]);
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
@@ -40,14 +41,15 @@ const MessageBubble = ({ message }: Props) => {
   );
   const displayContent = message.showCursor ? `${text}▌` : text;
   const copyContent = messageMarkdown.trim() ? messageMarkdown : text;
-  const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+  const hasDetails =
+    reasoning.trim().length > 0 || tools.length > 0 || promptContextSections.length > 0;
   const hasVisibleBody = text.trim().length > 0 || Boolean(message.showCursor);
   const detailSummary = useMemo(
-    () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
-    [internalContext, reasoning, tools]
+    () => buildIntermediateDetailSummary(reasoning, tools, null, promptContextSections),
+    [promptContextSections, reasoning, tools]
   );
 
-  if (!text && !reasoning && tools.length === 0 && !internalContext) {
+  if (!text && !reasoning && tools.length === 0 && promptContextSections.length === 0) {
     return null;
   }
 
@@ -86,7 +88,8 @@ const MessageBubble = ({ message }: Props) => {
             onToggle={() => setDetailsExpanded((value) => !value)}
           >
             <MessageIntermediateDetails
-              internalContext={internalContext}
+              promptContextSections={promptContextSections}
+              promptContextSource="injected"
               reasoning={reasoning}
               tools={tools}
             />
@@ -96,9 +99,11 @@ const MessageBubble = ({ message }: Props) => {
       renderDetailSheet={({ open, onOpenChange }) =>
         open ? (
           <MessageDetailSheet
-            content={messageMarkdown}
+            content={text}
             onOpenChange={onOpenChange}
             open={open}
+            parts={message.parts}
+            rawTextContent={rawText}
             senderLabel={message.senderLabel}
           />
         ) : null

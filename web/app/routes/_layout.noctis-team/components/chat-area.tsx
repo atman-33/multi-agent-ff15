@@ -299,8 +299,8 @@ const MessageBubble = memo(
     const reportDetails = !workflowPresentation?.usedFallback
       ? workflowPresentation?.reportDetails ?? null
       : null;
-    const workflowPromptSections = !workflowPresentation?.usedFallback
-      ? workflowPresentation?.workflowPromptSections ?? []
+    const promptContextSections = !workflowPresentation?.usedFallback
+      ? workflowPresentation?.promptContextSections ?? []
       : [];
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
@@ -317,18 +317,17 @@ const MessageBubble = memo(
       reasoning.trim().length > 0 ||
       tools.length > 0 ||
       Boolean(reportDetails?.trim()) ||
-      workflowPromptSections.length > 0;
+      promptContextSections.length > 0;
     const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
     const detailSummary = useMemo(
       () =>
         buildIntermediateDetailSummary(
-          null,
           reasoning,
           tools,
           reportDetails,
-          workflowPromptSections,
+          promptContextSections,
         ),
-      [reasoning, reportDetails, tools, workflowPromptSections],
+      [promptContextSections, reasoning, reportDetails, tools],
     );
 
     return (
@@ -378,11 +377,11 @@ const MessageBubble = memo(
               onToggle={() => setDetailsExpanded((value) => !value)}
             >
               <MessageIntermediateDetails
-                internalContext={null}
+                  promptContextSections={promptContextSections}
+                  promptContextSource="workflow"
                 reasoning={reasoning}
                 reportDetails={reportDetails}
                 tools={tools}
-                workflowPromptSections={workflowPromptSections}
               />
             </MessageIntermediateDetailsToggle>
           ) : null
