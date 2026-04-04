@@ -3,9 +3,9 @@ import { dirname } from "node:path";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getMissionDir, getMissionOutputFilePath } from "@/lib/mission-store";
+import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
-import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import type {
   OperationDefinition,
   ResolvedFacets,
@@ -388,7 +388,7 @@ function buildDelegatedReturnGuidance(input: {
 export function buildOperationDebugBundle(input: {
   missionId?: string;
   userMessage?: string;
-  operationName: string;
+  operationRef: string;
   previewAllowedWorkers?: readonly WorkerAgentId[];
   reportMessage?: string;
   reportNext?: WorkflowNext;
@@ -396,8 +396,10 @@ export function buildOperationDebugBundle(input: {
 }): OperationDebugBundle {
   const root = getProjectRoot();
   const language = readOperationLanguage();
-  const operation = loadOperationByName(input.operationName, language);
-  const missionId = input.missionId?.trim() || `__operation_preview__${input.operationName}`;
+  const operation = loadOperationByRef(input.operationRef);
+  const missionId =
+    input.missionId?.trim() ||
+    `__operation_preview__${input.operationRef.replace(/[^a-zA-Z0-9._-]+/g, "_")}`;
   const shouldCleanupSyntheticMission = !input.missionId?.trim();
 
   const reportNextOverride = input.reportNext?.trim() || "";
@@ -409,7 +411,11 @@ export function buildOperationDebugBundle(input: {
   ];
 
   const flowSteps: FlowStepPreview[] = [];
-  const operationState = createOperationState(operation.name, operation.initial_step);
+  const operationState = createOperationState(
+    operation.name,
+    operation.initial_step,
+    input.operationRef,
+  );
 
   const stepOccurrences = new Map<string, number>();
   const maxExecutions = Math.max(operation.steps.length * 4, 12);

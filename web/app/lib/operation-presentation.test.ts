@@ -3,6 +3,7 @@ import {
   compareOperationOptions,
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
   getOperationDisplayLabel,
+  type OperationOption,
   toOperationOption,
 } from "./operation-presentation";
 
@@ -17,36 +18,72 @@ describe("operation-presentation", () => {
   it("normalizes multiline descriptions when building select options", () => {
     expect(
       toOperationOption({
+        ref: "builtin:ja:openspec-dev.yaml",
         name: "openspec-dev",
         description: "Guided workflow.\n  Plans, implements, and reviews.",
+        isDefault: false,
+        sourceKind: "builtin",
       }),
     ).toEqual({
-      value: "openspec-dev",
+      value: "builtin:ja:openspec-dev.yaml",
       label: "openspec-dev",
       description: "Guided workflow. Plans, implements, and reviews.",
       isDefault: false,
+      name: "openspec-dev",
+      sourceKind: "builtin",
+      sourceLabel: "Builtin",
+    });
+  });
+
+  it("adds project source metadata to project-authored workflow labels", () => {
+    expect(
+      toOperationOption({
+        ref: "project:multi-agent-ff15:openspec-dev.yaml",
+        name: "openspec-dev",
+        description: "Project-local workflow.",
+        isDefault: false,
+        sourceKind: "project",
+        projectId: "multi-agent-ff15",
+        projectName: "Multi Agent FF15",
+      }),
+    ).toEqual({
+      value: "project:multi-agent-ff15:openspec-dev.yaml",
+      label: "openspec-dev · Multi Agent FF15",
+      description: "Project-local workflow.",
+      isDefault: false,
+      name: "openspec-dev",
+      projectId: "multi-agent-ff15",
+      sourceKind: "project",
+      sourceLabel: "Multi Agent FF15",
     });
   });
 
   it("sorts the default workflow before other options", () => {
-    const sorted = [
+    const options = [
       {
-        value: "openspec-dev",
+        value: "builtin:ja:openspec-dev.yaml",
         label: "openspec-dev",
         description: "OpenSpec delivery flow.",
         isDefault: false,
+        name: "openspec-dev",
+        sourceKind: "builtin",
+        sourceLabel: "Builtin",
       },
       {
-        value: "noctis-autonomous",
+        value: "builtin:ja:noctis-autonomous.yaml",
         label: DEFAULT_AUTONOMOUS_OPERATION_LABEL,
         description: "Default conversational flow.",
         isDefault: true,
+        name: "noctis-autonomous",
+        sourceKind: "builtin",
+        sourceLabel: "Builtin",
       },
-    ].sort(compareOperationOptions);
+    ] satisfies OperationOption[];
+    const sorted = [...options].sort(compareOperationOptions);
 
     expect(sorted.map((operation) => operation.value)).toEqual([
-      "noctis-autonomous",
-      "openspec-dev",
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
     ]);
   });
 });

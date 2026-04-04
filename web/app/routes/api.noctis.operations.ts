@@ -1,19 +1,23 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import {
-  listAvailableOperations,
-  loadOperationByName,
-} from "@/lib/operation-definition/operation-loader";
+  listOperationCatalogEntriesForScope,
+} from "@/lib/operation-definition/operation-catalog";
 import {
   compareOperationOptions,
   toOperationOption,
 } from "@/lib/operation-presentation";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import type { Route } from "./+types/api.noctis.operations";
 
 export const loader = async (_args: Route.LoaderArgs) => {
   try {
+    const root = getProjectRoot();
     const language = readOperationLanguage();
-    const operations = listAvailableOperations(language)
-      .map((operationName) => loadOperationByName(operationName, language))
+    const operations = listOperationCatalogEntriesForScope({
+      root,
+      scope: "noctis_team",
+      builtinLanguages: language === "en" ? ["en"] : [language, "en"],
+    })
       .map(toOperationOption)
       .sort(compareOperationOptions);
     return Response.json({ operations });

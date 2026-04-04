@@ -5,7 +5,8 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
+import { resolveDefaultOperationRef } from "@/lib/operation-definition/operation-catalog";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
@@ -65,7 +66,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
     typeof body.selectedOperation === "string" && body.selectedOperation.trim().length > 0
       ? body.selectedOperation.trim()
       : null;
-  const selectedOperation = selectedOperationInput ?? INTERNAL_AUTONOMOUS_OPERATION_NAME;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
   const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
   const executionMode = getNoctisExecutionMode(allowedWorkers);
@@ -85,6 +85,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const language = readOperationLanguage();
+    const selectedOperation =
+      selectedOperationInput ??
+      resolveDefaultOperationRef({
+        root: projectRoot,
+        scope: "noctis_team",
+        builtinLanguages: language === "en" ? ["en"] : [language, "en"],
+      });
+    if (!selectedOperation) {
+      return Response.json({ error: "No workflow is available" }, { status: 409 });
+    }
     const missionId = crypto.randomUUID();
 
     const sessionResult = await client.session.create({

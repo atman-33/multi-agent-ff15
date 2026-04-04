@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "./state";
 import { processReport } from "./runtime";
 
@@ -30,7 +31,11 @@ function buildDispatchedState(input: {
   agent: "ignis" | "gladiolus" | "prompto";
   taskId: string;
 }) {
-  const state = createOperationState(input.operationName, input.currentStep);
+  const state = createOperationState(
+    input.operationName,
+    input.currentStep,
+    buildBuiltinOperationRef("ja", `${input.operationName}.yaml`),
+  );
   state.currentStep = input.currentStep;
   state.status = "waiting_for_report";
   state.stepHistory = [
@@ -247,5 +252,60 @@ describe("operation runtime", () => {
     expect(result.nextWorkerDispatch).toBeNull();
     expect(result.noctisGuidance).toContain("status: complete");
     expect(result.noctisGuidance).toContain("next_action: report_to_user");
+  });
+
+  it("rejects plain-name-only mission state without operationRef", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedOperation(
+      root,
+      "invalid-legacy-state",
+      [
+        "name: invalid-legacy-state",
+        "description: Invalid legacy state test",
+        "initial_step: plan",
+        "steps:",
+        "  - name: plan",
+        "    agent: noctis",
+        "    job:",
+        "      file: ./planner.md",
+        "    instruction:",
+        "      file: ./plan.md",
+        "    rules:",
+        "      - condition: Ready to review",
+        "        next: review",
+        "  - name: review",
+        "    agent: ignis",
+        "    job:",
+        "      file: ./reviewer.md",
+        "    instruction:",
+        "      file: ./review.md",
+        "    rules:",
+        "      - condition: Approved",
+        "        next: COMPLETE",
+        "",
+      ].join("\n"),
+    );
+
+    const state = {
+      ...buildDispatchedState({
+        operationName: "invalid-legacy-state",
+        currentStep: "review",
+        agent: "ignis",
+        taskId: "task-legacy",
+      }),
+      operationRef: undefined,
+    } as unknown as ReturnType<typeof buildDispatchedState>;
+
+    expect(() =>
+      processReport({
+        missionId: "mission-legacy",
+        operationState: state,
+        reportBody: "Approved.",
+        fromAgent: "ignis",
+        taskId: "task-legacy",
+        next: "COMPLETE",
+      }),
+    ).toThrow(/missing operationRef/i);
   });
 });

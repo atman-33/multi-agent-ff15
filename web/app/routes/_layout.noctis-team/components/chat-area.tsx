@@ -62,7 +62,7 @@ interface ChatAreaProps {
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
   isOperationSelectionLocked: boolean;
-  onSelectedOperationChange: (operationName: string | null) => void;
+  onSelectedOperationChange: (operationRef: string | null) => void;
   onAbort?: () => void;
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
@@ -255,10 +255,13 @@ export const ChatArea = ({
   const defaultOperation = useMemo(
     () =>
       availableOperations.find((operation) => operation.isDefault) ?? {
-        value: INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        value: "",
         label: DEFAULT_AUTONOMOUS_OPERATION_LABEL,
         description: "",
         isDefault: true,
+        name: INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        sourceKind: "builtin" as const,
+        sourceLabel: "Builtin",
       },
     [availableOperations]
   );
@@ -266,20 +269,28 @@ export const ChatArea = ({
     selectedOperation ??
     (isOperationSelectionLocked ? undefined : defaultOperation.value);
   const selectedOperationOption = useMemo(() => {
-    const activeOperationName = activeOperationState?.operationName ?? operationSelectValue;
-    if (!activeOperationName) {
+    const activeOperationRef = activeOperationState?.operationRef ?? operationSelectValue;
+    if (!activeOperationRef) {
       return null;
     }
 
     return (
-      availableOperations.find((operation) => operation.value === activeOperationName) ?? {
-        value: activeOperationName,
-        label: getOperationDisplayLabel(activeOperationName),
+      availableOperations.find((operation) => operation.value === activeOperationRef) ?? {
+        value: activeOperationRef,
+        label: getOperationDisplayLabel(activeOperationState?.operationName ?? activeOperationRef),
         description: "",
-        isDefault: activeOperationName === INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        isDefault: (activeOperationState?.operationName ?? "") === INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        name: activeOperationState?.operationName ?? activeOperationRef,
+        sourceKind: "builtin" as const,
+        sourceLabel: "Builtin",
       }
     );
-  }, [activeOperationState?.operationName, availableOperations, operationSelectValue]);
+  }, [
+    activeOperationState?.operationName,
+    activeOperationState?.operationRef,
+    availableOperations,
+    operationSelectValue,
+  ]);
   const operationBadgeLabel = selectedOperationOption?.label ?? "Workflow unavailable";
   const operationDescription = selectedOperationOption?.description ?? "";
   const operationPlaceholder = isOperationSelectionLocked

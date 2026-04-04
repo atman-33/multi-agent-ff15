@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
+import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
-import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { getMissionOutputFilePath, updateTask } from "@/lib/mission-store";
 import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
 import { processReport } from "@/lib/operation-runtime/runtime";
@@ -9,6 +9,7 @@ import {
   completeDelegatedTask,
   ensureActiveStepTaskId,
   getDelegatedTaskRecord,
+  getOperationRef,
   getOperationState,
   saveOperationState,
 } from "@/lib/operation-runtime/state";
@@ -136,7 +137,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     if (operationState && (operationState.status === "running" || operationState.status === "waiting_for_report")) {
-      const operation = loadOperationByName(operationState.operationName, readOperationLanguage());
+      const operation = loadOperationByRef(getOperationRef(operationState));
       const currentStep = operation.steps.find((step) => step.name === operationState.currentStep);
       const latestStep = operationState.stepHistory.at(-1);
       const delegatedTask = getDelegatedTaskRecord(operationState, taskId);

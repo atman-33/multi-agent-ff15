@@ -8,12 +8,12 @@ import {
   updateTask,
 } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { readOperationLanguage } from "@/lib/operation-definition/language";
-import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
+import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
 import { hasDelegationPolicy, resolveEffectiveDelegationWorkers } from "@/lib/operation-runtime/autonomous";
 import {
   completeDelegatedTask,
   ensureActiveStepTaskId,
+  getOperationRef,
   getOperationState,
   registerDelegatedTask,
   saveOperationState,
@@ -87,7 +87,7 @@ export async function dispatchCurrentOperationStepToWorker(input: {
     throw new Error("Operation state not found");
   }
 
-  const operation = loadOperationByName(operationState.operationName, readOperationLanguage());
+  const operation = loadOperationByRef(getOperationRef(operationState));
   const currentStep = operation.steps.find((step) => step.name === operationState.currentStep);
   if (!currentStep) {
     throw new Error("Operation step not found");
@@ -129,7 +129,7 @@ export async function dispatchTaskToWorker(input: {
   const explicitTaskId = input.taskId?.trim();
   const operationState = getOperationState(input.missionId);
   const operation = operationState
-    ? loadOperationByName(operationState.operationName, readOperationLanguage())
+    ? loadOperationByRef(getOperationRef(operationState))
     : null;
   const currentStep = operation?.steps.find((step) => step.name === operationState?.currentStep);
   const isDelegatedChildDispatch =

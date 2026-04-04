@@ -15,7 +15,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { WORKING_PARTY_MEMBER_IDS } from "@/lib/noctis-working-party";
-import { listOperationDebugOptions } from "@/lib/operation-debug/operation-options.server";
+import {
+  listOperationDebugOptions,
+  listOperationDebugProjectFilterOptions,
+  type OperationDebugProjectFilterOption,
+} from "@/lib/operation-debug/operation-options.server";
 import type { PreviewPartyMode } from "@/lib/operation-debug/debug-preview.server";
 import type { OperationOption } from "@/lib/operation-presentation";
 import { buildOperationDebugBundle } from "@/lib/prompt-composition-engine/debug-preview.server";
@@ -107,11 +111,13 @@ function formatPreviewPartySummary(previewWorkers: WorkerAgentId[]): string {
 type LoaderData = {
   activeStepId: string;
   partyMode: PreviewPartyMode;
+  projectFilters: OperationDebugProjectFilterOption[];
   previewWorkers: WorkerAgentId[];
   userMessage: string;
   operations: OperationOption[];
   preview: ReturnType<typeof buildOperationDebugBundle> | null;
   selectedOperation: string | null;
+  selectedProjectFilter: string;
   taskInstruction: string;
 };
 
@@ -194,7 +200,16 @@ function getFlowGroups(bundle: LoaderData["preview"]): FlowGroup[] {
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const url = new URL(request.url);
-  const operations = listOperationDebugOptions();
+  const projectFilters = listOperationDebugProjectFilterOptions();
+  const requestedProjectFilter = url.searchParams.get("project")?.trim() || "all";
+  const selectedProjectFilter = projectFilters.some(
+    (option) => option.value === requestedProjectFilter,
+  )
+    ? requestedProjectFilter
+    : "all";
+  const operations = listOperationDebugOptions(
+    selectedProjectFilter === "all" ? undefined : selectedProjectFilter,
+  );
   const requestedOperation = url.searchParams.get("operation")?.trim() || null;
   const selectedOperation =
     requestedOperation && operations.some((operation) => operation.value === requestedOperation)
@@ -216,7 +231,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     selectedOperation
       ? buildOperationDebugBundle({
           userMessage,
-          operationName: selectedOperation,
+          operationRef: selectedOperation,
           previewAllowedWorkers: previewWorkers,
           taskInstruction,
         })
@@ -231,10 +246,12 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   return {
     activeStepId,
     partyMode,
+    projectFilters,
     previewWorkers,
     userMessage,
     operations,
     selectedOperation,
+    selectedProjectFilter,
     taskInstruction,
     preview,
   } satisfies LoaderData;
@@ -243,6 +260,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const [selectedOperation, setSelectedOperation] = useState(loaderData.selectedOperation ?? "");
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState(loaderData.selectedProjectFilter);
   const [activeStepId, setActiveStepId] = useState(loaderData.activeStepId);
   const [partyMode, setPartyMode] = useState<PreviewPartyMode>(loaderData.partyMode);
   const [previewWorkers, setPreviewWorkers] = useState<WorkerAgentId[]>(loaderData.previewWorkers);
@@ -251,6 +269,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
   useEffect(() => {
     setSelectedOperation(loaderData.selectedOperation ?? "");
+    setSelectedProjectFilter(loaderData.selectedProjectFilter);
     setActiveStepId(loaderData.activeStepId);
     setPartyMode(loaderData.partyMode);
     setPreviewWorkers(loaderData.previewWorkers);
@@ -262,6 +281,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     userInput,
     operation,
     partyMode,
+    projectFilter,
     previewWorkers,
     stepId,
     task,
@@ -269,6 +289,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     userInput: string;
     operation: string;
     partyMode: PreviewPartyMode;
+    projectFilter: string;
     previewWorkers: WorkerAgentId[];
     stepId: string;
     task: string;
@@ -286,6 +307,9 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     if (task.trim()) {
       params.set("task", task.trim());
     }
+    if (projectFilter !== "all") {
+      params.set("project", projectFilter);
+    }
     if (partyMode !== "full") {
       params.set("partyMode", partyMode);
     }
@@ -302,6 +326,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       userInput: userMessage,
       operation: selectedOperation,
       partyMode: nextPartyMode,
+      projectFilter: selectedProjectFilter,
       previewWorkers: nextPreviewWorkers,
       stepId: activeStepId,
       task: taskInstruction,
@@ -313,6 +338,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       userInput: userMessage,
       operation: selectedOperation,
       partyMode,
+      projectFilter: selectedProjectFilter,
       previewWorkers,
       stepId: activeStepId,
       task: taskInstruction,
@@ -322,6 +348,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const handleReset = () => {
     const operation = loaderData.operations[0]?.value ?? "";
     setSelectedOperation(operation);
+    setSelectedProjectFilter("all");
     setActiveStepId("");
     setPartyMode("full");
     setPreviewWorkers([...WORKING_PARTY_MEMBER_IDS]);
@@ -562,6 +589,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                     userInput: userMessage,
                     operation: value,
                     partyMode,
+                    projectFilter: selectedProjectFilter,
                     previewWorkers,
                     stepId: "",
                     task: taskInstruction,
@@ -581,6 +609,45 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 </SelectContent>
               </Select>
             </div>
+
+            {loaderData.projectFilters.length > 1 ? (
+              <div className="space-y-2">
+                <label className="font-medium text-sm" htmlFor="project-filter-select">
+                  Project Filter
+                </label>
+                <Select
+                  onValueChange={(value) => {
+                    setSelectedProjectFilter(value);
+                    setActiveStepId("");
+                    navigateWithPreviewParams({
+                      userInput: userMessage,
+                      operation: selectedOperation,
+                      partyMode,
+                      projectFilter: value,
+                      previewWorkers,
+                      stepId: "",
+                      task: taskInstruction,
+                    });
+                  }}
+                  value={selectedProjectFilter}
+                >
+                  <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="project-filter-select">
+                    <SelectValue placeholder="All Active Projects" />
+                  </SelectTrigger>
+                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
+                    {loaderData.projectFilters.map((projectFilter) => (
+                      <SelectItem
+                        className="text-slate-100 focus:bg-slate-800 focus:text-slate-100"
+                        key={projectFilter.value}
+                        value={projectFilter.value}
+                      >
+                        {projectFilter.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <Tabs className="min-h-0 flex flex-1 flex-col" defaultValue="flow">
               <TabsList className="w-full justify-start border-slate-800" variant="line">
                 <TabsTrigger className="" value="flow" variant="line">
@@ -611,6 +678,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                 userInput: userMessage,
                                 operation: selectedOperation,
                                 partyMode,
+                                projectFilter: selectedProjectFilter,
                                 previewWorkers,
                                 stepId: step.id,
                                 task: taskInstruction,
@@ -664,6 +732,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                         userInput: userMessage,
                                         operation: selectedOperation,
                                         partyMode,
+                                        projectFilter: selectedProjectFilter,
                                         previewWorkers,
                                         stepId: child.id,
                                         task: taskInstruction,

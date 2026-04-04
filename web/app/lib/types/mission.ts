@@ -139,6 +139,7 @@ export interface StepHistoryEntry {
 
 export interface OperationState {
   operationName: string;
+  operationRef: string;
   currentStep: string;
   iteration: number;
   status: OperationStatus;

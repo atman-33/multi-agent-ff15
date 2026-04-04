@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 
 const { buildOperationDebugBundleMock } = vi.hoisted(() => ({
   buildOperationDebugBundleMock: vi.fn(() => ({ flowSteps: [] })),
@@ -106,6 +107,64 @@ function writeOperation(root: string, language: string, name: string, descriptio
   );
 }
 
+function writeActiveProjectConfig(root: string, projectIds: string[]): void {
+  writeFileSync(
+    join(root, "config", "current_projects.yaml"),
+    [
+      "project_scopes:",
+      "  noctis_team:",
+      projectIds.length > 0
+        ? ["    active_project_ids:", ...projectIds.map((projectId) => `      - "${projectId}"`)].join("\n")
+        : "    active_project_ids: []",
+      "  lunafreya:",
+      "    active_project_ids: []",
+      'updated_at: "2026-04-05T00:00:00.000Z"',
+      'updated_by: "test"',
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeProjectManifest(root: string, id: string, name: string): void {
+  const projectDir = join(root, "projects", id);
+  mkdirSync(projectDir, { recursive: true });
+  writeFileSync(
+    join(projectDir, "project.yaml"),
+    [
+      `id: "${id}"`,
+      `name: "${name}"`,
+      `root_path: "../../external-${id}"`,
+      `serena_project: "${id}"`,
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeProjectOperation(root: string, projectId: string, name: string, description: string): void {
+  const operationsDirectory = join(root, "projects", projectId, "operations");
+  mkdirSync(operationsDirectory, { recursive: true });
+  writeFileSync(
+    join(operationsDirectory, `${name}.yaml`),
+    [
+      `name: ${name}`,
+      `description: ${description}`,
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Planner",
+      "    instruction:",
+      "      inline: Execute the plan",
+      "    rules: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function createPreviewStep(overrides: Record<string, unknown> = {}) {
   return {
     id: "autonomous:step:1",
@@ -176,15 +235,16 @@ describe("operation-debug route", () => {
     } as never);
 
     expect(loaderData.operations.map((operation) => operation.value)).toEqual([
-      "noctis-autonomous",
-      "openspec-dev",
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
     ]);
-    expect(loaderData.selectedOperation).toBe("noctis-autonomous");
+    expect(loaderData.selectedOperation).toBe("builtin:ja:noctis-autonomous.yaml");
     expect(loaderData.partyMode).toBe("full");
+    expect(loaderData.selectedProjectFilter).toBe("all");
     expect(loaderData.previewWorkers).toEqual(["ignis", "gladiolus", "prompto"]);
     expect(buildOperationDebugBundleMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        operationName: "noctis-autonomous",
+        operationRef: "builtin:ja:noctis-autonomous.yaml",
         previewAllowedWorkers: ["ignis", "gladiolus", "prompto"],
       }),
     );
@@ -204,10 +264,37 @@ describe("operation-debug route", () => {
     expect(loaderData.previewWorkers).toEqual([]);
     expect(buildOperationDebugBundleMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        operationName: "noctis-autonomous",
+        operationRef: "builtin:ja:noctis-autonomous.yaml",
         previewAllowedWorkers: [],
       }),
     );
+  });
+
+  it("filters project-authored workflows while keeping builtin options visible", async () => {
+    const root = createTempRoot("ja");
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
+    writeProjectManifest(root, "alpha", "Alpha Project");
+    writeProjectManifest(root, "beta", "Beta Project");
+    writeActiveProjectConfig(root, ["alpha", "beta"]);
+    writeProjectOperation(root, "alpha", "repo-review", "Alpha review flow.");
+    writeProjectOperation(root, "beta", "repo-review", "Beta review flow.");
+
+    const loaderData = await loader({
+      request: new Request("http://localhost/operation-debug?project=alpha"),
+    } as never);
+
+    expect(loaderData.selectedProjectFilter).toBe("alpha");
+    expect(loaderData.projectFilters).toEqual([
+      { value: "all", label: "All Active Projects" },
+      { value: "alpha", label: "Alpha Project" },
+      { value: "beta", label: "Beta Project" },
+    ]);
+    expect(loaderData.operations.map((operation) => operation.value)).toEqual([
+      "builtin:ja:noctis-autonomous.yaml",
+      buildProjectOperationRef("alpha", "repo-review.yaml"),
+    ]);
   });
 
   it("renders selector labels while preserving the underlying operation value", () => {
@@ -219,19 +306,27 @@ describe("operation-debug route", () => {
             description: "Default conversational flow.",
             isDefault: true,
             label: "Default (Autonomous)",
-            value: "noctis-autonomous",
+            name: "noctis-autonomous",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+            value: "builtin:ja:noctis-autonomous.yaml",
           },
           {
             description: "OpenSpec delivery flow.",
             isDefault: false,
             label: "openspec-dev",
-            value: "openspec-dev",
+            name: "openspec-dev",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+            value: "builtin:ja:openspec-dev.yaml",
           },
         ],
         partyMode: "full",
+        projectFilters: [{ value: "all", label: "All Active Projects" }],
         preview: null,
         previewWorkers: ["ignis", "gladiolus", "prompto"],
-        selectedOperation: "noctis-autonomous",
+        selectedOperation: "builtin:ja:noctis-autonomous.yaml",
+        selectedProjectFilter: "all",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
       },
@@ -245,7 +340,7 @@ describe("operation-debug route", () => {
 
     expect(markup).toContain("Default (Autonomous)");
     expect(markup).toContain("openspec-dev");
-    expect(markup).toContain('data-value="noctis-autonomous"');
+    expect(markup).toContain('data-value="builtin:ja:noctis-autonomous.yaml"');
   });
 
   it("groups delegated child events under the same top-level step number", () => {
@@ -290,13 +385,18 @@ describe("operation-debug route", () => {
             description: "Default conversational flow.",
             isDefault: true,
             label: "Default (Autonomous)",
-            value: "noctis-autonomous",
+            name: "noctis-autonomous",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+            value: "builtin:ja:noctis-autonomous.yaml",
           },
         ],
         partyMode: "full",
+        projectFilters: [{ value: "all", label: "All Active Projects" }],
         preview: { flowSteps: [parent, dispatch, delegatedReturn] },
         previewWorkers: ["ignis", "gladiolus", "prompto"],
-        selectedOperation: "noctis-autonomous",
+        selectedOperation: "builtin:ja:noctis-autonomous.yaml",
+        selectedProjectFilter: "all",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
       },
@@ -334,13 +434,18 @@ describe("operation-debug route", () => {
             description: "Default conversational flow.",
             isDefault: true,
             label: "Default (Autonomous)",
-            value: "noctis-autonomous",
+            name: "noctis-autonomous",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+            value: "builtin:ja:noctis-autonomous.yaml",
           },
         ],
         partyMode: "solo",
+        projectFilters: [{ value: "all", label: "All Active Projects" }],
         preview: { flowSteps: [soloStep] },
         previewWorkers: [],
-        selectedOperation: "noctis-autonomous",
+        selectedOperation: "builtin:ja:noctis-autonomous.yaml",
+        selectedProjectFilter: "all",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
       },

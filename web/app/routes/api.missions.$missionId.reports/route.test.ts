@@ -11,6 +11,7 @@ import {
   getMission,
   getMissionOutputFilePath,
 } from "@/lib/mission-store";
+import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
 vi.mock("@/lib/team-message.server", () => ({
@@ -65,7 +66,11 @@ function seedMission(input: {
     });
   }
 
-  const state = createOperationState(input.operationName, input.currentStep);
+  const state = createOperationState(
+    input.operationName,
+    input.currentStep,
+    buildBuiltinOperationRef("ja", `${input.operationName}.yaml`),
+  );
   state.currentStep = input.currentStep;
   state.status = "waiting_for_report";
   state.stepHistory = [

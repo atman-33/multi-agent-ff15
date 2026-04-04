@@ -202,6 +202,40 @@ export function readRegisteredProjectDefinition(
   return readProjectDefinitionFile(projectPath);
 }
 
+export function getProjectAuthoringDirectory(root: string, id: string): string {
+  return dirname(getProjectDefinitionPath(root, id));
+}
+
+export function getActiveProjectDefinitionsForScope(
+  appRoot: string,
+  scope: ProjectScope | null
+): RegisteredProjectDefinition[] {
+  if (scope === null) {
+    return [];
+  }
+
+  const { projectScopes } = readScopedProjectsConfig(appRoot);
+  const activeProjectIds = projectScopes[scope].activeProjectIds;
+  const definitions: RegisteredProjectDefinition[] = [];
+  const seen = new Set<string>();
+
+  for (const id of activeProjectIds) {
+    if (seen.has(id)) {
+      continue;
+    }
+
+    const definition = readRegisteredProjectDefinition(appRoot, id);
+    if (!definition) {
+      continue;
+    }
+
+    seen.add(id);
+    definitions.push(definition);
+  }
+
+  return definitions;
+}
+
 export function getActiveProjectRootsForScope(
   appRoot: string,
   scope: ProjectScope | null
@@ -210,13 +244,10 @@ export function getActiveProjectRootsForScope(
     return [];
   }
 
-  const { projectScopes } = readScopedProjectsConfig(appRoot);
-  const activeProjectIds = projectScopes[scope].activeProjectIds;
   const roots: string[] = [];
 
-  for (const id of activeProjectIds) {
-    const definition = readRegisteredProjectDefinition(appRoot, id);
-    if (!definition?.rootPath) {
+  for (const definition of getActiveProjectDefinitionsForScope(appRoot, scope)) {
+    if (!definition.rootPath) {
       continue;
     }
 

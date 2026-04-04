@@ -2,8 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 import {
   listOperationDebugOptions,
+  listOperationDebugProjectFilterOptions,
   resolveOperationDebugLanguage,
 } from "./operation-options.server";
 
@@ -45,6 +47,64 @@ function writeOperation(root: string, language: string, name: string, descriptio
   );
 }
 
+function writeActiveProjectConfig(root: string, projectIds: string[]): void {
+  writeFileSync(
+    join(root, "config", "current_projects.yaml"),
+    [
+      "project_scopes:",
+      "  noctis_team:",
+      projectIds.length > 0
+        ? ["    active_project_ids:", ...projectIds.map((projectId) => `      - "${projectId}"`)].join("\n")
+        : "    active_project_ids: []",
+      "  lunafreya:",
+      "    active_project_ids: []",
+      'updated_at: "2026-04-05T00:00:00.000Z"',
+      'updated_by: "test"',
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeProjectManifest(root: string, id: string, name: string): void {
+  const projectDir = join(root, "projects", id);
+  mkdirSync(projectDir, { recursive: true });
+  writeFileSync(
+    join(projectDir, "project.yaml"),
+    [
+      `id: "${id}"`,
+      `name: "${name}"`,
+      `root_path: "../../external-${id}"`,
+      `serena_project: "${id}"`,
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeProjectOperation(root: string, projectId: string, name: string, description: string): void {
+  const operationsDirectory = join(root, "projects", projectId, "operations");
+  mkdirSync(operationsDirectory, { recursive: true });
+  writeFileSync(
+    join(operationsDirectory, `${name}.yaml`),
+    [
+      `name: ${name}`,
+      `description: ${description}`,
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Project Planner",
+      "    instruction:",
+      "      inline: Execute the project workflow",
+      "    rules: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 afterEach(() => {
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
@@ -70,8 +130,8 @@ describe("operation-debug operation options", () => {
 
     expect(resolveOperationDebugLanguage()).toBe("ja");
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
-      "noctis-autonomous",
-      "openspec-dev",
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
     ]);
   });
 
@@ -85,8 +145,8 @@ describe("operation-debug operation options", () => {
 
     expect(resolveOperationDebugLanguage()).toBe("en");
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
-      "noctis-autonomous",
-      "english-review",
+      "builtin:en:noctis-autonomous.yaml",
+      "builtin:en:english-review.yaml",
     ]);
   });
 
@@ -99,8 +159,46 @@ describe("operation-debug operation options", () => {
 
     expect(resolveOperationDebugLanguage()).toBe("ja");
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
-      "noctis-autonomous",
-      "openspec-dev",
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
+    ]);
+  });
+
+  it("includes active-project workflows in the union catalog and exposes project filters", () => {
+    const root = createTempRoot("ja");
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
+    writeOperation(root, "ja", "openspec-dev", "Builtin OpenSpec workflow.");
+    writeProjectManifest(root, "alpha", "Alpha Project");
+    writeActiveProjectConfig(root, ["alpha"]);
+    writeProjectOperation(root, "alpha", "openspec-dev", "Alpha project workflow.");
+
+    expect(listOperationDebugProjectFilterOptions()).toEqual([
+      { value: "all", label: "All Active Projects" },
+      { value: "alpha", label: "Alpha Project" },
+    ]);
+    expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
+      buildProjectOperationRef("alpha", "openspec-dev.yaml"),
+    ]);
+  });
+
+  it("keeps builtin workflows visible while filtering project workflows to one active project", () => {
+    const root = createTempRoot("ja");
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
+    writeProjectManifest(root, "alpha", "Alpha Project");
+    writeProjectManifest(root, "beta", "Beta Project");
+    writeActiveProjectConfig(root, ["alpha", "beta"]);
+    writeProjectOperation(root, "alpha", "repo-review", "Alpha review workflow.");
+    writeProjectOperation(root, "beta", "repo-review", "Beta review workflow.");
+
+    expect(listOperationDebugOptions("alpha").map((operation) => operation.value)).toEqual([
+      "builtin:ja:noctis-autonomous.yaml",
+      buildProjectOperationRef("alpha", "repo-review.yaml"),
     ]);
   });
 });

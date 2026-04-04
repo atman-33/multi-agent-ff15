@@ -1,9 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getMissionOutputFilePath } from "@/lib/mission-store";
+import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { loadOperationFromFile } from "@/lib/operation-definition/operation-loader";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { createOperationState } from "@/lib/operation-runtime/state";
@@ -24,6 +25,18 @@ const CANONICAL_SPEC_PLAN_CONTRACT = [
   "",
   "- `change_name` is required",
 ].join("\n");
+
+function createTestOperationState(operation: {
+  initial_step: string;
+  name: string;
+  sourcePath: string;
+}) {
+  return createOperationState(
+    operation.name,
+    operation.initial_step,
+    buildBuiltinOperationRef("ja", basename(operation.sourcePath)),
+  );
+}
 
 function createInlinePromptFixture(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-prompt-builder-"));
@@ -250,7 +263,7 @@ describe("operation prompt builder", () => {
     }
 
     const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createOperationState(operation.name, operation.initial_step);
+    const operationState = createTestOperationState(operation);
     const prompt = buildActivationInstruction({
       operation,
       step,
@@ -289,7 +302,7 @@ describe("operation prompt builder", () => {
     }
 
     const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createOperationState(operation.name, operation.initial_step);
+    const operationState = createTestOperationState(operation);
     operationState.currentStep = "implement";
     operationState.stepHistory = [
       {
@@ -335,7 +348,7 @@ describe("operation prompt builder", () => {
     }
 
     const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createOperationState(operation.name, operation.initial_step);
+    const operationState = createTestOperationState(operation);
     const prompt = buildActivationInstruction({
       operation,
       step,
@@ -397,7 +410,7 @@ describe("operation prompt builder", () => {
     writeFileSync(outputPath, "---\nchange_name: test-change\n---\n", "utf-8");
 
     const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createOperationState(operation.name, operation.initial_step);
+    const operationState = createTestOperationState(operation);
     operationState.currentStep = "implement";
     operationState.stepHistory = [
       {
@@ -442,7 +455,7 @@ describe("operation prompt builder", () => {
     writeFileSync(outputPath, "---\nchange_name: explicit-change\n---\n", "utf-8");
 
     const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createOperationState(operation.name, operation.initial_step);
+    const operationState = createTestOperationState(operation);
     operationState.currentStep = "implement";
     operationState.stepHistory = [
       {
@@ -484,7 +497,7 @@ describe("operation prompt builder", () => {
     }
 
     const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createOperationState(operation.name, operation.initial_step);
+    const operationState = createTestOperationState(operation);
     operationState.currentStep = "implement";
     operationState.stepHistory = [
       {
@@ -536,7 +549,11 @@ describe("operation prompt builder", () => {
     }
 
     const facets = resolveStepFacets(autonomousOperation, step, "ja");
-    const operationState = createOperationState(autonomousOperation.name, autonomousOperation.initial_step);
+    const operationState = createOperationState(
+      autonomousOperation.name,
+      autonomousOperation.initial_step,
+      buildBuiltinOperationRef("ja", basename(autonomousOperation.sourcePath)),
+    );
     const prompt = buildActivationInstruction({
       operation: autonomousOperation,
       step,

@@ -13,10 +13,12 @@ const DEFAULT_REPORT_DIR = "docs/reports";
 export function createOperationState(
   operationName: string,
   initialStep: string,
+  operationRef: string,
 ): OperationState {
   const now = new Date().toISOString();
   return {
     operationName,
+    operationRef,
     currentStep: initialStep,
     iteration: 0,
     status: "running",
@@ -34,6 +36,15 @@ export function getOperationState(missionId: string): OperationState | undefined
   return mission?.operationState;
 }
 
+export function getOperationRef(state: OperationState): string {
+  const operationRef = (state as OperationState & { operationRef?: unknown }).operationRef;
+  if (typeof operationRef !== "string" || operationRef.trim().length === 0) {
+    throw new Error("Invalid operation state: missing operationRef");
+  }
+
+  return operationRef.trim();
+}
+
 export function saveOperationState(missionId: string, state: OperationState): void {
   const mission = getMission(missionId);
   if (!mission) {
@@ -44,6 +55,8 @@ export function saveOperationState(missionId: string, state: OperationState): vo
   if ("previousResponse" in legacyState) {
     delete legacyState.previousResponse;
   }
+
+  state.operationRef = getOperationRef(state);
 
   state.updatedAt = new Date().toISOString();
   mission.operationState = state;

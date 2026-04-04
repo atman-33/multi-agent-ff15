@@ -18,7 +18,6 @@ import {
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { OperationOption } from "@/lib/operation-presentation";
-import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type {
   AgentContextUsage,
   DelegationLedger,
@@ -387,7 +386,7 @@ export interface UseAgentSessionReturn {
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
   isOperationSelectionLocked: boolean;
-  setSelectedOperation: (operationName: string | null) => void;
+  setSelectedOperation: (operationRef: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
 }
@@ -411,9 +410,7 @@ export function useAgentSession({
       : createInitialWorkerSessionIds();
   const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [availableOperations, setAvailableOperations] = useState<OperationOption[]>([]);
-  const [selectedOperation, setSelectedOperation] = useState<string | null>(
-    activeMissionId ? null : INTERNAL_AUTONOMOUS_OPERATION_NAME
-  );
+  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [activeOperationState, setActiveOperationState] = useState<OperationState | null>(null);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [latestBanterEntryId, setLatestBanterEntryId] = useState<string | null>(null);
@@ -1058,7 +1055,7 @@ export function useAgentSession({
     (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
       missionIdRef.current = runtime.missionId;
       setActiveOperationState(runtime.operationState ?? null);
-      setSelectedOperation(runtime.operationState?.operationName ?? null);
+      setSelectedOperation(runtime.operationState?.operationRef ?? null);
 
       const nextNoctisSessionId = runtime.sessions.noctis;
       const optimisticNoctisStatus =
@@ -1238,7 +1235,7 @@ export function useAgentSession({
         seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
         setActiveOperationState(null);
-        setSelectedOperation(INTERNAL_AUTONOMOUS_OPERATION_NAME);
+        setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
         setContextUsageByAgent(createInitialContextUsageByAgent());
@@ -1276,7 +1273,7 @@ export function useAgentSession({
           noctisSessionIdRef.current = initialMissionData.sessions.noctis;
           setNoctisSessionId(initialMissionData.sessions.noctis);
           setActiveOperationState(initialMissionData.operationState ?? null);
-          setSelectedOperation(initialMissionData.operationState?.operationName ?? null);
+          setSelectedOperation(initialMissionData.operationState?.operationRef ?? null);
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
           setContextUsageByAgent(createInitialContextUsageByAgent());
           streamingMessageIdRef.current = null;
@@ -1389,7 +1386,7 @@ export function useAgentSession({
           missionIdRef.current = data.missionId;
           noctisSessionIdRef.current = data.noctisSessionId;
           setActiveOperationState(data.operationState ?? null);
-          setSelectedOperation(data.operationState?.operationName ?? null);
+          setSelectedOperation(data.operationState?.operationRef ?? null);
           setNoctisSessionId(data.noctisSessionId);
           setOptimisticSessionState(data.noctisSessionId, "busy");
           setPendingMissionSession(data.missionId, data.noctisSessionId);

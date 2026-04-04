@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { createMission, deleteMission, getMission } from "@/lib/mission-store";
+import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
 const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
@@ -144,7 +145,11 @@ describe("Noctis mission solo routing", () => {
       objective: "Keep using Noctis directly",
       allowedWorkers: ["ignis", "gladiolus"],
     });
-    mission.operationState = createOperationState("noctis-autonomous", "autonomous");
+    mission.operationState = createOperationState(
+      "noctis-autonomous",
+      "autonomous",
+      buildBuiltinOperationRef("ja", "noctis-autonomous.yaml"),
+    );
 
     const response = await continueAction({
       request: new Request("http://localhost/api/noctis/mission/continue", {

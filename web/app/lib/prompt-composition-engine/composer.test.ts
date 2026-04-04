@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { createMission, deleteMission, getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.server";
+import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { processReport } from "@/lib/operation-runtime/runtime";
 import { ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
@@ -31,6 +32,10 @@ function createTempRoot(): string {
   cpSync(join(repoRoot, "opencode.json"), join(root, "opencode.json"));
   process.env.MULTI_AGENT_FF15_ROOT = root;
   return root;
+}
+
+function builtinOperationRef(operationName: string): string {
+  return buildBuiltinOperationRef("ja", `${operationName}.yaml`);
 }
 
 function seedProjectConfig(root: string) {
@@ -254,7 +259,11 @@ function buildSyntheticOperationState(missionId: string): {
   specPlanningTaskId: string;
 } {
   const operation = loadOperationByName("openspec-dev", "ja");
-  const state = createOperationState(operation.name, operation.initial_step);
+  const state = createOperationState(
+    operation.name,
+    operation.initial_step,
+    builtinOperationRef("openspec-dev"),
+  );
 
   const specPlanningTaskId = ensureActiveStepTaskId(state, "noctis");
   writeRequiredOutput({
@@ -292,7 +301,11 @@ function buildSyntheticOperationState(missionId: string): {
 
 function buildSyntheticAutonomousOperationState() {
   const operation = loadOperationByName("noctis-autonomous", "ja");
-  const state = createOperationState(operation.name, operation.initial_step);
+  const state = createOperationState(
+    operation.name,
+    operation.initial_step,
+    builtinOperationRef("noctis-autonomous"),
+  );
   const parentTaskId = ensureActiveStepTaskId(state, "noctis");
   const childTaskId = "task-autonomous-child";
   registerDelegatedTask(state, {
@@ -361,7 +374,7 @@ describe("prompt composition engine", () => {
       missionId: "mission-2",
       sessionId: "session-2",
       isNewMission: true,
-      selectedOperation: "openspec-dev",
+      selectedOperation: builtinOperationRef("openspec-dev"),
     });
 
     expect(composed.workflowExtension).not.toContain("format=");
@@ -451,7 +464,7 @@ describe("prompt composition engine", () => {
     const { state: operationState, taskId } = buildSyntheticOperationState(missionId);
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationName: "openspec-dev",
+      operationRef: builtinOperationRef("openspec-dev"),
       taskInstruction: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
     });
     const workerStep = bundle.flowSteps.find(
@@ -492,7 +505,7 @@ describe("prompt composition engine", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
     const bundle = buildOperationDebugBundle({
-      operationName: "openspec-dev",
+      operationRef: builtinOperationRef("openspec-dev"),
     });
 
     expect(
@@ -515,7 +528,7 @@ describe("prompt composition engine", () => {
     const missionId = "debug-self-step-preview";
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationName: "openspec-dev",
+      operationRef: builtinOperationRef("openspec-dev"),
     });
     const selfStep = bundle.flowSteps.find(
       (step) => step.kind === "noctis-step" && step.to === "Noctis",
@@ -533,7 +546,7 @@ describe("prompt composition engine", () => {
       missionId,
       sessionId: "debug-noctis-session",
       isNewMission: true,
-      selectedOperation: "openspec-dev",
+      selectedOperation: builtinOperationRef("openspec-dev"),
     });
 
     expect(selfStep).toBeTruthy();
@@ -558,7 +571,7 @@ describe("prompt composition engine", () => {
     writeNoctisReentryOperation(root);
     const userMessage = "Please summarize the current workflow state.";
     const bundle = buildOperationDebugBundle({
-      operationName: "noctis-reentry-debug",
+      operationRef: builtinOperationRef("noctis-reentry-debug"),
       userMessage,
     });
     const reentryStep = bundle.flowSteps.find(
@@ -592,7 +605,7 @@ describe("prompt composition engine", () => {
     const userMessage = "Open the knowledge-catalog workflow.";
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationName: "knowledge-catalog-workflow",
+      operationRef: builtinOperationRef("knowledge-catalog-workflow"),
       userMessage,
     });
     const selfStep = bundle.flowSteps.find(
@@ -611,7 +624,7 @@ describe("prompt composition engine", () => {
       missionId,
       sessionId: "debug-knowledge-catalog-session",
       isNewMission: true,
-      selectedOperation: "knowledge-catalog-workflow",
+      selectedOperation: builtinOperationRef("knowledge-catalog-workflow"),
     });
 
     expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
@@ -650,7 +663,7 @@ describe("prompt composition engine", () => {
         missionId: "mission-malformed",
         sessionId: "session-malformed",
         isNewMission: true,
-        selectedOperation: "malformed-output-contract",
+        selectedOperation: builtinOperationRef("malformed-output-contract"),
       }),
     ).toThrow(/## Format.*## Rule/i);
   });
@@ -663,7 +676,7 @@ describe("prompt composition engine", () => {
     expect(() =>
       buildOperationDebugBundle({
         missionId: "mission-malformed-preview",
-        operationName: "malformed-output-contract",
+        operationRef: builtinOperationRef("malformed-output-contract"),
       }),
     ).toThrow(/## Format.*## Rule/i);
   });
@@ -684,13 +697,13 @@ describe("prompt composition engine", () => {
       missionId: "mission-autonomous",
       sessionId: "session-autonomous",
       isNewMission: true,
-      selectedOperation: "noctis-autonomous",
+      selectedOperation: builtinOperationRef("noctis-autonomous"),
     });
 
     expect(composed.operationActivated).toBe("noctis-autonomous");
-  expect(composed.effectivePrompt).toContain("<job>");
-  expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
-  expect(composed.effectivePrompt).toContain("<instruction>");
+    expect(composed.effectivePrompt).toContain("<job>");
+    expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
+    expect(composed.effectivePrompt).toContain("<instruction>");
     expect(composed.effectivePrompt).toContain("<delegation-guidance>");
     expect(composed.effectivePrompt).toContain("scripts/send_task.sh mission-autonomous ignis");
     expect(composed.effectivePrompt).not.toContain("<step-completion-contract>");
@@ -718,7 +731,7 @@ describe("prompt composition engine", () => {
         missionId: "mission-autonomous-solo",
         sessionId: "session-autonomous-solo",
         isNewMission: true,
-        selectedOperation: "noctis-autonomous",
+        selectedOperation: builtinOperationRef("noctis-autonomous"),
       });
 
       expect(composed.operationActivated).toBe("noctis-autonomous");
@@ -769,7 +782,7 @@ describe("prompt composition engine", () => {
     seedProjectConfig(root);
     const bundle = buildOperationDebugBundle({
       missionId: "mission-autonomous-preview",
-      operationName: "noctis-autonomous",
+      operationRef: builtinOperationRef("noctis-autonomous"),
       taskInstruction: "Investigate the current issue and report back to Noctis.",
     });
 
@@ -796,7 +809,7 @@ describe("prompt composition engine", () => {
     seedProjectConfig(root);
     const bundle = buildOperationDebugBundle({
       missionId: "mission-autonomous-solo-preview",
-      operationName: "noctis-autonomous",
+      operationRef: builtinOperationRef("noctis-autonomous"),
       previewAllowedWorkers: [],
       userMessage: "Handle this directly.",
     });

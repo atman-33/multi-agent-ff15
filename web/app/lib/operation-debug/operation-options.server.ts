@@ -2,12 +2,18 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readAppConfig } from "@/lib/app-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
+import { listOperationCatalogEntriesForScope } from "@/lib/operation-definition/operation-catalog";
+import { getActiveProjectDefinitionsForScope } from "@/lib/project-config.server";
 import {
   compareOperationOptions,
   toOperationOption,
   type OperationOption,
 } from "@/lib/operation-presentation";
+
+export interface OperationDebugProjectFilterOption {
+  label: string;
+  value: string;
+}
 
 function getOperationsDirectory(root: string, language: string): string {
   return join(root, "builtins", language, "operations");
@@ -76,12 +82,28 @@ export function resolveOperationDebugLanguage(): string {
   return resolveOperationDebugLanguageFromRoot(getProjectRoot());
 }
 
-export function listOperationDebugOptions(): OperationOption[] {
+export function listOperationDebugProjectFilterOptions(): OperationDebugProjectFilterOption[] {
+  const root = getProjectRoot();
+
+  return [
+    { value: "all", label: "All Active Projects" },
+    ...getActiveProjectDefinitionsForScope(root, "noctis_team").map((project) => ({
+      value: project.id,
+      label: project.name,
+    })),
+  ];
+}
+
+export function listOperationDebugOptions(projectFilterId?: string): OperationOption[] {
   const root = getProjectRoot();
   const language = resolveOperationDebugLanguageFromRoot(root);
 
-  return listOperationNamesForLanguage(root, language)
-    .map((operationName) => loadOperationByName(operationName, language))
+  return listOperationCatalogEntriesForScope({
+    root,
+    scope: "noctis_team",
+    builtinLanguages: [language],
+    projectFilterId,
+  })
     .map(toOperationOption)
     .sort(compareOperationOptions);
 }

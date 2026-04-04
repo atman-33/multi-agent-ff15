@@ -1,9 +1,12 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import {
+  findUnambiguousOperationEntryForMessage,
+  loadOperationByRef,
+} from "@/lib/operation-definition/operation-catalog";
+import {
   resolveDelegatedWorkerFacets,
   resolveStepFacets,
 } from "@/lib/operation-definition/facet-loader";
-import { listAvailableOperations, loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import type { OperationDefinition, StepDefinition } from "@/lib/operation-definition/types";
 import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
 import {
@@ -20,6 +23,7 @@ import {
   createOperationState,
   ensureActiveStepTaskId,
   getDelegatedTaskRecord,
+  getOperationRef,
   getOperationState,
   recordStepCompleted,
   saveOperationState,
@@ -34,15 +38,23 @@ import type {
   StateTransition,
 } from "./types";
 
-function detectOperationName(message: string): string | null {
+function listPreferredBuiltinLanguages(language: string): string[] {
+  return language === "en" ? ["en"] : [language, "en"];
+}
+
+function detectOperationRef(message: string): string | null {
   const language = readOperationLanguage();
-  const knownOperations = listAvailableOperations(language);
-  for (const name of knownOperations) {
-    if (message.includes(name)) {
-      return name;
-    }
-  }
-  return null;
+  return (
+    findUnambiguousOperationEntryForMessage({
+      builtinLanguages: listPreferredBuiltinLanguages(language),
+      message,
+      scope: "noctis_team",
+    })?.ref ?? null
+  );
+}
+
+function loadOperationForState(state: OperationState): OperationDefinition {
+  return loadOperationByRef(getOperationRef(state));
 }
 
 export function processUserMessage(
@@ -53,22 +65,22 @@ export function processUserMessage(
   const existingState = getOperationState(missionId);
 
   if (!existingState) {
-    const operationName = Object.hasOwn(input, "selectedOperation")
+    const operationRef = Object.hasOwn(input, "selectedOperation")
       ? input.selectedOperation?.trim() || null
-      : detectOperationName(message);
-    if (!operationName) {
+      : detectOperationRef(message);
+    if (!operationRef) {
       return { additionalContext: null };
     }
 
-    const operation = loadOperationByName(operationName, language);
-    const state = createOperationState(operationName, operation.initial_step);
+    const operation = loadOperationByRef(operationRef);
+    const state = createOperationState(operation.name, operation.initial_step, operationRef);
     saveOperationState(missionId, state);
 
     const initialStep = operation.steps.find(
       (step) => step.name === operation.initial_step,
     );
     if (!initialStep) {
-      return { additionalContext: null, operationActivated: operationName };
+      return { additionalContext: null, operationActivated: operation.name };
     }
 
     const activationText =
@@ -86,11 +98,11 @@ export function processUserMessage(
 
     return {
       additionalContext: activationText,
-      operationActivated: operationName,
+      operationActivated: operation.name,
     };
   }
 
-  const operation = loadOperationByName(existingState.operationName, language);
+  const operation = loadOperationForState(existingState);
   const currentStep = operation.steps.find(
     (step) => step.name === existingState.currentStep,
   );
@@ -118,7 +130,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
     return originalPrompt;
   }
 
-  const operation = loadOperationByName(operationState.operationName, language);
+  const operation = loadOperationForState(operationState);
   const currentStep = operation.steps.find(
     (step) => step.name === operationState.currentStep,
   );
@@ -179,7 +191,7 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
 export function processReport(input: ProcessReportInput): ProcessReportResult {
   const { missionId, operationState, reportBody, next } = input;
   const language = readOperationLanguage();
-  const operation = loadOperationByName(operationState.operationName, language);
+  const operation = loadOperationForState(operationState);
   const currentStep = operation.steps.find(
     (step) => step.name === operationState.currentStep,
   );
