@@ -1,5 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { getMission } from "@/lib/mission-store";
+import { getMission, setAllowedWorkers } from "@/lib/mission-store";
 import {
   coerceAllowedWorkers,
   getNoctisAgentProfile,
@@ -60,14 +60,19 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   const missionId = body.missionId.trim();
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
-  const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
-  const executionMode = getNoctisExecutionMode(allowedWorkers);
-  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
 
   const mission = getMission(missionId);
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
+
+  const allowedWorkers =
+    body.allowedWorkers === undefined
+      ? mission.allowedWorkers
+      : coerceAllowedWorkers(body.allowedWorkers);
+  setAllowedWorkers(missionId, allowedWorkers);
+  const executionMode = getNoctisExecutionMode(allowedWorkers);
+  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
 
   const effectiveModel = noctisModel ?? mission.agentModels.noctis;
 

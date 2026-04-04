@@ -1,12 +1,22 @@
 import { existsSync } from "node:fs";
+import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { getMissionOutputFilePath, updateTask } from "@/lib/mission-store";
+import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
 import { processReport } from "@/lib/operation-runtime/runtime";
-import { getOperationState, saveOperationState } from "@/lib/operation-runtime/state";
+import {
+  completeDelegatedTask,
+  ensureActiveStepTaskId,
+  getDelegatedTaskRecord,
+  getOperationState,
+  saveOperationState,
+} from "@/lib/operation-runtime/state";
+import { buildActivationInstruction } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { dispatchCurrentOperationStepToWorker } from "@/lib/task-dispatch.server";
 import { sendWorkerReport } from "@/lib/team-message.server";
+import type { OperationDefinition, StepDefinition } from "@/lib/operation-definition/types";
 import type { AgentId, ReportStatus, StepResult, WorkerAgentId } from "@/lib/types/mission";
 import type { Route } from "./+types/route";
 
@@ -52,6 +62,24 @@ function listMissingRequiredOutputs(input: {
 
 function buildMissingOutputRetryGuidance(): string {
   return "Create the missing output files at the paths above, then rerun the same scripts/send_report.sh command.";
+}
+
+function buildNoctisStepGuidance(input: {
+  missionId: string;
+  operation: OperationDefinition;
+  operationState: NonNullable<ReturnType<typeof getOperationState>>;
+  step: StepDefinition;
+}): string {
+  const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
+  const facets = resolveStepFacets(input.operation, input.step, readOperationLanguage());
+  return buildActivationInstruction({
+    operation: input.operation,
+    step: input.step,
+    operationState: input.operationState,
+    facets,
+    missionId: input.missionId,
+    taskId,
+  });
 }
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -111,105 +139,168 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       const operation = loadOperationByName(operationState.operationName, readOperationLanguage());
       const currentStep = operation.steps.find((step) => step.name === operationState.currentStep);
       const latestStep = operationState.stepHistory.at(-1);
+      const delegatedTask = getDelegatedTaskRecord(operationState, taskId);
+      const isDelegatedChildReport =
+        !!currentStep &&
+        currentStep.agent === "noctis" &&
+        hasDelegationPolicy(currentStep) &&
+        !!delegatedTask &&
+        delegatedTask.parentStep === currentStep.name;
 
-      if (currentStep?.agent !== body.fromAgent) {
-        return Response.json(
-          {
-            error: `Current step expects reports from ${currentStep?.agent ?? "the active agent"}`,
-            currentStep: currentStep?.name ?? null,
-          },
-          { status: 409 },
-        );
-      }
+      if (isDelegatedChildReport) {
+        if (delegatedTask.agent !== body.fromAgent) {
+          return Response.json(
+            {
+              error: `Delegated task expects reports from ${delegatedTask.agent}`,
+              currentStep: currentStep?.name ?? null,
+            },
+            { status: 409 },
+          );
+        }
 
-      if (latestStep?.taskId && latestStep.taskId !== taskId) {
-        return Response.json(
-          {
-            error: "Unexpected taskId for the active workflow step",
-            expectedTaskId: latestStep.taskId,
-            receivedTaskId: taskId,
-          },
-          { status: 409 },
-        );
-      }
+        if (delegatedTask.status !== "dispatched") {
+          return Response.json(
+            {
+              error: "Unexpected taskId for the active delegated child task",
+              taskId,
+            },
+            { status: 409 },
+          );
+        }
 
-      if (currentStep && currentStep.rules.length > 0) {
-        const allowedNextValues = listAllowedNextValues(currentStep.rules);
-        if (!allowedNextValues.includes(next)) {
+        if (next !== "COMPLETE" && next !== "ABORT") {
           return Response.json(
             {
               error: "Invalid next",
-              allowedNext: currentStep.rules.map((rule) => ({
-                next: rule.next,
-                condition: rule.condition,
-              })),
+              allowedNext: [
+                { next: "COMPLETE", condition: "Delegated child task succeeded" },
+                { next: "ABORT", condition: "Delegated child task failed or was blocked" },
+              ],
             },
             { status: 400 },
           );
         }
-      }
 
-      if (currentStep?.output_contracts?.report.length) {
-        const missingOutputs = listMissingRequiredOutputs({
-          missionId,
-          stepName: currentStep.name,
+        completeDelegatedTask(operationState, {
           taskId,
-          reports: currentStep.output_contracts.report,
+          status: next === "COMPLETE" ? "completed" : "failed",
+          summary,
         });
-        if (missingOutputs.length > 0) {
+        saveOperationState(missionId, operationState);
+
+        workflowGuidance = joinXmlSections([
+          buildTextSection(
+            "operation-note",
+            `A delegated child task returned to the active "${currentStep.name}" step. Integrate the result and decide whether to continue the conversation or delegate again.`,
+          ),
+          buildNoctisStepGuidance({
+            missionId,
+            operation,
+            operationState,
+            step: currentStep,
+          }),
+        ]);
+      } else {
+
+        if (currentStep?.agent !== body.fromAgent) {
           return Response.json(
             {
-              error: "Missing required output files",
-              missingOutputs,
-              retryGuidance: buildMissingOutputRetryGuidance(),
+              error: `Current step expects reports from ${currentStep?.agent ?? "the active agent"}`,
+              currentStep: currentStep?.name ?? null,
             },
-            { status: 400 },
+            { status: 409 },
           );
         }
-      }
 
-      const reportResult = processReport({
-        missionId,
-        operationState,
-        reportBody: message,
-        fromAgent: body.fromAgent,
-        taskId,
-        next,
-      });
+        if (latestStep?.taskId && latestStep.taskId !== taskId) {
+          return Response.json(
+            {
+              error: "Unexpected taskId for the active workflow step",
+              expectedTaskId: latestStep.taskId,
+              receivedTaskId: taskId,
+            },
+            { status: 409 },
+          );
+        }
 
-      workflowGuidance = reportResult.noctisGuidance || undefined;
-      nextStep = reportResult.stateTransition?.nextStep ?? null;
-
-      if (reportResult.stateTransition) {
-        saveOperationState(missionId, operationState);
-      }
-
-      if (reportResult.nextWorkerDispatch) {
-        try {
-          const dispatched = await dispatchCurrentOperationStepToWorker({ missionId });
-          autoDispatch = {
-            agentId: dispatched.agentId,
-            stepName: dispatched.stepName,
-            taskId: dispatched.taskId,
-            sessionId: dispatched.sessionId,
-          };
-        } catch (error) {
-          const dispatchError = error instanceof Error ? error.message : String(error);
-
-          if (body.fromAgent === "noctis") {
+        if (currentStep && currentStep.rules.length > 0) {
+          const allowedNextValues = listAllowedNextValues(currentStep.rules);
+          if (!allowedNextValues.includes(next)) {
             return Response.json(
               {
-                error: `Automatic dispatch failed: ${dispatchError}`,
-                nextStep,
+                error: "Invalid next",
+                allowedNext: currentStep.rules.map((rule) => ({
+                  next: rule.next,
+                  condition: rule.condition,
+                })),
               },
-              { status: 503 },
+              { status: 400 },
             );
           }
+        }
 
-          workflowGuidance = joinXmlSections([
-            buildTextSection("operation-note", `Automatic handoff failed: ${dispatchError}`),
-            workflowGuidance ?? null,
-          ]);
+        if (currentStep?.output_contracts?.report.length) {
+          const missingOutputs = listMissingRequiredOutputs({
+            missionId,
+            stepName: currentStep.name,
+            taskId,
+            reports: currentStep.output_contracts.report,
+          });
+          if (missingOutputs.length > 0) {
+            return Response.json(
+              {
+                error: "Missing required output files",
+                missingOutputs,
+                retryGuidance: buildMissingOutputRetryGuidance(),
+              },
+              { status: 400 },
+            );
+          }
+        }
+
+        const reportResult = processReport({
+          missionId,
+          operationState,
+          reportBody: message,
+          fromAgent: body.fromAgent,
+          taskId,
+          next,
+        });
+
+        workflowGuidance = reportResult.noctisGuidance || undefined;
+        nextStep = reportResult.stateTransition?.nextStep ?? null;
+
+        if (reportResult.stateTransition) {
+          saveOperationState(missionId, operationState);
+        }
+
+        if (reportResult.nextWorkerDispatch) {
+          try {
+            const dispatched = await dispatchCurrentOperationStepToWorker({ missionId });
+            autoDispatch = {
+              agentId: dispatched.agentId,
+              stepName: dispatched.stepName,
+              taskId: dispatched.taskId,
+              sessionId: dispatched.sessionId,
+            };
+          } catch (error) {
+            const dispatchError = error instanceof Error ? error.message : String(error);
+
+            if (body.fromAgent === "noctis") {
+              return Response.json(
+                {
+                  error: `Automatic dispatch failed: ${dispatchError}`,
+                  nextStep,
+                },
+                { status: 503 },
+              );
+            }
+
+            workflowGuidance = joinXmlSections([
+              buildTextSection("operation-note", `Automatic handoff failed: ${dispatchError}`),
+              workflowGuidance ?? null,
+            ]);
+          }
         }
       }
     }

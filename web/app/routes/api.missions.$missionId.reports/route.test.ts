@@ -51,6 +51,7 @@ function seedMission(input: {
   const mission = createMission(input.missionId, `session-${input.missionId}`, {
     title: input.missionId,
     objective: "Test mission",
+    allowedWorkers: ["ignis", "gladiolus", "prompto"],
   });
   missionIds.push(input.missionId);
 
@@ -334,6 +335,67 @@ describe("api.missions.$missionId.reports", () => {
       sessionId: "prompto-session",
     });
     expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
+  });
+
+  it("returns delegated child reports to the same Noctis-owned step", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
+    const missionId = `mission-delegated-${crypto.randomUUID()}`;
+    const mission = seedMission({
+      missionId,
+      operationName: "noctis-autonomous",
+      currentStep: "autonomous",
+      agent: "noctis",
+      taskId: "step_autonomous_1",
+    });
+    mission.operationState?.delegatedTasks.push({
+      parentStep: "autonomous",
+      taskId: "task-delegated-1",
+      agent: "ignis",
+      status: "dispatched",
+      createdAt: "2026-04-01T00:00:00.000Z",
+      message: "Investigate the current issue and summarize the outcome.",
+    });
+    vi.mocked(sendWorkerReport).mockResolvedValue({
+      sessionId: "noctis-session",
+      messageId: "msg-delegated",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAgent: "ignis",
+          taskId: "task-delegated-1",
+          next: "COMPLETE",
+          message: "Collected the needed context for Noctis.",
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson(response)).resolves.toMatchObject({
+      sessionId: "noctis-session",
+      messageId: "msg-delegated",
+    });
+    expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
+    expect(sendWorkerReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missionId,
+        fromAgent: "ignis",
+        taskId: "task-delegated-1",
+        next: "COMPLETE",
+        message: "Collected the needed context for Noctis.",
+        workflowGuidance: expect.stringContaining("active \"autonomous\" step"),
+      }),
+    );
+    expect(mission.operationState?.currentStep).toBe("autonomous");
+    expect(mission.operationState?.delegatedTasks[0]).toMatchObject({
+      taskId: "task-delegated-1",
+      status: "completed",
+      summary: "Collected the needed context for Noctis.",
+    });
   });
 
   it("auto-dispatches the next openspec-dev worker without relaying through Noctis", async () => {

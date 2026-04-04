@@ -51,7 +51,12 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     return Response.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to dispatch task";
-    const status = message === "Mission not found" ? 404 : 503;
+    const status =
+      message === "Mission not found"
+        ? 404
+        : message.includes("not allowed for the active step")
+          ? 400
+          : 503;
     return Response.json({ error: message }, { status });
   }
 };

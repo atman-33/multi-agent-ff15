@@ -12,6 +12,7 @@ import type {
   MissionStatus,
   MissionSummary,
   ModelSelection,
+  OperationState,
   Task,
   TaskStatus,
   WorkerAgentId,
@@ -77,9 +78,47 @@ function readMissionFromDisk(id: string): Mission | null {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
+    parsed.allowedWorkers = Array.isArray(parsed.allowedWorkers)
+      ? parsed.allowedWorkers.filter(
+          (item): item is WorkerAgentId =>
+            item === "ignis" || item === "gladiolus" || item === "prompto",
+        )
+      : [];
     parsed.archivedAt = typeof parsed.archivedAt === "string" ? parsed.archivedAt : undefined;
     if (parsed.operationState && "previousResponse" in parsed.operationState) {
       delete (parsed.operationState as { previousResponse?: string | null }).previousResponse;
+    }
+    if (parsed.operationState) {
+      const operationState = parsed.operationState as OperationState & {
+        delegatedTasks?: unknown;
+      };
+      operationState.delegatedTasks = Array.isArray(operationState.delegatedTasks)
+        ? operationState.delegatedTasks
+            .filter(
+              (item): item is NonNullable<OperationState["delegatedTasks"]>[number] =>
+                !!item &&
+                typeof item === "object" &&
+                typeof (item as { parentStep?: unknown }).parentStep === "string" &&
+                typeof (item as { taskId?: unknown }).taskId === "string" &&
+                ((item as { agent?: unknown }).agent === "ignis" ||
+                  (item as { agent?: unknown }).agent === "gladiolus" ||
+                  (item as { agent?: unknown }).agent === "prompto") &&
+                ((item as { status?: unknown }).status === "dispatched" ||
+                  (item as { status?: unknown }).status === "completed" ||
+                  (item as { status?: unknown }).status === "failed") &&
+                typeof (item as { createdAt?: unknown }).createdAt === "string",
+            )
+            .map((item) => ({
+              parentStep: item.parentStep,
+              taskId: item.taskId,
+              agent: item.agent,
+              status: item.status,
+              createdAt: item.createdAt,
+              completedAt: typeof item.completedAt === "string" ? item.completedAt : undefined,
+              message: typeof item.message === "string" ? item.message : undefined,
+              summary: typeof item.summary === "string" ? item.summary : undefined,
+            }))
+        : [];
     }
     return parsed;
   } catch {
@@ -110,13 +149,14 @@ function touchMission(mission: Mission, status?: MissionStatus): void {
 export function createMission(
   id: string,
   noctisSessionId: string,
-  options?: { title?: string; objective?: string }
+  options?: { title?: string; objective?: string; allowedWorkers?: WorkerAgentId[] }
 ): Mission {
   const now = new Date().toISOString();
   const mission: Mission = {
     id,
     noctisSessionId,
     workerSessions: {},
+    allowedWorkers: options?.allowedWorkers ?? [],
     taskGraph: [],
     delegationLedger: {
       missionId: id,
@@ -220,6 +260,13 @@ export function setAgentModels(
   const mission = getMission(missionId);
   if (!mission) return;
   mission.agentModels = { ...mission.agentModels, ...agentModels };
+  touchMission(mission);
+}
+
+export function setAllowedWorkers(missionId: string, allowedWorkers: WorkerAgentId[]): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.allowedWorkers = [...allowedWorkers];
   touchMission(mission);
 }
 

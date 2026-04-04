@@ -181,6 +181,39 @@ describe("operation loader", () => {
     expect(planStep?.output_contracts?.report[0]?.format).toEqual({ inline: "# Plan output" });
   });
 
+  it("loads a rules-less Noctis delegation step", () => {
+    const filePath = writeTempOperation([
+      "name: delegated-operation",
+      "description: Delegated operation",
+      "initial_step: autonomous",
+      "steps:",
+      "  - name: autonomous",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Autonomous Noctis role",
+      "    delegation:",
+      "      allowed_workers:",
+      "        - ignis",
+      "        - gladiolus",
+      "      worker_job:",
+      "        inline: Delegated worker role",
+      "      worker_instruction:",
+      "        inline: Complete the child task and report back.",
+      "",
+    ].join("\n"));
+
+    const operation = loadOperationFromFile(filePath);
+    const step = operation.steps[0];
+
+    expect(step?.name).toBe("autonomous");
+    expect(step?.rules).toEqual([]);
+    expect(step?.delegation?.allowed_workers).toEqual(["ignis", "gladiolus"]);
+    expect(step?.delegation?.worker_job).toEqual({ inline: "Delegated worker role" });
+    expect(step?.delegation?.worker_instruction).toEqual({
+      inline: "Complete the child task and report back.",
+    });
+  });
+
   it("rejects removed legacy root fields", () => {
     const filePath = writeTempOperation([
       "name: legacy-operation",

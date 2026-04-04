@@ -10,7 +10,14 @@ import {
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
-import { ensureActiveStepTaskId, getOperationState } from "@/lib/operation-runtime/state";
+import { hasDelegationPolicy, resolveEffectiveDelegationWorkers } from "@/lib/operation-runtime/autonomous";
+import {
+  completeDelegatedTask,
+  ensureActiveStepTaskId,
+  getOperationState,
+  registerDelegatedTask,
+  saveOperationState,
+} from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
@@ -120,8 +127,28 @@ export async function dispatchTaskToWorker(input: {
   }
 
   const explicitTaskId = input.taskId?.trim();
+  const operationState = getOperationState(input.missionId);
+  const operation = operationState
+    ? loadOperationByName(operationState.operationName, readOperationLanguage())
+    : null;
+  const currentStep = operation?.steps.find((step) => step.name === operationState?.currentStep);
+  const isDelegatedChildDispatch =
+    !explicitTaskId && !!currentStep && currentStep.agent === "noctis" && hasDelegationPolicy(currentStep);
+
+  if (isDelegatedChildDispatch && currentStep) {
+    const effectiveWorkers = resolveEffectiveDelegationWorkers({
+      missionId: input.missionId,
+      step: currentStep,
+    });
+    if (!effectiveWorkers.includes(input.agentId)) {
+      throw new Error(`Delegation to ${input.agentId} is not allowed for the active step`);
+    }
+  }
+
   const reusableTask = explicitTaskId
     ? null
+    : isDelegatedChildDispatch
+      ? null
     : ([...mission.taskGraph]
         .reverse()
         .find(
@@ -131,6 +158,17 @@ export async function dispatchTaskToWorker(input: {
         ) ?? null);
   const taskId = explicitTaskId || reusableTask?.id || createTaskId();
   const missionObjective = typeof input.missionObjective === "string" ? input.missionObjective : "";
+
+  if (isDelegatedChildDispatch && currentStep && operationState) {
+    registerDelegatedTask(operationState, {
+      parentStep: currentStep.name,
+      taskId,
+      agent: input.agentId,
+      message: input.message,
+    });
+    saveOperationState(input.missionId, operationState);
+  }
+
   let task = mission.taskGraph.find((item) => item.id === taskId);
   if (!task) {
     const nextTask: Task = {
@@ -165,7 +203,19 @@ export async function dispatchTaskToWorker(input: {
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
   const existingSessionId = mission.workerSessions[input.agentId];
-  const operationState = getOperationState(input.missionId);
+
+  const markDelegatedDispatchFailed = (summary: string) => {
+    if (!isDelegatedChildDispatch || !operationState) {
+      return;
+    }
+
+    completeDelegatedTask(operationState, {
+      taskId,
+      status: "failed",
+      summary,
+    });
+    saveOperationState(input.missionId, operationState);
+  };
 
   const appendLog = (sessionId: string, deliveryStatus: "sent" | "failed", error?: string) => {
     const entry: MissionMessageLogEntry = {
@@ -212,6 +262,7 @@ export async function dispatchTaskToWorker(input: {
       if (promptResult.error) {
         const message = toErrorMessage(promptResult.error);
         appendLog(existingSessionId, "failed", message);
+        markDelegatedDispatchFailed(message);
         throw new Error(message);
       }
 
@@ -224,6 +275,7 @@ export async function dispatchTaskToWorker(input: {
         "failed",
         error instanceof Error ? error.message : String(error)
       );
+      markDelegatedDispatchFailed(error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
@@ -235,11 +287,13 @@ export async function dispatchTaskToWorker(input: {
   });
 
   if (sessionResult.error) {
+    markDelegatedDispatchFailed(toErrorMessage(sessionResult.error));
     throw new Error(toErrorMessage(sessionResult.error));
   }
 
   const sessionId = sessionResult.data?.id;
   if (!sessionId) {
+    markDelegatedDispatchFailed("Session creation returned no ID");
     throw new Error("Session creation returned no ID");
   }
 
@@ -274,6 +328,7 @@ export async function dispatchTaskToWorker(input: {
     if (promptResult.error) {
       const message = toErrorMessage(promptResult.error);
       appendLog(sessionId, "failed", message);
+      markDelegatedDispatchFailed(message);
       throw new Error(message);
     }
 
@@ -282,6 +337,7 @@ export async function dispatchTaskToWorker(input: {
     return { sessionId, taskId };
   } catch (error) {
     appendLog(sessionId, "failed", error instanceof Error ? error.message : String(error));
+    markDelegatedDispatchFailed(error instanceof Error ? error.message : String(error));
     throw error;
   }
 }

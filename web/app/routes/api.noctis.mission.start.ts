@@ -6,6 +6,7 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/autonomous";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
@@ -61,10 +62,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const message = stringifyPromptParts(promptParts);
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
-  const selectedOperation =
+  const selectedOperationInput =
     typeof body.selectedOperation === "string" && body.selectedOperation.trim().length > 0
       ? body.selectedOperation.trim()
       : null;
+  const selectedOperation = selectedOperationInput ?? INTERNAL_AUTONOMOUS_OPERATION_NAME;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
   const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
   const executionMode = getNoctisExecutionMode(allowedWorkers);
@@ -103,6 +105,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const mission = createMission(missionId, sessionId, {
       title: title || message.slice(0, 80),
       objective,
+      allowedWorkers,
     });
     setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);

@@ -5,6 +5,7 @@ critical:
   - Canonical な operation schema は `initial_step` と `steps` を使い、各 facet source は `file` または `inline` の source object で表現する。
   - knowledge と policy の list は authored order を保持する。
   - output placeholder は既存の mission-scoped file に解決できなければ prompt build が失敗する。
+  - `rules` を持たない step は、`delegation` を持つ Noctis-owned autonomous step としてだけ authoring する。
 ---
 
 # Operation Authoring And Diagnostics
@@ -33,6 +34,11 @@ operation YAML、facet file、output contract、placeholder 挙動、workflow �
 - `steps[].instruction`
 - `steps[].knowledge`
 - `steps[].policies`
+- `steps[].delegation.allowed_workers`
+- `steps[].delegation.worker_job`
+- `steps[].delegation.worker_instruction`
+- `steps[].delegation.worker_knowledge`
+- `steps[].delegation.worker_policies`
 - `steps[].output_contracts.report[].format`
 - `steps[].rules[]`
 
@@ -42,6 +48,7 @@ operation YAML、facet file、output contract、placeholder 挙動、workflow �
 - `instruction`: その step 固有の execution procedure と reference
 - `knowledge`: current step の実行に必要な background knowledge や reference material
 - `policies`: current step が従う constraint や convention
+- `delegation.*`: Noctis-owned step が child task を worker へ委任するときの許可対象と delegated worker prompt 素材
 - `output_contracts.report[].format`: report artifact の format 定義
 
 Canonical な source form は次のとおりです。
@@ -59,6 +66,8 @@ Canonical な source form は次のとおりです。
 - `file` source は operation YAML path からの相対パスで解決される
 - `inline` source は authored された text をそのまま使う
 - `output_contracts.report[].format` は output filename と downstream reference に整合している必要がある
+- `steps[].delegation.allowed_workers` は authored 上の上限であり、runtime では mission の allowed worker set との積集合が effective set になる
+- `rules` を省略できるのは、Noctis が同じ parent step に留まる autonomous delegation step だけである
 
 `initial_movement`、`movements`、`max_movements`、`edit`、`handoff_mode`、`job_file`、`knowledge_files` などの legacy field は canonical ではありません。
 
@@ -98,6 +107,13 @@ prompt を変えるときは operation YAML と参照先 facet file の両方を
 - required output file、active `taskId`、allowed `next` を確認する
 - `send_report.sh -> /reports -> processReport()` を追う
 
+### delegated child report が parent step completion 扱いになる
+
+- `operationState.delegatedTasks` に child `taskId` と parent step の対応があるか確認する
+- current step が `noctis` owner かつ `delegation` を持つか確認する
+- child report の `next` が `COMPLETE` または `ABORT` のみになっているか確認する
+- report 後も `operationState.currentStep` が変わっていないか確認する
+
 ### placeholder が解決されない
 
 - output directory の実ファイル、taskId、filename を確認する
@@ -120,6 +136,7 @@ prompt を変えるときは operation YAML と参照先 facet file の両方を
 - `web/app/lib/task-dispatch.server.ts`
 - `web/app/lib/team-message.server.ts`
 - `web/app/lib/operation-runtime/runtime.ts`
+- `web/app/lib/operation-runtime/autonomous.ts`
 - `web/app/lib/operation-runtime/state.ts`
 - `web/app/lib/prompt-composition-engine/composer.ts`
 - `web/app/lib/prompt-composition-engine/operation-prompt-builder.ts`
@@ -144,3 +161,4 @@ prompt を変えるときは operation YAML と参照先 facet file の両方を
 8. placeholder を使っている場合は absolute path に解決されているか確認する。
 9. routing が message body token ではなく `taskId` と `next` に依存しているか確認する。
 10. prompt shape を変えた場合は composer、runtime、debug preview の test をまとめて見直す。
+11. delegated child task を導入した場合は `allowedWorkers`、`delegatedTasks`、same-step return の 3 点をまとめて確認する。

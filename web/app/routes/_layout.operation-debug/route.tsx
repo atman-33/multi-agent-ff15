@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { listAvailableOperations } from "@/lib/operation-definition/operation-loader";
+import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/autonomous";
 import { buildOperationDebugBundle } from "@/lib/prompt-composition-engine/debug-preview.server";
 import { cn } from "@/lib/utils";
 import { CopyablePromptBlock } from "./components/copyable-prompt-block";
@@ -63,7 +64,9 @@ function formatNextLabel(step?: PreviewStep | null): string {
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const url = new URL(request.url);
   const language = getLanguage();
-  const operations = listAvailableOperations(language).sort((left, right) => left.localeCompare(right));
+  const operations = listAvailableOperations(language)
+    .filter((operationName) => operationName !== INTERNAL_AUTONOMOUS_OPERATION_NAME)
+    .sort((left, right) => left.localeCompare(right));
   const requestedOperation = url.searchParams.get("operation")?.trim() || null;
   const selectedOperation =
     requestedOperation && operations.includes(requestedOperation)

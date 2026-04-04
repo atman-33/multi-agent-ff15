@@ -1,9 +1,14 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
-import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
+import {
+  resolveDelegatedWorkerFacets,
+  resolveStepFacets,
+} from "@/lib/operation-definition/facet-loader";
 import { listAvailableOperations, loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import type { OperationDefinition, StepDefinition } from "@/lib/operation-definition/types";
+import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
 import {
   buildActivationInstruction,
+  buildDelegatedWorkerInstruction,
   buildAugmentedInstruction,
   buildOperationContextSummary,
   describeStepRole,
@@ -14,6 +19,7 @@ import { evaluateNextStep } from "./rule-evaluator";
 import {
   createOperationState,
   ensureActiveStepTaskId,
+  getDelegatedTaskRecord,
   getOperationState,
   recordStepCompleted,
   saveOperationState,
@@ -118,6 +124,31 @@ export function augmentTaskPrompt(input: AugmentTaskPromptInput): string {
   );
   if (!currentStep) {
     return originalPrompt;
+  }
+
+  const delegatedTask = getDelegatedTaskRecord(operationState, input.taskId);
+  if (delegatedTask && hasDelegationPolicy(currentStep) && delegatedTask.parentStep === currentStep.name) {
+    const deviationNote = checkAgentDeviation(operationState, delegatedTask.agent, agentId);
+    if (deviationNote) {
+      saveOperationState(missionId, operationState);
+    }
+
+    const facets = resolveDelegatedWorkerFacets(operation, currentStep, language);
+    const augmented = buildDelegatedWorkerInstruction({
+      taskPrompt: originalPrompt,
+      step: currentStep,
+      operation,
+      operationState,
+      facets,
+      missionId,
+    });
+    saveOperationState(missionId, operationState);
+
+    if (deviationNote) {
+      return joinXmlSections([augmented, buildTextSection("deviation-note", deviationNote)]);
+    }
+
+    return augmented;
   }
 
   const deviationNote = checkAgentDeviation(operationState, currentStep.agent, agentId);

@@ -1,0 +1,27 @@
+name: noctis-autonomous
+description: >
+  Internal free-form Noctis workflow.
+  Noctis stays in one open-ended step, talks with User, and delegates child tasks to available workers when needed.
+initial_step: autonomous
+
+steps:
+  - name: autonomous
+    agent: noctis
+    job:
+      file: ../facets/jobs/noctis-autonomous.md
+    instruction:
+      file: ../facets/instructions/noctis-autonomous.md
+    knowledge:
+      - file: ../facets/knowledge/agent-relationships.md
+      - file: ../facets/knowledge/operation-system-contract.md
+    delegation:
+      allowed_workers:
+        - ignis
+        - gladiolus
+        - prompto
+      worker_job:
+        file: ../facets/jobs/delegated-worker.md
+      worker_instruction:
+        file: ../facets/instructions/delegated-worker.md
+      worker_knowledge:
+        - file: ../facets/knowledge/operation-system-contract.md

@@ -10,6 +10,7 @@ import { loadOperationByName } from "@/lib/operation-definition/operation-loader
 import { processReport } from "@/lib/operation-runtime/runtime";
 import { ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
 import { createOperationState } from "@/lib/operation-runtime/state";
+import { registerDelegatedTask } from "@/lib/operation-runtime/state";
 import {
   composeGenericSessionPrompt,
   composeUserToNoctisPrompt,
@@ -286,6 +287,21 @@ function buildSyntheticOperationState(missionId: string): {
 
   const taskId = ensureActiveStepTaskId(state, "gladiolus");
   return { state, taskId, specPlanningTaskId };
+}
+
+function buildSyntheticAutonomousOperationState() {
+  const operation = loadOperationByName("noctis-autonomous", "ja");
+  const state = createOperationState(operation.name, operation.initial_step);
+  const parentTaskId = ensureActiveStepTaskId(state, "noctis");
+  const childTaskId = "task-autonomous-child";
+  registerDelegatedTask(state, {
+    parentStep: "autonomous",
+    taskId: childTaskId,
+    agent: "ignis",
+    message: "Investigate the current issue and report back to Noctis.",
+  });
+
+  return { state, parentTaskId, childTaskId };
 }
 
 afterEach(() => {
@@ -649,5 +665,79 @@ describe("prompt composition engine", () => {
         operationName: "malformed-output-contract",
       }),
     ).toThrow(/## Format.*## Rule/i);
+  });
+
+  it("builds an autonomous Noctis prompt with delegation guidance", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "session-autonomous",
+        missionId: "mission-autonomous",
+        allowedWorkers: ["ignis", "gladiolus"],
+      },
+      userMessage: "Help me move this task forward.",
+      missionId: "mission-autonomous",
+      sessionId: "session-autonomous",
+      isNewMission: true,
+      selectedOperation: "noctis-autonomous",
+    });
+
+    expect(composed.operationActivated).toBe("noctis-autonomous");
+    expect(composed.effectivePrompt).toContain("<delegation-guidance>");
+    expect(composed.effectivePrompt).toContain("scripts/send_task.sh mission-autonomous ignis");
+    expect(composed.effectivePrompt).not.toContain("<step-completion-contract>");
+    expect(composed.effectivePrompt).not.toContain("allowed_workers:");
+  });
+
+  it("builds delegated child worker prompts from delegation facets", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    const { state, childTaskId } = buildSyntheticAutonomousOperationState();
+
+    const composed = composeWorkerTaskPrompt({
+      context: {
+        appRoot: root,
+        agent: "ignis",
+        sessionId: "session-ignis-autonomous",
+        missionId: "mission-autonomous-worker",
+      },
+      missionId: "mission-autonomous-worker",
+      agentId: "ignis",
+      taskId: childTaskId,
+      originalPrompt: "Investigate the current issue and report back to Noctis.",
+      operationStateOverride: state,
+    });
+
+    expect(composed.usedWorkflowExtension).toBe(true);
+    expect(composed.effectivePrompt).toContain("<task>");
+    expect(composed.effectivePrompt).toContain("Investigate the current issue and report back to Noctis.");
+    expect(composed.effectivePrompt).toContain("<job>");
+    expect(composed.effectivePrompt).toContain("Delegated Worker");
+    expect(composed.effectivePrompt).not.toContain("<delegation-guidance>");
+    expect(composed.effectivePrompt).not.toContain("<step-completion-contract>");
+  });
+
+  it("shows delegated child execution as a same-step subordinate path in debug preview", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    const bundle = buildOperationDebugBundle({
+      missionId: "mission-autonomous-preview",
+      operationName: "noctis-autonomous",
+      taskInstruction: "Investigate the current issue and report back to Noctis.",
+    });
+
+    expect(
+      bundle.flowSteps.map((step) => `${step.kind}:${step.pathSummary}:${step.decisionSummary}`),
+    ).toEqual([
+      "noctis-step:User -> Runtime -> Noctis:delegate_child_task -> Ignis (autonomous)",
+      "worker-step:User -> Runtime -> Ignis -> Runtime -> Noctis:return_to_self_step -> Noctis (autonomous)",
+    ]);
+    expect(bundle.flowSteps[0]?.effectivePrompt).toContain("<delegation-guidance>");
+    expect(bundle.flowSteps[1]?.effectivePrompt).toContain("<task>");
+    expect(bundle.flowSteps[1]?.runtimeDecision).toContain("next_action: return_to_self_step");
   });
 });

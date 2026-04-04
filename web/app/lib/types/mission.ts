@@ -78,6 +78,7 @@ export interface Mission {
   id: string;
   noctisSessionId: string;
   workerSessions: Partial<Record<WorkerAgentId, string>>;
+  allowedWorkers: WorkerAgentId[];
   taskGraph: Task[];
   delegationLedger: DelegationLedger;
   agentModels: Partial<Record<AgentId, ModelSelection>>;
@@ -108,6 +109,19 @@ export interface DeviationTracker {
   history: DeviationEntry[];
 }
 
+export type DelegatedTaskStatus = "dispatched" | "completed" | "failed";
+
+export interface DelegatedTaskRecord {
+  parentStep: string;
+  taskId: string;
+  agent: WorkerAgentId;
+  status: DelegatedTaskStatus;
+  createdAt: string;
+  completedAt?: string;
+  message?: string;
+  summary?: string;
+}
+
 export type StepHistoryStatus = "dispatched" | "completed" | "failed";
 
 export interface StepHistoryEntry {
@@ -132,6 +146,7 @@ export interface OperationState {
   updatedAt: string;
   reportDir: string;
   stepHistory: StepHistoryEntry[];
+  delegatedTasks: DelegatedTaskRecord[];
   deviations: DeviationTracker;
 }
 

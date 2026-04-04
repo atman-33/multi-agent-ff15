@@ -92,26 +92,43 @@ function parseKnowledgeEntry(
   return { kind: "body", content: body };
 }
 
-function resolveKnowledgeEntry(
+function resolveKnowledgeSources(input: {
+  operation: OperationDefinition;
+  step: StepDefinition;
+  sources: ContentSource[];
+  locatorPrefix: string;
+}): ResolvedKnowledgeEntry[] {
+  return input.sources
+    .map((source, index) => {
+      const content = loadFacetSource(input.operation, source);
+
+      if (!content) {
+        return null;
+      }
+
+      if ("inline" in source) {
+        return { kind: "body", content } satisfies ResolvedKnowledgeEntry;
+      }
+
+      return parseKnowledgeEntry(
+        content,
+        describeContentSourceReference(
+          input.operation,
+          source,
+          `${input.locatorPrefix}[${index}]`,
+        ),
+      );
+    })
+    .filter((item): item is ResolvedKnowledgeEntry => item !== null);
+}
+
+function resolvePolicySources(
   operation: OperationDefinition,
-  step: StepDefinition,
-  source: ContentSource | undefined,
-  index: number,
-): ResolvedKnowledgeEntry | null {
-  const content = loadFacetSource(operation, source);
-
-  if (!content) {
-    return null;
-  }
-
-  if (!source || "inline" in source) {
-    return { kind: "body", content };
-  }
-
-  return parseKnowledgeEntry(
-    content,
-    describeContentSourceReference(operation, source, `steps.${step.name}.knowledge[${index}]`),
-  );
+  sources: ContentSource[],
+): string[] {
+  return sources
+    .map((source) => loadFacetSource(operation, source))
+    .filter((item): item is string => item !== null);
 }
 
 function findMarkdownHeadingPositions(content: string, heading: "Format" | "Rule"): number[] {
@@ -143,13 +160,14 @@ export function resolveStepFacets(
   const job = loadFacetSource(operation, step.job) ?? "";
   const instruction = loadFacetSource(operation, step.instruction) ?? "";
 
-  const knowledge = (step.knowledge ?? [])
-    .map((source, index) => resolveKnowledgeEntry(operation, step, source, index))
-    .filter((item): item is ResolvedKnowledgeEntry => item !== null);
+  const knowledge = resolveKnowledgeSources({
+    operation,
+    step,
+    sources: step.knowledge ?? [],
+    locatorPrefix: `steps.${step.name}.knowledge`,
+  });
 
-  const policies = (step.policies ?? [])
-    .map((source) => loadFacetSource(operation, source))
-    .filter((item): item is string => item !== null);
+  const policies = resolvePolicySources(operation, step.policies ?? []);
 
   const outputContracts: string[] = [];
   if (step.output_contracts?.report) {
@@ -171,4 +189,29 @@ export function resolveStepFacets(
   }
 
   return { job, instruction, knowledge, policies, outputContracts };
+}
+
+export function resolveDelegatedWorkerFacets(
+  operation: OperationDefinition,
+  step: StepDefinition,
+  _language: string,
+): ResolvedFacets {
+  const delegation = step.delegation;
+  const job = loadFacetSource(operation, delegation?.worker_job) ?? "";
+  const instruction = loadFacetSource(operation, delegation?.worker_instruction) ?? "";
+  const knowledge = resolveKnowledgeSources({
+    operation,
+    step,
+    sources: delegation?.worker_knowledge ?? [],
+    locatorPrefix: `steps.${step.name}.delegation.worker_knowledge`,
+  });
+  const policies = resolvePolicySources(operation, delegation?.worker_policies ?? []);
+
+  return {
+    job,
+    instruction,
+    knowledge,
+    policies,
+    outputContracts: [],
+  };
 }

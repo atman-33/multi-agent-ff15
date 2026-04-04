@@ -9,6 +9,7 @@ import type {
   ResolvedKnowledgeEntry,
   StepDefinition,
 } from "@/lib/operation-definition/types";
+import { resolveEffectiveDelegationWorkers } from "@/lib/operation-runtime/autonomous";
 import type { AgentId, OperationState } from "@/lib/types/mission";
 import {
   buildXmlSection,
@@ -367,6 +368,103 @@ export function buildAugmentedInstruction(input: {
   return joinXmlSections(sections);
 }
 
+function buildDelegationGuidance(input: {
+  missionId: string;
+  step: StepDefinition;
+}): string | null {
+  if (!input.step.delegation) {
+    return null;
+  }
+
+  const effectiveWorkers = resolveEffectiveDelegationWorkers({
+    missionId: input.missionId,
+    step: input.step,
+  });
+  const authoredWorkers = input.step.delegation.allowed_workers;
+  const lines = [
+    input.step.rules.length === 0
+      ? "This is an open-ended Noctis-owned step. Stay in conversation with User and dispatch child tasks only when they help advance the work."
+      : "You may dispatch supporting child tasks while you remain responsible for the current workflow step.",
+    "",
+  ];
+
+  if (effectiveWorkers.length > 0) {
+    lines.push("Effective allowed workers:");
+    for (const worker of effectiveWorkers) {
+      lines.push(`- ${worker}`);
+    }
+    lines.push("");
+    lines.push("Delegate one child task with the bash tool:");
+    for (const worker of effectiveWorkers) {
+      lines.push(`- scripts/send_task.sh ${input.missionId} ${worker} "<message>"`);
+    }
+    lines.push("");
+    lines.push("Delegation rules:");
+    lines.push("- Write one focused task message per child task.");
+    lines.push("- Child task reports return to this Noctis-owned step.");
+    lines.push(
+      "- Do not use `scripts/send_report.sh` for the parent step unless this step also defines workflow rules.",
+    );
+  } else {
+    lines.push("Effective allowed workers: none");
+    lines.push("");
+    if (authoredWorkers.length > 0) {
+      lines.push(
+        `The authored delegation policy allows ${authoredWorkers.join(", ")}, but the current working-party restriction leaves no available worker.`,
+      );
+    } else {
+      lines.push("No worker is authored for delegation in this step.");
+    }
+    lines.push("Continue the conversation yourself until delegation becomes available.");
+  }
+
+  return buildMarkdownSection("delegation-guidance", lines.join("\n"));
+}
+
+export function buildDelegatedWorkerInstruction(input: {
+  taskPrompt: string;
+  step: StepDefinition;
+  operation: OperationDefinition;
+  operationState: OperationState;
+  facets: ResolvedFacets;
+  missionId: string;
+}): string {
+  const sections: Array<string | null> = [buildTextSection("task", input.taskPrompt)];
+  const resolvedInstruction = input.facets.instruction
+    ? resolveInstructionPlaceholders({
+        content: input.facets.instruction,
+        operation: input.operation,
+        operationState: input.operationState,
+        missionId: input.missionId,
+      })
+    : "";
+
+  if (input.facets.job) {
+    sections.push(buildMarkdownSection("job", input.facets.job));
+  }
+
+  sections.push(
+    buildHandoffSection({
+      stepName: input.step.name,
+      operationState: input.operationState,
+    }),
+  );
+
+  sections.push(buildKnowledgeCatalog(input.facets.knowledge));
+
+  if (resolvedInstruction) {
+    sections.push(buildMarkdownSection("instruction", resolvedInstruction));
+  }
+
+  if (input.facets.policies.length > 0) {
+    for (let index = 0; index < input.facets.policies.length; index += 1) {
+      sections.push(buildMarkdownSection("policy", input.facets.policies[index]));
+    }
+  }
+
+  return joinXmlSections(sections);
+}
+
 export function buildActivationInstruction(input: {
   operation: OperationDefinition;
   step: StepDefinition;
@@ -420,6 +518,13 @@ export function buildActivationInstruction(input: {
       sections.push(buildMarkdownSection("policy", facets.policies[index]));
     }
   }
+
+  sections.push(
+    buildDelegationGuidance({
+      missionId: input.missionId,
+      step,
+    }),
+  );
 
   if (step.rules.length > 0) {
     sections.push(

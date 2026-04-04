@@ -11,8 +11,17 @@ import type {
   ResolvedFacets,
   StepDefinition,
 } from "@/lib/operation-definition/types";
+import {
+  isAutonomousDelegationStep,
+  resolveEffectiveDelegationWorkers,
+} from "@/lib/operation-runtime/autonomous";
 import { processReport } from "@/lib/operation-runtime/runtime";
-import { createOperationState, ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
+import {
+  completeDelegatedTask,
+  createOperationState,
+  ensureActiveStepTaskId,
+  registerDelegatedTask,
+} from "@/lib/operation-runtime/state";
 import {
   composeUserToNoctisPromptPreview,
   composeWorkerTaskPrompt,
@@ -436,6 +445,163 @@ export function buildOperationDebugBundle(input: {
         });
         promptTitle = `Runtime -> ${to} Prompt`;
         promptDescription = `Workflow prompt composed for the "${step.name}" step.`;
+      }
+
+      if (isAutonomousDelegationStep(step)) {
+        const effectiveWorkers = resolveEffectiveDelegationWorkers({ missionId, step });
+        const delegatedAgent = effectiveWorkers[0] ?? step.delegation.allowed_workers[0] ?? "gladiolus";
+        const parentDecisionSummary = effectiveWorkers.length > 0
+          ? `delegate_child_task -> ${displayActorName(delegatedAgent)} (${step.name})`
+          : "continue_conversation -> Noctis";
+        const parentRuntimeDecision = effectiveWorkers.length > 0
+          ? [
+              `current_step: ${step.name}`,
+              "next_action: delegate_child_task",
+              `delegated_agent: ${delegatedAgent}`,
+              "current_step_retained: true",
+            ].join("\n")
+          : [
+              `current_step: ${step.name}`,
+              "next_action: continue_conversation",
+              "current_step_retained: true",
+            ].join("\n");
+
+        flowSteps.push({
+          id: buildFlowId(step.name, occurrence),
+          stepName: step.name,
+          stepIndex,
+          occurrence,
+          kind,
+          title: buildFlowTitle(step.name, occurrence),
+          from,
+          to,
+          pathSummary,
+          summary: effectiveWorkers.length > 0
+            ? `User activates ${to} for "${step.name}", and Runtime keeps the same step active while Noctis can delegate a child task.`
+            : `User activates ${to} for "${step.name}", and the step remains open for continued conversation without delegation.`,
+          promptTitle,
+          promptDescription,
+          sourceInput,
+          promptHighlights,
+          internalContext,
+          suppressedContext,
+          injectedPrompt,
+          effectivePrompt,
+          completionTitle: `${to} Parent Step State`,
+          completionDescription: `The parent "${step.name}" step stays open and does not emit a parent-step completion contract.`,
+          completionContract: "(parent step remains open; no parent-step completion contract)",
+          runtimeDecision: parentRuntimeDecision,
+          decisionSummary: parentDecisionSummary,
+          operationContextSummary,
+          normalizedStep: step,
+          resolvedFacets: facets,
+          targetAgent: step.agent,
+          nextStep: step.name,
+          nextAction: effectiveWorkers.length > 0 ? "delegate_child_task" : "continue_conversation",
+          nextTarget: effectiveWorkers.length > 0 ? displayActorName(delegatedAgent) : "Noctis",
+          hookTrail,
+          reportTransport: "",
+          workflowGuidance: injectedPrompt,
+        });
+
+        if (effectiveWorkers.length > 0) {
+          const delegatedTaskId = `delegated_${step.name}_${occurrence}`;
+          const delegatedPrompt =
+            input.taskInstruction?.trim() ||
+            `Synthetic child task for ${delegatedAgent}: support the active autonomous Noctis step.`;
+          registerDelegatedTask(operationState, {
+            parentStep: step.name,
+            taskId: delegatedTaskId,
+            agent: delegatedAgent,
+            message: delegatedPrompt,
+          });
+
+          const workerComposed = composeWorkerTaskPrompt({
+            context: {
+              missionId,
+              sessionId: `debug-${delegatedAgent}-session`,
+              agent: delegatedAgent,
+              appRoot: root,
+            },
+            missionId,
+            agentId: delegatedAgent,
+            taskId: delegatedTaskId,
+            originalPrompt: delegatedPrompt,
+            operationStateOverride: operationState,
+          });
+          const delegatedNext = reportNextOverride === "ABORT" ? "ABORT" : "COMPLETE";
+          completeDelegatedTask(operationState, {
+            taskId: delegatedTaskId,
+            status: delegatedNext === "COMPLETE" ? "completed" : "failed",
+            summary: reportMessage,
+          });
+
+          flowSteps.push({
+            id: `${buildFlowId(step.name, occurrence)}:delegated`,
+            stepName: step.name,
+            stepIndex,
+            occurrence,
+            kind: "worker-step",
+            title: `${buildFlowTitle(step.name, occurrence)} delegated task`,
+            from: "Noctis",
+            to: displayActorName(delegatedAgent),
+            pathSummary: `${from} -> Runtime -> ${displayActorName(delegatedAgent)} -> Runtime -> Noctis`,
+            summary: `${displayActorName(delegatedAgent)} completes a delegated child task and Runtime returns the result to Noctis without advancing the parent step.`,
+            promptTitle: `Runtime -> ${displayActorName(delegatedAgent)} Prompt`,
+            promptDescription: `Delegated child-task prompt composed for the active "${step.name}" step.`,
+            sourceInput: delegatedPrompt,
+            promptHighlights: buildPromptHighlights({
+              step,
+              operationState,
+              effectivePrompt: workerComposed.effectivePrompt,
+              userMessage: userMessageBase,
+              taskInstruction: delegatedPrompt,
+            }),
+            internalContext: workerComposed.sharedContext,
+            suppressedContext: workerComposed.suppressedContext,
+            injectedPrompt: workerComposed.workflowExtension || "(no workflow extension generated)",
+            effectivePrompt: workerComposed.effectivePrompt,
+            completionTitle: `${displayActorName(delegatedAgent)} -> Runtime Completion Contract`,
+            completionDescription: `Default child-task completion contract for the active "${step.name}" step.`,
+            completionContract: [
+              `scripts/send_report.sh ${missionId} ${delegatedAgent} ${delegatedTaskId} COMPLETE "<message>"`,
+              `scripts/send_report.sh ${missionId} ${delegatedAgent} ${delegatedTaskId} ABORT "<message>"`,
+            ].join("\n"),
+            runtimeDecision: [
+              `report_next: ${delegatedNext}`,
+              `parent_step: ${step.name}`,
+              "next_action: return_to_self_step",
+              "next_agent: noctis",
+              "resolved_next_step: autonomous-step-retained",
+            ].join("\n"),
+            decisionSummary: `return_to_self_step -> Noctis (${step.name})`,
+            ruleEvaluation: [
+              `report_next: ${delegatedNext}`,
+              "",
+              "--- report message ---",
+              reportMessage,
+            ].join("\n"),
+            operationContextSummary,
+            normalizedStep: step,
+            resolvedFacets: facets,
+            targetAgent: delegatedAgent,
+            nextStep: step.name,
+            nextAction: "return_to_self_step",
+            nextTarget: "Noctis",
+            hookTrail: ["hook2", "hook3"],
+            reportTransport: buildReportTransport(delegatedTaskId, delegatedAgent, delegatedNext, reportMessage),
+            workflowGuidance: buildActivationInstruction({
+              operation,
+              step,
+              operationState,
+              facets,
+              missionId,
+              taskId,
+            }),
+          });
+        }
+
+        break;
       }
 
       const completionContract =

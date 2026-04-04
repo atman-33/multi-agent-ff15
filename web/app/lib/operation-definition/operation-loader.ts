@@ -4,11 +4,30 @@ import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
   ContentSource,
+  DelegationDefinition,
   OperationDefinition,
   ReportOutputContractDefinition,
   RuleDefinition,
   StepDefinition,
 } from "./types";
+
+function normalizeAllowedWorkers(raw: unknown, fieldLabel: string): DelegationDefinition["allowed_workers"] {
+  if (raw === undefined || raw === null) {
+    return [];
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new Error(`${fieldLabel} must be an array of worker agent IDs.`);
+  }
+
+  return raw.map((item, index) => {
+    const value = typeof item === "string" ? item.trim() : "";
+    if (value !== "ignis" && value !== "gladiolus" && value !== "prompto") {
+      throw new Error(`${fieldLabel}[${index}] must be one of ignis, gladiolus, or prompto.`);
+    }
+    return value;
+  });
+}
 
 function normalizeContentSource(raw: unknown, fieldLabel: string): ContentSource {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -108,9 +127,52 @@ function normalizeOutputContracts(
   };
 }
 
+function normalizeDelegation(
+  raw: unknown,
+  stepName: string,
+  agent: StepDefinition["agent"],
+): StepDefinition["delegation"] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`Operation step "${stepName}" delegation must be an object.`);
+  }
+
+  if (agent !== "noctis") {
+    throw new Error(`Operation step "${stepName}" delegation requires agent: noctis.`);
+  }
+
+  const record = raw as Record<string, unknown>;
+  return {
+    allowed_workers: normalizeAllowedWorkers(
+      record.allowed_workers,
+      `Operation step "${stepName}" delegation.allowed_workers`,
+    ),
+    worker_job: normalizeOptionalContentSource(
+      record.worker_job,
+      `Operation step "${stepName}" delegation.worker_job`,
+    ),
+    worker_instruction: normalizeOptionalContentSource(
+      record.worker_instruction,
+      `Operation step "${stepName}" delegation.worker_instruction`,
+    ),
+    worker_knowledge: normalizeContentSourceList(
+      record.worker_knowledge,
+      `Operation step "${stepName}" delegation.worker_knowledge`,
+    ),
+    worker_policies: normalizeContentSourceList(
+      record.worker_policies,
+      `Operation step "${stepName}" delegation.worker_policies`,
+    ),
+  };
+}
+
 function normalizeStep(raw: Record<string, unknown>): StepDefinition {
   const stepName = String(raw.name ?? "");
   validateNoLegacyStepFields(raw, stepName);
+  const agent = String(raw.agent ?? "noctis") as StepDefinition["agent"];
 
   const rules = Array.isArray(raw.rules)
     ? (raw.rules as Record<string, unknown>[]).map(
@@ -123,7 +185,7 @@ function normalizeStep(raw: Record<string, unknown>): StepDefinition {
 
   return {
     name: stepName,
-    agent: String(raw.agent ?? "noctis") as StepDefinition["agent"],
+    agent,
     job: normalizeOptionalContentSource(raw.job, `Operation step "${stepName}" field "job"`),
     instruction: normalizeOptionalContentSource(
       raw.instruction,
@@ -138,6 +200,7 @@ function normalizeStep(raw: Record<string, unknown>): StepDefinition {
       `Operation step "${stepName}" field "policies"`,
     ),
     output_contracts: normalizeOutputContracts(raw.output_contracts, stepName),
+    delegation: normalizeDelegation(raw.delegation, stepName, agent),
     rules,
   };
 }

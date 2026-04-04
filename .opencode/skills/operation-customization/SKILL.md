@@ -12,6 +12,7 @@ Create or revise operation workflows for this repository without breaking the ru
 
 - Add a new operation under `builtins/<lang>/operations/`
 - Extend or refactor an existing operation step flow
+- Add or revise `steps[].delegation` for Noctis-owned autonomous flows
 - Create or revise `jobs`, `instructions`, `knowledge`, `policies`, or `output-contracts` facets
 - Diagnose operation prompt, routing, report transport, or output placeholder failures
 
@@ -26,7 +27,7 @@ Create or revise operation workflows for this repository without breaking the ru
 4. When creating files from scratch, start from the matching templates in `./assets/`.
 5. Decide what should stay reusable in file-backed facets and what should remain step-local inline content.
 6. Edit the operation YAML and the required facet files.
-7. Validate step transitions, path resolution, output contracts, and placeholders.
+7. Validate step transitions, path resolution, output contracts, placeholders, and any delegated child-task return path.
 8. Summarize created or changed files, workflow assumptions, and any unresolved ambiguity.
 
 ## Bundled Assets
@@ -53,10 +54,12 @@ Create or revise operation workflows for this repository without breaking the ru
 - Prefer adapting neighboring repository patterns over inventing new structures.
 - Treat unresolved placeholders, legacy schema fields, and malformed output contracts as blocking.
 - When runtime behavior changes, inspect both live-path and debug-preview implications before finishing.
+- If the workflow is internal-only, keep the internal operation name out of normal user-facing operation lists.
 
 ## Completion Criteria
 
 - Every step has a clear owner, job, instruction, and rules.
+- A rules-less step is only used for an explicit Noctis-owned autonomous delegation flow.
 - New facet paths are relative to the operation YAML file.
 - Output names, placeholders, and transitions are internally consistent.
-- The result preserves runtime-mediated dispatch and the canonical completion contract.
+- The result preserves runtime-mediated dispatch, same-step return for delegated child tasks, and the canonical completion contract.

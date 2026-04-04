@@ -1,5 +1,11 @@
 import { getMission, persistMissionToDisk } from "@/lib/mission-store";
-import type { AgentId, OperationState, StepHistoryEntry } from "@/lib/types/mission";
+import type {
+  AgentId,
+  DelegatedTaskRecord,
+  OperationState,
+  StepHistoryEntry,
+  WorkerAgentId,
+} from "@/lib/types/mission";
 import type { StateTransition } from "./types";
 
 const DEFAULT_REPORT_DIR = "docs/reports";
@@ -18,6 +24,7 @@ export function createOperationState(
     updatedAt: now,
     reportDir: DEFAULT_REPORT_DIR,
     stepHistory: [],
+    delegatedTasks: [],
     deviations: { totalDeviations: 0, history: [] },
   };
 }
@@ -116,4 +123,59 @@ export function recordStepCompleted(
     state.currentStep = transition.nextStep;
     state.status = "running";
   }
+}
+
+export function getDelegatedTaskRecord(
+  state: OperationState,
+  taskId: string,
+): DelegatedTaskRecord | undefined {
+  return state.delegatedTasks.find((entry) => entry.taskId === taskId);
+}
+
+export function registerDelegatedTask(
+  state: OperationState,
+  input: {
+    parentStep: string;
+    taskId: string;
+    agent: WorkerAgentId;
+    message: string;
+  },
+): void {
+  const existingEntry = getDelegatedTaskRecord(state, input.taskId);
+  if (existingEntry) {
+    existingEntry.parentStep = input.parentStep;
+    existingEntry.agent = input.agent;
+    existingEntry.status = "dispatched";
+    existingEntry.message = input.message;
+    existingEntry.summary = undefined;
+    existingEntry.completedAt = undefined;
+    return;
+  }
+
+  state.delegatedTasks.push({
+    parentStep: input.parentStep,
+    taskId: input.taskId,
+    agent: input.agent,
+    status: "dispatched",
+    createdAt: new Date().toISOString(),
+    message: input.message,
+  });
+}
+
+export function completeDelegatedTask(
+  state: OperationState,
+  input: {
+    taskId: string;
+    status: Extract<DelegatedTaskRecord["status"], "completed" | "failed">;
+    summary?: string;
+  },
+): void {
+  const entry = getDelegatedTaskRecord(state, input.taskId);
+  if (!entry) {
+    return;
+  }
+
+  entry.status = input.status;
+  entry.summary = input.summary;
+  entry.completedAt = new Date().toISOString();
 }
