@@ -1,4 +1,4 @@
-import { Archive, Check, Ellipsis, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
+import { Archive, Check, Ellipsis, History, LoaderCircle, MessagesSquare, Pencil, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -128,14 +128,14 @@ const SessionNavItem = memo(
     return (
       <div
         className={cn(
-          "group w-full min-w-0 overflow-hidden rounded-md text-sm transition-all",
+          "group relative w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 text-sm transition-colors",
           isActive
-            ? "border border-primary/20 bg-primary/15 text-primary"
-            : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+            ? "border-primary/40 bg-primary/10 text-primary"
+            : "border-border/50 bg-card/40 text-muted-foreground hover:bg-card/70 hover:text-foreground"
         )}
       >
         {isEditing ? (
-          <div className="space-y-2 px-3 py-2">
+          <div className="space-y-2">
             <Textarea
               value={draftTitle}
               onChange={(event) => setDraftTitle(event.target.value)}
@@ -169,29 +169,48 @@ const SessionNavItem = memo(
             </div>
           </div>
         ) : (
-          <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 overflow-hidden px-3 py-2">
+          <>
             <NavLink
               to={`/opencode/session/${session.id}`}
-              className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden"
-            >
-              {isRunning ? (
-                <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-              ) : (
-                <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-xs text-foreground">
-                  {session.title || "Untitled"}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {isArchivedView && session.archivedAt
-                    ? `Archived ${formatRelativeTime(new Date(session.archivedAt).getTime())}`
-                    : formatRelativeTime(session.time.updated)}
+              aria-label={`Open session ${session.title || "Untitled"}`}
+              className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+            />
+            <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 overflow-hidden">
+              <div className="pointer-events-none flex min-w-0 max-w-full items-start gap-2 overflow-hidden">
+                {isRunning ? (
+                  <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                ) : (
+                  <MessagesSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-xs text-foreground">
+                    {session.title || "Untitled"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {isArchivedView && session.archivedAt
+                      ? `Archived ${formatRelativeTime(new Date(session.archivedAt).getTime())}`
+                      : formatRelativeTime(session.time.updated)}
+                  </div>
                 </div>
               </div>
-            </NavLink>
-            <div className="flex items-center gap-1">
-              {!isArchivedView ? (
+              <div className="relative z-10 flex items-center gap-1">
+                {!isArchivedView ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
+                      "bg-background/30 text-foreground/70 opacity-0",
+                      "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+                      "focus-visible:opacity-100"
+                    )}
+                    onClick={() => onBeginRename(session)}
+                    title="Rename session"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
@@ -202,36 +221,21 @@ const SessionNavItem = memo(
                     "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
                     "focus-visible:opacity-100"
                   )}
-                  onClick={() => onBeginRename(session)}
-                  title="Rename session"
+                  onClick={() => onArchiveAction(session, isArchivedView ? "restore" : "archive")}
+                  disabled={isArchivePending || isArchiveDisabled}
+                  title={
+                    isArchivedView
+                      ? "Restore session"
+                      : isArchiveDisabled
+                        ? "Running sessions cannot be archived"
+                        : "Archive session"
+                  }
                 >
-                  <Pencil className="h-3 w-3" />
+                  {isArchivedView ? <RotateCcw className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
                 </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-6 w-6 shrink-0 transition-[opacity,color,background-color]",
-                  "bg-background/30 text-foreground/70 opacity-0",
-                  "group-hover:opacity-100 hover:bg-accent hover:text-foreground",
-                  "focus-visible:opacity-100"
-                )}
-                onClick={() => onArchiveAction(session, isArchivedView ? "restore" : "archive")}
-                disabled={isArchivePending || isArchiveDisabled}
-                title={
-                  isArchivedView
-                    ? "Restore session"
-                    : isArchiveDisabled
-                      ? "Running sessions cannot be archived"
-                      : "Archive session"
-                }
-              >
-                {isArchivedView ? <RotateCcw className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
-              </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     );
@@ -594,53 +598,61 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
         className="h-full min-h-50 min-w-0 overflow-hidden"
       >
         <ResizablePanel defaultSize={35}>
-          <aside className="flex h-full min-w-0 flex-col overflow-hidden border-border/50 border-r bg-background">
-            <div className="flex items-center justify-between border-border/50 border-b px-3 py-3">
-              <span className="text-xs font-semibold text-muted-foreground">Sessions</span>
-              <div className="flex items-center gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6"
-                  onClick={loadSessions}
-                  disabled={isFetching}
-                  title="Refresh sessions"
-                >
-                  <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6"
-                  onClick={handleNewSession}
-                  disabled={isFetching}
-                  title="New session"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6"
-                      disabled={isBulkSessionActionPending || actionableVisibleSessions.length === 0}
-                      title={sessionView === "archived" ? "More restore actions" : "More archive actions"}
-                    >
-                      <Ellipsis className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onSelect={() => openBulkSessionDialog(sessionView === "archived" ? "restore" : "archive")}>
-                      {sessionView === "archived"
-                        ? `Restore all visible (${actionableVisibleSessions.length})`
-                        : `Archive all visible (${actionableVisibleSessions.length})`}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+          <aside className="flex h-full min-w-0 flex-col overflow-hidden border-border/50 border-r bg-background/30 backdrop-blur-sm">
+            <div className="w-full border-border/50 border-b p-3">
+              <div className="mb-3 flex w-full items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary/80" />
+                  <div>
+                    <h2 className="font-semibold text-sm">Session History</h2>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
+                      Resume by session
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={loadSessions}
+                    disabled={isFetching}
+                    title="Refresh sessions"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        disabled={isBulkSessionActionPending || actionableVisibleSessions.length === 0}
+                        title={sessionView === "archived" ? "More restore actions" : "More archive actions"}
+                      >
+                        <Ellipsis className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onSelect={() => openBulkSessionDialog(sessionView === "archived" ? "restore" : "archive")}>
+                        {sessionView === "archived"
+                          ? `Restore all visible (${actionableVisibleSessions.length})`
+                          : `Archive all visible (${actionableVisibleSessions.length})`}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-            </div>
-            <div className="border-border/50 border-b px-2 py-2">
+              <Button
+                className="w-full justify-start gap-2"
+                type="button"
+                variant={activeSessionId ? "outline" : "default"}
+                onClick={handleNewSession}
+                disabled={isFetching}
+              >
+                <Plus className="h-4 w-4" />
+                New Session
+              </Button>
               <Tabs
                 value={sessionView}
                 onValueChange={(value) => {
@@ -648,7 +660,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                   setSessionView(value === "archived" ? "archived" : "active");
                 }}
               >
-                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-background/40 p-1">
+                <TabsList className="mt-3 grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-background/40 p-1">
                   <TabsTrigger
                     className="rounded-md px-2 py-1.5 text-[11px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                     value="active"
@@ -664,10 +676,13 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                 </TabsList>
               </Tabs>
             </div>
-            <ScrollArea className="min-h-0 w-full min-w-0 flex-1 px-2 py-2">
-              <nav className="w-full min-w-0 space-y-1">
+            <ScrollArea
+              className="min-h-0 w-full min-w-0 flex-1"
+              viewportClassName="[&>div]:!block [&>div]:!w-full"
+            >
+              <nav className="w-full min-w-0 max-w-full space-y-2 overflow-x-hidden p-3 pr-4">
                 {visibleSessions.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="rounded-lg border border-border/50 bg-card/40 p-3 font-mono text-[11px] text-muted-foreground/70">
                     {sessionView === "archived"
                       ? "No archived sessions."
                       : "No sessions yet. Start a conversation to create one."}

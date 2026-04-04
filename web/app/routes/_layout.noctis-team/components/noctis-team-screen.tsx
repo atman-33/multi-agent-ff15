@@ -121,15 +121,17 @@ const MissionHistoryItem = memo(
     return (
       <div
         className={cn(
-          "group w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 transition-colors",
+          "group relative w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 transition-colors",
           isActive ? "border-primary/40 bg-primary/10" : "border-border/50 bg-card/40 hover:bg-card/70"
         )}
       >
+        <NavLink
+          aria-label={`Open mission ${mission.title}`}
+          className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+          to={`/noctis-team/mission/${mission.missionId}`}
+        />
         <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-          <NavLink
-            className="block min-w-0"
-            to={`/noctis-team/mission/${mission.missionId}`}
-          >
+          <div className="pointer-events-none min-w-0">
             <div className="mb-1 flex min-w-0 items-center gap-2">
               <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-sm">
                 {mission.title}
@@ -151,8 +153,8 @@ const MissionHistoryItem = memo(
                 hour12: false,
               })}
             </p>
-          </NavLink>
-          <div className="flex items-center gap-1">
+          </div>
+          <div className="relative z-10 flex items-center gap-1">
             {!isArchivedView ? (
               <Button
                 type="button"
