@@ -201,6 +201,22 @@ export interface MissionSummary {
   status: MissionStatus;
 }
 
+export interface MissionOutputSummary {
+  step: string;
+  taskId: string;
+  filename: string;
+  title: string;
+  author: string;
+  date: string;
+  filePath: string;
+  tags: string[];
+}
+
+export interface MissionOutputDocument extends MissionOutputSummary {
+  content: string;
+  rawContent: string;
+}
+
 export interface TaskContextParams {
   missionId: string;
   missionObjective: string;

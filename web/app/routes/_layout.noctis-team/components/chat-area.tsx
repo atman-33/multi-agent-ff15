@@ -1,4 +1,4 @@
-import { Radio } from "lucide-react";
+import { FileText, Radio } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
@@ -65,6 +66,8 @@ interface ChatAreaProps {
   onAbort?: () => void;
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
+  outputCount?: number;
+  onOpenOutputs?: () => void;
 }
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
@@ -237,6 +240,8 @@ export const ChatArea = ({
   onAbort,
   onSend,
   showAbortAction = false,
+  outputCount = 0,
+  onOpenOutputs,
 }: ChatAreaProps) => {
   const renderedMessages = useMemo(
     () => buildRenderedSessionMessages(messages.map(toSessionPresentationMessage)),
@@ -307,6 +312,19 @@ export const ChatArea = ({
             <div className="inline-flex max-w-60 items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/85">
               <span className="truncate">Workflow: {operationBadgeLabel}</span>
             </div>
+
+            {onOpenOutputs ? (
+              <Button
+                className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+                onClick={onOpenOutputs}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Outputs{outputCount > 0 ? ` (${outputCount})` : ""}
+              </Button>
+            ) : null}
 
             {isSessionActive ? (
               <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
