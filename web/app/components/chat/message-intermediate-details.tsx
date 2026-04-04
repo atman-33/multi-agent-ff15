@@ -1,21 +1,83 @@
-import { BadgeInfo, ChevronDown, Sparkles, Wrench } from "lucide-react";
+import { BadgeInfo, ChevronDown, FileText, Sparkles, Wrench } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import type { InternalContextViewModel } from "@/lib/chat-internal-context";
 import type { ChatMessagePart } from "@/lib/chat-message-parts";
+import type { WorkflowPromptSection } from "@/lib/chat-workflow-presentation";
 import { cn } from "@/lib/utils";
 
 type Props = {
   internalContext: InternalContextViewModel | null;
   reasoning: string;
+  reportDetails?: string | null;
   tools: ChatMessagePart[];
+  workflowPromptSections?: WorkflowPromptSection[];
 };
+
+function WorkflowPromptSectionPanel({ section }: { section: WorkflowPromptSection }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-md border border-border/30 bg-black/10 p-2">
+      <button
+        className="flex w-full min-w-0 items-center gap-2 text-left"
+        onClick={() => setExpanded((value) => !value)}
+        type="button"
+      >
+        <span className="min-w-0 flex-1 text-xs font-semibold text-muted-foreground">
+          {section.label}
+          {section.preview ? (
+            <span className="ml-2 font-normal text-[11px] text-muted-foreground/75">
+              {section.preview}
+            </span>
+          ) : null}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground/75 transition-transform duration-300 ease-out",
+            expanded ? "rotate-180" : "rotate-0",
+          )}
+        />
+      </button>
+
+      <div
+        className={cn(
+          "grid transition-all duration-300 ease-out",
+          expanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div
+            className={cn(
+              "transition-all duration-300 ease-out",
+              expanded ? "translate-y-0" : "-translate-y-1",
+            )}
+          >
+            <pre className="whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+              {section.content}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function buildIntermediateDetailSummary(
   internalContext: InternalContextViewModel | null,
   reasoning: string,
-  tools: ChatMessagePart[]
+  tools: ChatMessagePart[],
+  reportDetails: string | null = null,
+  workflowPromptSections: WorkflowPromptSection[] = [],
 ): string {
   const segments: string[] = [];
+
+  if (reportDetails?.trim()) {
+    segments.push("report details");
+  }
+
+  if (workflowPromptSections.length > 0) {
+    segments.push("workflow prompt");
+  }
 
   if (tools.length > 0) {
     segments.push(`${tools.length} tool activit${tools.length === 1 ? "y" : "ies"}`);
@@ -32,14 +94,32 @@ export function buildIntermediateDetailSummary(
   return segments.join(" · ") || "Additional context";
 }
 
-export function MessageIntermediateDetails({ internalContext, reasoning, tools }: Props) {
+export function MessageIntermediateDetails({
+  internalContext,
+  reasoning,
+  reportDetails = null,
+  tools,
+  workflowPromptSections = [],
+}: Props) {
   const [contextExpanded, setContextExpanded] = useState(false);
   const toolKeyMapRef = useRef(new WeakMap<ChatMessagePart, string>());
   const nextToolKeyRef = useRef(0);
-  const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+  const hasDetails =
+    reasoning.trim().length > 0 ||
+    tools.length > 0 ||
+    internalContext !== null ||
+    Boolean(reportDetails?.trim()) ||
+    workflowPromptSections.length > 0;
   const _detailSummary = useMemo(
-    () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
-    [internalContext, reasoning, tools]
+    () =>
+      buildIntermediateDetailSummary(
+        internalContext,
+        reasoning,
+        tools,
+        reportDetails,
+        workflowPromptSections,
+      ),
+    [internalContext, reasoning, reportDetails, tools, workflowPromptSections]
   );
 
   const getToolKey = (tool: ChatMessagePart) => {
@@ -60,6 +140,42 @@ export function MessageIntermediateDetails({ internalContext, reasoning, tools }
 
   return (
     <div className="space-y-3">
+      {reportDetails?.trim() ? (
+        <section className="space-y-2">
+          <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
+            <BadgeInfo className="h-3.5 w-3.5" />
+            Report Details
+          </div>
+          <div className="rounded-md border border-border/30 bg-black/10 px-2.5 py-2 text-[11px] leading-relaxed whitespace-pre-wrap text-foreground/85">
+            {reportDetails}
+          </div>
+        </section>
+      ) : null}
+
+      {workflowPromptSections.length > 0 ? (
+        <section className="space-y-2">
+          <div className="flex items-center gap-1.5 font-medium text-[10px] text-muted-foreground/70 uppercase tracking-[0.14em]">
+            <FileText className="h-3.5 w-3.5" />
+            Workflow Prompt
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {workflowPromptSections.map((section) => (
+              <span
+                key={section.key}
+                className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-100/85"
+              >
+                {section.label}
+              </span>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {workflowPromptSections.map((section) => (
+              <WorkflowPromptSectionPanel key={section.key} section={section} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {internalContext ? (
         <section className="rounded-md border border-sky-500/20 bg-sky-500/5 px-2.5 py-1.5">
           <button

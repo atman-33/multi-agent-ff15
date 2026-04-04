@@ -18,6 +18,10 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
+import {
+  parseWorkflowMessagePresentation,
+  type WorkflowMessagePresentation,
+} from "@/lib/chat-workflow-presentation";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -30,7 +34,7 @@ import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
-import { parseInternalContext, removeInternalContext } from "./internal-context";
+import { removeInternalContext } from "./internal-context";
 import MessageDetailSheet from "./message-detail-sheet";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 
@@ -66,6 +70,7 @@ interface ChatAreaProps {
 interface RenderedChatMessage extends ChatMessage {
   displayContent: string;
   intermediateOnly?: boolean;
+  workflowPresentation?: WorkflowMessagePresentation | null;
 }
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
@@ -129,7 +134,14 @@ function getMessageRawText(message: ChatMessage): string {
   return message.content;
 }
 
-function getMessageDisplayText(message: ChatMessage): string {
+function getMessageDisplayText(
+  message: ChatMessage,
+  workflowPresentation?: WorkflowMessagePresentation | null,
+): string {
+  if (workflowPresentation) {
+    return workflowPresentation.visibleBody;
+  }
+
   if (message.sender !== "noctis") {
     return removeInternalContext(message.content).trim();
   }
@@ -157,7 +169,7 @@ function getIntermediatePreview(parts: MessagePart[]): string | null {
 
 function pickDetailRawText(message: ChatMessage): string {
   const rawText = typeof message.rawText === "string" ? message.rawText.trim() : "";
-  if (rawText && parseInternalContext(rawText)) {
+  if (rawText) {
     return rawText;
   }
 
@@ -211,6 +223,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
       source: "session",
       displayContent: preview,
       intermediateOnly: true,
+      workflowPresentation: null,
     });
 
     pendingNoctis = [];
@@ -219,17 +232,19 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
   messages.forEach((message) => {
     const isOutgoing = message.sender === "user";
     const canCollapseToIntermediate = message.sender === "noctis" && message.source === "session";
+    const workflowPresentation = parseWorkflowMessagePresentation(getMessageRawText(message));
 
     if (isOutgoing) {
       flushPendingNoctis();
       rendered.push({
         ...message,
-        displayContent: getMessageDisplayText(message),
+        displayContent: getMessageDisplayText(message, workflowPresentation),
+        workflowPresentation,
       });
       return;
     }
 
-    const displayContent = getMessageDisplayText(message);
+    const displayContent = getMessageDisplayText(message, workflowPresentation);
 
     if (!displayContent && canCollapseToIntermediate) {
       pendingNoctis.push(message);
@@ -244,6 +259,7 @@ function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
       detailContent: buildDetailText(groupedMessages),
       parts: parts.length > 0 ? parts : undefined,
       displayContent,
+      workflowPresentation,
     });
 
     pendingNoctis = [];
@@ -262,7 +278,16 @@ const MessageBubble = memo(
     const senderLabel = getActivityActorLabel(message.sender);
     const avatarSrc = getSenderAvatar(message.sender);
     const detailRawText = useMemo(() => pickDetailRawText(message), [message]);
-    const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);
+    const workflowPresentation = useMemo(
+      () => message.workflowPresentation ?? parseWorkflowMessagePresentation(detailRawText),
+      [detailRawText, message.workflowPresentation],
+    );
+    const reportDetails = !workflowPresentation?.usedFallback
+      ? workflowPresentation?.reportDetails ?? null
+      : null;
+    const workflowPromptSections = !workflowPresentation?.usedFallback
+      ? workflowPresentation?.workflowPromptSections ?? []
+      : [];
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const messageMarkdown = useMemo(
@@ -274,11 +299,22 @@ const MessageBubble = memo(
       : message.displayContent.trim()
         ? message.displayContent
         : detailRawText;
-    const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
+    const hasDetails =
+      reasoning.trim().length > 0 ||
+      tools.length > 0 ||
+      Boolean(reportDetails?.trim()) ||
+      workflowPromptSections.length > 0;
     const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
     const detailSummary = useMemo(
-      () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
-      [internalContext, reasoning, tools]
+      () =>
+        buildIntermediateDetailSummary(
+          null,
+          reasoning,
+          tools,
+          reportDetails,
+          workflowPromptSections,
+        ),
+      [reasoning, reportDetails, tools, workflowPromptSections],
     );
 
     return (
@@ -328,9 +364,11 @@ const MessageBubble = memo(
               onToggle={() => setDetailsExpanded((value) => !value)}
             >
               <MessageIntermediateDetails
-                internalContext={internalContext}
+                internalContext={null}
                 reasoning={reasoning}
+                reportDetails={reportDetails}
                 tools={tools}
+                workflowPromptSections={workflowPromptSections}
               />
             </MessageIntermediateDetailsToggle>
           ) : null
@@ -344,6 +382,7 @@ const MessageBubble = memo(
               onOpenChange={onOpenChange}
               open={open}
               sender={message.sender}
+              workflowPresentation={workflowPresentation}
             />
           ) : null
         }
