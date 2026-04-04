@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { listAvailableOperations } from "@/lib/operation-definition/operation-loader";
-import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/autonomous";
+import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import { buildOperationDebugBundle } from "@/lib/prompt-composition-engine/debug-preview.server";
 import { cn } from "@/lib/utils";
 import { CopyablePromptBlock } from "./components/copyable-prompt-block";

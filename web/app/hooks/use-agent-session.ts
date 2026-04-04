@@ -17,6 +17,8 @@ import {
 } from "@/lib/session-status";
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
+import type { OperationOption } from "@/lib/operation-presentation";
+import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type {
   AgentContextUsage,
   DelegationLedger,
@@ -381,7 +383,7 @@ export interface UseAgentSessionReturn {
   isSessionActive: boolean;
   isStreaming: boolean;
   isLoadingHistory: boolean;
-  availableOperations: string[];
+  availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
   isOperationSelectionLocked: boolean;
@@ -408,8 +410,10 @@ export function useAgentSession({
       ? toWorkerSessionIds(initialMissionData.sessions)
       : createInitialWorkerSessionIds();
   const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
-  const [availableOperations, setAvailableOperations] = useState<string[]>([]);
-  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
+  const [availableOperations, setAvailableOperations] = useState<OperationOption[]>([]);
+  const [selectedOperation, setSelectedOperation] = useState<string | null>(
+    activeMissionId ? null : INTERNAL_AUTONOMOUS_OPERATION_NAME
+  );
   const [activeOperationState, setActiveOperationState] = useState<OperationState | null>(null);
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [latestBanterEntryId, setLatestBanterEntryId] = useState<string | null>(null);
@@ -471,7 +475,7 @@ export function useAgentSession({
           return;
         }
 
-        const data = (await response.json()) as { operations?: string[] };
+        const data = (await response.json()) as { operations?: OperationOption[] };
         if (!cancelled) {
           setAvailableOperations(data.operations ?? []);
         }
@@ -1234,7 +1238,7 @@ export function useAgentSession({
         seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
         setActiveOperationState(null);
-        setSelectedOperation(null);
+        setSelectedOperation(INTERNAL_AUTONOMOUS_OPERATION_NAME);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
         setContextUsageByAgent(createInitialContextUsageByAgent());

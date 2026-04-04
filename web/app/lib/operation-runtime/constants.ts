@@ -1,0 +1,1 @@
+export const INTERNAL_AUTONOMOUS_OPERATION_NAME = "noctis-autonomous";

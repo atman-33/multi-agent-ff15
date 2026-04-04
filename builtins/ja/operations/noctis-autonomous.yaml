@@ -1,7 +1,7 @@
 name: noctis-autonomous
 description: >
-  Internal free-form Noctis workflow.
-  Noctis stays in one open-ended step, talks with User, and delegates child tasks to available workers when needed.
+  Default (Autonomous) mode.
+  Noctis responds directly to User and delegates supporting tasks to available teammates when useful.
 initial_step: autonomous
 
 steps:

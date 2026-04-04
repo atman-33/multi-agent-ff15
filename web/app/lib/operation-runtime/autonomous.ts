@@ -2,8 +2,6 @@ import { getMission } from "@/lib/mission-store";
 import type { StepDefinition } from "@/lib/operation-definition/types";
 import type { WorkerAgentId } from "@/lib/types/mission";
 
-export const INTERNAL_AUTONOMOUS_OPERATION_NAME = "noctis-autonomous";
-
 export function hasDelegationPolicy(
   step: StepDefinition | null | undefined,
 ): step is StepDefinition & { delegation: NonNullable<StepDefinition["delegation"]> } {

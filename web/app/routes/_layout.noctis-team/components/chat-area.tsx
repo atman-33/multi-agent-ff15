@@ -16,8 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
+import {
+  DEFAULT_AUTONOMOUS_OPERATION_LABEL,
+  getOperationDisplayLabel,
+  type OperationOption,
+} from "@/lib/operation-presentation";
+import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
@@ -46,7 +53,7 @@ interface ChatAreaProps {
   isResponding: boolean;
   isSessionActive?: boolean;
   isStreaming?: boolean;
-  availableOperations: string[];
+  availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
   isOperationSelectionLocked: boolean;
@@ -55,8 +62,6 @@ interface ChatAreaProps {
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
 }
-
-const NO_OPERATION_VALUE = "__none__";
 
 interface RenderedChatMessage extends ChatMessage {
   displayContent: string;
@@ -370,8 +375,39 @@ export const ChatArea = ({
     const allowedWorkers = getAllowedWorkers(workingParty);
     return getWorkingPartySummary(allowedWorkers);
   }, [workingParty]);
-  const operationBadgeLabel = activeOperationState?.operationName ?? "No operation";
-  const operationSelectValue = selectedOperation ?? NO_OPERATION_VALUE;
+  const defaultOperation = useMemo(
+    () =>
+      availableOperations.find((operation) => operation.isDefault) ?? {
+        value: INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        label: DEFAULT_AUTONOMOUS_OPERATION_LABEL,
+        description: "",
+        isDefault: true,
+      },
+    [availableOperations]
+  );
+  const operationSelectValue =
+    selectedOperation ??
+    (isOperationSelectionLocked ? undefined : defaultOperation.value);
+  const selectedOperationOption = useMemo(() => {
+    const activeOperationName = activeOperationState?.operationName ?? operationSelectValue;
+    if (!activeOperationName) {
+      return null;
+    }
+
+    return (
+      availableOperations.find((operation) => operation.value === activeOperationName) ?? {
+        value: activeOperationName,
+        label: getOperationDisplayLabel(activeOperationName),
+        description: "",
+        isDefault: activeOperationName === INTERNAL_AUTONOMOUS_OPERATION_NAME,
+      }
+    );
+  }, [activeOperationState?.operationName, availableOperations, operationSelectValue]);
+  const operationBadgeLabel = selectedOperationOption?.label ?? "Workflow unavailable";
+  const operationDescription = selectedOperationOption?.description ?? "";
+  const operationPlaceholder = isOperationSelectionLocked
+    ? "Workflow unavailable"
+    : defaultOperation.label;
 
   return (
     <ChatThreadFrame
@@ -396,7 +432,7 @@ export const ChatArea = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="inline-flex max-w-[15rem] items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/85">
+            <div className="inline-flex max-w-60 items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/85">
               <span className="truncate">Workflow: {operationBadgeLabel}</span>
             </div>
 
@@ -428,30 +464,38 @@ export const ChatArea = ({
                 <p className="text-xs text-muted-foreground/75">
                   {isOperationSelectionLocked
                     ? "This mission is already running with its current workflow setting."
-                    : "Choose a workflow before sending the first message, or keep normal chat mode."}
+                    : `${defaultOperation.label} is selected unless you choose another workflow.`}
                 </p>
               </div>
 
               <div className="w-full sm:max-w-56">
-                <Select
-                  disabled={isOperationSelectionLocked}
-                  value={operationSelectValue}
-                  onValueChange={(value) =>
-                    onSelectedOperationChange(value === NO_OPERATION_VALUE ? null : value)
-                  }
-                >
-                  <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-                    <SelectValue placeholder="No operation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_OPERATION_VALUE}>No operation</SelectItem>
-                    {availableOperations.map((operationName) => (
-                      <SelectItem key={operationName} value={operationName}>
-                        {operationName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Select
+                        disabled={isOperationSelectionLocked}
+                        value={operationSelectValue}
+                        onValueChange={onSelectedOperationChange}
+                      >
+                        <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                          <SelectValue placeholder={operationPlaceholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableOperations.map((operation) => (
+                            <SelectItem key={operation.value} value={operation.value}>
+                              {operation.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TooltipTrigger>
+                  {operationDescription ? (
+                    <TooltipContent side="top" className="max-w-80 text-xs leading-relaxed">
+                      {operationDescription}
+                    </TooltipContent>
+                  ) : null}
+                </Tooltip>
               </div>
             </div>
           }

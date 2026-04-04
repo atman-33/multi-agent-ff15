@@ -1,8 +1,7 @@
 name: openspec-dev
 description: >
-  Standard OpenSpec Development Flow.
-  Spec planning → Implementation → Code Review / Fix cycle → Refactoring → Complete.
-  Noctis plans the spec, Gladiolus implements and fixes issues, Ignis reviews, and Prompto performs the final refactor.
+  Guided OpenSpec delivery workflow.
+  Noctis plans with User, Gladiolus implements and fixes issues, Ignis reviews, and Prompto performs the final refactor before completion.
 initial_step: spec-planning
 
 # --- Steps ---
