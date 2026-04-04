@@ -23,4 +23,4 @@ steps:
       worker_instruction:
         file: ../facets/instructions/delegated-worker.md
       worker_knowledge:
-        - file: ../facets/knowledge/operation-system-contract.md
+        - file: ../facets/knowledge/agent-relationships.md

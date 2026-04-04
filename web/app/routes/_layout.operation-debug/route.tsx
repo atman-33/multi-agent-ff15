@@ -31,10 +31,34 @@ type LoaderData = {
 };
 
 type PreviewStep = NonNullable<LoaderData["preview"]>["flowSteps"][number];
+type FlowGroup = {
+  parent: PreviewStep;
+  children: PreviewStep[];
+};
+
+function getNodeBadgeLabel(step?: PreviewStep | null): string | null {
+  if (!step || step.nodeKind === "step") {
+    return null;
+  }
+
+  return "Child Event";
+}
 
 function formatNextLabel(step?: PreviewStep | null): string {
   if (!step) {
     return "Next: -";
+  }
+
+  if (step.nodeKind === "delegated-dispatch" && step.nextTarget) {
+    return `Awaiting report: ${step.nextTarget}`;
+  }
+
+  if (step.nodeKind === "delegated-return" && step.nextStep && step.nextTarget) {
+    return `Returns: ${step.nextStep} by ${step.nextTarget}`;
+  }
+
+  if (step.nextAction === "delegate_child_task" && step.nextTarget) {
+    return `Delegates: ${step.nextTarget}`;
   }
 
   if (step.nextTarget === "COMPLETE") {
@@ -54,6 +78,21 @@ function formatNextLabel(step?: PreviewStep | null): string {
   }
 
   return "Next: -";
+}
+
+function getFlowGroups(bundle: LoaderData["preview"]): FlowGroup[] {
+  if (!bundle) {
+    return [];
+  }
+
+  const groups = bundle.flowSteps
+    .filter((step) => step.nodeKind === "step")
+    .map((parent) => ({
+      parent,
+      children: bundle.flowSteps.filter((step) => step.parentId === parent.id),
+    }));
+
+  return groups;
 }
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -155,19 +194,22 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   };
 
   const bundle = loaderData.preview;
+  const flowGroups = useMemo(() => getFlowGroups(bundle), [bundle]);
   const selectedStep = useMemo(
     () => bundle?.flowSteps.find((step) => step.id === activeStepId) ?? bundle?.flowSteps[0] ?? null,
     [bundle, activeStepId],
   );
 
   const selectedStepNumber = useMemo(() => {
-    if (!bundle?.flowSteps.length || !selectedStep) {
+    if (!flowGroups.length || !selectedStep) {
       return null;
     }
 
-    const index = bundle.flowSteps.findIndex((step) => step.id === selectedStep.id);
+    const index = flowGroups.findIndex((group) => group.parent.id === selectedStep.topLevelStepId);
     return index >= 0 ? index + 1 : null;
-  }, [bundle, selectedStep]);
+  }, [flowGroups, selectedStep]);
+
+  const selectedNodeBadge = useMemo(() => getNodeBadgeLabel(selectedStep), [selectedStep]);
 
   const facetStats = useMemo(() => {
     if (!selectedStep?.resolvedFacets) {
@@ -248,15 +290,27 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       },
       {
         id: "source",
-        title: "Prompt Source Input",
-        description: "Raw input used to build the runtime -> agent prompt.",
+        title:
+          selectedStep.nodeKind === "delegated-return" ? "Worker Report Message" : "Prompt Source Input",
+        description:
+          selectedStep.nodeKind === "delegated-return"
+            ? "Synthetic delegated child report body routed back to Noctis."
+            : "Raw input used to build the runtime -> agent prompt.",
         content: selectedStep.sourceInput,
       },
       {
         id: "transport",
-        title: "Synthetic Report Transport",
-        description: "Transport payload sent from the current agent back to Runtime.",
-        content: selectedStep.reportTransport,
+        title:
+          selectedStep.nodeKind === "delegated-return"
+            ? "Accepted Report Transport"
+            : "Synthetic Report Transport",
+        description:
+          selectedStep.nodeKind === "delegated-dispatch"
+            ? "This node dispatches a child task and does not yet emit a report transport."
+            : selectedStep.nodeKind === "delegated-return"
+              ? "Transport payload accepted from the delegated worker before returning to Noctis."
+              : "Transport payload sent from the current agent back to Runtime.",
+        content: selectedStep.reportTransport || "No report transport generated for this node.",
       },
       {
         id: "hooks",
@@ -270,7 +324,10 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       blocks.push({
         id: "guidance",
         title: "Workflow Guidance",
-        description: "Raw runtime guidance generated after the synthetic report.",
+        description:
+          selectedStep.nodeKind === "delegated-return"
+            ? "Runtime guidance handed back to Noctis after the delegated child report."
+            : "Raw runtime guidance generated after the synthetic report.",
         content: selectedStep.workflowGuidance,
       });
     }
@@ -319,10 +376,11 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 Operation Debug
               </Badge>
               {selectedStepNumber ? <Badge variant="outline">Step {selectedStepNumber}</Badge> : null}
+              {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
             </div>
             <p className="max-w-4xl text-slate-300 text-sm">
               Reachable runtime-mediated steps are generated from the selected operation YAML.
-              Select a step to inspect the injected prompt, completion contract, runtime decision, and low-level debug details.
+              Select a step or child event to inspect the injected prompt, completion contract, runtime decision, and low-level debug details.
             </p>
           </div>
 
@@ -344,7 +402,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
           <CardHeader className="border-b border-slate-800 bg-slate-900">
             <CardTitle className="text-lg">Flow</CardTitle>
             <CardDescription className="text-slate-400">
-              Runtime-mediated step flow for the currently reachable path.
+              Runtime-mediated step flow and delegated child events for the currently reachable path.
             </CardDescription>
           </CardHeader>
           <CardContent className="min-h-0 flex flex-1 flex-col gap-4 overflow-hidden">
@@ -387,53 +445,103 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               </TabsList>
 
               <TabsContent className="min-h-0 flex-1 overflow-auto pr-1" value="flow">
-                <div className="space-y-2">
-                  {(bundle?.flowSteps ?? []).map((step, index, arr) => {
+                <div className="space-y-4">
+                  {flowGroups.map((group, index, arr) => {
+                    const step = group.parent;
                     const selected = step.id === selectedStep?.id;
                     const stepNumber = index + 1;
                     return (
                       <div key={step.id}>
-                        <button
-                          className={cn(
-                            "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
-                            flowToneClass(step.kind, selected),
-                          )}
-                          onClick={() => {
-                            setActiveStepId(step.id);
-                            navigateWithPreviewParams({
-                              userInput: userMessage,
-                              operation: selectedOperation,
-                              stepId: step.id,
-                              task: taskInstruction,
-                            });
-                          }}
-                          type="button"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={cn(
-                                  "flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold",
-                                  selected
-                                    ? "border-blue-300 bg-blue-500 text-white"
-                                    : "border-slate-700 bg-slate-950/90 text-slate-400",
-                                )}
-                              >
-                                {stepNumber}
-                              </div>
-                              <div className={cn("font-semibold text-sm", selected ? "text-slate-50" : "text-slate-300")}>
-                                {step.title}
+                        <div className="space-y-2">
+                          <button
+                            className={cn(
+                              "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
+                              flowToneClass(step.kind, selected),
+                            )}
+                            onClick={() => {
+                              setActiveStepId(step.id);
+                              navigateWithPreviewParams({
+                                userInput: userMessage,
+                                operation: selectedOperation,
+                                stepId: step.id,
+                                task: taskInstruction,
+                              });
+                            }}
+                            type="button"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={cn(
+                                    "flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold",
+                                    selected
+                                      ? "border-blue-300 bg-blue-500 text-white"
+                                      : "border-slate-700 bg-slate-950/90 text-slate-400",
+                                  )}
+                                >
+                                  {stepNumber}
+                                </div>
+                                <div className={cn("font-semibold text-sm", selected ? "text-slate-50" : "text-slate-300")}>
+                                  {step.title}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className={cn("mt-1 flex items-center gap-2 text-xs", selected ? "text-slate-200" : "text-slate-500")}>
-                            <Send className="h-3 w-3" />
-                            {step.pathSummary}
-                          </div>
-                          <div className={cn("mt-2 font-medium text-xs", selected ? "text-blue-100" : "text-slate-300")}>
-                            {formatNextLabel(step)}
-                          </div>
-                        </button>
+                            <div className={cn("mt-1 flex items-center gap-2 text-xs", selected ? "text-slate-200" : "text-slate-500")}>
+                              <Send className="h-3 w-3" />
+                              {step.pathSummary}
+                            </div>
+                            <div className={cn("mt-2 font-medium text-xs", selected ? "text-blue-100" : "text-slate-300")}>
+                              {formatNextLabel(step)}
+                            </div>
+                          </button>
+
+                          {group.children.length > 0 ? (
+                            <div className="ml-5 space-y-2 border-slate-800 border-l pl-4">
+                              {group.children.map((child) => {
+                                const childSelected = child.id === selectedStep?.id;
+                                return (
+                                  <button
+                                    className={cn(
+                                      "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
+                                      flowToneClass(child.kind, childSelected),
+                                    )}
+                                    key={child.id}
+                                    onClick={() => {
+                                      setActiveStepId(child.id);
+                                      navigateWithPreviewParams({
+                                        userInput: userMessage,
+                                        operation: selectedOperation,
+                                        stepId: child.id,
+                                        task: taskInstruction,
+                                      });
+                                    }}
+                                    type="button"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex min-w-0 flex-col gap-1">
+                                        <div className={cn("font-semibold text-sm", childSelected ? "text-slate-50" : "text-slate-300")}>
+                                          {child.title}
+                                        </div>
+                                        {child.summary ? (
+                                          <div className={cn("text-[11px] font-medium tracking-wide", childSelected ? "text-blue-100" : "text-slate-400")}>
+                                            {child.summary}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                    <div className={cn("mt-2 flex items-center gap-2 text-xs", childSelected ? "text-slate-200" : "text-slate-500")}>
+                                      <Send className="h-3 w-3" />
+                                      {child.pathSummary}
+                                    </div>
+                                    <div className={cn("mt-2 font-medium text-xs", childSelected ? "text-blue-100" : "text-slate-300")}>
+                                      {formatNextLabel(child)}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
 
                         {index < arr.length - 1 ? (
                           <div className="flex justify-center py-2">
@@ -478,7 +586,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
         <div className="min-h-0 space-y-4 overflow-auto pr-1">
           <Card className="border-slate-800 bg-slate-900 text-slate-100">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Selected Step</CardTitle>
+              <CardTitle className="text-base">Selected Flow Item</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -490,6 +598,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-semibold text-base text-slate-50">{selectedStep?.title ?? "-"}</div>
+                        {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                         <div className="font-mono text-slate-500">{selectedStep?.id ?? "-"}</div>
@@ -510,7 +619,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
           <Card className="border-slate-800 bg-slate-900 text-slate-100">
             <CardHeader>
-              <CardTitle className="text-lg">Step Details</CardTitle>
+              <CardTitle className="text-lg">Flow Item Details</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="prompt">

@@ -63,7 +63,7 @@ vi.mock("@/lib/prompt-composition-engine/debug-preview.server", () => ({
 }));
 
 vi.mock("./components/copyable-prompt-block", () => ({
-  CopyablePromptBlock: ({ content }: { content: string }) => <pre>{content}</pre>,
+  CopyablePromptBlock: ({ value }: { value: string }) => <pre>{value}</pre>,
 }));
 
 import { loader, OperationDebugPage } from "./route";
@@ -104,6 +104,46 @@ function writeOperation(root: string, language: string, name: string, descriptio
     ].join("\n"),
     "utf-8",
   );
+}
+
+function createPreviewStep(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "autonomous:step:1",
+    nodeKind: "step",
+    parentId: null,
+    topLevelStepId: "autonomous:step:1",
+    stepName: "autonomous",
+    stepIndex: 1,
+    occurrence: 1,
+    kind: "noctis-step",
+    title: "autonomous",
+    from: "User",
+    to: "Noctis",
+    pathSummary: "User -> Runtime -> Noctis",
+    summary: "Autonomous step summary.",
+    promptTitle: "Prompt",
+    promptDescription: "",
+    sourceInput: "",
+    promptHighlights: [],
+    internalContext: "",
+    suppressedContext: "",
+    injectedPrompt: "",
+    effectivePrompt: "",
+    completionTitle: "Contract",
+    completionDescription: "",
+    completionContract: "",
+    runtimeDecision: "",
+    decisionSummary: "",
+    operationContextSummary: "",
+    normalizedStep: {} as never,
+    nextStep: "autonomous",
+    nextAction: "continue_conversation",
+    nextTarget: "Noctis",
+    hookTrail: [],
+    reportTransport: "",
+    workflowGuidance: "",
+    ...overrides,
+  };
 }
 
 afterEach(() => {
@@ -179,5 +219,72 @@ describe("operation-debug route", () => {
     expect(markup).toContain("Default (Autonomous)");
     expect(markup).toContain("openspec-dev");
     expect(markup).toContain('data-value="noctis-autonomous"');
+  });
+
+  it("groups delegated child events under the same top-level step number", () => {
+    const parent = createPreviewStep();
+    const dispatch = createPreviewStep({
+      id: "autonomous:step:1:delegated-dispatch",
+      nodeKind: "delegated-dispatch",
+      parentId: parent.id,
+      topLevelStepId: parent.id,
+      kind: "worker-step",
+      title: "Dispatch to Ignis",
+      from: "Noctis",
+      to: "Ignis",
+      pathSummary: "Noctis -> Runtime -> Ignis",
+      summary: "Child task",
+      nextAction: "await_child_report",
+      nextTarget: "Ignis",
+    });
+    const delegatedReturn = createPreviewStep({
+      id: "autonomous:step:1:delegated-return",
+      nodeKind: "delegated-return",
+      parentId: parent.id,
+      topLevelStepId: parent.id,
+      title: "Return from Ignis",
+      from: "Ignis",
+      to: "Noctis",
+      pathSummary: "Ignis -> Runtime -> Noctis",
+      summary: "Same step",
+      sourceInput: "Synthetic report from worker",
+      completionTitle: "Worker -> Runtime Report Transport",
+      completionContract: "agent: ignis",
+      runtimeDecision: "next_action: return_to_self_step",
+      nextAction: "return_to_self_step",
+      nextTarget: "Noctis",
+    });
+
+    const props = {
+      loaderData: {
+        activeStepId: delegatedReturn.id,
+        operations: [
+          {
+            description: "Default conversational flow.",
+            isDefault: true,
+            label: "Default (Autonomous)",
+            value: "noctis-autonomous",
+          },
+        ],
+        preview: { flowSteps: [parent, dispatch, delegatedReturn] },
+        selectedOperation: "noctis-autonomous",
+        taskInstruction: "Execute the current step according to the workflow context.",
+        userMessage: "This is a synthetic User message for operation activation.",
+      },
+      matches: [] as never[],
+      params: {},
+    } as unknown as Parameters<typeof OperationDebugPage>[0];
+
+    const markup = renderToStaticMarkup(
+      <OperationDebugPage {...props} />,
+    );
+
+    expect(markup).toContain("Step 1");
+    expect(markup).not.toContain("Step 2");
+    expect(markup).toContain("Dispatch to Ignis");
+    expect(markup).toContain("Return from Ignis");
+    expect(markup).toContain("Child task");
+    expect(markup).toContain("Same step");
+    expect(markup).toContain("Child Event");
   });
 });

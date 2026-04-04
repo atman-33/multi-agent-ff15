@@ -732,14 +732,21 @@ describe("prompt composition engine", () => {
     });
 
     expect(
-      bundle.flowSteps.map((step) => `${step.kind}:${step.pathSummary}:${step.decisionSummary}`),
+      bundle.flowSteps.map(
+        (step) => `${step.nodeKind}:${step.kind}:${step.pathSummary}:${step.decisionSummary}`,
+      ),
     ).toEqual([
-      "noctis-step:User -> Runtime -> Noctis:delegate_child_task -> Ignis (autonomous)",
-      "worker-step:User -> Runtime -> Ignis -> Runtime -> Noctis:return_to_self_step -> Noctis (autonomous)",
+      "step:noctis-step:User -> Runtime -> Noctis:delegate_child_task -> Ignis (autonomous)",
+      "delegated-dispatch:worker-step:Noctis -> Runtime -> Ignis:delegate_child_task -> Ignis (autonomous)",
+      "delegated-return:noctis-step:Ignis -> Runtime -> Noctis:return_to_self_step -> Noctis (autonomous)",
     ]);
     expect(bundle.flowSteps[0]?.effectivePrompt).toContain("<delegation-guidance>");
     expect(bundle.flowSteps[1]?.effectivePrompt).toContain('<task from="noctis" to="ignis">');
-    expect(bundle.flowSteps[1]?.runtimeDecision).toContain("next_action: return_to_self_step");
+    expect(bundle.flowSteps[1]?.parentId).toBe(bundle.flowSteps[0]?.id);
+    expect(bundle.flowSteps[2]?.parentId).toBe(bundle.flowSteps[0]?.id);
+    expect(bundle.flowSteps[2]?.effectivePrompt).toContain('<worker-report from="ignis" to="noctis" next="COMPLETE">');
+    expect(bundle.flowSteps[2]?.effectivePrompt).toContain("Synthetic report from worker");
+    expect(bundle.flowSteps[2]?.runtimeDecision).toContain("next_action: return_to_self_step");
   });
 
   it("embeds actor metadata in worker reports and does not emit worker-report-details", () => {
