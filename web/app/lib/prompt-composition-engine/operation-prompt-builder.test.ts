@@ -7,6 +7,7 @@ import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { loadOperationFromFile } from "@/lib/operation-definition/operation-loader";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { createOperationState } from "@/lib/operation-runtime/state";
+import type { WorkerAgentId } from "@/lib/types/mission";
 import { buildActivationInstruction } from "./operation-prompt-builder";
 
 const tempDirs: string[] = [];
@@ -506,5 +507,51 @@ describe("operation prompt builder", () => {
         taskId: "task-implement-3",
       }),
     ).toThrow(/could not resolve output placeholder/i);
+  });
+
+  it("shows delegation-unavailable guidance when activation uses an empty effective worker set", () => {
+    const operation = loadOperationFromFile(createInlinePromptFixture());
+    const autonomousOperation = {
+      ...operation,
+      steps: [
+        {
+          ...operation.steps[0],
+          name: "autonomous",
+          delegation: {
+            allowed_workers: ["ignis", "gladiolus"] as WorkerAgentId[],
+            worker_job: { inline: "Delegated worker" },
+            worker_instruction: { inline: "Support Noctis." },
+            worker_knowledge: [],
+            worker_policies: [],
+          },
+          rules: [],
+        },
+      ],
+      initial_step: "autonomous",
+    } as typeof operation;
+    const step = autonomousOperation.steps[0];
+
+    if (!step) {
+      throw new Error("autonomous step not found");
+    }
+
+    const facets = resolveStepFacets(autonomousOperation, step, "ja");
+    const operationState = createOperationState(autonomousOperation.name, autonomousOperation.initial_step);
+    const prompt = buildActivationInstruction({
+      operation: autonomousOperation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-solo-guidance",
+      taskId: "task-solo-guidance",
+      allowedWorkersOverride: [],
+    });
+
+    expect(prompt).toContain("Effective allowed workers: none");
+    expect(prompt).toContain("Continue the conversation yourself until delegation becomes available.");
+    expect(prompt).not.toContain('scripts/send_task.sh mission-solo-guidance ignis');
+    expect(prompt).not.toContain("<job>");
+    expect(prompt).not.toContain("<knowledge-catalog>");
+    expect(prompt).not.toContain("<instruction>");
   });
 });

@@ -17,9 +17,10 @@ export function isAutonomousDelegationStep(
 export function resolveEffectiveDelegationWorkers(input: {
   missionId: string;
   step: StepDefinition;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }): WorkerAgentId[] {
   const authoredWorkers = input.step.delegation?.allowed_workers ?? [];
-  const missionAllowedWorkers = getMission(input.missionId)?.allowedWorkers;
+  const missionAllowedWorkers = input.allowedWorkersOverride ?? getMission(input.missionId)?.allowedWorkers;
   const missionAllowedSet = Array.isArray(missionAllowedWorkers)
     ? new Set<WorkerAgentId>(missionAllowedWorkers)
     : null;

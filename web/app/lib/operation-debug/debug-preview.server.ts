@@ -35,6 +35,16 @@ import {
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import type { AgentId, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 
+export const PREVIEW_PARTY_MODES = ["full", "solo", "custom"] as const;
+
+export type PreviewPartyMode = (typeof PREVIEW_PARTY_MODES)[number];
+
+export const DEFAULT_PREVIEW_ALLOWED_WORKERS: readonly WorkerAgentId[] = [
+  "ignis",
+  "gladiolus",
+  "prompto",
+];
+
 export type PreviewNodeId = "hook1" | "hook2" | "hook3";
 export type FlowStepKind = "noctis-step" | "worker-step";
 export type FlowNodeKind = "step" | "delegated-dispatch" | "delegated-return";
@@ -86,12 +96,15 @@ export interface FlowStepPreview {
   hookTrail: PreviewNodeId[];
   reportTransport: string;
   workflowGuidance: string;
+  isSoloLoop?: boolean;
+  noFlowExplanation?: string;
 }
 
 export interface OperationDebugBundle {
   flowSteps: FlowStepPreview[];
   operation: OperationDefinition;
   reportDir: string;
+  previewAllowedWorkers: WorkerAgentId[];
 }
 
 function toWorkerAgent(agent: string): WorkerAgentId {
@@ -341,6 +354,7 @@ function buildNoctisStepGuidance(input: {
   operationState: ReturnType<typeof createOperationState>;
   facets: ResolvedFacets;
   missionId: string;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }): string {
   const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
   return buildActivationInstruction({
@@ -350,6 +364,7 @@ function buildNoctisStepGuidance(input: {
     facets: input.facets,
     missionId: input.missionId,
     taskId,
+    allowedWorkersOverride: input.allowedWorkersOverride,
   });
 }
 
@@ -359,6 +374,7 @@ function buildDelegatedReturnGuidance(input: {
   operationState: ReturnType<typeof createOperationState>;
   facets: ResolvedFacets;
   missionId: string;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }): string {
   return joinXmlSections([
     buildTextSection(
@@ -373,6 +389,7 @@ export function buildOperationDebugBundle(input: {
   missionId?: string;
   userMessage?: string;
   operationName: string;
+  previewAllowedWorkers?: readonly WorkerAgentId[];
   reportMessage?: string;
   reportNext?: WorkflowNext;
   taskInstruction?: string;
@@ -387,6 +404,9 @@ export function buildOperationDebugBundle(input: {
   const userMessageBase =
     input.userMessage?.trim() || "This is a synthetic User message for operation activation.";
   const reportMessageBase = input.reportMessage?.trim() || "Synthetic report from worker";
+  const previewAllowedWorkers = [
+    ...(input.previewAllowedWorkers ?? DEFAULT_PREVIEW_ALLOWED_WORKERS),
+  ];
 
   const flowSteps: FlowStepPreview[] = [];
   const operationState = createOperationState(operation.name, operation.initial_step);
@@ -439,13 +459,14 @@ export function buildOperationDebugBundle(input: {
           facets,
           missionId,
           taskId,
+          allowedWorkersOverride: previewAllowedWorkers,
         });
         const composed = composeUserToNoctisPromptPreview({
           context: {
             missionId,
             sessionId: "debug-noctis-session",
             agent: "noctis",
-            allowedWorkers: ["ignis", "gladiolus", "prompto"],
+            allowedWorkers: previewAllowedWorkers,
             appRoot: root,
             executionMode: "operation-debug",
           },
@@ -501,7 +522,11 @@ export function buildOperationDebugBundle(input: {
       }
 
       if (isAutonomousDelegationStep(step)) {
-        const effectiveWorkers = resolveEffectiveDelegationWorkers({ missionId, step });
+        const effectiveWorkers = resolveEffectiveDelegationWorkers({
+          missionId,
+          step,
+          allowedWorkersOverride: previewAllowedWorkers,
+        });
         const delegatedAgent = effectiveWorkers[0] ?? step.delegation.allowed_workers[0] ?? "gladiolus";
         const parentDecisionSummary = effectiveWorkers.length > 0
           ? `delegate_child_task -> ${displayActorName(delegatedAgent)} (${step.name})`
@@ -558,6 +583,14 @@ export function buildOperationDebugBundle(input: {
           hookTrail,
           reportTransport: "",
           workflowGuidance: injectedPrompt,
+          isSoloLoop: effectiveWorkers.length === 0,
+          noFlowExplanation:
+            effectiveWorkers.length === 0
+              ? [
+                  "Delegation is unavailable because the effective allowed worker set is empty.",
+                  "Runtime retains the same autonomous step and continues the conversation with Noctis.",
+                ].join(" ")
+              : "",
         });
 
         if (effectiveWorkers.length > 0) {
@@ -653,6 +686,7 @@ export function buildOperationDebugBundle(input: {
             operationState,
             facets,
             missionId,
+            allowedWorkersOverride: previewAllowedWorkers,
           });
           const delegatedReportTransport = buildReportTransport(
             delegatedTaskId,
@@ -825,5 +859,6 @@ export function buildOperationDebugBundle(input: {
     flowSteps,
     operation,
     reportDir: operationState.reportDir,
+    previewAllowedWorkers,
   };
 }

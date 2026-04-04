@@ -14,15 +14,100 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { WORKING_PARTY_MEMBER_IDS } from "@/lib/noctis-working-party";
 import { listOperationDebugOptions } from "@/lib/operation-debug/operation-options.server";
+import type { PreviewPartyMode } from "@/lib/operation-debug/debug-preview.server";
 import type { OperationOption } from "@/lib/operation-presentation";
 import { buildOperationDebugBundle } from "@/lib/prompt-composition-engine/debug-preview.server";
+import type { WorkerAgentId } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { CopyablePromptBlock } from "./components/copyable-prompt-block";
 import type { Route } from "./+types/route";
 
+const PREVIEW_PARTY_MODE_OPTIONS: Array<{
+  value: PreviewPartyMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "full",
+    label: "Full party",
+    description: "Preview with Ignis, Gladiolus, and Prompto all available.",
+  },
+  {
+    value: "solo",
+    label: "Solo",
+    description: "Preview the retained Noctis-only conversational loop.",
+  },
+  {
+    value: "custom",
+    label: "Custom",
+    description: "Preview a custom subset of available workers.",
+  },
+];
+
+const PREVIEW_WORKER_LABELS: Record<WorkerAgentId, string> = {
+  ignis: "Ignis",
+  gladiolus: "Gladiolus",
+  prompto: "Prompto",
+};
+
+function isPreviewPartyMode(value: string | null): value is PreviewPartyMode {
+  return value === "full" || value === "solo" || value === "custom";
+}
+
+function parsePreviewWorkers(raw: string | null): WorkerAgentId[] {
+  if (!raw?.trim()) {
+    return [];
+  }
+
+  const seen = new Set<WorkerAgentId>();
+  const workers: WorkerAgentId[] = [];
+  for (const token of raw.split(",")) {
+    const value = token.trim();
+    if (
+      (value === "ignis" || value === "gladiolus" || value === "prompto") &&
+      !seen.has(value)
+    ) {
+      seen.add(value);
+      workers.push(value);
+    }
+  }
+
+  return workers;
+}
+
+function resolvePreviewWorkers(
+  partyMode: PreviewPartyMode,
+  requestedWorkers: WorkerAgentId[],
+): WorkerAgentId[] {
+  if (partyMode === "solo") {
+    return [];
+  }
+
+  if (partyMode === "custom") {
+    return requestedWorkers;
+  }
+
+  return [...WORKING_PARTY_MEMBER_IDS];
+}
+
+function formatPreviewPartySummary(previewWorkers: WorkerAgentId[]): string {
+  if (previewWorkers.length === 0) {
+    return "Solo preview · No delegation available";
+  }
+
+  if (previewWorkers.length === WORKING_PARTY_MEMBER_IDS.length) {
+    return "Full party preview · All workers available";
+  }
+
+  return `Custom preview · ${previewWorkers.map((worker) => PREVIEW_WORKER_LABELS[worker]).join(", ")}`;
+}
+
 type LoaderData = {
   activeStepId: string;
+  partyMode: PreviewPartyMode;
+  previewWorkers: WorkerAgentId[];
   userMessage: string;
   operations: OperationOption[];
   preview: ReturnType<typeof buildOperationDebugBundle> | null;
@@ -37,7 +122,15 @@ type FlowGroup = {
 };
 
 function getNodeBadgeLabel(step?: PreviewStep | null): string | null {
-  if (!step || step.nodeKind === "step") {
+  if (!step) {
+    return null;
+  }
+
+  if (step.isSoloLoop) {
+    return "Solo Loop";
+  }
+
+  if (step.nodeKind === "step") {
     return null;
   }
 
@@ -47,6 +140,10 @@ function getNodeBadgeLabel(step?: PreviewStep | null): string | null {
 function formatNextLabel(step?: PreviewStep | null): string {
   if (!step) {
     return "Next: -";
+  }
+
+  if (step.isSoloLoop) {
+    return "Loop: Continue with Noctis";
   }
 
   if (step.nodeKind === "delegated-dispatch" && step.nextTarget) {
@@ -108,12 +205,19 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     url.searchParams.get("task")?.trim() || "Execute the current step according to the workflow context.";
   const userMessage =
     url.searchParams.get("userMessage")?.trim() || "This is a synthetic User message for operation activation.";
+  const requestedPartyMode = url.searchParams.get("partyMode");
+  const partyMode = isPreviewPartyMode(requestedPartyMode) ? requestedPartyMode : "full";
+  const previewWorkers = resolvePreviewWorkers(
+    partyMode,
+    parsePreviewWorkers(url.searchParams.get("workers")),
+  );
 
   const preview =
     selectedOperation
       ? buildOperationDebugBundle({
           userMessage,
           operationName: selectedOperation,
+          previewAllowedWorkers: previewWorkers,
           taskInstruction,
         })
       : null;
@@ -126,6 +230,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 
   return {
     activeStepId,
+    partyMode,
+    previewWorkers,
     userMessage,
     operations,
     selectedOperation,
@@ -138,12 +244,16 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const [selectedOperation, setSelectedOperation] = useState(loaderData.selectedOperation ?? "");
   const [activeStepId, setActiveStepId] = useState(loaderData.activeStepId);
+  const [partyMode, setPartyMode] = useState<PreviewPartyMode>(loaderData.partyMode);
+  const [previewWorkers, setPreviewWorkers] = useState<WorkerAgentId[]>(loaderData.previewWorkers);
   const [userMessage, setUserMessage] = useState(loaderData.userMessage);
   const [taskInstruction, setTaskInstruction] = useState(loaderData.taskInstruction);
 
   useEffect(() => {
     setSelectedOperation(loaderData.selectedOperation ?? "");
     setActiveStepId(loaderData.activeStepId);
+    setPartyMode(loaderData.partyMode);
+    setPreviewWorkers(loaderData.previewWorkers);
     setUserMessage(loaderData.userMessage);
     setTaskInstruction(loaderData.taskInstruction);
   }, [loaderData]);
@@ -151,11 +261,15 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const navigateWithPreviewParams = ({
     userInput,
     operation,
+    partyMode,
+    previewWorkers,
     stepId,
     task,
   }: {
     userInput: string;
     operation: string;
+    partyMode: PreviewPartyMode;
+    previewWorkers: WorkerAgentId[];
     stepId: string;
     task: string;
   }) => {
@@ -172,13 +286,34 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     if (task.trim()) {
       params.set("task", task.trim());
     }
+    if (partyMode !== "full") {
+      params.set("partyMode", partyMode);
+    }
+    if (partyMode === "custom" && previewWorkers.length > 0) {
+      params.set("workers", previewWorkers.join(","));
+    }
     void navigate(`/operation-debug?${params.toString()}`);
+  };
+
+  const applyPreviewPartyState = (nextPartyMode: PreviewPartyMode, nextPreviewWorkers: WorkerAgentId[]) => {
+    setPartyMode(nextPartyMode);
+    setPreviewWorkers(nextPreviewWorkers);
+    navigateWithPreviewParams({
+      userInput: userMessage,
+      operation: selectedOperation,
+      partyMode: nextPartyMode,
+      previewWorkers: nextPreviewWorkers,
+      stepId: activeStepId,
+      task: taskInstruction,
+    });
   };
 
   const handleGenerate = () => {
     navigateWithPreviewParams({
       userInput: userMessage,
       operation: selectedOperation,
+      partyMode,
+      previewWorkers,
       stepId: activeStepId,
       task: taskInstruction,
     });
@@ -188,6 +323,8 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     const operation = loaderData.operations[0]?.value ?? "";
     setSelectedOperation(operation);
     setActiveStepId("");
+    setPartyMode("full");
+    setPreviewWorkers([...WORKING_PARTY_MEMBER_IDS]);
     setUserMessage("This is a synthetic User message for operation activation.");
     setTaskInstruction("Execute the current step according to the workflow context.");
     void navigate("/operation-debug");
@@ -210,6 +347,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   }, [flowGroups, selectedStep]);
 
   const selectedNodeBadge = useMemo(() => getNodeBadgeLabel(selectedStep), [selectedStep]);
+  const previewPartySummary = useMemo(() => formatPreviewPartySummary(previewWorkers), [previewWorkers]);
 
   const facetStats = useMemo(() => {
     if (!selectedStep?.resolvedFacets) {
@@ -353,12 +491,16 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     return blocks;
   }, [selectedStep]);
 
-  const flowToneClass = (kind: string, selected: boolean) => {
+  const flowToneClass = (step: PreviewStep, selected: boolean) => {
     if (selected) {
       return "border-blue-400 bg-blue-950/80 shadow-lg ring-2 ring-blue-400/60";
     }
 
-    if (kind === "noctis-step") {
+    if (step.isSoloLoop) {
+      return "border-teal-900 bg-teal-950/25 opacity-75 hover:border-teal-700 hover:bg-teal-950/40 hover:opacity-90";
+    }
+
+    if (step.kind === "noctis-step") {
       return "border-sky-950 bg-sky-950/20 opacity-60 hover:border-sky-800 hover:bg-sky-950/35 hover:opacity-80";
     }
 
@@ -381,6 +523,9 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
             <p className="max-w-4xl text-slate-300 text-sm">
               Reachable runtime-mediated steps are generated from the selected operation YAML.
               Select a step or child event to inspect the injected prompt, completion contract, runtime decision, and low-level debug details.
+            </p>
+            <p className="font-medium text-emerald-200 text-xs uppercase tracking-wide">
+              {previewPartySummary}
             </p>
           </div>
 
@@ -416,6 +561,8 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                   navigateWithPreviewParams({
                     userInput: userMessage,
                     operation: value,
+                    partyMode,
+                    previewWorkers,
                     stepId: "",
                     task: taskInstruction,
                   });
@@ -456,13 +603,15 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                           <button
                             className={cn(
                               "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
-                              flowToneClass(step.kind, selected),
+                              flowToneClass(step, selected),
                             )}
                             onClick={() => {
                               setActiveStepId(step.id);
                               navigateWithPreviewParams({
                                 userInput: userMessage,
                                 operation: selectedOperation,
+                                partyMode,
+                                previewWorkers,
                                 stepId: step.id,
                                 task: taskInstruction,
                               });
@@ -481,8 +630,11 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                 >
                                   {stepNumber}
                                 </div>
-                                <div className={cn("font-semibold text-sm", selected ? "text-slate-50" : "text-slate-300")}>
-                                  {step.title}
+                                <div className="flex items-center gap-2">
+                                  <div className={cn("font-semibold text-sm", selected ? "text-slate-50" : "text-slate-300")}>
+                                    {step.title}
+                                  </div>
+                                  {step.isSoloLoop ? <Badge variant="outline">Solo Loop</Badge> : null}
                                 </div>
                               </div>
                             </div>
@@ -503,7 +655,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                   <button
                                     className={cn(
                                       "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
-                                      flowToneClass(child.kind, childSelected),
+                                      flowToneClass(child, childSelected),
                                     )}
                                     key={child.id}
                                     onClick={() => {
@@ -511,6 +663,8 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                       navigateWithPreviewParams({
                                         userInput: userMessage,
                                         operation: selectedOperation,
+                                        partyMode,
+                                        previewWorkers,
                                         stepId: child.id,
                                         task: taskInstruction,
                                       });
@@ -555,6 +709,61 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               </TabsContent>
 
               <TabsContent className="min-h-0 flex-1 space-y-4 overflow-auto pr-1" value="inputs">
+                <div className="space-y-2 rounded-lg border border-emerald-800 bg-emerald-950/30 p-3 text-slate-100">
+                  <label className="font-medium text-sm" htmlFor="party-mode">
+                    Party Mode
+                  </label>
+                  <Select
+                    onValueChange={(value) => {
+                      if (!isPreviewPartyMode(value)) {
+                        return;
+                      }
+
+                      const nextPreviewWorkers = resolvePreviewWorkers(value, previewWorkers);
+                      applyPreviewPartyState(value, nextPreviewWorkers);
+                    }}
+                    value={partyMode}
+                  >
+                    <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="party-mode">
+                      <SelectValue placeholder="Select preview party mode" />
+                    </SelectTrigger>
+                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
+                      {PREVIEW_PARTY_MODE_OPTIONS.map((option) => (
+                        <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-slate-300 text-xs">
+                    {PREVIEW_PARTY_MODE_OPTIONS.find((option) => option.value === partyMode)?.description}
+                  </p>
+
+                  {partyMode === "custom" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {WORKING_PARTY_MEMBER_IDS.map((workerId) => {
+                        const active = previewWorkers.includes(workerId);
+                        return (
+                          <Button
+                            key={workerId}
+                            onClick={() => {
+                              const nextPreviewWorkers = active
+                                ? previewWorkers.filter((worker) => worker !== workerId)
+                                : [...previewWorkers, workerId];
+                              applyPreviewPartyState("custom", nextPreviewWorkers);
+                            }}
+                            size="sm"
+                            type="button"
+                            variant={active ? "default" : "outline"}
+                          >
+                            {PREVIEW_WORKER_LABELS[workerId]}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="space-y-2 rounded-lg border border-blue-800 bg-blue-950/40 p-3 text-slate-100">
                   <label className="font-medium text-sm" htmlFor="user-message">
                     User Message
@@ -616,6 +825,21 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               </div>
             </CardContent>
           </Card>
+
+          {selectedStep?.noFlowExplanation?.trim() ? (
+            <Card className="border-teal-800 bg-teal-950/20 text-slate-100">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Why No Flow?</CardTitle>
+                <CardDescription className="text-teal-100/80">
+                  This preview intentionally stays on the same autonomous step instead of fabricating a downstream transition.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-slate-200">
+                <p>{selectedStep.noFlowExplanation}</p>
+                <p className="font-medium text-teal-100">{previewPartySummary}</p>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card className="border-slate-800 bg-slate-900 text-slate-100">
             <CardHeader>

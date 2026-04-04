@@ -2,7 +2,6 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import {
   coerceAllowedWorkers,
-  getNoctisAgentProfile,
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
@@ -70,7 +69,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
   const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
   const executionMode = getNoctisExecutionMode(allowedWorkers);
-  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
+  const noctisAgentProfile = "noctis" as const;
 
   const workerModelsRaw =
     body.workerModels && typeof body.workerModels === "object"

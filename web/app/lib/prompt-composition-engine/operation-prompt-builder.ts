@@ -9,7 +9,10 @@ import type {
   ResolvedKnowledgeEntry,
   StepDefinition,
 } from "@/lib/operation-definition/types";
-import { resolveEffectiveDelegationWorkers } from "@/lib/operation-runtime/autonomous";
+import {
+  isAutonomousDelegationStep,
+  resolveEffectiveDelegationWorkers,
+} from "@/lib/operation-runtime/autonomous";
 import type { AgentId, OperationState, WorkerAgentId } from "@/lib/types/mission";
 import {
   buildXmlSection,
@@ -371,6 +374,7 @@ export function buildAugmentedInstruction(input: {
 function buildDelegationGuidance(input: {
   missionId: string;
   step: StepDefinition;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }): string | null {
   if (!input.step.delegation) {
     return null;
@@ -379,6 +383,7 @@ function buildDelegationGuidance(input: {
   const effectiveWorkers = resolveEffectiveDelegationWorkers({
     missionId: input.missionId,
     step: input.step,
+    allowedWorkersOverride: input.allowedWorkersOverride,
   });
   const authoredWorkers = input.step.delegation.allowed_workers;
   const lines = [
@@ -419,6 +424,28 @@ function buildDelegationGuidance(input: {
   }
 
   return buildMarkdownSection("delegation-guidance", lines.join("\n"));
+}
+
+function shouldOmitAutonomousSoloFacets(input: {
+  missionId: string;
+  step: StepDefinition;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
+}): boolean {
+  if (!isAutonomousDelegationStep(input.step)) {
+    return false;
+  }
+
+  if (input.step.delegation.allowed_workers.length === 0) {
+    return false;
+  }
+
+  return (
+    resolveEffectiveDelegationWorkers({
+      missionId: input.missionId,
+      step: input.step,
+      allowedWorkersOverride: input.allowedWorkersOverride,
+    }).length === 0
+  );
 }
 
 export function buildDelegatedWorkerInstruction(input: {
@@ -478,10 +505,16 @@ export function buildActivationInstruction(input: {
   facets: ResolvedFacets;
   missionId: string;
   taskId: string;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }): string {
   const { operation, step, facets } = input;
   const sections: Array<string | null> = [];
-  const resolvedInstruction = facets.instruction
+  const omitAutonomousSoloFacets = shouldOmitAutonomousSoloFacets({
+    missionId: input.missionId,
+    step,
+    allowedWorkersOverride: input.allowedWorkersOverride,
+  });
+  const resolvedInstruction = !omitAutonomousSoloFacets && facets.instruction
     ? resolveInstructionPlaceholders({
         content: facets.instruction,
         operation,
@@ -490,7 +523,7 @@ export function buildActivationInstruction(input: {
       })
     : "";
 
-  if (facets.job) {
+  if (!omitAutonomousSoloFacets && facets.job) {
     sections.push(buildMarkdownSection("job", facets.job));
   }
 
@@ -501,9 +534,11 @@ export function buildActivationInstruction(input: {
     }),
   );
 
-  sections.push(buildKnowledgeCatalog(facets.knowledge));
+  if (!omitAutonomousSoloFacets) {
+    sections.push(buildKnowledgeCatalog(facets.knowledge));
+  }
 
-  if (resolvedInstruction) {
+  if (!omitAutonomousSoloFacets && resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));
   }
 
@@ -529,6 +564,7 @@ export function buildActivationInstruction(input: {
     buildDelegationGuidance({
       missionId: input.missionId,
       step,
+      allowedWorkersOverride: input.allowedWorkersOverride,
     }),
   );
 

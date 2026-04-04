@@ -12,10 +12,6 @@ import {
 import { buildYamlSection, joinXmlSections } from "./prompt-xml";
 
 function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | null {
-  if (agent === "noctis-solo") {
-    return "noctis";
-  }
-
   if (
     agent === "noctis" ||
     agent === "lunafreya" ||

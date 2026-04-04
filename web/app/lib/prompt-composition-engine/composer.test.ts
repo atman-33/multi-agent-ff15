@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { getMissionOutputFilePath } from "@/lib/mission-store";
+import { createMission, deleteMission, getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.server";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
 import { processReport } from "@/lib/operation-runtime/runtime";
@@ -688,10 +688,52 @@ describe("prompt composition engine", () => {
     });
 
     expect(composed.operationActivated).toBe("noctis-autonomous");
+  expect(composed.effectivePrompt).toContain("<job>");
+  expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
+  expect(composed.effectivePrompt).toContain("<instruction>");
     expect(composed.effectivePrompt).toContain("<delegation-guidance>");
     expect(composed.effectivePrompt).toContain("scripts/send_task.sh mission-autonomous ignis");
     expect(composed.effectivePrompt).not.toContain("<step-completion-contract>");
     expect(composed.effectivePrompt).not.toContain("allowed_workers:");
+  });
+
+  it("builds an autonomous solo Noctis prompt without shared delegation context", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    createMission("mission-autonomous-solo", "session-autonomous-solo", {
+      allowedWorkers: [],
+      title: "Autonomous solo",
+    });
+
+    try {
+      const composed = composeUserToNoctisPrompt({
+        context: {
+          appRoot: root,
+          agent: "noctis",
+          sessionId: "session-autonomous-solo",
+          missionId: "mission-autonomous-solo",
+          allowedWorkers: [],
+        },
+        userMessage: "Handle this directly.",
+        missionId: "mission-autonomous-solo",
+        sessionId: "session-autonomous-solo",
+        isNewMission: true,
+        selectedOperation: "noctis-autonomous",
+      });
+
+      expect(composed.operationActivated).toBe("noctis-autonomous");
+      expect(composed.effectivePrompt).not.toContain("<job>");
+      expect(composed.effectivePrompt).not.toContain("<knowledge-catalog>");
+      expect(composed.effectivePrompt).not.toContain("<instruction>");
+      expect(composed.effectivePrompt).toContain("Effective allowed workers: none");
+      expect(composed.effectivePrompt).toContain(
+        "Continue the conversation yourself until delegation becomes available.",
+      );
+      expect(composed.effectivePrompt).not.toContain("scripts/send_task.sh mission-autonomous-solo ignis");
+      expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
+    } finally {
+      deleteMission("mission-autonomous-solo");
+    }
   });
 
   it("builds delegated child worker prompts from delegation facets", () => {
@@ -747,6 +789,33 @@ describe("prompt composition engine", () => {
     expect(bundle.flowSteps[2]?.effectivePrompt).toContain('<worker-report from="ignis" to="noctis" next="COMPLETE">');
     expect(bundle.flowSteps[2]?.effectivePrompt).toContain("Synthetic report from worker");
     expect(bundle.flowSteps[2]?.runtimeDecision).toContain("next_action: return_to_self_step");
+  });
+
+  it("shows autonomous solo preview as a retained Solo Loop without child events", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    const bundle = buildOperationDebugBundle({
+      missionId: "mission-autonomous-solo-preview",
+      operationName: "noctis-autonomous",
+      previewAllowedWorkers: [],
+      userMessage: "Handle this directly.",
+    });
+
+    expect(bundle.previewAllowedWorkers).toEqual([]);
+    expect(bundle.flowSteps).toHaveLength(1);
+    expect(bundle.flowSteps[0]).toMatchObject({
+      nodeKind: "step",
+      kind: "noctis-step",
+      isSoloLoop: true,
+      nextAction: "continue_conversation",
+      nextTarget: "Noctis",
+    });
+    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<job>");
+    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<knowledge-catalog>");
+    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<instruction>");
+    expect(bundle.flowSteps[0]?.effectivePrompt).toContain("Effective allowed workers: none");
+    expect(bundle.flowSteps[0]?.internalContext).not.toContain("<delegation-context");
+    expect(bundle.flowSteps[0]?.noFlowExplanation).toContain("Delegation is unavailable");
   });
 
   it("embeds actor metadata in worker reports and does not emit worker-report-details", () => {

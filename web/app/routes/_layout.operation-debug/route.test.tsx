@@ -180,8 +180,33 @@ describe("operation-debug route", () => {
       "openspec-dev",
     ]);
     expect(loaderData.selectedOperation).toBe("noctis-autonomous");
+    expect(loaderData.partyMode).toBe("full");
+    expect(loaderData.previewWorkers).toEqual(["ignis", "gladiolus", "prompto"]);
     expect(buildOperationDebugBundleMock).toHaveBeenCalledWith(
-      expect.objectContaining({ operationName: "noctis-autonomous" }),
+      expect.objectContaining({
+        operationName: "noctis-autonomous",
+        previewAllowedWorkers: ["ignis", "gladiolus", "prompto"],
+      }),
+    );
+  });
+
+  it("loads solo preview mode from query params", async () => {
+    const root = createTempRoot("ja");
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
+
+    const loaderData = await loader({
+      request: new Request("http://localhost/operation-debug?partyMode=solo"),
+    } as never);
+
+    expect(loaderData.partyMode).toBe("solo");
+    expect(loaderData.previewWorkers).toEqual([]);
+    expect(buildOperationDebugBundleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationName: "noctis-autonomous",
+        previewAllowedWorkers: [],
+      }),
     );
   });
 
@@ -203,7 +228,9 @@ describe("operation-debug route", () => {
             value: "openspec-dev",
           },
         ],
+        partyMode: "full",
         preview: null,
+        previewWorkers: ["ignis", "gladiolus", "prompto"],
         selectedOperation: "noctis-autonomous",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
@@ -266,7 +293,9 @@ describe("operation-debug route", () => {
             value: "noctis-autonomous",
           },
         ],
+        partyMode: "full",
         preview: { flowSteps: [parent, dispatch, delegatedReturn] },
+        previewWorkers: ["ignis", "gladiolus", "prompto"],
         selectedOperation: "noctis-autonomous",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
@@ -286,5 +315,46 @@ describe("operation-debug route", () => {
     expect(markup).toContain("Child task");
     expect(markup).toContain("Same step");
     expect(markup).toContain("Child Event");
+  });
+
+  it("renders solo loop labeling and the no-flow explanation", () => {
+    const soloStep = createPreviewStep({
+      isSoloLoop: true,
+      noFlowExplanation:
+        "Delegation is unavailable because the effective allowed worker set is empty. Runtime retains the same autonomous step.",
+      nextAction: "continue_conversation",
+      nextTarget: "Noctis",
+    });
+
+    const props = {
+      loaderData: {
+        activeStepId: soloStep.id,
+        operations: [
+          {
+            description: "Default conversational flow.",
+            isDefault: true,
+            label: "Default (Autonomous)",
+            value: "noctis-autonomous",
+          },
+        ],
+        partyMode: "solo",
+        preview: { flowSteps: [soloStep] },
+        previewWorkers: [],
+        selectedOperation: "noctis-autonomous",
+        taskInstruction: "Execute the current step according to the workflow context.",
+        userMessage: "This is a synthetic User message for operation activation.",
+      },
+      matches: [] as never[],
+      params: {},
+    } as unknown as Parameters<typeof OperationDebugPage>[0];
+
+    const markup = renderToStaticMarkup(
+      <OperationDebugPage {...props} />,
+    );
+
+    expect(markup).toContain("Solo Loop");
+    expect(markup).toContain("Why No Flow?");
+    expect(markup).toContain("Solo preview · No delegation available");
+    expect(markup).toContain("Loop: Continue with Noctis");
   });
 });
