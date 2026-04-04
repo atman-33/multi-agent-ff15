@@ -6,10 +6,9 @@ import {
   MessageIntermediateDetails,
   MessageIntermediateDetailsToggle,
 } from "@/components/chat/message-intermediate-details";
-import { removeInternalContext } from "@/lib/chat-internal-context";
 import { buildMessageMarkdown, extractReasoning, extractTools } from "@/lib/chat-message-parts";
-import { parseInjectedPromptContextSections } from "@/lib/chat-workflow-presentation";
 import type { MessagePart } from "../types";
+import { resolveSessionMessageDisplay } from "./message-display";
 import MessageDetailSheet from "./message-detail-sheet";
 
 type Props = {
@@ -26,46 +25,69 @@ type Props = {
 
 const MessageBubble = ({ message }: Props) => {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const isUser = message.role === "user";
   const rawText = message.parts
     .filter((part) => part.type === "text")
     .map((part) => part.text ?? "")
     .join("");
-  const promptContextSections = useMemo(() => parseInjectedPromptContextSections(rawText), [rawText]);
-  const text = useMemo(() => removeInternalContext(rawText), [rawText]);
+  const messageDisplay = useMemo(
+    () =>
+      resolveSessionMessageDisplay({
+        rawText,
+        fallbackRole: message.role,
+        fallbackSenderLabel: message.senderLabel,
+      }),
+    [message.role, message.senderLabel, rawText],
+  );
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
   const messageMarkdown = useMemo(
-    () => buildMessageMarkdown(text, reasoning, tools),
-    [reasoning, text, tools]
+    () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
+    [messageDisplay.displayContent, reasoning, tools]
   );
-  const displayContent = message.showCursor ? `${text}▌` : text;
-  const copyContent = messageMarkdown.trim() ? messageMarkdown : text;
+  const displayContent = message.showCursor
+    ? `${messageDisplay.displayContent}▌`
+    : messageDisplay.displayContent;
+  const copyContent = messageMarkdown.trim() ? messageMarkdown : messageDisplay.displayContent;
   const hasDetails =
-    reasoning.trim().length > 0 || tools.length > 0 || promptContextSections.length > 0;
-  const hasVisibleBody = text.trim().length > 0 || Boolean(message.showCursor);
+    reasoning.trim().length > 0 ||
+    tools.length > 0 ||
+    Boolean(messageDisplay.reportDetails?.trim()) ||
+    messageDisplay.promptContextSections.length > 0;
+  const hasVisibleBody = messageDisplay.displayContent.trim().length > 0 || Boolean(message.showCursor);
   const detailSummary = useMemo(
-    () => buildIntermediateDetailSummary(reasoning, tools, null, promptContextSections),
-    [promptContextSections, reasoning, tools]
+    () =>
+      buildIntermediateDetailSummary(
+        reasoning,
+        tools,
+        messageDisplay.reportDetails,
+        messageDisplay.promptContextSections,
+      ),
+    [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools]
   );
 
-  if (!text && !reasoning && tools.length === 0 && promptContextSections.length === 0) {
+  if (
+    !messageDisplay.displayContent &&
+    !reasoning &&
+    tools.length === 0 &&
+    !messageDisplay.reportDetails &&
+    messageDisplay.promptContextSections.length === 0
+  ) {
     return null;
   }
 
   return (
     <MessageBubbleBase
-      align={isUser ? "end" : "start"}
+      align={messageDisplay.resolvedSenderIsUser ? "end" : "start"}
       bubbleClassName={
-        isUser
+        messageDisplay.resolvedSenderIsUser
           ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
           : "rounded-bl-md border-border/40 bg-white/6 text-foreground"
       }
       body={
         hasVisibleBody ? (
-          isUser ? (
+          messageDisplay.resolvedSenderIsUser ? (
             <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-              {text}
+              {messageDisplay.displayContent}
               {message.showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
             </p>
           ) : (
@@ -88,9 +110,10 @@ const MessageBubble = ({ message }: Props) => {
             onToggle={() => setDetailsExpanded((value) => !value)}
           >
             <MessageIntermediateDetails
-              promptContextSections={promptContextSections}
-              promptContextSource="injected"
+              promptContextSections={messageDisplay.promptContextSections}
+              promptContextSource={messageDisplay.promptContextSource}
               reasoning={reasoning}
+              reportDetails={messageDisplay.reportDetails}
               tools={tools}
             />
           </MessageIntermediateDetailsToggle>
@@ -99,7 +122,8 @@ const MessageBubble = ({ message }: Props) => {
       renderDetailSheet={({ open, onOpenChange }) =>
         open ? (
           <MessageDetailSheet
-            content={text}
+            content={messageDisplay.displayContent}
+            messageRole={message.role}
             onOpenChange={onOpenChange}
             open={open}
             parts={message.parts}
@@ -108,7 +132,7 @@ const MessageBubble = ({ message }: Props) => {
           />
         ) : null
       }
-      senderLabel={message.senderLabel}
+      senderLabel={messageDisplay.resolvedSenderLabel}
       timestamp={message.timestamp}
     />
   );

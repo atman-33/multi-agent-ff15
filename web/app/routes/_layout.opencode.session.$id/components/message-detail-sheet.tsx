@@ -2,13 +2,10 @@ import { ArrowUpRight, FileText } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
-import { removeInternalContext } from "@/lib/chat-internal-context";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
-import {
-  getPromptContextSourceLabel,
-  parseInjectedPromptContextSections,
-} from "@/lib/chat-workflow-presentation";
+import { getPromptContextSourceLabel } from "@/lib/chat-workflow-presentation";
 import type { MessagePart } from "../types";
+import { resolveSessionMessageDisplay } from "./message-display";
 
 type Props = {
   content: string;
@@ -16,6 +13,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   open: boolean;
   parts?: MessagePart[];
+  messageRole: "user" | "assistant";
   senderLabel: string;
 };
 
@@ -25,6 +23,7 @@ const MessageDetailSheet = ({
   onOpenChange,
   open,
   parts,
+  messageRole,
   senderLabel,
 }: Props) => {
   const toolKeyMapRef = useRef(new WeakMap<MessagePart, string>());
@@ -36,17 +35,28 @@ const MessageDetailSheet = ({
 
     return parts && parts.length > 0 ? extractText(parts) : content;
   }, [content, parts, rawTextContent]);
-  const promptContextSections = useMemo(() => parseInjectedPromptContextSections(rawText), [rawText]);
-  const displayContent = useMemo(() => removeInternalContext(rawText), [rawText]);
+  const messageDisplay = useMemo(
+    () =>
+      resolveSessionMessageDisplay({
+        rawText,
+        fallbackRole: messageRole,
+        fallbackSenderLabel: senderLabel,
+      }),
+    [messageRole, rawText, senderLabel],
+  );
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
   const copyContent = useMemo(
-    () => buildMessageMarkdown(displayContent, reasoning, tools),
-    [displayContent, reasoning, tools],
+    () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
+    [messageDisplay.displayContent, reasoning, tools],
   );
-  const hasVisibleBody = displayContent.trim().length > 0;
+  const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
   const hasIntermediateDetails =
-    reasoning.trim().length > 0 || tools.length > 0 || promptContextSections.length > 0;
+    reasoning.trim().length > 0 ||
+    tools.length > 0 ||
+    Boolean(messageDisplay.reportDetails?.trim()) ||
+    messageDisplay.promptContextSections.length > 0 ||
+    Boolean(messageDisplay.rawWorkflowPrompt?.trim());
 
   const getToolKey = (tool: MessagePart) => {
     const existingKey = toolKeyMapRef.current.get(tool);
@@ -66,18 +76,24 @@ const MessageDetailSheet = ({
       description="Full message view"
       onOpenChange={onOpenChange}
       open={open}
-      title={`${senderLabel} message detail`}
+      title={`${messageDisplay.resolvedSenderLabel} message detail`}
     >
       <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/3 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-300">
         <ArrowUpRight className="h-3.5 w-3.5" />
-        {senderLabel}
+        {messageDisplay.resolvedSenderLabel}
       </div>
 
       {hasVisibleBody ? (
         <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-          <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
-            <MessageMarkdown>{displayContent}</MessageMarkdown>
-          </div>
+          {messageDisplay.resolvedSenderIsUser ? (
+            <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
+              {messageDisplay.displayContent}
+            </p>
+          ) : (
+            <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
+              <MessageMarkdown>{messageDisplay.displayContent}</MessageMarkdown>
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-white/10 bg-white/3 p-4 text-[12px] text-slate-400 sm:p-5">
@@ -87,17 +103,30 @@ const MessageDetailSheet = ({
         </div>
       )}
 
-      {promptContextSections.length > 0 ? (
+      {messageDisplay.reportDetails ? (
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
+          <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
+            Report Details
+          </div>
+          <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">
+            {messageDisplay.reportDetails}
+          </p>
+        </div>
+      ) : null}
+
+      {messageDisplay.promptContextSections.length > 0 ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             <FileText className="h-3.5 w-3.5" />
             Prompt Context
-            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[9px] text-slate-300">
-              {getPromptContextSourceLabel("injected")}
-            </span>
+            {messageDisplay.promptContextSource ? (
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[9px] text-slate-300">
+                {getPromptContextSourceLabel(messageDisplay.promptContextSource)}
+              </span>
+            ) : null}
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
-            {promptContextSections.map((section) => (
+            {messageDisplay.promptContextSections.map((section) => (
               <span
                 key={section.key}
                 className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-100/85"
@@ -107,7 +136,7 @@ const MessageDetailSheet = ({
             ))}
           </div>
           <div className="space-y-3">
-            {promptContextSections.map((section) => (
+            {messageDisplay.promptContextSections.map((section) => (
               <details
                 className="rounded-xl border border-white/10 bg-black/20 p-3"
                 key={section.key}
@@ -126,6 +155,19 @@ const MessageDetailSheet = ({
               </details>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {messageDisplay.rawWorkflowPrompt?.trim() ? (
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
+          <details>
+            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-slate-400">
+              Raw Prompt Payload
+            </summary>
+            <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
+              {messageDisplay.rawWorkflowPrompt}
+            </pre>
+          </details>
         </div>
       ) : null}
 
