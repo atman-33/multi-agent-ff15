@@ -4,13 +4,15 @@ import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import {
   getPromptContextSourceLabel,
-  parseWorkflowMessagePresentation,
   type WorkflowMessagePresentation,
 } from "@/lib/chat-workflow-presentation";
+import {
+  resolveSessionMessageDisplay,
+  type SessionMessageDisplay,
+} from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId } from "@/lib/types/mission";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
-import { removeInternalContext } from "./internal-context";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 
 type Props = {
@@ -19,7 +21,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   open: boolean;
   parts?: MessagePart[];
-  sender: ActivityActorId;
+  sender: ActivityActorId | null;
+  messageDisplay?: SessionMessageDisplay;
   workflowPresentation?: WorkflowMessagePresentation | null;
 };
 
@@ -30,6 +33,7 @@ const MessageDetailSheet = ({
   open,
   parts,
   sender,
+  messageDisplay,
   workflowPresentation,
 }: Props) => {
   const toolKeyMapRef = useRef(new WeakMap<MessagePart, string>());
@@ -39,23 +43,46 @@ const MessageDetailSheet = ({
       return rawTextContent;
     }
 
-    return sender === "noctis" && parts && parts.length > 0 ? extractText(parts) : content;
-  }, [content, parts, rawTextContent, sender]);
+    return parts && parts.length > 0 ? extractText(parts) : content;
+  }, [content, parts, rawTextContent]);
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
-  const resolvedWorkflowPresentation = useMemo(
-    () => workflowPresentation ?? parseWorkflowMessagePresentation(rawText),
-    [rawText, workflowPresentation],
-  );
-  const reportDetails = !resolvedWorkflowPresentation?.usedFallback
-    ? resolvedWorkflowPresentation?.reportDetails ?? null
-    : null;
-  const promptContextSections = !resolvedWorkflowPresentation?.usedFallback
-    ? resolvedWorkflowPresentation?.promptContextSections ?? []
-    : [];
-  const rawWorkflowPrompt = !resolvedWorkflowPresentation?.usedFallback
-    ? resolvedWorkflowPresentation?.rawPrompt ?? null
-    : null;
+  const resolvedMessageDisplay = useMemo(() => {
+    if (messageDisplay) {
+      return messageDisplay;
+    }
+
+    if (workflowPresentation) {
+      const resolvedSender = workflowPresentation.visibleBodyFrom ?? sender;
+      const promptContextSections = !workflowPresentation.usedFallback
+        ? workflowPresentation.promptContextSections ?? []
+        : [];
+
+      return {
+        displayContent: workflowPresentation.visibleBody,
+        promptContextSections,
+        promptContextSource: promptContextSections.length > 0 ? "workflow" : null,
+        rawWorkflowPrompt: !workflowPresentation.usedFallback
+          ? workflowPresentation.rawPrompt ?? null
+          : null,
+        reportDetails: !workflowPresentation.usedFallback
+          ? workflowPresentation.reportDetails ?? null
+          : null,
+        resolvedSender,
+        resolvedSenderIsUser: resolvedSender === "user",
+        resolvedSenderLabel: resolvedSender
+          ? getActivityActorLabel(resolvedSender)
+          : "Assistant",
+        workflowPresentation,
+      } satisfies SessionMessageDisplay;
+    }
+
+    return resolveSessionMessageDisplay({
+      rawText,
+      fallbackSender: sender,
+      fallbackSenderLabel: sender ? getActivityActorLabel(sender) : "Assistant",
+    });
+  }, [messageDisplay, rawText, sender, workflowPresentation]);
 
   const getToolKey = (tool: MessagePart) => {
     const existingKey = toolKeyMapRef.current.get(tool);
@@ -69,20 +96,8 @@ const MessageDetailSheet = ({
     return nextKey;
   };
 
-  const displayContent = useMemo(
-    () =>
-      resolvedWorkflowPresentation
-        ? resolvedWorkflowPresentation.visibleBody
-        : sender === "noctis"
-          ? removeInternalContext(rawText)
-          : content,
-    [content, rawText, resolvedWorkflowPresentation, sender],
-  );
-  const displaySender = useMemo(
-    () => resolvedWorkflowPresentation?.visibleBodyFrom ?? sender,
-    [resolvedWorkflowPresentation, sender],
-  );
-  const senderLabel = useMemo(() => getActivityActorLabel(displaySender), [displaySender]);
+  const displayContent = resolvedMessageDisplay.displayContent;
+  const senderLabel = resolvedMessageDisplay.resolvedSenderLabel;
   const copyContent = useMemo(
     () => buildMessageMarkdown(displayContent, reasoning, tools),
     [displayContent, reasoning, tools],
@@ -91,9 +106,9 @@ const MessageDetailSheet = ({
   const hasIntermediateDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
-    Boolean(reportDetails?.trim()) ||
-    promptContextSections.length > 0 ||
-    Boolean(rawWorkflowPrompt?.trim());
+    Boolean(resolvedMessageDisplay.reportDetails?.trim()) ||
+    resolvedMessageDisplay.promptContextSections.length > 0 ||
+    Boolean(resolvedMessageDisplay.rawWorkflowPrompt?.trim());
 
   return (
     <MessageDetailSheetBase
@@ -110,7 +125,7 @@ const MessageDetailSheet = ({
 
       {hasVisibleBody ? (
         <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-          {displaySender === "user" ? (
+          {resolvedMessageDisplay.resolvedSenderIsUser ? (
             <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
               {displayContent}
             </p>
@@ -128,28 +143,30 @@ const MessageDetailSheet = ({
         </div>
       )}
 
-      {reportDetails ? (
+      {resolvedMessageDisplay.reportDetails ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             Report Details
           </div>
           <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">
-            {reportDetails}
+            {resolvedMessageDisplay.reportDetails}
           </p>
         </div>
       ) : null}
 
-      {promptContextSections.length > 0 ? (
+      {resolvedMessageDisplay.promptContextSections.length > 0 ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             <FileText className="h-3.5 w-3.5" />
             Prompt Context
-            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[9px] text-slate-300">
-              {getPromptContextSourceLabel("workflow")}
-            </span>
+            {resolvedMessageDisplay.promptContextSource ? (
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[9px] text-slate-300">
+                {getPromptContextSourceLabel(resolvedMessageDisplay.promptContextSource)}
+              </span>
+            ) : null}
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
-            {promptContextSections.map((section) => (
+            {resolvedMessageDisplay.promptContextSections.map((section) => (
               <span
                 key={section.key}
                 className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-100/85"
@@ -159,7 +176,7 @@ const MessageDetailSheet = ({
             ))}
           </div>
           <div className="space-y-3">
-            {promptContextSections.map((section) => (
+            {resolvedMessageDisplay.promptContextSections.map((section) => (
               <details
                 className="rounded-xl border border-white/10 bg-black/20 p-3"
                 key={section.key}
@@ -181,14 +198,14 @@ const MessageDetailSheet = ({
         </div>
       ) : null}
 
-      {rawWorkflowPrompt?.trim() ? (
+      {resolvedMessageDisplay.rawWorkflowPrompt?.trim() ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <details>
             <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-slate-400">
               Raw Prompt Payload
             </summary>
             <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
-              {rawWorkflowPrompt}
+              {resolvedMessageDisplay.rawWorkflowPrompt}
             </pre>
           </details>
         </div>
@@ -240,18 +257,6 @@ const MessageDetailSheet = ({
         </div>
       ) : null}
 
-      {rawWorkflowPrompt ? (
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-          <details className="rounded-xl border border-white/10 bg-black/20 p-3">
-            <summary className="cursor-pointer text-sm font-medium text-slate-100">
-              Raw Operation Prompt
-            </summary>
-            <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
-              {rawWorkflowPrompt}
-            </pre>
-          </details>
-        </div>
-      ) : null}
     </MessageDetailSheetBase>
   );
 };

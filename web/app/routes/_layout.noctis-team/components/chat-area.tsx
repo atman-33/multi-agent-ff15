@@ -18,10 +18,6 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
-import {
-  parseWorkflowMessagePresentation,
-  type WorkflowMessagePresentation,
-} from "@/lib/chat-workflow-presentation";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -30,13 +26,17 @@ import {
 } from "@/lib/operation-presentation";
 import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type { PromptPart } from "@/lib/prompt-parts";
+import {
+  buildRenderedSessionMessages,
+  type RenderedSessionMessage,
+  type SessionPresentationMessage,
+} from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
-import { removeInternalContext } from "./internal-context";
 import MessageDetailSheet from "./message-detail-sheet";
-import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
+import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-parts";
 
 export interface ChatMessage {
   id: string;
@@ -67,12 +67,6 @@ interface ChatAreaProps {
   showAbortAction?: boolean;
 }
 
-interface RenderedChatMessage extends ChatMessage {
-  displayContent: string;
-  intermediateOnly?: boolean;
-  workflowPresentation?: WorkflowMessagePresentation | null;
-}
-
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   noctis: "/images/noctis.png",
   ignis: "/images/ignis.png",
@@ -80,11 +74,15 @@ const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   prompto: "/images/prompto.png",
 };
 
-function getSenderAvatar(sender: ActivityActorId): string | null {
-  return SENDER_AVATARS[sender] ?? null;
+function getSenderAvatar(sender: ActivityActorId | null): string | null {
+  return sender ? SENDER_AVATARS[sender] ?? null : null;
 }
 
-function getAvatarThemeStyle(sender: ActivityActorId): React.CSSProperties | undefined {
+function getAvatarThemeStyle(sender: ActivityActorId | null): React.CSSProperties | undefined {
+  if (!sender) {
+    return undefined;
+  }
+
   const theme = getAgentTheme(sender);
   if (!theme) {
     return undefined;
@@ -97,237 +95,56 @@ function getAvatarThemeStyle(sender: ActivityActorId): React.CSSProperties | und
   };
 }
 
-function toMessageParts(message: ChatMessage): MessagePart[] {
-  if (message.sender !== "noctis") {
-    if (!message.content) {
-      return [];
-    }
-
-    return [{ type: "text", text: message.content } as MessagePart];
-  }
-
-  if (message.parts && message.parts.length > 0) {
-    return message.parts;
-  }
-
-  if (!message.content) {
-    return [];
-  }
-
-  return [{ type: "text", text: message.content } as MessagePart];
-}
-
-function getMessageRawText(message: ChatMessage): string {
-  if (typeof message.rawText === "string" && message.rawText.trim()) {
-    return message.rawText;
-  }
-
-  if (message.sender !== "noctis") {
-    return message.content;
-  }
-
-  if (message.parts && message.parts.length > 0) {
-    const extracted = extractText(message.parts);
-    return extracted || message.content;
-  }
-
-  return message.content;
-}
-
-function getMessageDisplayText(
-  message: ChatMessage,
-  workflowPresentation?: WorkflowMessagePresentation | null,
-): string {
-  if (workflowPresentation) {
-    return workflowPresentation.visibleBody;
-  }
-
-  if (message.sender !== "noctis") {
-    return removeInternalContext(message.content).trim();
-  }
-
-  return removeInternalContext(getMessageRawText(message)).trim();
-}
-
-function getMessageDisplaySender(
-  message: ChatMessage,
-  workflowPresentation?: WorkflowMessagePresentation | null,
-): ActivityActorId {
-  return workflowPresentation?.visibleBodyFrom ?? message.sender;
-}
-
-function getIntermediatePreview(parts: MessagePart[]): string | null {
-  const reasoning = extractReasoning(parts)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (reasoning.length > 0) {
-    return reasoning.slice(0, 2).join("\n");
-  }
-
-  const tools = extractTools(parts);
-  if (tools.length > 0) {
-    return `Tool activity: ${tools.length} ${tools.length === 1 ? "event" : "events"}.`;
-  }
-
-  return null;
-}
-
-function pickDetailRawText(message: ChatMessage): string {
-  const rawText = typeof message.rawText === "string" ? message.rawText.trim() : "";
-  if (rawText) {
-    return rawText;
-  }
-
-  if (typeof message.detailContent === "string" && message.detailContent.trim()) {
-    return message.detailContent;
-  }
-
-  return getMessageRawText(message);
-}
-
-function buildDetailText(messages: ChatMessage[]): string {
-  return messages
-    .map((message) => {
-      if (typeof message.detailContent === "string" && message.detailContent.trim()) {
-        return message.detailContent.trim();
-      }
-
-      return getMessageRawText(message).trim();
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
-  const rendered: RenderedChatMessage[] = [];
-  let pendingNoctis: ChatMessage[] = [];
-
-  const flushPendingNoctis = () => {
-    if (pendingNoctis.length === 0) {
-      return;
-    }
-
-    const parts = pendingNoctis.flatMap((message) => toMessageParts(message));
-    const preview = getIntermediatePreview(parts);
-
-    if (!preview) {
-      pendingNoctis = [];
-      return;
-    }
-
-    rendered.push({
-      id: pendingNoctis.map((message) => message.id).join(":"),
-      sender: "noctis",
-      actor: "noctis",
-      speaker: "noctis",
-      kind: "assistant_message",
-      content: "",
-      detailContent: buildDetailText(pendingNoctis),
-      parts: parts.length > 0 ? parts : undefined,
-      timestamp: pendingNoctis[pendingNoctis.length - 1].timestamp,
-      source: "session",
-      displayContent: preview,
-      intermediateOnly: true,
-      workflowPresentation: null,
-    });
-
-    pendingNoctis = [];
+function toSessionPresentationMessage(message: ChatMessage): SessionPresentationMessage {
+  return {
+    id: message.id,
+    role: message.sender === "user" ? "user" : "assistant",
+    sender: message.sender,
+    senderLabel: getActivityActorLabel(message.sender),
+    kind: message.kind,
+    content: message.content,
+    detailContent: message.detailContent,
+    rawText: message.rawText,
+    parts: message.parts,
+    timestamp: message.timestamp,
+    source: message.source,
   };
-
-  messages.forEach((message) => {
-    const workflowPresentation = parseWorkflowMessagePresentation(getMessageRawText(message));
-    const displaySender = getMessageDisplaySender(message, workflowPresentation);
-    const isOutgoing = displaySender === "user";
-    const canCollapseToIntermediate = displaySender === "noctis" && message.source === "session";
-
-    if (isOutgoing) {
-      flushPendingNoctis();
-      rendered.push({
-        ...message,
-        sender: displaySender,
-        actor: displaySender,
-        speaker: displaySender,
-        displayContent: getMessageDisplayText(message, workflowPresentation),
-        workflowPresentation,
-      });
-      return;
-    }
-
-    const displayContent = getMessageDisplayText(message, workflowPresentation);
-
-    if (!displayContent && canCollapseToIntermediate) {
-      pendingNoctis.push(message);
-      return;
-    }
-
-    const groupedMessages = [...pendingNoctis, message];
-    const parts = groupedMessages.flatMap((entry) => toMessageParts(entry));
-
-    rendered.push({
-      ...message,
-      sender: displaySender,
-      actor: displaySender,
-      speaker: displaySender,
-      detailContent: buildDetailText(groupedMessages),
-      parts: parts.length > 0 ? parts : undefined,
-      displayContent,
-      workflowPresentation,
-    });
-
-    pendingNoctis = [];
-  });
-
-  flushPendingNoctis();
-
-  return rendered;
 }
 
 const MessageBubble = memo(
-  ({ message, showCursor }: { message: RenderedChatMessage; showCursor: boolean }) => {
+  ({ message, showCursor }: { message: RenderedSessionMessage; showCursor: boolean }) => {
     const [detailsExpanded, setDetailsExpanded] = useState(false);
-    const isOutgoing = message.sender === "user";
+    const messageDisplay = message.messageDisplay;
+    const isOutgoing = messageDisplay.resolvedSenderIsUser;
     const isNoctis = message.sender === "noctis";
-    const senderLabel = getActivityActorLabel(message.sender);
+    const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
-    const detailRawText = useMemo(() => pickDetailRawText(message), [message]);
-    const workflowPresentation = useMemo(
-      () => message.workflowPresentation ?? parseWorkflowMessagePresentation(detailRawText),
-      [detailRawText, message.workflowPresentation],
-    );
-    const reportDetails = !workflowPresentation?.usedFallback
-      ? workflowPresentation?.reportDetails ?? null
-      : null;
-    const promptContextSections = !workflowPresentation?.usedFallback
-      ? workflowPresentation?.promptContextSections ?? []
-      : [];
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const messageMarkdown = useMemo(
-      () => buildMessageMarkdown(message.displayContent, reasoning, tools),
-      [message.displayContent, reasoning, tools]
+      () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
+      [messageDisplay.displayContent, reasoning, tools]
     );
     const copyContent = messageMarkdown.trim()
       ? messageMarkdown
-      : message.displayContent.trim()
-        ? message.displayContent
-        : detailRawText;
+      : messageDisplay.displayContent.trim()
+        ? messageDisplay.displayContent
+        : message.detailRawText;
     const hasDetails =
       reasoning.trim().length > 0 ||
       tools.length > 0 ||
-      Boolean(reportDetails?.trim()) ||
-      promptContextSections.length > 0;
-    const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
+      Boolean(messageDisplay.reportDetails?.trim()) ||
+      messageDisplay.promptContextSections.length > 0;
+    const hasVisibleBody = messageDisplay.displayContent.trim().length > 0 || showCursor;
     const detailSummary = useMemo(
       () =>
         buildIntermediateDetailSummary(
           reasoning,
           tools,
-          reportDetails,
-          promptContextSections,
+          messageDisplay.reportDetails,
+          messageDisplay.promptContextSections,
         ),
-      [promptContextSections, reasoning, reportDetails, tools],
+      [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools],
     );
 
     return (
@@ -354,11 +171,11 @@ const MessageBubble = memo(
           hasVisibleBody ? (
             !isOutgoing ? (
               <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
-                <MessageMarkdown>{`${message.displayContent}${showCursor ? "▌" : ""}`}</MessageMarkdown>
+                <MessageMarkdown>{`${messageDisplay.displayContent}${showCursor ? "▌" : ""}`}</MessageMarkdown>
               </div>
             ) : (
               <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-                {message.displayContent}
+                {messageDisplay.displayContent}
                 {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
               </p>
             )
@@ -377,10 +194,10 @@ const MessageBubble = memo(
               onToggle={() => setDetailsExpanded((value) => !value)}
             >
               <MessageIntermediateDetails
-                  promptContextSections={promptContextSections}
-                  promptContextSource="workflow"
+                promptContextSections={messageDisplay.promptContextSections}
+                promptContextSource={messageDisplay.promptContextSource}
                 reasoning={reasoning}
-                reportDetails={reportDetails}
+                reportDetails={messageDisplay.reportDetails}
                 tools={tools}
               />
             </MessageIntermediateDetailsToggle>
@@ -389,13 +206,13 @@ const MessageBubble = memo(
         renderDetailSheet={({ open, onOpenChange }) =>
           open ? (
             <MessageDetailSheet
-              content={message.displayContent}
-              rawTextContent={detailRawText}
+              content={messageDisplay.displayContent}
+              messageDisplay={messageDisplay}
+              rawTextContent={message.detailRawText}
               parts={message.parts}
               onOpenChange={onOpenChange}
               open={open}
               sender={message.sender}
-              workflowPresentation={workflowPresentation}
             />
           ) : null
         }
@@ -421,7 +238,10 @@ export const ChatArea = ({
   onSend,
   showAbortAction = false,
 }: ChatAreaProps) => {
-  const renderedMessages = useMemo(() => buildRenderedMessages(messages), [messages]);
+  const renderedMessages = useMemo(
+    () => buildRenderedSessionMessages(messages.map(toSessionPresentationMessage)),
+    [messages],
+  );
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
     const allowedWorkers = getAllowedWorkers(workingParty);

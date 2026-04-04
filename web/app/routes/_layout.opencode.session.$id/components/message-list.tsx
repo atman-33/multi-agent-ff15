@@ -1,14 +1,11 @@
+import {
+  buildRenderedSessionMessages,
+  resolveSessionMessageDisplay,
+  toSessionPresentationMessages,
+  type RenderedSessionMessage,
+} from "@/lib/session-message-presentation";
 import type { MessageInfo } from "../types";
 import MessageBubble from "./message-bubble";
-
-type DisplayMessage = {
-  id: string;
-  role: "user" | "assistant";
-  senderLabel: string;
-  timestamp: Date;
-  parts: MessageInfo["parts"];
-  showCursor?: boolean;
-};
 
 type Props = {
   messages: MessageInfo[];
@@ -16,35 +13,43 @@ type Props = {
   viewportRef: React.RefObject<HTMLDivElement | null>;
 };
 
-function toDisplayMessage(message: MessageInfo): DisplayMessage {
-  return {
-    id: message.info.id,
-    role: message.info.role,
-    senderLabel:
-      message.info.role === "assistant" ? message.info.agent?.trim() || "Assistant" : "User",
-    timestamp: new Date(message.info.time.created),
-    parts: message.parts,
-  };
-}
-
 const MessageList = ({ messages, streamingContent, viewportRef }: Props) => {
-  const displayMessages = messages.map(toDisplayMessage);
+  const displayMessages = buildRenderedSessionMessages(toSessionPresentationMessages(messages));
+  const streamingMessageDisplay = streamingContent
+    ? resolveSessionMessageDisplay({
+        rawText: streamingContent,
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+      })
+    : null;
+  const streamingMessage: RenderedSessionMessage | null =
+    streamingContent && streamingMessageDisplay
+      ? {
+          id: "streaming-assistant",
+          role: "assistant",
+          sender: streamingMessageDisplay.resolvedSender,
+          senderLabel: streamingMessageDisplay.resolvedSenderLabel,
+          kind: "assistant_message",
+          content: streamingContent,
+          detailContent: streamingContent,
+          rawText: streamingContent,
+          parts: [{ type: "text", text: streamingContent }],
+          timestamp: new Date(),
+          source: "session",
+          detailRawText: streamingContent,
+          messageDisplay: streamingMessageDisplay,
+        }
+      : null;
 
   return (
     <div className="space-y-3">
       {displayMessages.map((message) => (
         <MessageBubble key={message.id} message={message} viewportRef={viewportRef} />
       ))}
-      {streamingContent ? (
+      {streamingMessage ? (
         <MessageBubble
-          message={{
-            id: "streaming-assistant",
-            role: "assistant",
-            senderLabel: "Assistant",
-            timestamp: new Date(),
-            parts: [{ type: "text", text: streamingContent }],
-            showCursor: true,
-          }}
+          message={streamingMessage}
+          showCursor={true}
           viewportRef={viewportRef}
         />
       ) : null}

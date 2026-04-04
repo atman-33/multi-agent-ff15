@@ -3,6 +3,7 @@ import { useMemo, useRef } from "react";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
+import type { SessionMessageDisplay } from "@/lib/session-message-presentation";
 import { getPromptContextSourceLabel } from "@/lib/chat-workflow-presentation";
 import type { MessagePart } from "../types";
 import { resolveSessionMessageDisplay } from "./message-display";
@@ -14,6 +15,7 @@ type Props = {
   open: boolean;
   parts?: MessagePart[];
   messageRole: "user" | "assistant";
+  messageDisplay?: SessionMessageDisplay;
   senderLabel: string;
 };
 
@@ -24,6 +26,7 @@ const MessageDetailSheet = ({
   open,
   parts,
   messageRole,
+  messageDisplay,
   senderLabel,
 }: Props) => {
   const toolKeyMapRef = useRef(new WeakMap<MessagePart, string>());
@@ -35,28 +38,29 @@ const MessageDetailSheet = ({
 
     return parts && parts.length > 0 ? extractText(parts) : content;
   }, [content, parts, rawTextContent]);
-  const messageDisplay = useMemo(
+  const resolvedMessageDisplay = useMemo(
     () =>
+      messageDisplay ??
       resolveSessionMessageDisplay({
         rawText,
-        fallbackRole: messageRole,
+        fallbackSender: messageRole === "user" ? "user" : null,
         fallbackSenderLabel: senderLabel,
       }),
-    [messageRole, rawText, senderLabel],
+    [messageDisplay, messageRole, rawText, senderLabel],
   );
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
   const copyContent = useMemo(
-    () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
-    [messageDisplay.displayContent, reasoning, tools],
+    () => buildMessageMarkdown(resolvedMessageDisplay.displayContent, reasoning, tools),
+    [resolvedMessageDisplay.displayContent, reasoning, tools],
   );
-  const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
+  const hasVisibleBody = resolvedMessageDisplay.displayContent.trim().length > 0;
   const hasIntermediateDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
-    Boolean(messageDisplay.reportDetails?.trim()) ||
-    messageDisplay.promptContextSections.length > 0 ||
-    Boolean(messageDisplay.rawWorkflowPrompt?.trim());
+    Boolean(resolvedMessageDisplay.reportDetails?.trim()) ||
+    resolvedMessageDisplay.promptContextSections.length > 0 ||
+    Boolean(resolvedMessageDisplay.rawWorkflowPrompt?.trim());
 
   const getToolKey = (tool: MessagePart) => {
     const existingKey = toolKeyMapRef.current.get(tool);
@@ -76,22 +80,22 @@ const MessageDetailSheet = ({
       description="Full message view"
       onOpenChange={onOpenChange}
       open={open}
-      title={`${messageDisplay.resolvedSenderLabel} message detail`}
+      title={`${resolvedMessageDisplay.resolvedSenderLabel} message detail`}
     >
       <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/3 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-slate-300">
         <ArrowUpRight className="h-3.5 w-3.5" />
-        {messageDisplay.resolvedSenderLabel}
+        {resolvedMessageDisplay.resolvedSenderLabel}
       </div>
 
       {hasVisibleBody ? (
         <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
-          {messageDisplay.resolvedSenderIsUser ? (
+          {resolvedMessageDisplay.resolvedSenderIsUser ? (
             <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100">
-              {messageDisplay.displayContent}
+              {resolvedMessageDisplay.displayContent}
             </p>
           ) : (
             <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6">
-              <MessageMarkdown>{messageDisplay.displayContent}</MessageMarkdown>
+              <MessageMarkdown>{resolvedMessageDisplay.displayContent}</MessageMarkdown>
             </div>
           )}
         </div>
@@ -103,30 +107,30 @@ const MessageDetailSheet = ({
         </div>
       )}
 
-      {messageDisplay.reportDetails ? (
+      {resolvedMessageDisplay.reportDetails ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             Report Details
           </div>
           <p className="whitespace-pre-wrap text-[13px] leading-6 text-slate-100/90">
-            {messageDisplay.reportDetails}
+            {resolvedMessageDisplay.reportDetails}
           </p>
         </div>
       ) : null}
 
-      {messageDisplay.promptContextSections.length > 0 ? (
+      {resolvedMessageDisplay.promptContextSections.length > 0 ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
             <FileText className="h-3.5 w-3.5" />
             Prompt Context
-            {messageDisplay.promptContextSource ? (
+            {resolvedMessageDisplay.promptContextSource ? (
               <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[9px] text-slate-300">
-                {getPromptContextSourceLabel(messageDisplay.promptContextSource)}
+                {getPromptContextSourceLabel(resolvedMessageDisplay.promptContextSource)}
               </span>
             ) : null}
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
-            {messageDisplay.promptContextSections.map((section) => (
+            {resolvedMessageDisplay.promptContextSections.map((section) => (
               <span
                 key={section.key}
                 className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-100/85"
@@ -136,7 +140,7 @@ const MessageDetailSheet = ({
             ))}
           </div>
           <div className="space-y-3">
-            {messageDisplay.promptContextSections.map((section) => (
+            {resolvedMessageDisplay.promptContextSections.map((section) => (
               <details
                 className="rounded-xl border border-white/10 bg-black/20 p-3"
                 key={section.key}
@@ -158,14 +162,14 @@ const MessageDetailSheet = ({
         </div>
       ) : null}
 
-      {messageDisplay.rawWorkflowPrompt?.trim() ? (
+      {resolvedMessageDisplay.rawWorkflowPrompt?.trim() ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <details>
             <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-slate-400">
               Raw Prompt Payload
             </summary>
             <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
-              {messageDisplay.rawWorkflowPrompt}
+              {resolvedMessageDisplay.rawWorkflowPrompt}
             </pre>
           </details>
         </div>

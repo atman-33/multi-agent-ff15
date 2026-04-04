@@ -19,7 +19,7 @@ Integrate the worker result.
 </worker-report>
 </operation-prompt>
       `.trim(),
-      fallbackRole: "assistant",
+  fallbackSender: null,
       fallbackSenderLabel: "Assistant",
     });
 
@@ -47,7 +47,7 @@ Need more detail from User.
 </team-message>
 </operation-prompt>
       `.trim(),
-      fallbackRole: "assistant",
+  fallbackSender: null,
       fallbackSenderLabel: "noctis-cli",
     });
 

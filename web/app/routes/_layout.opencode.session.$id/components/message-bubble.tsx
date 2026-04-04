@@ -7,53 +7,38 @@ import {
   MessageIntermediateDetailsToggle,
 } from "@/components/chat/message-intermediate-details";
 import { buildMessageMarkdown, extractReasoning, extractTools } from "@/lib/chat-message-parts";
-import type { MessagePart } from "../types";
-import { resolveSessionMessageDisplay } from "./message-display";
+import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 import MessageDetailSheet from "./message-detail-sheet";
 
 type Props = {
-  message: {
-    id: string;
-    role: "user" | "assistant";
-    senderLabel: string;
-    timestamp: Date;
-    parts: MessagePart[];
-    showCursor?: boolean;
-  };
+  message: RenderedSessionMessage;
+  showCursor?: boolean;
   viewportRef: React.RefObject<HTMLDivElement | null>;
 };
 
-const MessageBubble = ({ message }: Props) => {
+const MessageBubble = ({ message, showCursor = false }: Props) => {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const rawText = message.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text ?? "")
-    .join("");
-  const messageDisplay = useMemo(
-    () =>
-      resolveSessionMessageDisplay({
-        rawText,
-        fallbackRole: message.role,
-        fallbackSenderLabel: message.senderLabel,
-      }),
-    [message.role, message.senderLabel, rawText],
-  );
+  const messageDisplay = message.messageDisplay;
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
   const messageMarkdown = useMemo(
     () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
     [messageDisplay.displayContent, reasoning, tools]
   );
-  const displayContent = message.showCursor
+  const displayContent = showCursor
     ? `${messageDisplay.displayContent}▌`
     : messageDisplay.displayContent;
-  const copyContent = messageMarkdown.trim() ? messageMarkdown : messageDisplay.displayContent;
+  const copyContent = messageMarkdown.trim()
+    ? messageMarkdown
+    : messageDisplay.displayContent.trim()
+      ? messageDisplay.displayContent
+      : message.detailRawText;
   const hasDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
     Boolean(messageDisplay.reportDetails?.trim()) ||
     messageDisplay.promptContextSections.length > 0;
-  const hasVisibleBody = messageDisplay.displayContent.trim().length > 0 || Boolean(message.showCursor);
+  const hasVisibleBody = messageDisplay.displayContent.trim().length > 0 || showCursor;
   const detailSummary = useMemo(
     () =>
       buildIntermediateDetailSummary(
@@ -88,7 +73,7 @@ const MessageBubble = ({ message }: Props) => {
           messageDisplay.resolvedSenderIsUser ? (
             <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
               {messageDisplay.displayContent}
-              {message.showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
+              {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
             </p>
           ) : (
             <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
@@ -123,16 +108,17 @@ const MessageBubble = ({ message }: Props) => {
         open ? (
           <MessageDetailSheet
             content={messageDisplay.displayContent}
+            messageDisplay={messageDisplay}
             messageRole={message.role}
             onOpenChange={onOpenChange}
             open={open}
             parts={message.parts}
-            rawTextContent={rawText}
+            rawTextContent={message.detailRawText}
             senderLabel={message.senderLabel}
           />
         ) : null
       }
-      senderLabel={messageDisplay.resolvedSenderLabel}
+      senderLabel={message.senderLabel}
       timestamp={message.timestamp}
     />
   );
