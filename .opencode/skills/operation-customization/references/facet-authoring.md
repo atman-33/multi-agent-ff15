@@ -1,6 +1,6 @@
 # Facet Authoring Reference
 
-Read this file when creating or revising files under `builtins/<lang>/facets/`.
+Read this file when creating or revising files under `builtins/<lang>/facets/` or `projects/<project-id>/facets/`.
 
 ## Start From Template
 
@@ -19,6 +19,8 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Match the tone, language, and structure of neighboring files in the same locale.
 - Prefer updating existing reusable facets over creating new top-level patterns.
 - Use file-backed facets for reusable content and inline blocks for step-local details.
+- Keep the facet path valid relative to the workflow YAML that consumes it. `file` sources are resolved from the workflow file, not from repository root.
+- When builtin and project workflows share a visible name, use facet content and workflow descriptions to make the source-specific intent clear.
 
 ## jobs
 

@@ -1,9 +1,11 @@
 ---
 name: operation-system-contract
-description: runtime-owned dispatch、step-completion transport、prompt composition boundary、または live と debug の prompt 差分を変更するときに読むこと。
+description: runtime-owned dispatch、source-aware operationRef、step-completion transport、prompt composition boundary、または live と debug の prompt 差分を変更するときに読むこと。
 critical:
+  - Canonical な workflow identity は source-aware な `operationRef` であり、plain-name-only mission state は unsupported である。
   - Runtime が次 actor を決定し、deterministic な worker dispatch を Noctis が手動 relay しない。
   - Canonical な step-completion transport は `taskId + next + message` である。
+  - Runtime、Noctis Team selector、operation-debug preview は共通 catalog から workflow を解決し、same-name workflow は別 candidate のまま扱う。
   - routing と prompt activation は message body token ではなく runtime state に依存する。
 ---
 
@@ -19,6 +21,9 @@ workflow routing、runtime dispatch ownership、report handling、prompt composi
 
 - dispatch は direct な agent chaining ではなく runtime-mediated である。
 - Runtime が次 actor を決定し、worker dispatch を所有する。
+- runtime state における canonical な workflow key は `operationRef` であり、`operationName` は display 用である。
+- builtin と project source で同じ `name` を持つ workflow は separate catalog entry として扱う。
+- free-form message からの auto activation は unique な catalog match がある場合だけ成功する。
 - step completion の canonical transport は `taskId + next + message` である。
 - routing は standalone な body tag や `[STEP:N]` token ではなく runtime state に依存する。
 - Noctis step と worker step は同じ completion contract を共有する。
@@ -62,7 +67,7 @@ Worker
 
 ### Hook 1: User -> Noctis
 
-`processUserMessage()` は operation を開始し、active な Noctis self-step context を再構成します。message body から `[STEP:N]` token は解析しません。
+`processUserMessage()` は explicit な `selectedOperation` ref または unique な catalog match から operation を開始し、active な Noctis self-step context を再構成します。message body から `[STEP:N]` token は解析しません。
 
 ### Hook 2: Runtime -> Worker
 
@@ -87,6 +92,13 @@ step completion の source of truth は body tag ではなく transport metadata
 delegated child task では `taskId` が child execution を識別し、`message` は Noctis 向けの child result summary として扱われます。report 完了後も parent step の `currentStep` は維持されます。
 
 `message` の guidance は `next` に応じて変わりますが、transport contract 自体は変わりません。
+
+## Workflow Identity Contract
+
+- mission state は human-readable な `operationName` と canonical な `operationRef` を保持する。
+- operation load、dispatch、report processing、debug preview は `operationRef` から workflow file を解決する。
+- source-aware ref の format は builtin なら `builtin:<lang>:<fileName>`、project なら `project:<projectId>:<fileName>` である。
+- plain operation name だけを持つ state は migrate せず fail closed にする。
 
 ## Prompt Composition Boundaries
 
@@ -116,6 +128,8 @@ workflow-aware prompt を変更するときは、shared context と workflow ext
 
 `operation-debug` preview は有用ですが、live prompt delivery と byte-for-byte で一致するものではありません。
 
+- preview input は plain operation name ではなく `operationRef` を受け取る。
+- operation-debug は live runtime と同じ source-aware catalog を使い、project filter をかけても builtin workflow は表示されたままである。
 - live の `composeUserToNoctisPrompt()` は workflow extension があると `delegation-context` を suppress する
 - debug preview は synthetic な mission/task/report input を使う
 - preview における worker-report-to-Noctis activation は synthetic report data から再構成される
@@ -133,8 +147,9 @@ prompt 差分を debug するときは、preview output と live composer/runtim
 
 ## Minimal Source Of Truth
 
-- authored workflow: `builtins/{lang}/operations/*.yaml`
-- authored facet files: `builtins/{lang}/facets/**`
+- authored workflow: `builtins/{lang}/operations/*.yaml` または `projects/{projectId}/operations/*.yaml`
+- authored facet files: `builtins/{lang}/facets/**` または `projects/{projectId}/facets/**`
+- workflow catalog / identity: `web/app/lib/operation-definition/operation-catalog.ts` と `operationRef`
 - live execution state: `runtime/noctis-missions/{missionId}/mission.json`
 - live output artifacts: `runtime/noctis-missions/{missionId}/outputs/{step}/{taskId}/{filename}`
 - report routing contract: `taskId + next + message`

@@ -1,7 +1,7 @@
 ---
 name: operation-customization
-description: 'Create or customize repository operations and facet files. Use when adding or editing builtins/*/operations/*.yaml, jobs, instructions, knowledge, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, and debug-preview behavior.'
-argument-hint: 'Describe the operation or facet files to create or change, the target language, and whether you need authoring only or diagnostics too.'
+description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, knowledge, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, source-aware operation refs, and debug-preview behavior.'
+argument-hint: 'Describe the operation or facet files to create or change, whether the workflow lives under builtins or projects, the target language or project id, and whether you need authoring only or diagnostics too.'
 ---
 
 # Operation Customization
@@ -10,15 +10,15 @@ Create or revise operation workflows for this repository without breaking the ru
 
 ## When to Use
 
-- Add a new operation under `builtins/<lang>/operations/`
+- Add a new operation under `builtins/<lang>/operations/` or `projects/<project-id>/operations/`
 - Extend or refactor an existing operation step flow
 - Add or revise `steps[].delegation` for Noctis-owned autonomous flows
-- Create or revise `jobs`, `instructions`, `knowledge`, `policies`, or `output-contracts` facets
-- Diagnose operation prompt, routing, report transport, or output placeholder failures
+- Create or revise `jobs`, `instructions`, `knowledge`, `policies`, or `output-contracts` facets under builtin or project facet trees
+- Diagnose operation prompt, routing, report transport, source-aware catalog, or output placeholder failures
 
 ## Workflow
 
-1. Confirm the target operation, language path, and whether the task includes diagnostics.
+1. Confirm the target operation, source tree (`builtins` or `projects/<project-id>`), language or project id, and whether the task includes diagnostics.
 2. Read the references that match the task:
    - For canonical YAML rules, runtime contracts, and parser constraints, read [operation-authoring.md](./references/operation-authoring.md).
    - For facet-specific writing guidance, read [facet-authoring.md](./references/facet-authoring.md).
@@ -55,6 +55,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Keep this file lean. Put detailed rules and examples in `references/`.
 - Do not stretch the generic operation template into a rules-less delegation pattern; use the dedicated autonomous delegation template instead.
 - Prefer adapting neighboring repository patterns over inventing new structures.
+- Keep same-name builtin and project workflows as separate candidates; do not document or implement name-based collapsing.
 - Treat unresolved placeholders, legacy schema fields, and malformed output contracts as blocking.
 - When runtime behavior changes, inspect both live-path and debug-preview implications before finishing.
 - If the workflow is internal-only, keep the internal operation name out of normal user-facing operation lists.
@@ -64,5 +65,6 @@ Create or revise operation workflows for this repository without breaking the ru
 - Every step has a clear owner, job, instruction, and rules.
 - A rules-less step is only used for an explicit Noctis-owned autonomous delegation flow.
 - New facet paths are relative to the operation YAML file.
+- The workflow can be resolved unambiguously from its source tree and file path, even if another workflow shares the same visible name.
 - Output names, placeholders, and transitions are internally consistent.
 - The result preserves runtime-mediated dispatch, same-step return for delegated child tasks, and the canonical completion contract.

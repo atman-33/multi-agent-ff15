@@ -1,8 +1,9 @@
-# Copy this file to builtins/<lang>/operations/<operation-name>.yaml and replace every placeholder.
+# Copy this file to builtins/<lang>/operations/<operation-name>.yaml or projects/<project-id>/operations/<operation-name>.yaml and replace every placeholder.
 # Use this template only for a Noctis-owned autonomous parent step that stays open and delegates child tasks.
-# Keep facet paths relative to the operation file.
+# Keep facet paths relative to the operation file so `../facets/...` works in either source tree.
 # Use exactly one of file or inline for each content source.
 # This pattern intentionally omits parent-step rules so child reports return to the same Noctis step.
+# If another workflow already uses the same visible name, keep that duplication only when you intentionally want separate source-aware candidates and use description text to disambiguate.
 
 name: <internal-operation-name>
 description: >
