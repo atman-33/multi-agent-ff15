@@ -13,7 +13,6 @@ steps:
       file: ../facets/instructions/noctis-autonomous.md
     knowledge:
       - file: ../facets/knowledge/agent-relationships.md
-      - file: ../facets/knowledge/operation-system-contract.md
     delegation:
       allowed_workers:
         - ignis
