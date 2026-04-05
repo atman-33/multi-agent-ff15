@@ -38,6 +38,16 @@ vi.mock("@/components/ui/card", () => ({
   CardTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
 }));
 
+vi.mock("@/components/ui/resizable", () => ({
+  ResizableHandle: () => <div />,
+  ResizablePanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ResizablePanelGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/components/ui/scroll-area", () => ({
+  ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -53,6 +63,14 @@ vi.mock("@/components/ui/tabs", () => ({
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+}));
+
+vi.mock("@/components/ui/sheet", () => ({
+  Sheet: ({ children, open }: { children: ReactNode; open?: boolean }) => (open ? <div>{children}</div> : null),
+  SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SheetDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  SheetHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SheetTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
 }));
 
 vi.mock("@/components/ui/textarea", () => ({
@@ -240,7 +258,6 @@ describe("operation-debug route", () => {
     ]);
     expect(loaderData.selectedOperation).toBe("builtin:ja:noctis-autonomous.yaml");
     expect(loaderData.partyMode).toBe("full");
-    expect(loaderData.selectedProjectFilter).toBe("all");
     expect(loaderData.previewWorkers).toEqual(["ignis", "gladiolus", "prompto"]);
     expect(buildOperationDebugBundleMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -270,7 +287,7 @@ describe("operation-debug route", () => {
     );
   });
 
-  it("filters project-authored workflows while keeping builtin options visible", async () => {
+  it("includes project-authored workflows alongside builtin options", async () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
@@ -282,22 +299,17 @@ describe("operation-debug route", () => {
     writeProjectOperation(root, "beta", "repo-review", "Beta review flow.");
 
     const loaderData = await loader({
-      request: new Request("http://localhost/operation-debug?project=alpha"),
+      request: new Request("http://localhost/operation-debug"),
     } as never);
 
-    expect(loaderData.selectedProjectFilter).toBe("alpha");
-    expect(loaderData.projectFilters).toEqual([
-      { value: "all", label: "All Active Projects" },
-      { value: "alpha", label: "Alpha Project" },
-      { value: "beta", label: "Beta Project" },
-    ]);
     expect(loaderData.operations.map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
       buildProjectOperationRef("alpha", "repo-review.yaml"),
+      buildProjectOperationRef("beta", "repo-review.yaml"),
     ]);
   });
 
-  it("renders selector labels while preserving the underlying operation value", () => {
+  it("renders operation list entries while preserving the underlying operation value", () => {
     const props = {
       loaderData: {
         activeStepId: "",
@@ -322,11 +334,9 @@ describe("operation-debug route", () => {
           },
         ],
         partyMode: "full",
-        projectFilters: [{ value: "all", label: "All Active Projects" }],
         preview: null,
         previewWorkers: ["ignis", "gladiolus", "prompto"],
         selectedOperation: "builtin:ja:noctis-autonomous.yaml",
-        selectedProjectFilter: "all",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
       },
@@ -340,7 +350,7 @@ describe("operation-debug route", () => {
 
     expect(markup).toContain("Default (Autonomous)");
     expect(markup).toContain("openspec-dev");
-    expect(markup).toContain('data-value="builtin:ja:noctis-autonomous.yaml"');
+    expect(markup).toContain('data-operation-value="builtin:ja:noctis-autonomous.yaml"');
   });
 
   it("groups delegated child events under the same top-level step number", () => {
@@ -392,11 +402,9 @@ describe("operation-debug route", () => {
           },
         ],
         partyMode: "full",
-        projectFilters: [{ value: "all", label: "All Active Projects" }],
         preview: { flowSteps: [parent, dispatch, delegatedReturn] },
         previewWorkers: ["ignis", "gladiolus", "prompto"],
         selectedOperation: "builtin:ja:noctis-autonomous.yaml",
-        selectedProjectFilter: "all",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
       },
@@ -441,11 +449,9 @@ describe("operation-debug route", () => {
           },
         ],
         partyMode: "solo",
-        projectFilters: [{ value: "all", label: "All Active Projects" }],
         preview: { flowSteps: [soloStep] },
         previewWorkers: [],
         selectedOperation: "builtin:ja:noctis-autonomous.yaml",
-        selectedProjectFilter: "all",
         taskInstruction: "Execute the current step according to the workflow context.",
         userMessage: "This is a synthetic User message for operation activation.",
       },

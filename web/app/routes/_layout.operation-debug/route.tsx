@@ -1,10 +1,12 @@
-import { ArrowDown, Bug, RefreshCw, Send, Wrench } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, Bug, RefreshCw, Send, Settings2, Wrench } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -12,13 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { WORKING_PARTY_MEMBER_IDS } from "@/lib/noctis-working-party";
 import {
   listOperationDebugOptions,
-  listOperationDebugProjectFilterOptions,
-  type OperationDebugProjectFilterOption,
 } from "@/lib/operation-debug/operation-options.server";
 import type { PreviewPartyMode } from "@/lib/operation-debug/debug-preview.server";
 import type { OperationOption } from "@/lib/operation-presentation";
@@ -111,13 +112,11 @@ function formatPreviewPartySummary(previewWorkers: WorkerAgentId[]): string {
 type LoaderData = {
   activeStepId: string;
   partyMode: PreviewPartyMode;
-  projectFilters: OperationDebugProjectFilterOption[];
   previewWorkers: WorkerAgentId[];
   userMessage: string;
   operations: OperationOption[];
   preview: ReturnType<typeof buildOperationDebugBundle> | null;
   selectedOperation: string | null;
-  selectedProjectFilter: string;
   taskInstruction: string;
 };
 
@@ -200,16 +199,7 @@ function getFlowGroups(bundle: LoaderData["preview"]): FlowGroup[] {
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const url = new URL(request.url);
-  const projectFilters = listOperationDebugProjectFilterOptions();
-  const requestedProjectFilter = url.searchParams.get("project")?.trim() || "all";
-  const selectedProjectFilter = projectFilters.some(
-    (option) => option.value === requestedProjectFilter,
-  )
-    ? requestedProjectFilter
-    : "all";
-  const operations = listOperationDebugOptions(
-    selectedProjectFilter === "all" ? undefined : selectedProjectFilter,
-  );
+  const operations = listOperationDebugOptions();
   const requestedOperation = url.searchParams.get("operation")?.trim() || null;
   const selectedOperation =
     requestedOperation && operations.some((operation) => operation.value === requestedOperation)
@@ -246,12 +236,10 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   return {
     activeStepId,
     partyMode,
-    projectFilters,
     previewWorkers,
     userMessage,
     operations,
     selectedOperation,
-    selectedProjectFilter,
     taskInstruction,
     preview,
   } satisfies LoaderData;
@@ -260,28 +248,48 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const [selectedOperation, setSelectedOperation] = useState(loaderData.selectedOperation ?? "");
-  const [selectedProjectFilter, setSelectedProjectFilter] = useState(loaderData.selectedProjectFilter);
   const [activeStepId, setActiveStepId] = useState(loaderData.activeStepId);
   const [partyMode, setPartyMode] = useState<PreviewPartyMode>(loaderData.partyMode);
   const [previewWorkers, setPreviewWorkers] = useState<WorkerAgentId[]>(loaderData.previewWorkers);
   const [userMessage, setUserMessage] = useState(loaderData.userMessage);
   const [taskInstruction, setTaskInstruction] = useState(loaderData.taskInstruction);
+  const [isInputsSheetOpen, setIsInputsSheetOpen] = useState(false);
+  const appliedPreviewWorkersKey = loaderData.previewWorkers.join(",");
+  const lastAppliedPreviewWorkersKeyRef = useRef(appliedPreviewWorkersKey);
 
   useEffect(() => {
     setSelectedOperation(loaderData.selectedOperation ?? "");
-    setSelectedProjectFilter(loaderData.selectedProjectFilter);
+  }, [loaderData.selectedOperation]);
+
+  useEffect(() => {
     setActiveStepId(loaderData.activeStepId);
+  }, [loaderData.activeStepId]);
+
+  useEffect(() => {
     setPartyMode(loaderData.partyMode);
+  }, [loaderData.partyMode]);
+
+  useEffect(() => {
+    if (lastAppliedPreviewWorkersKeyRef.current === appliedPreviewWorkersKey) {
+      return;
+    }
+
+    lastAppliedPreviewWorkersKeyRef.current = appliedPreviewWorkersKey;
     setPreviewWorkers(loaderData.previewWorkers);
+  }, [appliedPreviewWorkersKey, loaderData.previewWorkers]);
+
+  useEffect(() => {
     setUserMessage(loaderData.userMessage);
+  }, [loaderData.userMessage]);
+
+  useEffect(() => {
     setTaskInstruction(loaderData.taskInstruction);
-  }, [loaderData]);
+  }, [loaderData.taskInstruction]);
 
   const navigateWithPreviewParams = ({
     userInput,
     operation,
     partyMode,
-    projectFilter,
     previewWorkers,
     stepId,
     task,
@@ -289,7 +297,6 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     userInput: string;
     operation: string;
     partyMode: PreviewPartyMode;
-    projectFilter: string;
     previewWorkers: WorkerAgentId[];
     stepId: string;
     task: string;
@@ -307,30 +314,14 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
     if (task.trim()) {
       params.set("task", task.trim());
     }
-    if (projectFilter !== "all") {
-      params.set("project", projectFilter);
-    }
     if (partyMode !== "full") {
       params.set("partyMode", partyMode);
     }
     if (partyMode === "custom" && previewWorkers.length > 0) {
       params.set("workers", previewWorkers.join(","));
     }
-    void navigate(`/operation-debug?${params.toString()}`);
-  };
-
-  const applyPreviewPartyState = (nextPartyMode: PreviewPartyMode, nextPreviewWorkers: WorkerAgentId[]) => {
-    setPartyMode(nextPartyMode);
-    setPreviewWorkers(nextPreviewWorkers);
-    navigateWithPreviewParams({
-      userInput: userMessage,
-      operation: selectedOperation,
-      partyMode: nextPartyMode,
-      projectFilter: selectedProjectFilter,
-      previewWorkers: nextPreviewWorkers,
-      stepId: activeStepId,
-      task: taskInstruction,
-    });
+    const query = params.toString();
+    void navigate(query ? `/operation-debug?${query}` : "/operation-debug");
   };
 
   const handleGenerate = () => {
@@ -338,7 +329,6 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       userInput: userMessage,
       operation: selectedOperation,
       partyMode,
-      projectFilter: selectedProjectFilter,
       previewWorkers,
       stepId: activeStepId,
       task: taskInstruction,
@@ -348,16 +338,23 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   const handleReset = () => {
     const operation = loaderData.operations[0]?.value ?? "";
     setSelectedOperation(operation);
-    setSelectedProjectFilter("all");
     setActiveStepId("");
     setPartyMode("full");
     setPreviewWorkers([...WORKING_PARTY_MEMBER_IDS]);
     setUserMessage("This is a synthetic User message for operation activation.");
     setTaskInstruction("Execute the current step according to the workflow context.");
+    setIsInputsSheetOpen(false);
     void navigate("/operation-debug");
   };
 
   const bundle = loaderData.preview;
+  const selectedOperationOption = useMemo(
+    () =>
+      loaderData.operations.find((operation) => operation.value === selectedOperation) ??
+      loaderData.operations[0] ??
+      null,
+    [loaderData.operations, selectedOperation],
+  );
   const flowGroups = useMemo(() => getFlowGroups(bundle), [bundle]);
   const selectedStep = useMemo(
     () => bundle?.flowSteps.find((step) => step.id === activeStepId) ?? bundle?.flowSteps[0] ?? null,
@@ -374,7 +371,16 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   }, [flowGroups, selectedStep]);
 
   const selectedNodeBadge = useMemo(() => getNodeBadgeLabel(selectedStep), [selectedStep]);
-  const previewPartySummary = useMemo(() => formatPreviewPartySummary(previewWorkers), [previewWorkers]);
+  const appliedPreviewPartySummary = useMemo(
+    () => formatPreviewPartySummary(loaderData.previewWorkers),
+    [loaderData.previewWorkers],
+  );
+  const draftPreviewPartySummary = useMemo(() => formatPreviewPartySummary(previewWorkers), [previewWorkers]);
+  const hasPendingInputChanges =
+    partyMode !== loaderData.partyMode ||
+    previewWorkers.join(",") !== appliedPreviewWorkersKey ||
+    userMessage !== loaderData.userMessage ||
+    taskInstruction !== loaderData.taskInstruction;
 
   const facetStats = useMemo(() => {
     if (!selectedStep?.resolvedFacets) {
@@ -537,9 +543,9 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
   return (
     <PageContainer className="max-w-none gap-4 overflow-hidden bg-slate-950 px-4 text-slate-100" size="wide">
       <div className="border-border/50 border-b pb-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge className="gap-1.5 text-white" variant="default">
                 <Bug className="h-3.5 w-3.5" />
                 Operation Debug
@@ -548,15 +554,27 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
             </div>
             <p className="max-w-4xl text-slate-300 text-sm">
-              Reachable runtime-mediated steps are generated from the selected operation YAML.
-              Select a step or child event to inspect the injected prompt, completion contract, runtime decision, and low-level debug details.
+              Select an operation on the left, inspect the reachable flow in the middle, and review the generated prompt details on the right.
             </p>
-            <p className="font-medium text-emerald-200 text-xs uppercase tracking-wide">
-              {previewPartySummary}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <span className="font-medium text-slate-200">
+                {selectedOperationOption?.label ?? "No operation selected"}
+              </span>
+              <span className="font-medium uppercase tracking-wide text-emerald-200">
+                {appliedPreviewPartySummary}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => setIsInputsSheetOpen(true)}
+              size="sm"
+              variant={hasPendingInputChanges ? "default" : "outline"}
+            >
+              <Settings2 className="h-4 w-4" />
+              Preview Inputs
+            </Button>
             <Button onClick={handleReset} size="sm" variant="outline">
               <RefreshCw className="h-4 w-4" />
               Reset
@@ -569,98 +587,108 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden xl:grid-cols-[30rem_minmax(0,1fr)]">
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-slate-800 bg-slate-900 text-slate-100">
-          <CardHeader className="border-b border-slate-800 bg-slate-900">
-            <CardTitle className="text-lg">Flow</CardTitle>
-            <CardDescription className="text-slate-400">
-              Runtime-mediated step flow and delegated child events for the currently reachable path.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="min-h-0 flex flex-1 flex-col gap-4 overflow-hidden">
-            <div className="space-y-2">
-              <label className="font-medium text-sm" htmlFor="operation-select">
-                Operation
-              </label>
-              <Select
-                onValueChange={(value) => {
-                  setSelectedOperation(value);
-                  navigateWithPreviewParams({
-                    userInput: userMessage,
-                    operation: value,
-                    partyMode,
-                    projectFilter: selectedProjectFilter,
-                    previewWorkers,
-                    stepId: "",
-                    task: taskInstruction,
-                  });
-                }}
-                value={selectedOperation}
-              >
-                <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="operation-select">
-                  <SelectValue placeholder="Select an operation" />
-                </SelectTrigger>
-                <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
-                  {loaderData.operations.map((operation) => (
-                    <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={operation.value} value={operation.value}>
-                      {operation.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      <ResizablePanelGroup
+        className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40"
+        orientation="horizontal"
+      >
+        <ResizablePanel defaultSize={24} minSize={18}>
+          <aside className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800 border-r bg-slate-900/50">
+            <div className="border-slate-800 border-b p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-sm text-slate-50">Operations</h2>
+                  <p className="mt-1 text-slate-400 text-xs">
+                    Choose an operation and rebuild the reachable runtime preview.
+                  </p>
+                </div>
+                <div className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 font-mono text-[10px] text-slate-400 uppercase tracking-wide">
+                  {loaderData.operations.length}
+                </div>
+              </div>
             </div>
 
-            {loaderData.projectFilters.length > 1 ? (
-              <div className="space-y-2">
-                <label className="font-medium text-sm" htmlFor="project-filter-select">
-                  Project Filter
-                </label>
-                <Select
-                  onValueChange={(value) => {
-                    setSelectedProjectFilter(value);
-                    setActiveStepId("");
-                    navigateWithPreviewParams({
-                      userInput: userMessage,
-                      operation: selectedOperation,
-                      partyMode,
-                      projectFilter: value,
-                      previewWorkers,
-                      stepId: "",
-                      task: taskInstruction,
-                    });
-                  }}
-                  value={selectedProjectFilter}
-                >
-                  <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="project-filter-select">
-                    <SelectValue placeholder="All Active Projects" />
-                  </SelectTrigger>
-                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
-                    {loaderData.projectFilters.map((projectFilter) => (
-                      <SelectItem
-                        className="text-slate-100 focus:bg-slate-800 focus:text-slate-100"
-                        key={projectFilter.value}
-                        value={projectFilter.value}
+            <ScrollArea
+              className="min-h-0 flex-1"
+              viewportClassName="[&>div]:!block [&>div]:!w-full"
+            >
+              <nav className="space-y-2 p-3 pr-4">
+                {loaderData.operations.length === 0 ? (
+                  <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-slate-400 text-sm">
+                    No operations are available for preview.
+                  </div>
+                ) : (
+                  loaderData.operations.map((operation) => {
+                    const isActive = operation.value === selectedOperation;
+                    return (
+                      <button
+                        aria-pressed={isActive}
+                        className={cn(
+                          "w-full rounded-xl border p-3 text-left transition-colors",
+                          isActive
+                            ? "border-blue-400 bg-blue-950/40 shadow-sm ring-1 ring-blue-400/50"
+                            : "border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-900",
+                        )}
+                        data-operation-value={operation.value}
+                        key={operation.value}
+                        onClick={() => {
+                          setSelectedOperation(operation.value);
+                          setActiveStepId("");
+                          navigateWithPreviewParams({
+                            userInput: loaderData.userMessage,
+                            operation: operation.value,
+                            partyMode: loaderData.partyMode,
+                            previewWorkers: loaderData.previewWorkers,
+                            stepId: "",
+                            task: loaderData.taskInstruction,
+                          });
+                        }}
+                        type="button"
                       >
-                        {projectFilter.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-            <Tabs className="min-h-0 flex flex-1 flex-col" defaultValue="flow">
-              <TabsList className="w-full justify-start border-slate-800" variant="line">
-                <TabsTrigger className="" value="flow" variant="line">
-                  Flow
-                </TabsTrigger>
-                <TabsTrigger className="" value="inputs" variant="line">
-                  Inputs
-                </TabsTrigger>
-              </TabsList>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-semibold text-sm text-slate-50">
+                              {operation.label}
+                            </div>
+                            <p className="mt-1 text-slate-400 text-xs">{operation.description}</p>
+                          </div>
+                          {operation.isDefault ? <Badge variant="outline">Default</Badge> : null}
+                        </div>
 
-              <TabsContent className="min-h-0 flex-1 overflow-auto pr-1" value="flow">
-                <div className="space-y-4">
-                  {flowGroups.map((group, index, arr) => {
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                          <Badge variant="outline">{operation.sourceLabel}</Badge>
+                          {operation.projectId ? (
+                            <span className="font-mono text-slate-500">{operation.projectId}</span>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </nav>
+            </ScrollArea>
+          </aside>
+        </ResizablePanel>
+
+        <ResizablePanel defaultSize={31} minSize={24}>
+          <section className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800 border-r bg-slate-950/30">
+            <div className="border-slate-800 border-b p-4">
+              <h2 className="font-semibold text-sm text-slate-50">Flow</h2>
+              <p className="mt-1 text-slate-400 text-xs">
+                Runtime-mediated steps and delegated child events for the selected operation.
+              </p>
+            </div>
+
+            <ScrollArea
+              className="min-h-0 flex-1"
+              viewportClassName="[&>div]:!block [&>div]:!w-full"
+            >
+              <div className="space-y-4 p-4 pr-5">
+                {flowGroups.length === 0 ? (
+                  <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4 text-slate-400 text-sm">
+                    Select an operation to inspect its reachable flow.
+                  </div>
+                ) : (
+                  flowGroups.map((group, index, arr) => {
                     const step = group.parent;
                     const selected = step.id === selectedStep?.id;
                     const stepNumber = index + 1;
@@ -675,13 +703,12 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                             onClick={() => {
                               setActiveStepId(step.id);
                               navigateWithPreviewParams({
-                                userInput: userMessage,
+                                userInput: loaderData.userMessage,
                                 operation: selectedOperation,
-                                partyMode,
-                                projectFilter: selectedProjectFilter,
-                                previewWorkers,
+                                partyMode: loaderData.partyMode,
+                                previewWorkers: loaderData.previewWorkers,
                                 stepId: step.id,
-                                task: taskInstruction,
+                                task: loaderData.taskInstruction,
                               });
                             }}
                             type="button"
@@ -699,18 +726,33 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                   {stepNumber}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <div className={cn("font-semibold text-sm", selected ? "text-slate-50" : "text-slate-300")}>
+                                  <div
+                                    className={cn(
+                                      "font-semibold text-sm",
+                                      selected ? "text-slate-50" : "text-slate-300",
+                                    )}
+                                  >
                                     {step.title}
                                   </div>
                                   {step.isSoloLoop ? <Badge variant="outline">Solo Loop</Badge> : null}
                                 </div>
                               </div>
                             </div>
-                            <div className={cn("mt-1 flex items-center gap-2 text-xs", selected ? "text-slate-200" : "text-slate-500")}>
+                            <div
+                              className={cn(
+                                "mt-1 flex items-center gap-2 text-xs",
+                                selected ? "text-slate-200" : "text-slate-500",
+                              )}
+                            >
                               <Send className="h-3 w-3" />
                               {step.pathSummary}
                             </div>
-                            <div className={cn("mt-2 font-medium text-xs", selected ? "text-blue-100" : "text-slate-300")}>
+                            <div
+                              className={cn(
+                                "mt-2 font-medium text-xs",
+                                selected ? "text-blue-100" : "text-slate-300",
+                              )}
+                            >
                               {formatNextLabel(step)}
                             </div>
                           </button>
@@ -729,34 +771,53 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                     onClick={() => {
                                       setActiveStepId(child.id);
                                       navigateWithPreviewParams({
-                                        userInput: userMessage,
+                                        userInput: loaderData.userMessage,
                                         operation: selectedOperation,
-                                        partyMode,
-                                        projectFilter: selectedProjectFilter,
-                                        previewWorkers,
+                                        partyMode: loaderData.partyMode,
+                                        previewWorkers: loaderData.previewWorkers,
                                         stepId: child.id,
-                                        task: taskInstruction,
+                                        task: loaderData.taskInstruction,
                                       });
                                     }}
                                     type="button"
                                   >
                                     <div className="flex items-center justify-between gap-2">
                                       <div className="flex min-w-0 flex-col gap-1">
-                                        <div className={cn("font-semibold text-sm", childSelected ? "text-slate-50" : "text-slate-300")}>
+                                        <div
+                                          className={cn(
+                                            "font-semibold text-sm",
+                                            childSelected ? "text-slate-50" : "text-slate-300",
+                                          )}
+                                        >
                                           {child.title}
                                         </div>
                                         {child.summary ? (
-                                          <div className={cn("text-[11px] font-medium tracking-wide", childSelected ? "text-blue-100" : "text-slate-400")}>
+                                          <div
+                                            className={cn(
+                                              "text-[11px] font-medium tracking-wide",
+                                              childSelected ? "text-blue-100" : "text-slate-400",
+                                            )}
+                                          >
                                             {child.summary}
                                           </div>
                                         ) : null}
                                       </div>
                                     </div>
-                                    <div className={cn("mt-2 flex items-center gap-2 text-xs", childSelected ? "text-slate-200" : "text-slate-500")}>
+                                    <div
+                                      className={cn(
+                                        "mt-2 flex items-center gap-2 text-xs",
+                                        childSelected ? "text-slate-200" : "text-slate-500",
+                                      )}
+                                    >
                                       <Send className="h-3 w-3" />
                                       {child.pathSummary}
                                     </div>
-                                    <div className={cn("mt-2 font-medium text-xs", childSelected ? "text-blue-100" : "text-slate-300")}>
+                                    <div
+                                      className={cn(
+                                        "mt-2 font-medium text-xs",
+                                        childSelected ? "text-blue-100" : "text-slate-300",
+                                      )}
+                                    >
                                       {formatNextLabel(child)}
                                     </div>
                                   </button>
@@ -773,228 +834,293 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                         ) : null}
                       </div>
                     );
-                  })}
-                </div>
-              </TabsContent>
-
-              <TabsContent className="min-h-0 flex-1 space-y-4 overflow-auto pr-1" value="inputs">
-                <div className="space-y-2 rounded-lg border border-emerald-800 bg-emerald-950/30 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="party-mode">
-                    Party Mode
-                  </label>
-                  <Select
-                    onValueChange={(value) => {
-                      if (!isPreviewPartyMode(value)) {
-                        return;
-                      }
-
-                      const nextPreviewWorkers = resolvePreviewWorkers(value, previewWorkers);
-                      applyPreviewPartyState(value, nextPreviewWorkers);
-                    }}
-                    value={partyMode}
-                  >
-                    <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="party-mode">
-                      <SelectValue placeholder="Select preview party mode" />
-                    </SelectTrigger>
-                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
-                      {PREVIEW_PARTY_MODE_OPTIONS.map((option) => (
-                        <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-slate-300 text-xs">
-                    {PREVIEW_PARTY_MODE_OPTIONS.find((option) => option.value === partyMode)?.description}
-                  </p>
-
-                  {partyMode === "custom" ? (
-                    <div className="flex flex-wrap gap-2">
-                      {WORKING_PARTY_MEMBER_IDS.map((workerId) => {
-                        const active = previewWorkers.includes(workerId);
-                        return (
-                          <Button
-                            key={workerId}
-                            onClick={() => {
-                              const nextPreviewWorkers = active
-                                ? previewWorkers.filter((worker) => worker !== workerId)
-                                : [...previewWorkers, workerId];
-                              applyPreviewPartyState("custom", nextPreviewWorkers);
-                            }}
-                            size="sm"
-                            type="button"
-                            variant={active ? "default" : "outline"}
-                          >
-                            {PREVIEW_WORKER_LABELS[workerId]}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-blue-800 bg-blue-950/40 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="user-message">
-                    User Message
-                  </label>
-                  <Textarea
-                    id="user-message"
-                    onChange={(event) => setUserMessage(event.target.value)}
-                    rows={4}
-                    value={userMessage}
-                  />
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-slate-100">
-                  <label className="font-medium text-sm" htmlFor="task-instruction">
-                    Worker Task Seed
-                  </label>
-                  <Textarea
-                    id="task-instruction"
-                    onChange={(event) => setTaskInstruction(event.target.value)}
-                    rows={4}
-                    value={taskInstruction}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <div className="min-h-0 space-y-4 overflow-auto pr-1">
-          <Card className="border-slate-800 bg-slate-900 text-slate-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Selected Flow Item</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-sm text-white">
-                      {selectedStepNumber ?? "-"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="font-semibold text-base text-slate-50">{selectedStep?.title ?? "-"}</div>
-                        {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                        <div className="font-mono text-slate-500">{selectedStep?.id ?? "-"}</div>
-                        <div className="flex items-center gap-1.5 text-slate-300">
-                          <Send className="h-3.5 w-3.5 shrink-0" />
-                          <span>{selectedStep?.pathSummary ?? "-"}</span>
-                        </div>
-                        <div className="font-medium text-blue-100">
-                          {formatNextLabel(selectedStep)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  })
+                )}
               </div>
-            </CardContent>
-          </Card>
+            </ScrollArea>
+          </section>
+        </ResizablePanel>
 
-          {selectedStep?.noFlowExplanation?.trim() ? (
-            <Card className="border-teal-800 bg-teal-950/20 text-slate-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Why No Flow?</CardTitle>
-                <CardDescription className="text-teal-100/80">
-                  This preview intentionally stays on the same autonomous step instead of fabricating a downstream transition.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-slate-200">
-                <p>{selectedStep.noFlowExplanation}</p>
-                <p className="font-medium text-teal-100">{previewPartySummary}</p>
-              </CardContent>
-            </Card>
-          ) : null}
+        <ResizablePanel defaultSize={45} minSize={28}>
+          <section className="flex h-full min-w-0 flex-col overflow-hidden bg-slate-900/40">
+            <div className="border-slate-800 border-b p-4">
+              <h2 className="font-semibold text-sm text-slate-50">Prompt Details</h2>
+              <p className="mt-1 text-slate-400 text-xs">
+                Inspect the selected flow item prompt, completion contract, runtime decision, and low-level debug context.
+              </p>
+            </div>
 
-          <Card className="border-slate-800 bg-slate-900 text-slate-100">
-            <CardHeader>
-              <CardTitle className="text-lg">Flow Item Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="prompt">
-                <TabsList className="w-full justify-start border-slate-800" variant="line">
-                  <TabsTrigger className="" value="prompt" variant="line">
-                    Prompt
-                  </TabsTrigger>
-                  <TabsTrigger className="" value="contract" variant="line">
-                    Contract
-                  </TabsTrigger>
-                  <TabsTrigger className="" value="decision" variant="line">
-                    Decision
-                  </TabsTrigger>
-                  <TabsTrigger className="" value="advanced" variant="line">
-                    Advanced
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent className="space-y-4" value="prompt">
-                  <CopyablePromptBlock
-                    className="border-blue-900 bg-blue-950/30"
-                    description={selectedStep?.promptDescription ?? ""}
-                    highlightTexts={selectedStep?.promptHighlights.map((highlight) => highlight.text) ?? []}
-                    preClassName="max-h-136"
-                    title={selectedStep?.promptTitle ?? "Prompt"}
-                    value={finalPrompt}
-                  />
-                </TabsContent>
-
-                <TabsContent className="space-y-3" value="contract">
-                  <CopyablePromptBlock
-                    preClassName="max-h-136"
-                    title={selectedStep?.completionTitle ?? "Completion Contract"}
-                    description={selectedStep?.completionDescription ?? ""}
-                    value={completionContract}
-                  />
-                </TabsContent>
-
-                <TabsContent className="space-y-4" value="decision">
-                  <CopyablePromptBlock
-                    className="border-emerald-900 bg-emerald-950/20"
-                    preClassName="max-h-136"
-                    title="Runtime Decision"
-                    description="How Runtime interprets the synthetic report for this step."
-                    value={runtimeDecision}
-                  />
-
-                  {selectedStep?.workflowGuidance?.trim() ? (
-                    <CopyablePromptBlock
-                      preClassName="max-h-136"
-                      title="Workflow Guidance"
-                      description="Raw runtime guidance generated after the synthetic report."
-                      value={selectedStep.workflowGuidance}
-                    />
-                  ) : null}
-                </TabsContent>
-
-                <TabsContent className="space-y-4" value="advanced">
-                  <div className="grid gap-3 md:grid-cols-5">
-                    {facetStats.map((stat) => (
-                      <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100" key={stat.label}>
-                        <div className="text-slate-400 text-xs uppercase tracking-wide">{stat.label}</div>
-                        <div className="mt-1 font-medium text-sm">{stat.value}</div>
+            <ScrollArea
+              className="min-h-0 flex-1"
+              viewportClassName="[&>div]:!block [&>div]:!w-full"
+            >
+              <div className="space-y-4 p-4 pr-5">
+                <Card className="border-slate-800 bg-slate-900 text-slate-100">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Selected Flow Item</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-sm text-white">
+                            {selectedStepNumber ?? "-"}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="font-semibold text-base text-slate-50">
+                                {selectedStep?.title ?? "-"}
+                              </div>
+                              {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                              <div className="font-mono text-slate-500">{selectedStep?.id ?? "-"}</div>
+                              <div className="flex items-center gap-1.5 text-slate-300">
+                                <Send className="h-3.5 w-3.5 shrink-0" />
+                                <span>{selectedStep?.pathSummary ?? "-"}</span>
+                              </div>
+                              <div className="font-medium text-blue-100">
+                                {formatNextLabel(selectedStep)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                  {advancedBlocks.map((block) => (
-                    <CopyablePromptBlock
-                      key={block.id}
-                      preClassName="max-h-64"
-                      title={block.title}
-                      description={block.description}
-                      value={block.content}
-                    />
-                  ))}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                {selectedStep?.noFlowExplanation?.trim() ? (
+                  <Card className="border-teal-800 bg-teal-950/20 text-slate-100">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Why No Flow?</CardTitle>
+                      <CardDescription className="text-teal-100/80">
+                        This preview intentionally stays on the same autonomous step instead of fabricating a downstream transition.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm text-slate-200">
+                      <p>{selectedStep.noFlowExplanation}</p>
+                      <p className="font-medium text-teal-100">{appliedPreviewPartySummary}</p>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                <Card className="border-slate-800 bg-slate-900 text-slate-100">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Flow Item Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue="prompt">
+                      <TabsList className="w-full justify-start border-slate-800" variant="line">
+                        <TabsTrigger className="" value="prompt" variant="line">
+                          Prompt
+                        </TabsTrigger>
+                        <TabsTrigger className="" value="contract" variant="line">
+                          Contract
+                        </TabsTrigger>
+                        <TabsTrigger className="" value="decision" variant="line">
+                          Decision
+                        </TabsTrigger>
+                        <TabsTrigger className="" value="advanced" variant="line">
+                          Advanced
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent className="space-y-4" value="prompt">
+                        <CopyablePromptBlock
+                          className="border-blue-900 bg-blue-950/30"
+                          description={selectedStep?.promptDescription ?? ""}
+                          highlightTexts={selectedStep?.promptHighlights.map((highlight) => highlight.text) ?? []}
+                          preClassName="max-h-136"
+                          title={selectedStep?.promptTitle ?? "Prompt"}
+                          value={finalPrompt}
+                        />
+                      </TabsContent>
+
+                      <TabsContent className="space-y-3" value="contract">
+                        <CopyablePromptBlock
+                          preClassName="max-h-136"
+                          title={selectedStep?.completionTitle ?? "Completion Contract"}
+                          description={selectedStep?.completionDescription ?? ""}
+                          value={completionContract}
+                        />
+                      </TabsContent>
+
+                      <TabsContent className="space-y-4" value="decision">
+                        <CopyablePromptBlock
+                          className="border-emerald-900 bg-emerald-950/20"
+                          preClassName="max-h-136"
+                          title="Runtime Decision"
+                          description="How Runtime interprets the synthetic report for this step."
+                          value={runtimeDecision}
+                        />
+
+                        {selectedStep?.workflowGuidance?.trim() ? (
+                          <CopyablePromptBlock
+                            preClassName="max-h-136"
+                            title="Workflow Guidance"
+                            description="Raw runtime guidance generated after the synthetic report."
+                            value={selectedStep.workflowGuidance}
+                          />
+                        ) : null}
+                      </TabsContent>
+
+                      <TabsContent className="space-y-4" value="advanced">
+                        <div className="grid gap-3 md:grid-cols-5">
+                          {facetStats.map((stat) => (
+                            <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100" key={stat.label}>
+                              <div className="text-slate-400 text-xs uppercase tracking-wide">{stat.label}</div>
+                              <div className="mt-1 font-medium text-sm">{stat.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {advancedBlocks.map((block) => (
+                          <CopyablePromptBlock
+                            key={block.id}
+                            preClassName="max-h-64"
+                            title={block.title}
+                            description={block.description}
+                            value={block.content}
+                          />
+                        ))}
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              </div>
+            </ScrollArea>
+          </section>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+
+      <Sheet onOpenChange={setIsInputsSheetOpen} open={isInputsSheetOpen}>
+        <SheetContent
+          className="flex h-full flex-col gap-0 overflow-hidden border-slate-800 bg-slate-950 text-slate-100 sm:max-w-xl"
+          side="right"
+        >
+          <SheetHeader className="border-slate-800 border-b pb-4 text-left">
+            <SheetTitle className="text-slate-50">Preview Inputs</SheetTitle>
+            <SheetDescription className="text-slate-400">
+              Adjust the synthetic inputs used to regenerate the selected operation preview.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="min-h-0 flex-1 overflow-auto py-4">
+            <div className="space-y-4 pr-1">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                <div className="text-slate-500 text-xs uppercase tracking-wide">Selected operation</div>
+                <div className="mt-1 font-semibold text-sm text-slate-50">
+                  {selectedOperationOption?.label ?? "No operation selected"}
+                </div>
+                {selectedOperationOption?.description ? (
+                  <p className="mt-2 text-slate-400 text-xs">{selectedOperationOption.description}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-emerald-800 bg-emerald-950/30 p-3 text-slate-100">
+                <label className="font-medium text-sm" htmlFor="party-mode">
+                  Party Mode
+                </label>
+                <Select
+                  onValueChange={(value) => {
+                    if (!isPreviewPartyMode(value)) {
+                      return;
+                    }
+
+                    setPartyMode(value);
+                    setPreviewWorkers(resolvePreviewWorkers(value, previewWorkers));
+                  }}
+                  value={partyMode}
+                >
+                  <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="party-mode">
+                    <SelectValue placeholder="Select preview party mode" />
+                  </SelectTrigger>
+                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
+                    {PREVIEW_PARTY_MODE_OPTIONS.map((option) => (
+                      <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-slate-300 text-xs">
+                  {PREVIEW_PARTY_MODE_OPTIONS.find((option) => option.value === partyMode)?.description}
+                </p>
+                <p className="font-medium text-emerald-200 text-xs uppercase tracking-wide">
+                  {draftPreviewPartySummary}
+                </p>
+
+                {partyMode === "custom" ? (
+                  <div className="flex flex-wrap gap-2">
+                    {WORKING_PARTY_MEMBER_IDS.map((workerId) => {
+                      const active = previewWorkers.includes(workerId);
+                      return (
+                        <Button
+                          key={workerId}
+                          onClick={() => {
+                            const nextPreviewWorkers = active
+                              ? previewWorkers.filter((worker) => worker !== workerId)
+                              : [...previewWorkers, workerId];
+                            setPreviewWorkers(nextPreviewWorkers);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant={active ? "default" : "outline"}
+                        >
+                          {PREVIEW_WORKER_LABELS[workerId]}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-blue-800 bg-blue-950/40 p-3 text-slate-100">
+                <label className="font-medium text-sm" htmlFor="user-message">
+                  User Message
+                </label>
+                <Textarea
+                  className="border-slate-700 bg-slate-950 text-slate-100"
+                  id="user-message"
+                  onChange={(event) => setUserMessage(event.target.value)}
+                  rows={6}
+                  value={userMessage}
+                />
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-slate-100">
+                <label className="font-medium text-sm" htmlFor="task-instruction">
+                  Worker Task Seed
+                </label>
+                <Textarea
+                  className="border-slate-700 bg-slate-950 text-slate-100"
+                  id="task-instruction"
+                  onChange={(event) => setTaskInstruction(event.target.value)}
+                  rows={6}
+                  value={taskInstruction}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-slate-800 border-t pt-4">
+            <Button onClick={() => setIsInputsSheetOpen(false)} type="button" variant="outline">
+              Close
+            </Button>
+            <Button
+              disabled={!selectedOperation}
+              onClick={() => {
+                handleGenerate();
+                setIsInputsSheetOpen(false);
+              }}
+              type="button"
+            >
+              Apply Preview
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </PageContainer>
   );
 };
