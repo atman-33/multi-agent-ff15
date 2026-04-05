@@ -2,6 +2,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import type { OhMyOpenCodeConfig, OhMyOpenCodeData } from "@/lib/oh-my-opencode-config";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import {
+  readOpencodeModelCatalog,
+  refreshOpencodeModelCatalog,
+} from "@/lib/opencode-model-catalog.server";
 
 function getConfigPaths(): [string, string] {
   const configDir = join(homedir(), ".config/opencode");
@@ -18,24 +24,6 @@ function resolveConfigPath(): string {
   return configPaths.find((configPath) => existsSync(configPath)) ?? configPaths[0];
 }
 
-export interface ModelEntry {
-  model: string;
-  variant?: string;
-}
-
-export interface OhMyOpenCodeConfig {
-  agents?: Record<string, ModelEntry>;
-  categories?: Record<string, ModelEntry>;
-}
-
-export interface OhMyOpenCodeData {
-  config: OhMyOpenCodeConfig | null;
-  error?: string;
-  isInstalled: boolean;
-  models: string[];
-  version: string;
-}
-
 function readVersion(): { isInstalled: boolean; version: string } {
   try {
     const version = execFileSync("oh-my-opencode", ["--version"], {
@@ -45,23 +33,6 @@ function readVersion(): { isInstalled: boolean; version: string } {
     return { isInstalled: true, version };
   } catch {
     return { isInstalled: false, version: "unknown" };
-  }
-}
-
-function readModels(): string[] {
-  try {
-    const stdout = execFileSync("opencode", ["models"], {
-      encoding: "utf-8",
-    });
-
-    return stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(
-        (line) => line && !line.startsWith("opencode") && !line.includes("--") && line.includes("/")
-      );
-  } catch {
-    return [];
   }
 }
 
@@ -88,16 +59,38 @@ function readConfig(): { config: OhMyOpenCodeConfig | null; error?: string } {
   }
 }
 
-export function readOhMyOpenCodeData(): OhMyOpenCodeData {
+export async function readOhMyOpenCodeData(options?: {
+  refreshCatalog?: boolean;
+}): Promise<OhMyOpenCodeData> {
   const { isInstalled, version } = readVersion();
   const { config, error } = readConfig();
-  const models = readModels();
+  const root = getProjectRoot();
+
+  if (options?.refreshCatalog) {
+    try {
+      await refreshOpencodeModelCatalog(root);
+    } catch {
+      // fall through to the last successful snapshot if available
+    }
+  }
+
+  const catalog = await readOpencodeModelCatalog({
+    root,
+    waitForLatest: !options?.refreshCatalog,
+  });
 
   return {
+    catalog: {
+      generatedAt: catalog.snapshot?.generatedAt ?? null,
+      lastError: catalog.lastError ?? undefined,
+      refreshState: catalog.refreshState,
+      stale: catalog.stale,
+    },
     config,
     error,
     isInstalled,
-    models,
+    models: catalog.snapshot?.models ?? [],
+    variantsByModel: catalog.snapshot?.variantsByModel ?? {},
     version,
   };
 }

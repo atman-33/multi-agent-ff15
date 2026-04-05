@@ -10,9 +10,18 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   readOhMyOpenCodeData,
-  type OhMyOpenCodeConfig,
-  type OhMyOpenCodeData,
 } from "@/lib/oh-my-opencode-config.server";
+import {
+  DEFAULT_VARIANT_VALUE,
+  getModelOptions,
+  getVariantOptions,
+  isVariantSelectionDisabled,
+  type OhMyOpenCodeConfig,
+  type OhMyOpenCodeConfigSection,
+  type OhMyOpenCodeData,
+  updateConfigModelSelection,
+  updateConfigVariantSelection,
+} from "@/lib/oh-my-opencode-config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/page-container";
@@ -54,7 +63,22 @@ const LoadingGrid = () => {
 
 export const loader = async (_args: Route.LoaderArgs) => readOhMyOpenCodeData();
 
-const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
+function getCatalogStatusLabel(data: OhMyOpenCodeData): string {
+  const generatedAt = data.catalog.generatedAt;
+
+  switch (data.catalog.refreshState) {
+    case "refreshing":
+      return generatedAt ? `Catalog refreshing · last snapshot ${generatedAt}` : "Catalog refreshing";
+    case "error":
+      return generatedAt ? `Catalog stale · last snapshot ${generatedAt}` : "Catalog refresh failed";
+    case "ready":
+      return generatedAt ? `Catalog updated ${generatedAt}` : "Catalog ready";
+    default:
+      return "Catalog unavailable";
+  }
+}
+
+export const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
   const [data, setData] = useState<OhMyOpenCodeData>(loaderData);
   const [config, setConfig] = useState<OhMyOpenCodeConfig>(loaderData.config ?? {});
   const [search, setSearch] = useState("");
@@ -72,7 +96,7 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
     setFetchError(null);
 
     try {
-      const res = await fetch("/api/oh-my-opencode/config");
+      const res = await fetch("/api/oh-my-opencode/config?refresh=1");
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -80,6 +104,12 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
       const result: OhMyOpenCodeData = await res.json();
       setData(result);
       setConfig(result.config ?? {});
+
+      if (result.catalog.lastError) {
+        toast.error("Catalog refresh failed", { description: result.catalog.lastError });
+      } else {
+        toast.success("Catalog refreshed");
+      }
     } catch (e) {
       setFetchError(String(e));
     } finally {
@@ -87,18 +117,16 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
     }
   }, []);
 
-  const handleModelChange = (type: "agents" | "categories", key: string, model: string) => {
-    setConfig((prev) => ({
-      ...prev,
-      [type]: {
-        ...prev[type],
-        [key]: {
-          ...prev[type]?.[key],
-          model,
-        },
-      },
-    }));
-  };
+  const handleModelChange = useCallback(
+    (type: OhMyOpenCodeConfigSection, key: string, model: string) => {
+      setConfig((prev) => updateConfigModelSelection(prev, type, key, model, data.variantsByModel));
+    },
+    [data.variantsByModel]
+  );
+
+  const handleVariantChange = useCallback((type: OhMyOpenCodeConfigSection, key: string, value: string) => {
+    setConfig((prev) => updateConfigVariantSelection(prev, type, key, value));
+  }, []);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -146,6 +174,7 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
             <p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
               Configuration v{data?.version ?? "unknown"}
             </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{getCatalogStatusLabel(data)}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button disabled={loading} onClick={fetchData} size="sm" variant="outline">
@@ -178,6 +207,14 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Configuration warning</AlertTitle>
             <AlertDescription className="mt-1">{data.error}</AlertDescription>
+          </Alert>
+        )}
+
+        {data.catalog.lastError && (
+          <Alert variant={data.catalog.stale ? "default" : "destructive"}>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Model catalog warning</AlertTitle>
+            <AlertDescription className="mt-1">{data.catalog.lastError}</AlertDescription>
           </Alert>
         )}
 
@@ -236,33 +273,43 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
                     <div className="min-h-0 overflow-y-auto pr-1">
                       <div className="grid gap-1.5">
                         {filteredAgents.map(([key, entry]) => (
-                          <div
-                            className="flex items-center gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2"
-                            key={key}
-                          >
+                          <div className="flex gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2" key={key}>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-medium text-sm">{key}</div>
-                              {entry.variant ? (
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                                  {entry.variant}
-                                </div>
-                              ) : null}
+                              <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                <span>Model: {entry.model}</span>
+                                <span>Variant: {entry.variant ?? "default"}</span>
+                              </div>
                             </div>
-                            <Select
-                              onValueChange={(value) => handleModelChange("agents", key, value)}
-                              value={entry.model}
-                            >
-                              <SelectTrigger className="w-55 sm:w-70 2xl:w-80">
-                                <SelectValue placeholder="Select model" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {data.models.map((model) => (
-                                  <SelectItem key={model} value={model}>
-                                    {model}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="grid w-55 gap-2 sm:w-70 2xl:w-80">
+                              <Select onValueChange={(value) => handleModelChange("agents", key, value)} value={entry.model}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select model" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getModelOptions(entry.model, data.models).map((model) => (
+                                    <SelectItem key={model} value={model}>
+                                      {model}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Select
+                                onValueChange={(value) => handleVariantChange("agents", key, value)}
+                                value={entry.variant ?? DEFAULT_VARIANT_VALUE}
+                              >
+                                <SelectTrigger disabled={isVariantSelectionDisabled(entry.model, entry.variant, data.variantsByModel)}>
+                                  <SelectValue placeholder="Default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getVariantOptions(entry.model, entry.variant, data.variantsByModel).map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -283,33 +330,43 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
                     <div className="min-h-0 overflow-y-auto pr-1">
                       <div className="grid gap-1.5">
                         {filteredCategories.map(([key, entry]) => (
-                          <div
-                            className="flex items-center gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2"
-                            key={key}
-                          >
+                          <div className="flex gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2" key={key}>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-medium text-sm">{key}</div>
-                              {entry.variant ? (
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                                  {entry.variant}
-                                </div>
-                              ) : null}
+                              <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                <span>Model: {entry.model}</span>
+                                <span>Variant: {entry.variant ?? "default"}</span>
+                              </div>
                             </div>
-                            <Select
-                              onValueChange={(value) => handleModelChange("categories", key, value)}
-                              value={entry.model}
-                            >
-                              <SelectTrigger className="w-55 sm:w-70 2xl:w-80">
-                                <SelectValue placeholder="Select model" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {data.models.map((model) => (
-                                  <SelectItem key={model} value={model}>
-                                    {model}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="grid w-55 gap-2 sm:w-70 2xl:w-80">
+                              <Select onValueChange={(value) => handleModelChange("categories", key, value)} value={entry.model}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select model" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getModelOptions(entry.model, data.models).map((model) => (
+                                    <SelectItem key={model} value={model}>
+                                      {model}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Select
+                                onValueChange={(value) => handleVariantChange("categories", key, value)}
+                                value={entry.variant ?? DEFAULT_VARIANT_VALUE}
+                              >
+                                <SelectTrigger disabled={isVariantSelectionDisabled(entry.model, entry.variant, data.variantsByModel)}>
+                                  <SelectValue placeholder="Default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {getVariantOptions(entry.model, entry.variant, data.variantsByModel).map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         ))}
                       </div>

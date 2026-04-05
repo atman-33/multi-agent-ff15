@@ -3,6 +3,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const { readOpencodeModelCatalogMock, refreshOpencodeModelCatalogMock } = vi.hoisted(() => ({
+  readOpencodeModelCatalogMock: vi.fn(async () => ({
+    lastError: null,
+    refreshState: "ready",
+    snapshot: {
+      generatedAt: "2026-04-05T00:00:00.000Z",
+      models: ["github-copilot/gpt-5.4"],
+      opencodeVersion: "1.2.3",
+      sourceCommand: "opencode models --verbose",
+      variantsByModel: {
+        "github-copilot/gpt-5.4": ["medium", "high"],
+      },
+    },
+    stale: false,
+  })),
+  refreshOpencodeModelCatalogMock: vi.fn(),
+}));
+
 vi.mock("node:child_process", () => ({
   execFileSync: (command: string, args?: string[]) => {
     if (command === "oh-my-opencode" && args?.[0] === "--version") {
@@ -15,6 +33,11 @@ vi.mock("node:child_process", () => ({
 
     throw new Error(`Unexpected command: ${command}`);
   },
+}));
+
+vi.mock("./opencode-model-catalog.server", () => ({
+  readOpencodeModelCatalog: readOpencodeModelCatalogMock,
+  refreshOpencodeModelCatalog: refreshOpencodeModelCatalogMock,
 }));
 
 vi.mock("node:os", async () => {
@@ -73,10 +96,13 @@ describe("oh-my-opencode-config.server", () => {
     writeFileSync(legacyPath, JSON.stringify({ categories: { alpha: { model: "legacy/model" } } }), "utf-8");
 
     const { readOhMyOpenCodeData } = await loadModule();
-    const result = readOhMyOpenCodeData();
+    const result = await readOhMyOpenCodeData();
 
     expect(result.config).toEqual({ categories: { alpha: { model: "new/model" } } });
     expect(result.error).toBeUndefined();
+    expect(result.variantsByModel).toEqual({
+      "github-copilot/gpt-5.4": ["medium", "high"],
+    });
   });
 
   it("falls back to the legacy config file when the renamed file is missing", async () => {
@@ -88,7 +114,7 @@ describe("oh-my-opencode-config.server", () => {
     writeFileSync(legacyPath, JSON.stringify({ agents: { beta: { model: "legacy/model" } } }), "utf-8");
 
     const { readOhMyOpenCodeData } = await loadModule();
-    const result = readOhMyOpenCodeData();
+    const result = await readOhMyOpenCodeData();
 
     expect(result.config).toEqual({ agents: { beta: { model: "legacy/model" } } });
     expect(result.error).toBeUndefined();
@@ -127,5 +153,16 @@ describe("oh-my-opencode-config.server", () => {
       categories: { delta: { model: "updated/model" } },
     });
     expect(existsSync(primaryPath)).toBe(false);
+  });
+
+  it("refreshes the catalog when explicitly requested", async () => {
+    const home = createTempHome();
+    process.env.HOME = home;
+
+    const { readOhMyOpenCodeData } = await loadModule();
+
+    await readOhMyOpenCodeData({ refreshCatalog: true });
+
+    expect(refreshOpencodeModelCatalogMock).toHaveBeenCalledTimes(1);
   });
 });

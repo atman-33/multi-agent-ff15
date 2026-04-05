@@ -5,11 +5,14 @@ import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import { renderToPipeableStream } from "react-dom/server";
 import type { AppLoadContext, EntryContext } from "react-router";
 import { ServerRouter } from "react-router";
+import { scheduleOpencodeModelCatalogRefresh } from "./lib/opencode-model-catalog.server";
 import { ensureOpencodeServer } from "./lib/opencode-server";
 
 ensureOpencodeServer().catch((err) => {
   console.error("[opencode] Failed to start server:", err);
 });
+
+scheduleOpencodeModelCatalogRefresh();
 
 export const streamTimeout = 5_000;
 
