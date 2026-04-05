@@ -3,7 +3,20 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-const CONFIG_PATH = join(homedir(), ".config/opencode/oh-my-opencode.json");
+function getConfigPaths(): [string, string] {
+  const configDir = join(homedir(), ".config/opencode");
+
+  return [
+    join(configDir, "oh-my-openagent.json"),
+    join(configDir, "oh-my-opencode.json"),
+  ];
+}
+
+function resolveConfigPath(): string {
+  const configPaths = getConfigPaths();
+
+  return configPaths.find((configPath) => existsSync(configPath)) ?? configPaths[0];
+}
 
 export interface ModelEntry {
   model: string;
@@ -53,21 +66,24 @@ function readModels(): string[] {
 }
 
 function readConfig(): { config: OhMyOpenCodeConfig | null; error?: string } {
-  if (!existsSync(CONFIG_PATH)) {
+  const configPaths = getConfigPaths();
+  const configPath = resolveConfigPath();
+
+  if (!existsSync(configPath)) {
     return {
       config: null,
-      error: `Configuration file not found at ${CONFIG_PATH}`,
+      error: `Configuration file not found at ${configPaths.join(" or ")}`,
     };
   }
 
   try {
-    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    const raw = readFileSync(configPath, "utf-8");
     const config = JSON.parse(raw) as OhMyOpenCodeConfig;
     return { config };
   } catch (error) {
     return {
       config: null,
-      error: `Failed to parse config: ${String(error)}`,
+      error: `Failed to parse config at ${configPath}: ${String(error)}`,
     };
   }
 }
@@ -87,6 +103,8 @@ export function readOhMyOpenCodeData(): OhMyOpenCodeData {
 }
 
 export function writeOhMyOpenCodeConfig(config: OhMyOpenCodeConfig) {
-  mkdirSync(dirname(CONFIG_PATH), { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+  const configPath = resolveConfigPath();
+
+  mkdirSync(dirname(configPath), { recursive: true });
+  writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
 }
