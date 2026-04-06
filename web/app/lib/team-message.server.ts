@@ -5,6 +5,7 @@ import {
   getMission,
   setWorkerSession,
 } from "@/lib/mission-store";
+import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeTeamMessagePrompt } from "@/lib/prompt-composition-engine";
@@ -110,8 +111,8 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
   const sessionResult = await client.session.create({
-    query: { directory: projectRoot },
-    body: { title: `mission:${missionId}:${toAgent}` },
+    directory: projectRoot,
+    title: `mission:${missionId}:${toAgent}`,
   });
 
   const sessionId = sessionResult.data?.id;
@@ -174,15 +175,16 @@ async function deliverMissionMessage(
   });
 
   const client = getOpencodeClient();
+  const { model, variant } = splitModelSelection(mission.agentModels[input.toAgent]);
 
   try {
     const _result = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: composed.payloadParts,
-        agent: input.toAgent,
-        system,
-      },
+      sessionID: sessionId,
+      parts: composed.payloadParts,
+      agent: input.toAgent,
+      system,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
     });
 
     const entry: MissionMessageLogEntry = {

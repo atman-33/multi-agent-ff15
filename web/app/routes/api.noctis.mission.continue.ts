@@ -1,5 +1,6 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getMission, setAllowedWorkers } from "@/lib/mission-store";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
   coerceAllowedWorkers,
   getNoctisExecutionMode,
@@ -7,14 +8,7 @@ import {
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import type { ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.continue";
-
-function isModelSelection(value: unknown): value is ModelSelection {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return typeof v.providerID === "string" && typeof v.modelID === "string";
-}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
@@ -74,6 +68,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const noctisAgentProfile = "noctis" as const;
 
   const effectiveModel = noctisModel ?? mission.agentModels.noctis;
+  const { model, variant } = splitModelSelection(effectiveModel);
 
   try {
     const client = getOpencodeClient();
@@ -96,12 +91,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
     });
 
     const result = await client.session.promptAsync({
-      path: { id: mission.noctisSessionId },
-      body: {
-        parts: composed.payloadParts,
-        agent: noctisAgentProfile,
-        ...(effectiveModel ? { model: effectiveModel } : {}),
-      },
+      sessionID: mission.noctisSessionId,
+      parts: composed.payloadParts,
+      agent: noctisAgentProfile,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
     });
 
     if (result.error) {

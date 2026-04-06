@@ -1,5 +1,6 @@
 import { Check, ChevronsUpDown, Cpu, Sparkles } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
+import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -11,15 +12,21 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
+import { areModelSelectionsEqual } from "@/lib/model-variant-selection";
+import {
+  flattenProviderModels,
+  type ModelCatalogItem,
+  type OpencodeProvider,
+  type OpencodeProvidersResponse,
+} from "@/lib/opencode-provider-catalog";
 import {
   getAllowedWorkers,
   getCompactWorkingPartySummary,
   isWorkingPartyMemberId,
   normalizeWorkingPartyMemberId,
 } from "@/lib/noctis-working-party";
-import type { AgentContextUsage } from "@/lib/types/mission";
+import type { AgentContextUsage, ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
-import type { ModelSelection } from "@/stores/chat-store";
 import { useChatStore } from "@/stores/chat-store";
 import type { AgentStatus } from "./character-card";
 import { CharacterCard } from "./character-card";
@@ -39,19 +46,6 @@ export interface PartyMember {
   progress?: number;
 }
 
-type Provider = {
-  id: string;
-  name: string;
-  models: Record<string, { id: string; name: string }>;
-};
-
-type ModelItem = {
-  providerID: string;
-  providerName: string;
-  modelID: string;
-  modelName: string;
-};
-
 type ModelPreset = {
   id: string;
   label: string;
@@ -64,21 +58,6 @@ type ModelPreset = {
 function normalizePartyAgentId(agentId: string): PresetAgentId | null {
   const normalized = normalizeBanterAgentId(agentId);
   return normalized && PRESET_AGENT_IDS.includes(normalized) ? normalized : null;
-}
-
-function isSameModel(
-  left: ModelSelection | null | undefined,
-  right: ModelSelection | null | undefined
-): boolean {
-  if (!left && !right) {
-    return true;
-  }
-
-  if (!left || !right) {
-    return false;
-  }
-
-  return left.providerID === right.providerID && left.modelID === right.modelID;
 }
 
 const PresetSelector = memo(
@@ -164,84 +143,34 @@ const AgentModelPicker = memo(
     agentId,
     modelItems,
     selectedModel,
+    variantsByModel,
     onSelect,
   }: {
     agentId: string;
-    modelItems: ModelItem[];
+    modelItems: ModelCatalogItem[];
     selectedModel: ModelSelection | null;
+    variantsByModel: Record<string, string[]>;
     onSelect: (model: ModelSelection | null) => void;
   }) => {
-    const [open, setOpen] = useState(false);
-
-    const label = useMemo(() => {
-      if (!selectedModel) return null;
-      const found = modelItems.find(
-        (m) => m.providerID === selectedModel.providerID && m.modelID === selectedModel.modelID
-      );
-      if (found) return found.modelName;
-      const fallback = selectedModel.modelID.split("/").pop();
-      return fallback && fallback.length > 0 ? fallback : selectedModel.modelID;
-    }, [modelItems, selectedModel]);
-
     return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverAnchor asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            role="combobox"
-            aria-expanded={open}
-            aria-label={`Select model for ${agentId}`}
-            className={cn(
-              "h-6 w-full justify-between gap-1 rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
-              selectedModel
-                ? "text-primary/80 hover:text-primary"
-                : "text-muted-foreground/50 hover:text-muted-foreground"
-            )}
-            onClick={() => setOpen((v) => !v)}
-          >
-            <Cpu className="h-2.5 w-2.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-left">{label ?? "model"}</span>
-            <ChevronsUpDown className="h-2.5 w-2.5 shrink-0 opacity-50" />
-          </Button>
-        </PopoverAnchor>
-
-        <PopoverContent align="end" className="w-96 p-0" side="bottom">
-          <Command>
-            <CommandInput placeholder="Search models..." />
-            <CommandList>
-              <CommandEmpty>No model found.</CommandEmpty>
-              <CommandGroup heading="Models">
-                {modelItems.map((item) => {
-                  const isSelected =
-                    selectedModel?.providerID === item.providerID &&
-                    selectedModel?.modelID === item.modelID;
-                  return (
-                    <CommandItem
-                      key={`${item.providerID}-${item.modelID}`}
-                      value={`${item.providerName} ${item.modelName} ${item.providerID} ${item.modelID}`}
-                      onSelect={() => {
-                        onSelect({ providerID: item.providerID, modelID: item.modelID });
-                        setOpen(false);
-                      }}
-                    >
-                      <Check className={cn("h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm">
-                          {item.providerName} / {item.modelName}
-                        </div>
-                        <div className="truncate text-[10px] text-muted-foreground">
-                          {item.providerID} / {item.modelID}
-                        </div>
-                      </div>
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <CompactModelVariantPicker
+        ariaLabel={`Select model for ${agentId}`}
+        contentAlign="end"
+        contentSide="bottom"
+        emptyLabel="model"
+        modelItems={modelItems}
+        onSelect={(model) => onSelect(model)}
+        selectedModel={selectedModel}
+        showProviderName={false}
+        triggerClassName={cn(
+          "h-6 w-full rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
+          selectedModel
+            ? "text-primary/80 hover:text-primary"
+            : "text-muted-foreground/50 hover:text-muted-foreground"
+        )}
+        triggerIcon={<Cpu className="h-2.5 w-2.5 shrink-0" />}
+        variantsByModel={variantsByModel}
+      />
     );
   }
 );
@@ -254,8 +183,9 @@ interface PartyStatusPanelProps {
 }
 
 export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatusPanelProps) => {
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [presets, setPresets] = useState<ModelPreset[]>([]);
+  const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const agentModels = useChatStore((state) => state.agentModels);
   const workingParty = useChatStore((state) => state.workingParty);
   const setAgentModel = useChatStore((state) => state.setAgentModel);
@@ -270,8 +200,9 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
       ]);
 
       if (providersRes?.ok) {
-        const data = (await providersRes.json()) as { providers?: Provider[] };
+        const data = (await providersRes.json()) as OpencodeProvidersResponse;
         setProviders(data.providers ?? []);
+        setVariantsByModel(data.variantsByModel ?? {});
       }
 
       if (presetsRes?.ok) {
@@ -282,23 +213,15 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
     void load();
   }, []);
 
-  const modelItems = useMemo<ModelItem[]>(
-    () =>
-      providers.flatMap((provider) =>
-        Object.values(provider.models ?? {}).map((model) => ({
-          providerID: provider.id,
-          providerName: provider.name,
-          modelID: model.id,
-          modelName: model.name,
-        }))
-      ),
+  const modelItems = useMemo<ModelCatalogItem[]>(
+    () => flattenProviderModels(providers),
     [providers]
   );
 
   const activePresetId = useMemo(() => {
     const match = presets.find((preset) =>
       PRESET_AGENT_IDS.every((agentId) =>
-        isSameModel(agentModels[agentId], preset.agentModels[agentId])
+        areModelSelectionsEqual(agentModels[agentId], preset.agentModels[agentId])
       )
     );
 
@@ -432,6 +355,7 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
                     selectedModel={
                       normalizedAgentId ? (agentModels[normalizedAgentId] ?? null) : null
                     }
+                    variantsByModel={variantsByModel}
                     onSelect={(model) => {
                       if (!normalizedAgentId) {
                         return;

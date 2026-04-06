@@ -122,13 +122,11 @@ describe("Noctis mission solo routing", () => {
     expect(getMission(data.missionId)?.allowedWorkers).toEqual([]);
     expect(promptAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: expect.objectContaining({
-          agent: "noctis",
-        }),
+        agent: "noctis",
       }),
     );
 
-    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.body?.parts?.[0]?.text as string;
+    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText).not.toContain("<delegation-context");
     expect(promptText).toContain("Effective allowed workers: none");
     expect(promptText).not.toContain("noctis-solo");
@@ -169,13 +167,11 @@ describe("Noctis mission solo routing", () => {
     expect(getMission(missionId)?.allowedWorkers).toEqual([]);
     expect(promptAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: expect.objectContaining({
-          agent: "noctis",
-        }),
+        agent: "noctis",
       }),
     );
 
-    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.body?.parts?.[0]?.text as string;
+    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText).not.toContain("<delegation-context");
     expect(promptText).toContain("Effective allowed workers: none");
     expect(promptText).not.toContain("noctis-solo");

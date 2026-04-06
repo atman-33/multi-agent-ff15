@@ -17,8 +17,8 @@ export const action = async ({ params, request }: Route.ActionArgs) => {
 
     const client = getOpencodeClient();
     const result = await client.session.update({
-      path: { id: sessionId },
-      body: { title },
+      sessionID: sessionId,
+      title,
     });
 
     if (result.error) {

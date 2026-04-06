@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { parseModelReference } from "@/lib/model-variant-selection";
+import { readOpencodeModelCatalog } from "@/lib/opencode-model-catalog.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import type { ModelSelection } from "@/lib/types/mission";
 
@@ -16,23 +18,7 @@ type ProviderRecord = {
 
 type ModeConfig = {
   _description?: string;
-} & Partial<Record<PresetAgentId, { model?: string }>>;
-
-function parseModelReference(value: unknown): ModelSelection | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const slashIndex = value.indexOf("/");
-  if (slashIndex <= 0 || slashIndex >= value.length - 1) {
-    return null;
-  }
-
-  return {
-    providerID: value.slice(0, slashIndex),
-    modelID: value.slice(slashIndex + 1),
-  };
-}
+} & Partial<Record<PresetAgentId, { model?: string; variant?: string }>>;
 
 function humanizeModeName(modeId: string): string {
   if (modeId === "fullpower") {
@@ -86,25 +72,38 @@ export const loader = async () => {
   const parsed = parseYaml(raw) as {
     modes?: Record<string, ModeConfig>;
   };
-  const availableModels = await getAvailableModels();
+  const [availableModels, catalogResult] = await Promise.all([
+    getAvailableModels(),
+    readOpencodeModelCatalog({ waitForLatest: true }),
+  ]);
+  const variantsByModel = catalogResult.snapshot?.variantsByModel ?? {};
 
   const presets = Object.entries(parsed.modes ?? {}).map(([modeId, modeConfig]) => {
     const agentModels = Object.fromEntries(
-      PRESET_AGENT_IDS.map((agentId) => [agentId, parseModelReference(modeConfig[agentId]?.model)])
+      PRESET_AGENT_IDS.map((agentId) => [
+        agentId,
+        parseModelReference(modeConfig[agentId]?.model, modeConfig[agentId]?.variant),
+      ])
     ) as Partial<Record<PresetAgentId, ModelSelection>>;
 
     const incompleteAgents = PRESET_AGENT_IDS.filter((agentId) => !agentModels[agentId]);
-    const unavailableAgents =
-      availableModels === null
-        ? []
-        : PRESET_AGENT_IDS.filter((agentId) => {
-            const model = agentModels[agentId];
-            if (!model) {
-              return false;
-            }
+    const unavailableAgents = PRESET_AGENT_IDS.filter((agentId) => {
+      const model = agentModels[agentId];
+      if (!model) {
+        return false;
+      }
 
-            return !availableModels.has(`${model.providerID}/${model.modelID}`);
-          });
+      const modelKey = `${model.providerID}/${model.modelID}`;
+      if (availableModels && !availableModels.has(modelKey)) {
+        return true;
+      }
+
+      if (model.variant && catalogResult.snapshot) {
+        return !(variantsByModel[modelKey] ?? []).includes(model.variant);
+      }
+
+      return false;
+    });
 
     return {
       id: modeId,

@@ -7,6 +7,7 @@ import {
   setWorkerSession,
   updateTask,
 } from "@/lib/mission-store";
+import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
 import { hasDelegationPolicy, resolveEffectiveDelegationWorkers } from "@/lib/operation-runtime/autonomous";
@@ -237,6 +238,7 @@ export async function dispatchTaskToWorker(input: {
   if (existingSessionId) {
     try {
       const workerModel = mission.agentModels[input.agentId];
+      const { model, variant } = splitModelSelection(workerModel);
       const composed = composeWorkerTaskPrompt({
         context: {
           missionId: input.missionId,
@@ -251,12 +253,11 @@ export async function dispatchTaskToWorker(input: {
         operationStateOverride: operationState,
       });
       const promptResult = await client.session.promptAsync({
-        path: { id: existingSessionId },
-        body: {
-          parts: composed.payloadParts,
-          agent: input.agentId,
-          ...(workerModel ? { model: workerModel } : {}),
-        },
+        sessionID: existingSessionId,
+        parts: composed.payloadParts,
+        agent: input.agentId,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
       });
 
       if (promptResult.error) {
@@ -282,8 +283,8 @@ export async function dispatchTaskToWorker(input: {
 
   const ledger = buildDelegationLedger(mission);
   const sessionResult = await client.session.create({
-    query: { directory: projectRoot },
-    body: { title: `mission:${input.missionId}:${input.agentId}` },
+    directory: projectRoot,
+    title: `mission:${input.missionId}:${input.agentId}`,
   });
 
   if (sessionResult.error) {
@@ -300,6 +301,7 @@ export async function dispatchTaskToWorker(input: {
   setWorkerSession(input.missionId, input.agentId, sessionId);
 
   try {
+    const { model, variant } = splitModelSelection(mission.agentModels[input.agentId]);
     const composed = composeWorkerTaskPrompt({
       context: {
         missionId: input.missionId,
@@ -314,15 +316,12 @@ export async function dispatchTaskToWorker(input: {
       operationStateOverride: operationState,
     });
     const promptResult = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: composed.payloadParts,
-        agent: input.agentId,
-        system: ledger,
-        ...(mission.agentModels[input.agentId]
-          ? { model: mission.agentModels[input.agentId] }
-          : {}),
-      },
+      sessionID: sessionId,
+      parts: composed.payloadParts,
+      agent: input.agentId,
+      system: ledger,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
     });
 
     if (promptResult.error) {

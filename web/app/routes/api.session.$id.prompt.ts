@@ -1,15 +1,14 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import type { PromptPart } from "@/lib/prompt-parts";
+import type { ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.session.$id.prompt";
 
 type PromptPayload = {
   parts: PromptPart[];
-  model?: {
-    providerID: string;
-    modelID: string;
-  };
+  model?: ModelSelection;
   agent?: string;
   missionId?: string;
 };
@@ -27,6 +26,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
   try {
     const client = getOpencodeClient();
+    const selectedModel = isModelSelection(body.model) ? body.model : undefined;
+    const { model, variant } = splitModelSelection(selectedModel);
     const composed = composeGenericSessionPrompt({
       context: {
         missionId: typeof body.missionId === "string" ? body.missionId : undefined,
@@ -38,12 +39,11 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     });
 
     const result = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: composed.payloadParts,
-        model: body.model,
-        agent: body.agent,
-      },
+      sessionID: sessionId,
+      parts: composed.payloadParts,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
+      ...(body.agent ? { agent: body.agent } : {}),
     });
 
     if (result.error) {

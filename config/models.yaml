@@ -13,7 +13,7 @@ model_definitions:
   opencode/trinity-large-preview-free: "Trinity Large Preview"
 
 # Model configuration by mode
-# Each agent has: model (OpenCode model ID), agent (optional, for future use)
+# Each agent has: model (OpenCode model ID), variant (optional named variant), agent (optional, for future use)
 # Comrades: ignis, gladiolus, prompto / Independent: lunafreya / Guardian: iris
 # _description: Mode description shown in help text and startup banner
 modes:

@@ -1,5 +1,6 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
   coerceAllowedWorkers,
   getNoctisExecutionMode,
@@ -12,12 +13,6 @@ import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
-
-function isModelSelection(value: unknown): value is ModelSelection {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return typeof v.providerID === "string" && typeof v.modelID === "string";
-}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
@@ -97,10 +92,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return Response.json({ error: "No workflow is available" }, { status: 409 });
     }
     const missionId = crypto.randomUUID();
+    const { model, variant } = splitModelSelection(noctisModel);
 
     const sessionResult = await client.session.create({
-      query: { directory: projectRoot },
-      body: { title: `mission:${missionId}` },
+      directory: projectRoot,
+      title: `mission:${missionId}`,
     });
 
     if (sessionResult.error) {
@@ -137,13 +133,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
     });
 
     const promptResult = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: composed.payloadParts,
-        agent: noctisAgentProfile,
-        system: ledger,
-        ...(noctisModel ? { model: noctisModel } : {}),
-      },
+      sessionID: sessionId,
+      parts: composed.payloadParts,
+      agent: noctisAgentProfile,
+      system: ledger,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
     });
 
     if (promptResult.error) {

@@ -9,7 +9,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
 
   try {
     const client = getOpencodeClient();
-    const result = await client.session.messages({ path: { id: sessionId } });
+    const result = await client.session.messages({ sessionID: sessionId });
 
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });

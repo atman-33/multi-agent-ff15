@@ -15,6 +15,7 @@ export type MissionActivityKind =
 export interface ModelSelection {
   providerID: string;
   modelID: string;
+  variant?: string;
 }
 
 export interface AgentContextUsage {

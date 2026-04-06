@@ -1,16 +1,15 @@
 import type { ActionFunctionArgs } from "react-router";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { stringifyPromptParts } from "@/lib/prompt-parts";
+import type { ModelSelection } from "@/lib/types/mission";
 
 type StartSessionPayload = {
   parts?: unknown;
-  model?: {
-    providerID: string;
-    modelID: string;
-  };
+  model?: ModelSelection;
   agent?: string;
   missionId?: string;
 };
@@ -52,10 +51,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
     const title = stringifyPromptParts(parts).slice(0, 80).trim() || "Untitled";
+    const selectedModel = isModelSelection(body?.model) ? body.model : undefined;
+    const { model, variant } = splitModelSelection(selectedModel);
 
     const sessionResult = await client.session.create({
-      query: { directory: projectRoot },
-      body: { title },
+      directory: projectRoot,
+      title,
     });
 
     if (sessionResult.error) {
@@ -78,12 +79,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     const promptResult = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: composed.payloadParts,
-        model: body?.model,
-        agent: body?.agent,
-      },
+      sessionID: sessionId,
+      parts: composed.payloadParts,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
+      ...(body?.agent ? { agent: body.agent } : {}),
     });
 
     if (promptResult.error) {
