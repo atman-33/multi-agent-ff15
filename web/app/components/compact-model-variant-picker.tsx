@@ -1,13 +1,13 @@
 import { Check, ChevronRight, ChevronsUpDown } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import {
-  DEFAULT_VARIANT_VALUE,
+  buildModelSelection,
+  getExplicitVariantOptions,
   getModelKey,
-  getVariantOptions,
 } from "@/lib/model-variant-selection";
 import {
   findModelCatalogItem,
@@ -50,6 +50,8 @@ export function CompactModelVariantPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeModelKey, setActiveModelKey] = useState<string | null>(null);
+  const [openVariantKey, setOpenVariantKey] = useState<string | null>(null);
+  const variantCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayItems = useMemo(() => {
     const currentSelectionMissing =
@@ -89,7 +91,12 @@ export function CompactModelVariantPicker({
 
   useEffect(() => {
     if (!open) {
+      if (variantCloseTimerRef.current) {
+        clearTimeout(variantCloseTimerRef.current);
+        variantCloseTimerRef.current = null;
+      }
       setQuery("");
+      setOpenVariantKey(null);
       return;
     }
 
@@ -100,22 +107,32 @@ export function CompactModelVariantPicker({
     setActiveModelKey(selectedKey ?? firstFilteredKey);
   }, [filteredItems, open, selectedModel]);
 
+  useEffect(() => {
+    if (!openVariantKey) {
+      return;
+    }
+
+    const stillVisible = filteredItems.some(
+      (item) => `${item.providerID}/${item.modelID}` === openVariantKey
+    );
+
+    if (!stillVisible) {
+      setOpenVariantKey(null);
+    }
+  }, [filteredItems, openVariantKey]);
+
+  useEffect(() => {
+    return () => {
+      if (variantCloseTimerRef.current) {
+        clearTimeout(variantCloseTimerRef.current);
+      }
+    };
+  }, []);
+
   const selectedItem = useMemo(
     () => findModelCatalogItem(displayItems, selectedModel),
     [displayItems, selectedModel]
   );
-
-  const activeItem = useMemo(() => {
-    if (!activeModelKey) {
-      return filteredItems[0] ?? null;
-    }
-
-    return (
-      filteredItems.find(
-        (item) => `${item.providerID}/${item.modelID}` === activeModelKey
-      ) ?? filteredItems[0] ?? null
-    );
-  }, [activeModelKey, filteredItems]);
 
   const currentLabel = useMemo(() => {
     if (!selectedItem) {
@@ -127,19 +144,28 @@ export function CompactModelVariantPicker({
       : selectedItem.modelName;
   }, [emptyLabel, selectedItem, showProviderName]);
 
-  const activeVariantOptions = useMemo(() => {
-    if (!activeItem) {
-      return [];
-    }
+  const selectedModelKey = getModelKey(selectedModel);
 
-    const activeKey = `${activeItem.providerID}/${activeItem.modelID}`;
-    const currentVariant = getModelKey(selectedModel) === activeKey ? selectedModel?.variant : undefined;
-    return getVariantOptions(
-      { providerID: activeItem.providerID, modelID: activeItem.modelID },
-      currentVariant,
-      variantsByModel
-    );
-  }, [activeItem, selectedModel, variantsByModel]);
+  const clearVariantCloseTimer = () => {
+    if (variantCloseTimerRef.current) {
+      clearTimeout(variantCloseTimerRef.current);
+      variantCloseTimerRef.current = null;
+    }
+  };
+
+  const openVariantFlyout = (itemKey: string, hasExplicitVariants: boolean) => {
+    clearVariantCloseTimer();
+    setActiveModelKey(itemKey);
+    setOpenVariantKey(hasExplicitVariants ? itemKey : null);
+  };
+
+  const scheduleVariantClose = (itemKey: string) => {
+    clearVariantCloseTimer();
+    variantCloseTimerRef.current = setTimeout(() => {
+      setOpenVariantKey((current) => (current === itemKey ? null : current));
+      variantCloseTimerRef.current = null;
+    }, 140);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -167,134 +193,205 @@ export function CompactModelVariantPicker({
         </Button>
       </PopoverAnchor>
 
-      <PopoverContent align={contentAlign} className={cn("w-[min(46rem,92vw)] p-0", contentClassName)} side={contentSide}>
-        <div className="grid gap-0 sm:grid-cols-[minmax(0,1.6fr)_minmax(14rem,1fr)]">
-          <div className="border-b border-border/60 p-2 sm:border-r sm:border-b-0">
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search models..."
-              className="h-8 border-border/60 bg-background/70 px-2 text-xs"
-            />
+      <PopoverContent
+        align={contentAlign}
+        className={cn("w-[min(30rem,92vw)] p-0", contentClassName)}
+        side={contentSide}
+      >
+        <div className="border-border/60 border-b px-2 py-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search models..."
+            className="h-8 border-border/60 bg-background/70 px-2 text-xs"
+          />
+        </div>
 
-            <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-border/50 bg-background/40 p-1">
-              {filteredItems.length === 0 ? (
-                <div className="px-2 py-6 text-center text-xs text-muted-foreground">
-                  No model found.
-                </div>
-              ) : (
-                filteredItems.map((item) => {
-                  const itemKey = `${item.providerID}/${item.modelID}`;
-                  const isActive = itemKey === `${activeItem?.providerID}/${activeItem?.modelID}`;
-                  const isSelected =
-                    selectedModel?.providerID === item.providerID &&
-                    selectedModel?.modelID === item.modelID;
-                  const hasVariants = (variantsByModel[itemKey] ?? []).length > 0;
+        <div className="max-h-80 overflow-y-auto p-2">
+          {filteredItems.length === 0 ? (
+            <div className="px-2 py-8 text-center text-xs text-muted-foreground">
+              No model found.
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {filteredItems.map((item) => {
+                const itemKey = `${item.providerID}/${item.modelID}`;
+                const isActive = itemKey === activeModelKey;
+                const isSelected =
+                  selectedModel?.providerID === item.providerID &&
+                  selectedModel?.modelID === item.modelID;
+                const currentVariant = selectedModelKey === itemKey ? selectedModel?.variant : undefined;
+                const explicitVariantOptions = getExplicitVariantOptions(
+                  { providerID: item.providerID, modelID: item.modelID },
+                  currentVariant,
+                  variantsByModel
+                );
+                const hasExplicitVariants = explicitVariantOptions.length > 0;
+                const isVariantFlyoutOpen = hasExplicitVariants && openVariantKey === itemKey;
 
-                  return (
+                const row = (
+                  <div
+                    className={cn(
+                      "flex items-center gap-1 rounded-lg border border-transparent transition-colors",
+                      isActive || isVariantFlyoutOpen
+                        ? "border-border/60 bg-accent text-accent-foreground"
+                        : "hover:bg-accent/60"
+                    )}
+                  >
                     <button
-                      key={itemKey}
                       type="button"
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors",
-                        isActive
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                      )}
-                      onMouseEnter={() => setActiveModelKey(itemKey)}
-                      onFocus={() => setActiveModelKey(itemKey)}
+                      className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left"
+                      onFocus={() => openVariantFlyout(itemKey, hasExplicitVariants)}
                       onClick={() => {
-                        onSelect({ providerID: item.providerID, modelID: item.modelID });
+                        onSelect(buildModelSelection(item));
                         setOpen(false);
+                      }}
+                      onMouseEnter={() => openVariantFlyout(itemKey, hasExplicitVariants)}
+                      onMouseLeave={() => {
+                        if (hasExplicitVariants) {
+                          scheduleVariantClose(itemKey);
+                        }
                       }}
                     >
                       <Check
                         className={cn("h-4 w-4 shrink-0", isSelected ? "opacity-100" : "opacity-0")}
                       />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm">
-                          {item.providerName} / {item.modelName}
-                        </div>
-                        <div className="truncate text-[10px] text-muted-foreground">
-                          {item.providerID} / {item.modelID}
-                        </div>
+
+                      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                        <span className="truncate font-medium text-sm text-foreground">
+                          {item.modelName}
+                        </span>
+                        <span className="shrink-0 rounded-full border border-border/60 bg-background/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                          {item.providerName}
+                        </span>
                       </div>
-                      {hasVariants ? (
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-55" />
+
+                      {isSelected && currentVariant ? (
+                        <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-primary/80">
+                          {currentVariant}
+                        </span>
                       ) : null}
                     </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
 
-          <div className="p-2">
-            <div className="rounded-md border border-border/50 bg-background/30">
-              <div className="border-border/50 border-b px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                {activeItem ? `Variants for ${activeItem.modelName}` : "Variants"}
-              </div>
-
-              <div className="max-h-72 overflow-y-auto p-1">
-                {!activeItem ? (
-                  <div className="px-2 py-6 text-center text-xs text-muted-foreground">
-                    Select a model to inspect variants.
-                  </div>
-                ) : (
-                  activeVariantOptions.map((option) => {
-                    const nextSelection: ModelSelection = {
-                      providerID: activeItem.providerID,
-                      modelID: activeItem.modelID,
-                      ...(option.value === DEFAULT_VARIANT_VALUE
-                        ? {}
-                        : { variant: option.value }),
-                    };
-                    const isSelected =
-                      selectedModel?.providerID === nextSelection.providerID &&
-                      selectedModel?.modelID === nextSelection.modelID &&
-                      selectedModel?.variant === nextSelection.variant;
-
-                    return (
+                    {hasExplicitVariants ? (
                       <button
-                        key={option.value}
                         type="button"
-                        disabled={option.unavailable}
+                        aria-label={`Open variants for ${item.modelName}`}
                         className={cn(
-                          "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors",
-                          isSelected
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                          option.unavailable ? "cursor-not-allowed opacity-60" : null
+                          "mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
+                          isVariantFlyoutOpen && "bg-background/80 text-foreground"
                         )}
-                        onClick={() => {
-                          if (option.unavailable) {
-                            return;
-                          }
-
-                          onSelect(nextSelection);
-                          setOpen(false);
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          clearVariantCloseTimer();
+                          setActiveModelKey(itemKey);
+                          setOpenVariantKey((current) => (current === itemKey ? null : itemKey));
                         }}
+                        onFocus={() => openVariantFlyout(itemKey, hasExplicitVariants)}
+                        onMouseEnter={() => openVariantFlyout(itemKey, hasExplicitVariants)}
+                        onMouseLeave={() => scheduleVariantClose(itemKey)}
                       >
-                        <Check
-                          className={cn("h-4 w-4 shrink-0", isSelected ? "opacity-100" : "opacity-0")}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">{option.label}</div>
-                          <div className="truncate text-[10px] text-muted-foreground">
-                            {option.value === DEFAULT_VARIANT_VALUE
-                              ? "Use the provider default variant"
-                              : option.unavailable
-                                ? "Current variant is no longer available"
-                                : `${activeItem.providerID} / ${activeItem.modelID}`}
-                          </div>
-                        </div>
+                        <ChevronRight className="h-3.5 w-3.5" />
                       </button>
-                    );
-                  })
-                )}
-              </div>
+                    ) : null}
+                  </div>
+                );
+
+                if (!hasExplicitVariants) {
+                  return <div key={itemKey}>{row}</div>;
+                }
+
+                return (
+                  <Popover key={itemKey} open={isVariantFlyoutOpen}>
+                    <PopoverAnchor asChild>{row}</PopoverAnchor>
+                    <PopoverContent
+                      align="start"
+                      className="w-60 p-1 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2"
+                      collisionPadding={12}
+                      onFocusCapture={() => {
+                        clearVariantCloseTimer();
+                        setActiveModelKey(itemKey);
+                        setOpenVariantKey(itemKey);
+                      }}
+                      onMouseEnter={() => {
+                        clearVariantCloseTimer();
+                        setActiveModelKey(itemKey);
+                        setOpenVariantKey(itemKey);
+                      }}
+                      onMouseLeave={() => scheduleVariantClose(itemKey)}
+                      onOpenAutoFocus={(event) => event.preventDefault()}
+                      side="right"
+                      sideOffset={10}
+                    >
+                      <div className="border-border/50 border-b px-2 py-2">
+                        <div className="truncate font-medium text-foreground text-sm">
+                          {item.modelName}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="rounded-full border border-border/60 bg-background/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                            {item.providerName}
+                          </span>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            Explicit variants
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="max-h-72 overflow-y-auto p-1">
+                        {explicitVariantOptions.map((option) => {
+                          const nextSelection = buildModelSelection(item, option.value);
+                          const isVariantSelected =
+                            selectedModel?.providerID === nextSelection.providerID &&
+                            selectedModel?.modelID === nextSelection.modelID &&
+                            selectedModel?.variant === nextSelection.variant;
+
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              disabled={option.unavailable}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors",
+                                isVariantSelected
+                                  ? "bg-primary/10 text-primary"
+                                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                                option.unavailable && "cursor-not-allowed opacity-60"
+                              )}
+                              onClick={() => {
+                                if (option.unavailable) {
+                                  return;
+                                }
+
+                                onSelect(nextSelection);
+                                setOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "h-4 w-4 shrink-0",
+                                  isVariantSelected ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm">{option.label}</div>
+                                {option.unavailable ? (
+                                  <div className="truncate text-[10px] text-muted-foreground">
+                                    Current variant is no longer available
+                                  </div>
+                                ) : null}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

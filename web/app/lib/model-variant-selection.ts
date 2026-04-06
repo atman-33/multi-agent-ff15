@@ -56,12 +56,40 @@ export function getVariantOptions(
   return options;
 }
 
+export function getExplicitVariantOptions(
+  model: ModelKeyInput,
+  currentVariant: string | undefined,
+  variantsByModel: Record<string, string[]>
+): VariantOption[] {
+  return getVariantOptions(model, currentVariant, variantsByModel).filter(
+    (option) => option.value !== DEFAULT_VARIANT_VALUE
+  );
+}
+
+export function buildModelSelection(
+  model: Pick<ModelSelection, "providerID" | "modelID">,
+  variant?: string | null
+): ModelSelection {
+  if (!variant || variant === DEFAULT_VARIANT_VALUE) {
+    return {
+      providerID: model.providerID,
+      modelID: model.modelID,
+    };
+  }
+
+  return {
+    providerID: model.providerID,
+    modelID: model.modelID,
+    variant,
+  };
+}
+
 export function isVariantSelectionDisabled(
   model: ModelKeyInput,
   currentVariant: string | undefined,
   variantsByModel: Record<string, string[]>
 ): boolean {
-  return getVariantOptions(model, currentVariant, variantsByModel).length === 1;
+  return getExplicitVariantOptions(model, currentVariant, variantsByModel).length === 0;
 }
 
 export function resolveVariantForModelChange(
