@@ -5,7 +5,7 @@ import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -17,6 +17,7 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { WORKING_PARTY_MEMBER_IDS } from "@/lib/noctis-working-party";
 import {
   listOperationDebugOptions,
@@ -448,6 +449,12 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
     const blocks: Array<{ id: string; title: string; description: string; content: string }> = [
       {
+        id: "flow-item-id",
+        title: "Flow Item ID",
+        description: "Stable synthetic identifier for the selected preview node.",
+        content: selectedStep.id,
+      },
+      {
         id: "internal",
         title: "Internal Context",
         description: "Shared context injected before the workflow-specific prompt.",
@@ -526,45 +533,49 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
   const flowToneClass = (step: PreviewStep, selected: boolean) => {
     if (selected) {
-      return "border-blue-400 bg-blue-950/80 shadow-lg ring-2 ring-blue-400/60";
+      return "border-blue-400/70 bg-blue-500/14 shadow-[0_12px_32px_rgba(59,130,246,0.16)] ring-1 ring-blue-400/35";
     }
 
     if (step.isSoloLoop) {
-      return "border-teal-900 bg-teal-950/25 opacity-75 hover:border-teal-700 hover:bg-teal-950/40 hover:opacity-90";
+      return "border-teal-700/35 bg-teal-500/8 hover:border-teal-600/45 hover:bg-teal-500/12";
     }
 
     if (step.kind === "noctis-step") {
-      return "border-sky-950 bg-sky-950/20 opacity-60 hover:border-sky-800 hover:bg-sky-950/35 hover:opacity-80";
+      return "border-sky-700/25 bg-sky-500/8 hover:border-sky-600/35 hover:bg-sky-500/12";
     }
 
-    return "border-amber-950 bg-amber-950/20 opacity-60 hover:border-amber-800 hover:bg-amber-950/35 hover:opacity-80";
+    return "border-amber-700/25 bg-amber-500/8 hover:border-amber-600/35 hover:bg-amber-500/12";
   };
 
   return (
-    <PageContainer className="max-w-none gap-4 overflow-hidden bg-slate-950 px-4 text-slate-100" size="wide">
-      <div className="border-border/50 border-b pb-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
+    <PageContainer className="max-w-none gap-4 overflow-hidden bg-transparent px-4 text-slate-100" size="wide">
+      <div className="border-border/50 border-b pb-3">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <TooltipProvider delayDuration={150}>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Badge className="gap-1.5 text-white" variant="default">
                 <Bug className="h-3.5 w-3.5" />
                 Operation Debug
               </Badge>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="max-w-[24rem] min-w-0" variant="outline">
+                    <span className="truncate">{selectedOperationOption?.label ?? "No operation selected"}</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-96 text-xs leading-relaxed">
+                  {selectedOperationOption?.label ?? "No operation selected"}
+                </TooltipContent>
+              </Tooltip>
+
+              <Badge className="font-medium uppercase tracking-wide text-emerald-200" variant="outline">
+                {appliedPreviewPartySummary}
+              </Badge>
               {selectedStepNumber ? <Badge variant="outline">Step {selectedStepNumber}</Badge> : null}
               {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
             </div>
-            <p className="max-w-4xl text-slate-300 text-sm">
-              Select an operation on the left, inspect the reachable flow in the middle, and review the generated prompt details on the right.
-            </p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <span className="font-medium text-slate-200">
-                {selectedOperationOption?.label ?? "No operation selected"}
-              </span>
-              <span className="font-medium uppercase tracking-wide text-emerald-200">
-                {appliedPreviewPartySummary}
-              </span>
-            </div>
-          </div>
+          </TooltipProvider>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -588,22 +599,15 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
       </div>
 
       <ResizablePanelGroup
-        className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40"
+        className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-800/70 bg-slate-950/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-sm"
         orientation="horizontal"
       >
         <ResizablePanel defaultSize={24} minSize={18}>
-          <aside className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800 border-r bg-slate-900/50">
-            <div className="border-slate-800 border-b p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-sm text-slate-50">Operations</h2>
-                  <p className="mt-1 text-slate-400 text-xs">
-                    Choose an operation and rebuild the reachable runtime preview.
-                  </p>
-                </div>
-                <div className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 font-mono text-[10px] text-slate-400 uppercase tracking-wide">
-                  {loaderData.operations.length}
-                </div>
+          <aside className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800/70 border-r bg-slate-900/25 backdrop-blur-sm">
+            <div className="flex min-h-16 items-center justify-between gap-3 border-slate-800/70 border-b bg-white/2 px-4">
+              <h2 className="font-semibold text-sm text-slate-50">Operations</h2>
+              <div className="rounded-full border border-slate-700/70 bg-slate-950/50 px-2.5 py-1 font-mono text-[10px] text-slate-400 uppercase tracking-wide backdrop-blur-sm">
+                {loaderData.operations.length}
               </div>
             </div>
 
@@ -611,71 +615,81 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               className="min-h-0 flex-1"
               viewportClassName="[&>div]:!block [&>div]:!w-full"
             >
-              <nav className="space-y-2 p-3 pr-4">
-                {loaderData.operations.length === 0 ? (
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-slate-400 text-sm">
-                    No operations are available for preview.
-                  </div>
-                ) : (
-                  loaderData.operations.map((operation) => {
-                    const isActive = operation.value === selectedOperation;
-                    return (
-                      <button
-                        aria-pressed={isActive}
-                        className={cn(
-                          "w-full rounded-xl border p-3 text-left transition-colors",
-                          isActive
-                            ? "border-blue-400 bg-blue-950/40 shadow-sm ring-1 ring-blue-400/50"
-                            : "border-slate-800 bg-slate-950/70 hover:border-slate-700 hover:bg-slate-900",
-                        )}
-                        data-operation-value={operation.value}
-                        key={operation.value}
-                        onClick={() => {
-                          setSelectedOperation(operation.value);
-                          setActiveStepId("");
-                          navigateWithPreviewParams({
-                            userInput: loaderData.userMessage,
-                            operation: operation.value,
-                            partyMode: loaderData.partyMode,
-                            previewWorkers: loaderData.previewWorkers,
-                            stepId: "",
-                            task: loaderData.taskInstruction,
-                          });
-                        }}
-                        type="button"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-semibold text-sm text-slate-50">
-                              {operation.label}
+              <TooltipProvider delayDuration={150}>
+                <nav className="space-y-2 p-3 pr-4">
+                  {loaderData.operations.length === 0 ? (
+                    <div className="rounded-lg border border-slate-700/70 bg-slate-950/45 p-3 text-slate-400 text-sm backdrop-blur-sm">
+                      No operations are available for preview.
+                    </div>
+                  ) : (
+                    loaderData.operations.map((operation) => {
+                      const isActive = operation.value === selectedOperation;
+                      const button = (
+                        <button
+                          aria-pressed={isActive}
+                          className={cn(
+                            "w-full rounded-xl border p-3 text-left transition-colors backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
+                            isActive
+                              ? "border-blue-400/70 bg-blue-500/12 ring-1 ring-blue-400/35 shadow-[0_10px_30px_rgba(37,99,235,0.14)]"
+                              : "border-slate-700/70 bg-slate-950/40 hover:border-slate-600/80 hover:bg-slate-900/55",
+                          )}
+                          data-operation-value={operation.value}
+                          onClick={() => {
+                            setSelectedOperation(operation.value);
+                            setActiveStepId("");
+                            navigateWithPreviewParams({
+                              userInput: loaderData.userMessage,
+                              operation: operation.value,
+                              partyMode: loaderData.partyMode,
+                              previewWorkers: loaderData.previewWorkers,
+                              stepId: "",
+                              task: loaderData.taskInstruction,
+                            });
+                          }}
+                          type="button"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-semibold text-sm text-slate-50">
+                                {operation.label}
+                              </div>
                             </div>
-                            <p className="mt-1 text-slate-400 text-xs">{operation.description}</p>
+                            {operation.isDefault ? <Badge variant="outline">Default</Badge> : null}
                           </div>
-                          {operation.isDefault ? <Badge variant="outline">Default</Badge> : null}
-                        </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-                          <Badge variant="outline">{operation.sourceLabel}</Badge>
-                          {operation.projectId ? (
-                            <span className="font-mono text-slate-500">{operation.projectId}</span>
-                          ) : null}
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </nav>
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                            <Badge variant="outline">{operation.sourceLabel}</Badge>
+                            {operation.projectId ? (
+                              <span className="font-mono text-slate-500">{operation.projectId}</span>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+
+                      if (!operation.description) {
+                        return <div key={operation.value}>{button}</div>;
+                      }
+
+                      return (
+                        <Tooltip key={operation.value}>
+                          <TooltipTrigger asChild>{button}</TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-80 text-xs leading-relaxed">
+                            {operation.description}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })
+                  )}
+                </nav>
+              </TooltipProvider>
             </ScrollArea>
           </aside>
         </ResizablePanel>
 
         <ResizablePanel defaultSize={31} minSize={24}>
-          <section className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800 border-r bg-slate-950/30">
-            <div className="border-slate-800 border-b p-4">
+          <section className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800/70 border-r bg-slate-900/20 backdrop-blur-sm">
+            <div className="flex min-h-16 items-center border-slate-800/70 border-b bg-white/2 px-4">
               <h2 className="font-semibold text-sm text-slate-50">Flow</h2>
-              <p className="mt-1 text-slate-400 text-xs">
-                Runtime-mediated steps and delegated child events for the selected operation.
-              </p>
             </div>
 
             <ScrollArea
@@ -684,7 +698,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
             >
               <div className="space-y-4 p-4 pr-5">
                 {flowGroups.length === 0 ? (
-                  <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-4 text-slate-400 text-sm">
+                  <div className="rounded-lg border border-slate-700/70 bg-slate-950/45 p-4 text-slate-400 text-sm backdrop-blur-sm">
                     Select an operation to inspect its reachable flow.
                   </div>
                 ) : (
@@ -697,7 +711,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                         <div className="space-y-2">
                           <button
                             className={cn(
-                              "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
+                              "w-full cursor-pointer rounded-lg border p-3 text-left transition-all backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
                               flowToneClass(step, selected),
                             )}
                             onClick={() => {
@@ -719,8 +733,8 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                                   className={cn(
                                     "flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold",
                                     selected
-                                      ? "border-blue-300 bg-blue-500 text-white"
-                                      : "border-slate-700 bg-slate-950/90 text-slate-400",
+                                      ? "border-blue-300/80 bg-blue-500/85 text-white"
+                                      : "border-slate-700/80 bg-slate-950/60 text-slate-400",
                                   )}
                                 >
                                   {stepNumber}
@@ -758,13 +772,13 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                           </button>
 
                           {group.children.length > 0 ? (
-                            <div className="ml-5 space-y-2 border-slate-800 border-l pl-4">
+                            <div className="ml-5 space-y-2 border-slate-700/60 border-l pl-4">
                               {group.children.map((child) => {
                                 const childSelected = child.id === selectedStep?.id;
                                 return (
                                   <button
                                     className={cn(
-                                      "w-full cursor-pointer rounded-lg border p-3 text-left transition-all",
+                                      "w-full cursor-pointer rounded-lg border p-3 text-left transition-all backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
                                       flowToneClass(child, childSelected),
                                     )}
                                     key={child.id}
@@ -842,12 +856,9 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
         </ResizablePanel>
 
         <ResizablePanel defaultSize={45} minSize={28}>
-          <section className="flex h-full min-w-0 flex-col overflow-hidden bg-slate-900/40">
-            <div className="border-slate-800 border-b p-4">
+          <section className="flex h-full min-w-0 flex-col overflow-hidden bg-slate-900/25 backdrop-blur-sm">
+            <div className="flex min-h-16 items-center border-slate-800/70 border-b bg-white/2 px-4">
               <h2 className="font-semibold text-sm text-slate-50">Prompt Details</h2>
-              <p className="mt-1 text-slate-400 text-xs">
-                Inspect the selected flow item prompt, completion contract, runtime decision, and low-level debug context.
-              </p>
             </div>
 
             <ScrollArea
@@ -855,43 +866,8 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
               viewportClassName="[&>div]:!block [&>div]:!w-full"
             >
               <div className="space-y-4 p-4 pr-5">
-                <Card className="border-slate-800 bg-slate-900 text-slate-100">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Selected Flow Item</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-sm text-white">
-                            {selectedStepNumber ?? "-"}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="font-semibold text-base text-slate-50">
-                                {selectedStep?.title ?? "-"}
-                              </div>
-                              {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                              <div className="font-mono text-slate-500">{selectedStep?.id ?? "-"}</div>
-                              <div className="flex items-center gap-1.5 text-slate-300">
-                                <Send className="h-3.5 w-3.5 shrink-0" />
-                                <span>{selectedStep?.pathSummary ?? "-"}</span>
-                              </div>
-                              <div className="font-medium text-blue-100">
-                                {formatNextLabel(selectedStep)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {selectedStep?.noFlowExplanation?.trim() ? (
-                  <Card className="border-teal-800 bg-teal-950/20 text-slate-100">
+                  <Card className="border-teal-700/40 bg-teal-500/10 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base">Why No Flow?</CardTitle>
                       <CardDescription className="text-teal-100/80">
@@ -905,13 +881,34 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                   </Card>
                 ) : null}
 
-                <Card className="border-slate-800 bg-slate-900 text-slate-100">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Flow Item Details</CardTitle>
+                <Card className="border-slate-700/70 bg-slate-900/35 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
+                  <CardHeader className="border-slate-800/70 border-b bg-white/2 py-3">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <div className="truncate font-semibold text-base text-slate-50">
+                            {selectedStep?.title ?? "No flow item selected"}
+                          </div>
+                          {selectedStepNumber ? <Badge variant="outline">Step {selectedStepNumber}</Badge> : null}
+                          {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
+                        </div>
+
+                        {selectedStep ? (
+                          <div className="font-medium text-blue-100 text-xs">{formatNextLabel(selectedStep)}</div>
+                        ) : null}
+                      </div>
+
+                      {selectedStep?.pathSummary ? (
+                        <div className="flex min-w-0 items-center gap-1.5 text-slate-400 text-xs">
+                          <Send className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{selectedStep.pathSummary}</span>
+                        </div>
+                      ) : null}
+                    </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-3">
                     <Tabs defaultValue="prompt">
-                      <TabsList className="w-full justify-start border-slate-800" variant="line">
+                      <TabsList className="w-full justify-start border-slate-800/70 bg-slate-950/20" variant="line">
                         <TabsTrigger className="" value="prompt" variant="line">
                           Prompt
                         </TabsTrigger>
@@ -928,7 +925,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
                       <TabsContent className="space-y-4" value="prompt">
                         <CopyablePromptBlock
-                          className="border-blue-900 bg-blue-950/30"
+                          className="border-blue-700/40 bg-blue-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                           description={selectedStep?.promptDescription ?? ""}
                           highlightTexts={selectedStep?.promptHighlights.map((highlight) => highlight.text) ?? []}
                           preClassName="max-h-136"
@@ -948,7 +945,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
                       <TabsContent className="space-y-4" value="decision">
                         <CopyablePromptBlock
-                          className="border-emerald-900 bg-emerald-950/20"
+                          className="border-emerald-700/40 bg-emerald-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                           preClassName="max-h-136"
                           title="Runtime Decision"
                           description="How Runtime interprets the synthetic report for this step."
@@ -968,7 +965,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                       <TabsContent className="space-y-4" value="advanced">
                         <div className="grid gap-3 md:grid-cols-5">
                           {facetStats.map((stat) => (
-                            <div className="rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-100" key={stat.label}>
+                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/45 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm" key={stat.label}>
                               <div className="text-slate-400 text-xs uppercase tracking-wide">{stat.label}</div>
                               <div className="mt-1 font-medium text-sm">{stat.value}</div>
                             </div>
@@ -996,10 +993,10 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
       <Sheet onOpenChange={setIsInputsSheetOpen} open={isInputsSheetOpen}>
         <SheetContent
-          className="flex h-full flex-col gap-0 overflow-hidden border-slate-800 bg-slate-950 text-slate-100 sm:max-w-xl"
+          className="flex h-full flex-col gap-0 overflow-hidden border-slate-800/70 bg-slate-950/88 text-slate-100 backdrop-blur-xl sm:max-w-xl"
           side="right"
         >
-          <SheetHeader className="border-slate-800 border-b pb-4 text-left">
+          <SheetHeader className="border-slate-800/70 border-b bg-white/2 pb-4 text-left">
             <SheetTitle className="text-slate-50">Preview Inputs</SheetTitle>
             <SheetDescription className="text-slate-400">
               Adjust the synthetic inputs used to regenerate the selected operation preview.
@@ -1008,7 +1005,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
 
           <div className="min-h-0 flex-1 overflow-auto py-4">
             <div className="space-y-4 pr-1">
-              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+              <div className="rounded-lg border border-slate-700/70 bg-slate-900/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
                 <div className="text-slate-500 text-xs uppercase tracking-wide">Selected operation</div>
                 <div className="mt-1 font-semibold text-sm text-slate-50">
                   {selectedOperationOption?.label ?? "No operation selected"}
@@ -1018,7 +1015,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 ) : null}
               </div>
 
-              <div className="space-y-2 rounded-lg border border-emerald-800 bg-emerald-950/30 p-3 text-slate-100">
+              <div className="space-y-2 rounded-lg border border-emerald-700/40 bg-emerald-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
                 <label className="font-medium text-sm" htmlFor="party-mode">
                   Party Mode
                 </label>
@@ -1033,12 +1030,12 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                   }}
                   value={partyMode}
                 >
-                  <SelectTrigger className="border-slate-700 bg-slate-950 text-slate-100 data-placeholder:text-slate-500" id="party-mode">
+                  <SelectTrigger className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500" id="party-mode">
                     <SelectValue placeholder="Select preview party mode" />
                   </SelectTrigger>
-                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-100">
+                  <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
                     {PREVIEW_PARTY_MODE_OPTIONS.map((option) => (
-                      <SelectItem className="text-slate-100 focus:bg-slate-800 focus:text-slate-100" key={option.value} value={option.value}>
+                      <SelectItem className="text-slate-100 focus:bg-slate-800/80 focus:text-slate-100" key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     ))}
@@ -1076,12 +1073,12 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 ) : null}
               </div>
 
-              <div className="space-y-2 rounded-lg border border-blue-800 bg-blue-950/40 p-3 text-slate-100">
+              <div className="space-y-2 rounded-lg border border-blue-700/40 bg-blue-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
                 <label className="font-medium text-sm" htmlFor="user-message">
                   User Message
                 </label>
                 <Textarea
-                  className="border-slate-700 bg-slate-950 text-slate-100"
+                  className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm"
                   id="user-message"
                   onChange={(event) => setUserMessage(event.target.value)}
                   rows={6}
@@ -1089,12 +1086,12 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
                 />
               </div>
 
-              <div className="space-y-2 rounded-lg border border-amber-800 bg-amber-950/40 p-3 text-slate-100">
+              <div className="space-y-2 rounded-lg border border-amber-700/40 bg-amber-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
                 <label className="font-medium text-sm" htmlFor="task-instruction">
                   Worker Task Seed
                 </label>
                 <Textarea
-                  className="border-slate-700 bg-slate-950 text-slate-100"
+                  className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm"
                   id="task-instruction"
                   onChange={(event) => setTaskInstruction(event.target.value)}
                   rows={6}
@@ -1104,7 +1101,7 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-slate-800 border-t pt-4">
+          <div className="flex items-center justify-end gap-2 border-slate-800/70 border-t pt-4">
             <Button onClick={() => setIsInputsSheetOpen(false)} type="button" variant="outline">
               Close
             </Button>
