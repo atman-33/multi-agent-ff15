@@ -31,14 +31,28 @@ export type ModelCatalogItem = {
   providerName: string;
 };
 
+const modelNameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base",
+});
+
 export function flattenProviderModels(providers: OpencodeProvider[]): ModelCatalogItem[] {
   return providers.flatMap((provider) =>
-    Object.values(provider.models ?? {}).map((model) => ({
-      providerID: provider.id,
-      providerName: provider.name,
-      modelID: model.id,
-      modelName: model.name,
-    }))
+    Object.values(provider.models ?? {})
+      .sort((left, right) => {
+        const byName = modelNameCollator.compare(left.name, right.name);
+        if (byName !== 0) {
+          return byName;
+        }
+
+        return modelNameCollator.compare(left.id, right.id);
+      })
+      .map((model) => ({
+        providerID: provider.id,
+        providerName: provider.name,
+        modelID: model.id,
+        modelName: model.name,
+      }))
   );
 }
 
