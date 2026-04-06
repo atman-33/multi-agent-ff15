@@ -138,31 +138,28 @@ const MissionHistoryItem = memo(
           className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
           to={`/noctis-team/mission/${mission.missionId}`}
         />
-        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-          <div className="pointer-events-none min-w-0">
-            <div className="mb-1 flex min-w-0 items-center gap-2">
-              <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-sm">
-                {mission.title}
-              </span>
-              <span className="max-w-28 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
+        <div className="relative w-full min-w-0">
+          <div className="pointer-events-none min-w-0 pr-14">
+            <span className="block min-w-0 pr-1 font-semibold text-sm leading-5 line-clamp-2 wrap-break-word">
+              {mission.title}
+            </span>
+            <div className="mt-2 flex min-w-0 items-center gap-2">
+              <span className="max-w-24 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
                 {mission.status}
               </span>
+              <p className="min-w-0 flex-1 truncate text-right font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                {new Date(mission.updatedAt).toLocaleString("en-US", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })}
+              </p>
             </div>
-            <p className="line-clamp-2 font-mono text-[10px] text-muted-foreground/70">
-              {mission.objective || "No objective recorded"}
-            </p>
-            <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
-              {new Date(mission.updatedAt).toLocaleString("en-US", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })}
-            </p>
           </div>
-          <div className="relative z-10 flex items-center gap-1">
+          <div className="absolute right-0 top-0 z-10 flex items-center gap-1">
             {!isArchivedView ? (
               <Button
                 type="button"
