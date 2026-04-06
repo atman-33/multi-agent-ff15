@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   buildModelSelection,
   getExplicitVariantOptions,
@@ -169,7 +169,7 @@ export function CompactModelVariantPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
+      <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
@@ -178,7 +178,6 @@ export function CompactModelVariantPicker({
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn("justify-between gap-2", triggerClassName)}
-          onClick={() => setOpen((value) => !value)}
         >
           <span className="flex min-w-0 flex-1 items-center gap-2">
             {triggerIcon ? <span className="shrink-0">{triggerIcon}</span> : null}
@@ -191,7 +190,7 @@ export function CompactModelVariantPicker({
           </span>
           <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
-      </PopoverAnchor>
+      </PopoverTrigger>
 
       <PopoverContent
         align={contentAlign}

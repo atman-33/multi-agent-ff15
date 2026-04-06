@@ -19,6 +19,9 @@ vi.mock("@/components/ui/popover", () => ({
   PopoverAnchor: ({ children }: { children: ReactNode }) => (
     <div data-slot="popover-anchor">{children}</div>
   ),
+  PopoverTrigger: ({ children }: { children: ReactNode }) => (
+    <div data-slot="popover-trigger">{children}</div>
+  ),
   PopoverContent: ({
     children,
     collisionPadding: _collisionPadding,
@@ -63,6 +66,7 @@ describe("CompactModelVariantPicker", () => {
 
     expect(markup).toContain("GPT-5.4");
     expect(markup).toContain("GitHub Copilot");
+  expect(markup).toContain('data-slot="popover-trigger"');
     expect(markup).not.toContain("github-copilot / gpt-5.4");
     expect(markup).toContain("Open variants for GPT-5.4");
     expect(markup).toContain("Explicit variants");

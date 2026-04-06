@@ -10,7 +10,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
 import { areModelSelectionsEqual } from "@/lib/model-variant-selection";
 import {
@@ -75,7 +75,7 @@ const PresetSelector = memo(
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverAnchor asChild>
+        <PopoverTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
@@ -83,7 +83,6 @@ const PresetSelector = memo(
             aria-expanded={open}
             aria-label="Select team model preset"
             className="h-6 w-full justify-between gap-1 rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em] text-primary/80 hover:text-primary"
-            onClick={() => setOpen((value) => !value)}
           >
             <Sparkles className="h-2.5 w-2.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate text-left">
@@ -91,7 +90,7 @@ const PresetSelector = memo(
             </span>
             <ChevronsUpDown className="h-2.5 w-2.5 shrink-0 opacity-50" />
           </Button>
-        </PopoverAnchor>
+        </PopoverTrigger>
 
         <PopoverContent align="end" className="w-80 p-0" side="bottom">
           <Command>

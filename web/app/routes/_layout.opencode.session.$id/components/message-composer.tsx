@@ -11,7 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   flattenProviderModels,
   type ModelCatalogItem,
@@ -78,14 +78,13 @@ const ComposerSelectionControls = memo(
           </div>
         ) : (
           <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
-            <PopoverAnchor asChild>
+            <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
                 role="combobox"
                 aria-expanded={agentComboboxOpen}
                 className="h-8 w-55 justify-between gap-2 px-2 text-xs text-muted-foreground"
-                onClick={() => setAgentComboboxOpen((open) => !open)}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Bot className="h-3.5 w-3.5 shrink-0" />
@@ -93,7 +92,7 @@ const ComposerSelectionControls = memo(
                 </span>
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
               </Button>
-            </PopoverAnchor>
+            </PopoverTrigger>
 
             <PopoverContent align="start" className="w-65 p-0" side="top">
               <Command>
