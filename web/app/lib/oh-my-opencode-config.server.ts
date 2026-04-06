@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { OhMyOpenCodeConfig, OhMyOpenCodeData } from "@/lib/oh-my-opencode-config";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getOpencodeClient } from "@/lib/opencode-client";
 import {
   readOpencodeModelCatalog,
   refreshOpencodeModelCatalog,
@@ -59,6 +60,21 @@ function readConfig(): { config: OhMyOpenCodeConfig | null; error?: string } {
   }
 }
 
+async function readProviders(): Promise<OhMyOpenCodeData["providers"]> {
+  try {
+    const client = getOpencodeClient();
+    const result = await client.config.providers();
+
+    if (result.error || !result.data || !Array.isArray(result.data.providers)) {
+      return [];
+    }
+
+    return result.data.providers;
+  } catch {
+    return [];
+  }
+}
+
 export async function readOhMyOpenCodeData(options?: {
   refreshCatalog?: boolean;
 }): Promise<OhMyOpenCodeData> {
@@ -74,10 +90,13 @@ export async function readOhMyOpenCodeData(options?: {
     }
   }
 
-  const catalog = await readOpencodeModelCatalog({
-    root,
-    waitForLatest: !options?.refreshCatalog,
-  });
+  const [catalog, providers] = await Promise.all([
+    readOpencodeModelCatalog({
+      root,
+      waitForLatest: !options?.refreshCatalog,
+    }),
+    readProviders(),
+  ]);
 
   return {
     catalog: {
@@ -90,6 +109,7 @@ export async function readOhMyOpenCodeData(options?: {
     error,
     isInstalled,
     models: catalog.snapshot?.models ?? [],
+    providers,
     variantsByModel: catalog.snapshot?.variantsByModel ?? {},
     version,
   };

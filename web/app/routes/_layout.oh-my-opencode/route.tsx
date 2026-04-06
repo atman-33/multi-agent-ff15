@@ -6,32 +6,29 @@ import {
   Search,
   UserCircle2,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import {
   readOhMyOpenCodeData,
 } from "@/lib/oh-my-opencode-config.server";
 import {
-  DEFAULT_VARIANT_VALUE,
-  getModelOptions,
-  getVariantOptions,
-  isVariantSelectionDisabled,
+  getModelSelectionFromEntry,
   type OhMyOpenCodeConfig,
   type OhMyOpenCodeConfigSection,
   type OhMyOpenCodeData,
-  updateConfigModelSelection,
-  updateConfigVariantSelection,
+  updateConfigPickerSelection,
 } from "@/lib/oh-my-opencode-config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/page-container";
+import { parseModelReference } from "@/lib/model-variant-selection";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  findModelCatalogItem,
+  flattenProviderModels,
+  type ModelCatalogItem,
+} from "@/lib/opencode-provider-catalog";
+import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
@@ -60,6 +57,42 @@ const LoadingGrid = () => {
     </div>
   );
 };
+
+function buildFallbackModelItems(models: string[]): ModelCatalogItem[] {
+  const seen = new Set<string>();
+
+  return models.flatMap((modelReference) => {
+    if (seen.has(modelReference)) {
+      return [];
+    }
+
+    seen.add(modelReference);
+    const parsed = parseModelReference(modelReference);
+    if (!parsed) {
+      return [];
+    }
+
+    return [
+      {
+        providerID: parsed.providerID,
+        providerName: parsed.providerID,
+        modelID: parsed.modelID,
+        modelName: parsed.modelID,
+      },
+    ];
+  });
+}
+
+function getModelSummaryLabel(
+  modelItems: ModelCatalogItem[],
+  selection: ModelSelection | null,
+  fallbackModel: string
+): string {
+  const selectedItem = findModelCatalogItem(modelItems, selection);
+  return selectedItem
+    ? `${selectedItem.providerName} / ${selectedItem.modelName}`
+    : fallbackModel;
+}
 
 export const loader = async (_args: Route.LoaderArgs) => readOhMyOpenCodeData();
 
@@ -91,6 +124,11 @@ export const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
     setConfig(loaderData.config ?? {});
   }, [loaderData]);
 
+  const modelItems = useMemo<ModelCatalogItem[]>(() => {
+    const providerItems = flattenProviderModels(data.providers ?? []);
+    return providerItems.length > 0 ? providerItems : buildFallbackModelItems(data.models);
+  }, [data.models, data.providers]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
@@ -117,16 +155,12 @@ export const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
     }
   }, []);
 
-  const handleModelChange = useCallback(
-    (type: OhMyOpenCodeConfigSection, key: string, model: string) => {
-      setConfig((prev) => updateConfigModelSelection(prev, type, key, model, data.variantsByModel));
+  const handleModelSelectionChange = useCallback(
+    (type: OhMyOpenCodeConfigSection, key: string, selection: ModelSelection) => {
+      setConfig((prev) => updateConfigPickerSelection(prev, type, key, selection, data.variantsByModel));
     },
     [data.variantsByModel]
   );
-
-  const handleVariantChange = useCallback((type: OhMyOpenCodeConfigSection, key: string, value: string) => {
-    setConfig((prev) => updateConfigVariantSelection(prev, type, key, value));
-  }, []);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -276,39 +310,30 @@ export const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
                           <div className="flex gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2" key={key}>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-medium text-sm">{key}</div>
-                              <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
-                                <span>Model: {entry.model}</span>
-                                <span>Variant: {entry.variant ?? "default"}</span>
-                              </div>
+                              {(() => {
+                                const selectedModel = getModelSelectionFromEntry(entry);
+                                const modelLabel = getModelSummaryLabel(modelItems, selectedModel, entry.model);
+
+                                return (
+                                  <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                    <span>Model: {modelLabel}</span>
+                                    <span>Variant: {entry.variant ?? "auto"}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-                            <div className="grid w-55 gap-2 sm:w-70 2xl:w-80">
-                              <Select onValueChange={(value) => handleModelChange("agents", key, value)} value={entry.model}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select model" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getModelOptions(entry.model, data.models).map((model) => (
-                                    <SelectItem key={model} value={model}>
-                                      {model}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Select
-                                onValueChange={(value) => handleVariantChange("agents", key, value)}
-                                value={entry.variant ?? DEFAULT_VARIANT_VALUE}
-                              >
-                                <SelectTrigger disabled={isVariantSelectionDisabled(entry.model, entry.variant, data.variantsByModel)}>
-                                  <SelectValue placeholder="Default" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getVariantOptions(entry.model, entry.variant, data.variantsByModel).map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                            <div className="w-55 sm:w-70 2xl:w-80">
+                              <CompactModelVariantPicker
+                                ariaLabel={`Select model for ${key}`}
+                                contentAlign="end"
+                                emptyLabel="Select model"
+                                modelItems={modelItems}
+                                onSelect={(selection) => handleModelSelectionChange("agents", key, selection)}
+                                selectedModel={getModelSelectionFromEntry(entry)}
+                                showProviderName={false}
+                                triggerClassName="h-9 w-full rounded-md border border-border/50 bg-background/60 px-2 text-xs text-foreground hover:bg-accent/60"
+                                variantsByModel={data.variantsByModel}
+                              />
                             </div>
                           </div>
                         ))}
@@ -333,39 +358,30 @@ export const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
                           <div className="flex gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2" key={key}>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-medium text-sm">{key}</div>
-                              <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
-                                <span>Model: {entry.model}</span>
-                                <span>Variant: {entry.variant ?? "default"}</span>
-                              </div>
+                              {(() => {
+                                const selectedModel = getModelSelectionFromEntry(entry);
+                                const modelLabel = getModelSummaryLabel(modelItems, selectedModel, entry.model);
+
+                                return (
+                                  <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                    <span>Model: {modelLabel}</span>
+                                    <span>Variant: {entry.variant ?? "auto"}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-                            <div className="grid w-55 gap-2 sm:w-70 2xl:w-80">
-                              <Select onValueChange={(value) => handleModelChange("categories", key, value)} value={entry.model}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select model" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getModelOptions(entry.model, data.models).map((model) => (
-                                    <SelectItem key={model} value={model}>
-                                      {model}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Select
-                                onValueChange={(value) => handleVariantChange("categories", key, value)}
-                                value={entry.variant ?? DEFAULT_VARIANT_VALUE}
-                              >
-                                <SelectTrigger disabled={isVariantSelectionDisabled(entry.model, entry.variant, data.variantsByModel)}>
-                                  <SelectValue placeholder="Default" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getVariantOptions(entry.model, entry.variant, data.variantsByModel).map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                            <div className="w-55 sm:w-70 2xl:w-80">
+                              <CompactModelVariantPicker
+                                ariaLabel={`Select model for ${key}`}
+                                contentAlign="end"
+                                emptyLabel="Select model"
+                                modelItems={modelItems}
+                                onSelect={(selection) => handleModelSelectionChange("categories", key, selection)}
+                                selectedModel={getModelSelectionFromEntry(entry)}
+                                showProviderName={false}
+                                triggerClassName="h-9 w-full rounded-md border border-border/50 bg-background/60 px-2 text-xs text-foreground hover:bg-accent/60"
+                                variantsByModel={data.variantsByModel}
+                              />
                             </div>
                           </div>
                         ))}

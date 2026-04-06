@@ -21,6 +21,25 @@ const { readOpencodeModelCatalogMock, refreshOpencodeModelCatalogMock } = vi.hoi
   refreshOpencodeModelCatalogMock: vi.fn(),
 }));
 
+const { configProvidersMock } = vi.hoisted(() => ({
+  configProvidersMock: vi.fn(async () => ({
+    data: {
+      providers: [
+        {
+          id: "github-copilot",
+          name: "GitHub Copilot",
+          models: {
+            "gpt-5.4": {
+              id: "gpt-5.4",
+              name: "GPT-5.4",
+            },
+          },
+        },
+      ],
+    },
+  })),
+}));
+
 vi.mock("node:child_process", () => ({
   execFileSync: (command: string, args?: string[]) => {
     if (command === "oh-my-opencode" && args?.[0] === "--version") {
@@ -38,6 +57,14 @@ vi.mock("node:child_process", () => ({
 vi.mock("./opencode-model-catalog.server", () => ({
   readOpencodeModelCatalog: readOpencodeModelCatalogMock,
   refreshOpencodeModelCatalog: refreshOpencodeModelCatalogMock,
+}));
+
+vi.mock("@/lib/opencode-client", () => ({
+  getOpencodeClient: () => ({
+    config: {
+      providers: configProvidersMock,
+    },
+  }),
 }));
 
 vi.mock("node:os", async () => {
@@ -82,6 +109,8 @@ afterEach(() => {
       rmSync(home, { force: true, recursive: true });
     }
   }
+
+  configProvidersMock.mockClear();
 });
 
 describe("oh-my-opencode-config.server", () => {
@@ -100,6 +129,18 @@ describe("oh-my-opencode-config.server", () => {
 
     expect(result.config).toEqual({ categories: { alpha: { model: "new/model" } } });
     expect(result.error).toBeUndefined();
+    expect(result.providers).toEqual([
+      {
+        id: "github-copilot",
+        name: "GitHub Copilot",
+        models: {
+          "gpt-5.4": {
+            id: "gpt-5.4",
+            name: "GPT-5.4",
+          },
+        },
+      },
+    ]);
     expect(result.variantsByModel).toEqual({
       "github-copilot/gpt-5.4": ["medium", "high"],
     });

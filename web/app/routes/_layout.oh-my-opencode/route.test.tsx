@@ -27,14 +27,19 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
 }));
 
-vi.mock("@/components/ui/select", () => ({
-  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, value }: { children: ReactNode; value: string }) => (
-    <div data-value={value}>{children}</div>
+vi.mock("@/components/compact-model-variant-picker", () => ({
+  CompactModelVariantPicker: ({
+    ariaLabel,
+    selectedModel,
+  }: {
+    ariaLabel: string;
+    selectedModel: { modelID: string; providerID: string; variant?: string } | null;
+  }) => (
+    <div data-picker={ariaLabel}>
+      {selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : "none"}
+      {selectedModel?.variant ? `:${selectedModel.variant}` : ""}
+    </div>
   ),
-  SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <div>{placeholder}</div>,
 }));
 
 import { OhMyOpenCodePage } from "./route";
@@ -62,6 +67,18 @@ describe("oh-my-opencode route", () => {
           },
           isInstalled: true,
           models: ["github-copilot/gpt-5.4"],
+          providers: [
+            {
+              id: "github-copilot",
+              name: "GitHub Copilot",
+              models: {
+                "gpt-5.4": {
+                  id: "gpt-5.4",
+                  name: "GPT-5.4",
+                },
+              },
+            },
+          ],
           variantsByModel: {
             "github-copilot/gpt-5.4": ["medium", "high"],
           },
@@ -70,11 +87,10 @@ describe("oh-my-opencode route", () => {
       />,
     );
 
+    expect(markup).toContain("Model: GitHub Copilot / GPT-5.4");
     expect(markup).toContain("Variant: legacy");
-    expect(markup).toContain("Default");
-    expect(markup).toContain("legacy (current)");
-    expect(markup).toContain("medium");
-    expect(markup).toContain("high");
+    expect(markup).toContain('data-picker="Select model for oracle"');
+    expect(markup).toContain("github-copilot/gpt-5.4:legacy");
   });
 
   it("renders the catalog warning state", () => {
@@ -93,6 +109,7 @@ describe("oh-my-opencode route", () => {
           },
           isInstalled: true,
           models: [],
+          providers: [],
           variantsByModel: {},
           version: "1.2.3",
         } as never}

@@ -30,6 +30,18 @@ describe("api.oh-my-opencode.config", () => {
       },
       isInstalled: true,
       models: ["github-copilot/gpt-5.4"],
+      providers: [
+        {
+          id: "github-copilot",
+          name: "GitHub Copilot",
+          models: {
+            "gpt-5.4": {
+              id: "gpt-5.4",
+              name: "GPT-5.4",
+            },
+          },
+        },
+      ],
       variantsByModel: {
         "github-copilot/gpt-5.4": ["medium", "high"],
       },
@@ -46,6 +58,12 @@ describe("api.oh-my-opencode.config", () => {
         refreshState: "ready",
       },
       models: ["github-copilot/gpt-5.4"],
+      providers: [
+        {
+          id: "github-copilot",
+          name: "GitHub Copilot",
+        },
+      ],
       variantsByModel: {
         "github-copilot/gpt-5.4": ["medium", "high"],
       },

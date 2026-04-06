@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VARIANT_VALUE,
+  getModelSelectionFromEntry,
   getVariantOptions,
   isVariantSelectionDisabled,
+  updateConfigPickerSelection,
   updateConfigModelSelection,
   updateConfigVariantSelection,
   type OhMyOpenCodeConfig,
@@ -90,6 +92,51 @@ describe("oh-my-opencode-config helpers", () => {
     expect(updateConfigVariantSelection(config, "agents", "sisyphus", DEFAULT_VARIANT_VALUE)).toEqual({
       agents: {
         sisyphus: {
+          model: "github-copilot/gpt-5.4",
+        },
+      },
+    });
+  });
+
+  it("parses a config entry into a shared picker selection", () => {
+    expect(
+      getModelSelectionFromEntry({
+        model: "github-copilot/gpt-5.4",
+        variant: "high",
+      })
+    ).toEqual({
+      providerID: "github-copilot",
+      modelID: "gpt-5.4",
+      variant: "high",
+    });
+  });
+
+  it("clears the current variant when picker auto-selection is applied", () => {
+    const config: OhMyOpenCodeConfig = {
+      agents: {
+        oracle: {
+          model: "github-copilot/gpt-5.4",
+          variant: "high",
+        },
+      },
+    };
+
+    expect(
+      updateConfigPickerSelection(
+        config,
+        "agents",
+        "oracle",
+        {
+          providerID: "github-copilot",
+          modelID: "gpt-5.4",
+        },
+        {
+          "github-copilot/gpt-5.4": ["medium", "high"],
+        }
+      )
+    ).toEqual({
+      agents: {
+        oracle: {
           model: "github-copilot/gpt-5.4",
         },
       },
