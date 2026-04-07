@@ -13,7 +13,7 @@ vi.mock("@/components/chat/message-detail-sheet-base", () => ({
 import MessageDetailSheet from "./message-detail-sheet";
 
 describe("session message-detail-sheet", () => {
-  it("renders injected prompt context sections with a neutral heading", () => {
+  it("renders a raw payload block for generic user messages with injected prompt context", () => {
     const rawText = `
 <workspace-context>
 project_root: /tmp/example
@@ -23,25 +23,29 @@ project_root: /tmp/example
 serena_project: multi-agent-ff15
 </tooling-context>
 
-Visible reply from assistant.
+Hello from User.
     `.trim();
 
     const markup = renderToStaticMarkup(
       <MessageDetailSheet
-        content="Visible reply from assistant."
-        messageRole="assistant"
+        content="Hello from User."
+        messageRole="user"
         onOpenChange={() => undefined}
         open={true}
         parts={[{ type: "text", text: rawText }]}
         rawTextContent={rawText}
-        senderLabel="Assistant"
+        senderLabel="User"
       />,
     );
 
+    expect(markup).toContain("User message detail");
     expect(markup).toContain("Prompt Context");
     expect(markup).toContain("Injected");
     expect(markup).toContain("Workspace Context");
     expect(markup).toContain("Tooling Context");
+    expect(markup).toContain("Raw Prompt Payload");
+    expect(markup).toContain("project_root: /tmp/example");
+    expect(markup).toContain("Hello from User.");
     expect(markup).not.toContain("Internal Context");
     expect(markup.indexOf("Workspace Context")).toBeLessThan(markup.indexOf("Tooling Context"));
   });
@@ -80,6 +84,25 @@ Respond after reviewing the worker report.
     expect(markup).toContain("Workflow");
     expect(markup).toContain("Operation Note");
     expect(markup).toContain("Instruction");
+    expect(markup).toContain("Raw Prompt Payload");
     expect(markup).toContain("普通、集中");
+  });
+
+  it("does not render a raw payload block when the stored payload matches the visible body", () => {
+    const rawText = "Plain visible reply from assistant.";
+
+    const markup = renderToStaticMarkup(
+      <MessageDetailSheet
+        content="Plain visible reply from assistant."
+        messageRole="assistant"
+        onOpenChange={() => undefined}
+        open={true}
+        parts={[{ type: "text", text: rawText }]}
+        rawTextContent={rawText}
+        senderLabel="Assistant"
+      />,
+    );
+
+    expect(markup).not.toContain("Raw Prompt Payload");
   });
 });

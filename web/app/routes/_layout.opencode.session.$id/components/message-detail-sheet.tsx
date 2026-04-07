@@ -60,7 +60,7 @@ const MessageDetailSheet = ({
     tools.length > 0 ||
     Boolean(resolvedMessageDisplay.reportDetails?.trim()) ||
     resolvedMessageDisplay.promptContextSections.length > 0 ||
-    Boolean(resolvedMessageDisplay.rawWorkflowPrompt?.trim());
+    Boolean(resolvedMessageDisplay.rawPromptPayload?.trim());
 
   const getToolKey = (tool: MessagePart) => {
     const existingKey = toolKeyMapRef.current.get(tool);
@@ -162,14 +162,14 @@ const MessageDetailSheet = ({
         </div>
       ) : null}
 
-      {resolvedMessageDisplay.rawWorkflowPrompt?.trim() ? (
+      {resolvedMessageDisplay.rawPromptPayload?.trim() ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
           <details>
             <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-slate-400">
               Raw Prompt Payload
             </summary>
             <pre className="mt-3 whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-[11px] text-slate-100/85">
-              {resolvedMessageDisplay.rawWorkflowPrompt}
+              {resolvedMessageDisplay.rawPromptPayload}
             </pre>
           </details>
         </div>

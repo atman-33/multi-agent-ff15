@@ -30,6 +30,7 @@ export type SessionMessageDisplay = {
   promptContextSections: PromptContextSection[];
   promptContextSource: PromptContextSource | null;
   rawWorkflowPrompt: string | null;
+  rawPromptPayload?: string | null;
   reportDetails: string | null;
   resolvedSender: ActivityActorId | null;
   resolvedSenderIsUser: boolean;
@@ -169,6 +170,37 @@ function combinePromptContextSource(
   return null;
 }
 
+function resolveRawPromptPayload(rawText: string, displayContent: string): string | null {
+  const normalizedRawText = rawText.trim();
+  if (!normalizedRawText) {
+    return null;
+  }
+
+  return normalizedRawText === displayContent.trim() ? null : normalizedRawText;
+}
+
+function buildCombinedMessageDisplay(
+  primary: SessionMessageDisplay,
+  groupedMessages: PreparedSessionMessage[],
+): SessionMessageDisplay {
+  return {
+    ...primary,
+    promptContextSections: groupedMessages.flatMap((entry) => entry.display.promptContextSections),
+    promptContextSource: combinePromptContextSource(
+      groupedMessages.map((entry) => entry.display),
+    ),
+    rawWorkflowPrompt: combineTextSections(
+      groupedMessages.map((entry) => entry.display.rawWorkflowPrompt),
+    ),
+    rawPromptPayload: combineTextSections(
+      groupedMessages.map((entry) => entry.display.rawPromptPayload),
+    ),
+    reportDetails: combineTextSections(
+      groupedMessages.map((entry) => entry.display.reportDetails),
+    ),
+  };
+}
+
 function prepareSessionMessage(message: SessionPresentationMessage): PreparedSessionMessage {
   const parts = getMessageParts(message);
   const rawText = getMessageRawText(message);
@@ -189,13 +221,15 @@ function toRenderedSessionMessage(
   prepared: PreparedSessionMessage,
   groupedMessages: PreparedSessionMessage[] = [prepared],
 ): RenderedSessionMessage {
+  const messageDisplay = buildCombinedMessageDisplay(prepared.display, groupedMessages);
+
   return {
     ...prepared.message,
-    sender: prepared.display.resolvedSender,
-    senderLabel: prepared.display.resolvedSenderLabel,
+    sender: messageDisplay.resolvedSender,
+    senderLabel: messageDisplay.resolvedSenderLabel,
     parts: groupedMessages.flatMap((entry) => entry.parts),
     detailRawText: buildDetailText(groupedMessages.map((entry) => entry.message)),
-    messageDisplay: prepared.display,
+    messageDisplay,
   };
 }
 
@@ -218,8 +252,11 @@ function flushPendingNoctisMessages(
   const rawWorkflowPrompt = combineTextSections(
     pendingNoctis.map((entry) => entry.display.rawWorkflowPrompt),
   );
+  const rawPromptPayload = combineTextSections(
+    pendingNoctis.map((entry) => entry.display.rawPromptPayload),
+  );
 
-  if (!preview && promptContextSections.length === 0 && !reportDetails && !rawWorkflowPrompt) {
+  if (!preview && promptContextSections.length === 0 && !reportDetails && !rawPromptPayload) {
     return [];
   }
 
@@ -247,6 +284,7 @@ function flushPendingNoctisMessages(
         pendingNoctis.map((entry) => entry.display),
       ),
       rawWorkflowPrompt,
+      rawPromptPayload,
       reportDetails,
       resolvedSender: "noctis",
       resolvedSenderIsUser: false,
@@ -349,11 +387,12 @@ export function resolveSessionMessageDisplay(input: {
     ? workflowPresentation?.promptContextSections ?? []
     : parseInjectedPromptContextSections(input.rawText);
   const resolvedSender = workflowSender ?? input.fallbackSender;
+  const displayContent = workflowPresentation
+    ? workflowPresentation.visibleBody
+    : removeInternalContext(input.rawText).trim();
 
   return {
-    displayContent: workflowPresentation
-      ? workflowPresentation.visibleBody
-      : removeInternalContext(input.rawText).trim(),
+    displayContent,
     promptContextSections,
     promptContextSource: hasStructuredWorkflow
       ? "workflow"
@@ -361,6 +400,7 @@ export function resolveSessionMessageDisplay(input: {
         ? "injected"
         : null,
     rawWorkflowPrompt: hasStructuredWorkflow ? workflowPresentation?.rawPrompt ?? null : null,
+    rawPromptPayload: resolveRawPromptPayload(input.rawText, displayContent),
     reportDetails: hasStructuredWorkflow ? workflowPresentation?.reportDetails ?? null : null,
     resolvedSender,
     resolvedSenderIsUser: resolvedSender === "user",

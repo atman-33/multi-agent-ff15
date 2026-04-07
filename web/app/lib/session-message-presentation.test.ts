@@ -37,7 +37,7 @@ Integrate the worker result.
       "operation-note",
       "instruction",
     ]);
-    expect(resolved.rawWorkflowPrompt).toContain("<operation-prompt>");
+    expect(resolved.rawPromptPayload).toContain("<operation-prompt>");
   });
 
   it("falls back to history sender label when workflow metadata does not specify a sender", () => {
@@ -64,6 +64,44 @@ Need more detail from User.
     expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
       "instruction",
     ]);
+  });
+
+  it("keeps injected generic session payload available when visible content differs", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: `
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<tooling-context>
+serena_project: multi-agent-ff15
+</tooling-context>
+
+Hello from User.
+      `.trim(),
+      fallbackSender: "user",
+      fallbackSenderLabel: "User",
+    });
+
+    expect(resolved.displayContent).toBe("Hello from User.");
+    expect(resolved.promptContextSource).toBe("injected");
+    expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
+      "workspace-context",
+      "tooling-context",
+    ]);
+    expect(resolved.rawPromptPayload).toContain("<workspace-context>");
+    expect(resolved.rawPromptPayload).toContain("Hello from User.");
+  });
+
+  it("omits raw prompt payload when persisted raw text matches visible body", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: "Plain visible reply.",
+      fallbackSender: null,
+      fallbackSenderLabel: "Assistant",
+    });
+
+    expect(resolved.displayContent).toBe("Plain visible reply.");
+    expect(resolved.rawPromptPayload).toBeNull();
   });
 
   it("groups tool-only Noctis activity into the following visible Noctis reply", () => {

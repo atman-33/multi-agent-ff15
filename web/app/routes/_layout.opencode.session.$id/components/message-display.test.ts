@@ -31,7 +31,7 @@ Integrate the worker result.
       "operation-note",
       "instruction",
     ]);
-    expect(resolved.rawWorkflowPrompt).toContain("<operation-prompt>");
+    expect(resolved.rawPromptPayload).toContain("<operation-prompt>");
   });
 
   it("falls back to history sender label when workflow from metadata is absent", () => {
@@ -58,5 +58,33 @@ Need more detail from User.
     expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
       "instruction",
     ]);
+  });
+
+  it("keeps injected shared context in raw payload when visible text differs", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: `
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+Hello from User.
+      `.trim(),
+      fallbackSender: "user",
+      fallbackSenderLabel: "User",
+    });
+
+    expect(resolved.displayContent).toBe("Hello from User.");
+    expect(resolved.promptContextSource).toBe("injected");
+    expect(resolved.rawPromptPayload).toContain("<workspace-context>");
+  });
+
+  it("does not expose raw payload when the message text is already visible", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: "Plain visible reply.",
+      fallbackSender: null,
+      fallbackSenderLabel: "Assistant",
+    });
+
+    expect(resolved.rawPromptPayload).toBeNull();
   });
 });
