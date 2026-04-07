@@ -1,27 +1,23 @@
 import { existsSync } from "node:fs";
 import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
-import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
-import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getMissionOutputFilePath, updateTask } from "@/lib/mission-store";
 import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
-import { processReport } from "@/lib/operation-runtime/runtime";
+import { createOperationInstantiator } from "@/lib/operation-runtime/operation-instantiator";
 import {
   completeDelegatedTask,
-  ensureActiveStepTaskId,
   getDelegatedTaskRecord,
   getOperationRef,
   getOperationState,
   saveOperationState,
 } from "@/lib/operation-runtime/state";
-import { buildActivationInstruction } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { dispatchCurrentOperationStepToWorker } from "@/lib/task-dispatch.server";
 import { sendWorkerReport } from "@/lib/team-message.server";
-import type { OperationDefinition, StepDefinition } from "@/lib/operation-definition/types";
 import type { AgentId, ReportStatus, StepResult, WorkerAgentId } from "@/lib/types/mission";
 import type { Route } from "./+types/route";
 
 const AGENT_IDS: ReadonlySet<string> = new Set<AgentId>(["noctis", "ignis", "gladiolus", "prompto"]);
+const operationInstantiator = createOperationInstantiator();
 
 function isAgentId(value: unknown): value is AgentId {
   return typeof value === "string" && AGENT_IDS.has(value);
@@ -63,24 +59,6 @@ function listMissingRequiredOutputs(input: {
 
 function buildMissingOutputRetryGuidance(): string {
   return "Create the missing output files at the paths above, then rerun the same scripts/send_report.sh command.";
-}
-
-function buildNoctisStepGuidance(input: {
-  missionId: string;
-  operation: OperationDefinition;
-  operationState: NonNullable<ReturnType<typeof getOperationState>>;
-  step: StepDefinition;
-}): string {
-  const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
-  const facets = resolveStepFacets(input.operation, input.step, readOperationLanguage());
-  return buildActivationInstruction({
-    operation: input.operation,
-    step: input.step,
-    operationState: input.operationState,
-    facets,
-    missionId: input.missionId,
-    taskId,
-  });
 }
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -189,17 +167,18 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         });
         saveOperationState(missionId, operationState);
 
+        const reentry = operationInstantiator.activateOperation({
+          missionId,
+          message,
+          allowReuseActiveOperation: true,
+        });
+
         workflowGuidance = joinXmlSections([
           buildTextSection(
             "operation-note",
             `A delegated child task returned to the active "${currentStep.name}" step. Integrate the result and decide whether to continue the conversation or delegate again.`,
           ),
-          buildNoctisStepGuidance({
-            missionId,
-            operation,
-            operationState,
-            step: currentStep,
-          }),
+          reentry.activationText,
         ]);
       } else {
 
@@ -259,9 +238,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
           }
         }
 
-        const reportResult = processReport({
+        const reportResult = operationInstantiator.processStepReport({
           missionId,
-          operationState,
           reportBody: message,
           fromAgent: body.fromAgent,
           taskId,
@@ -270,10 +248,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
         workflowGuidance = reportResult.noctisGuidance || undefined;
         nextStep = reportResult.stateTransition?.nextStep ?? null;
-
-        if (reportResult.stateTransition) {
-          saveOperationState(missionId, operationState);
-        }
 
         if (reportResult.nextWorkerDispatch) {
           try {

@@ -8,7 +8,7 @@ import { createMission, deleteMission, getMissionOutputFilePath } from "@/lib/mi
 import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.server";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
-import { processReport } from "@/lib/operation-runtime/runtime";
+import { createOperationInstantiator } from "@/lib/operation-runtime/operation-instantiator";
 import { ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import { registerDelegatedTask } from "@/lib/operation-runtime/state";
@@ -22,6 +22,7 @@ import {
 const tempRoots: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const repoRoot = getProjectRoot();
+const operationInstantiator = createOperationInstantiator();
 
 function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-prompt-composer-"));
@@ -286,7 +287,7 @@ function buildSyntheticOperationState(missionId: string): {
       "",
     ].join("\n"),
   });
-  processReport({
+  operationInstantiator.processStepReport({
     missionId,
     operationState: state,
     reportBody: "Synthetic report from worker",

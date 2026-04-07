@@ -1,7 +1,9 @@
-import { augmentTaskPrompt, processReport, processUserMessage } from "@/lib/operation-runtime/runtime";
-import { getOperationState, saveOperationState } from "@/lib/operation-runtime/state";
+import { createOperationInstantiator } from "@/lib/operation-runtime/operation-instantiator";
+import { getOperationState } from "@/lib/operation-runtime/state";
 import type { OperationState, ProcessReportResult, ProcessUserMessageResult } from "@/lib/operation-runtime/types";
 import type { WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
+
+const operationInstantiator = createOperationInstantiator();
 
 export function composeUserWorkflowExtension(input: {
   missionId: string;
@@ -10,11 +12,9 @@ export function composeUserWorkflowExtension(input: {
   isNewMission: boolean;
   selectedOperation?: string | null;
 }): ProcessUserMessageResult {
-  return processUserMessage({
+  return operationInstantiator.activateOperation({
     missionId: input.missionId,
-    sessionId: input.sessionId,
     message: input.message,
-    isNewMission: input.isNewMission,
     selectedOperation: input.selectedOperation,
   });
 }
@@ -31,15 +31,17 @@ export function composeWorkerWorkflowPrompt(input: {
     return { promptText: input.originalPrompt, usedWorkflowExtension: false };
   }
 
+  const result = operationInstantiator.augmentTaskPrompt({
+    missionId: input.missionId,
+    originalPrompt: input.originalPrompt,
+    agentId: input.agentId,
+    taskId: input.taskId,
+    operationState,
+  });
+
   return {
-    promptText: augmentTaskPrompt({
-      operationState,
-      originalPrompt: input.originalPrompt,
-      agentId: input.agentId,
-      missionId: input.missionId,
-      taskId: input.taskId,
-    }),
-    usedWorkflowExtension: true,
+    promptText: result.promptText,
+    usedWorkflowExtension: result.usedOperationPrompt,
   };
 }
 
@@ -60,18 +62,12 @@ export function composeReportWorkflowExtension(input: {
     };
   }
 
-  const result = processReport({
-    operationState,
+  return operationInstantiator.processStepReport({
     reportBody: input.reportBody,
     missionId: input.missionId,
     fromAgent: input.fromAgent,
     taskId: input.taskId,
     next: input.next,
+    operationState,
   });
-
-  if (!input.operationStateOverride) {
-    saveOperationState(input.missionId, operationState);
-  }
-
-  return result;
 }

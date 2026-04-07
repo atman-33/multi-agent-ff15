@@ -15,7 +15,10 @@ import {
   isAutonomousDelegationStep,
   resolveEffectiveDelegationWorkers,
 } from "@/lib/operation-runtime/autonomous";
-import { processReport } from "@/lib/operation-runtime/runtime";
+import {
+  createOperationInstantiator,
+  type ProcessStepReportResult,
+} from "@/lib/operation-runtime/operation-instantiator";
 import {
   completeDelegatedTask,
   createOperationState,
@@ -106,6 +109,8 @@ export interface OperationDebugBundle {
   reportDir: string;
   previewAllowedWorkers: WorkerAgentId[];
 }
+
+const operationInstantiator = createOperationInstantiator();
 
 function toWorkerAgent(agent: string): WorkerAgentId {
   return agent === "ignis" || agent === "gladiolus" || agent === "prompto"
@@ -276,7 +281,7 @@ function buildRuntimeDecision(input: {
   operation: OperationDefinition;
   step: StepDefinition;
   reportNext: string;
-  reportResult: ReturnType<typeof processReport>;
+  reportResult: ProcessStepReportResult;
 }): {
   runtimeDecision: string;
   decisionSummary: string;
@@ -784,7 +789,7 @@ export function buildOperationDebugBundle(input: {
       const completionContract =
         extractXmlSection(effectivePrompt, "step-completion-contract") || "(no completion contract found)";
 
-      const reportResult = processReport({
+      const reportResult = operationInstantiator.processStepReport({
         missionId,
         operationState,
         reportBody: reportMessage,
