@@ -34,6 +34,7 @@ function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-noctis-mission-"));
   tempRoots.push(root);
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
 
   mkdirSync(join(root, "config"), { recursive: true });
