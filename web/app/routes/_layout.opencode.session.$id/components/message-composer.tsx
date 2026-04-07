@@ -1,5 +1,6 @@
 import { Bot, Check, ChevronsUpDown } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,32 +11,21 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  flattenProviderModels,
+  type ModelCatalogItem,
+  type OpencodeProvider,
+  type OpencodeProvidersResponse,
+} from "@/lib/opencode-provider-catalog";
 import type { PromptPart } from "@/lib/prompt-parts";
+import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 
 type Agent = {
   name: string;
   description?: string;
-};
-
-type Provider = {
-  id: string;
-  name: string;
-  models: Record<string, { id: string; name: string }>;
-};
-
-type ModelItem = {
-  providerID: string;
-  providerName: string;
-  modelID: string;
-  modelName: string;
-};
-
-type ProvidersResponse = {
-  providers: Provider[];
-  default: Record<string, string>;
 };
 
 type Props = {
@@ -54,28 +44,27 @@ type Props = {
 
 type ComposerSelectionControlsProps = {
   agents: Agent[];
-  modelItems: ModelItem[];
-  currentModelLabel: string;
+  modelItems: ModelCatalogItem[];
   lockedAgent?: string;
   selectedAgent: string | null;
-  selectedModel: { providerID: string; modelID: string } | null;
+  selectedModel: ModelSelection | null;
   setSelectedAgent: (agent: string | null) => void;
-  setSelectedModel: (model: { providerID: string; modelID: string }) => void;
+  setSelectedModel: (model: ModelSelection) => void;
+  variantsByModel: Record<string, string[]>;
 };
 
 const ComposerSelectionControls = memo(
   ({
     agents,
     modelItems,
-    currentModelLabel,
     lockedAgent,
     selectedAgent,
     selectedModel,
     setSelectedAgent,
     setSelectedModel,
+    variantsByModel,
   }: ComposerSelectionControlsProps) => {
     const [agentComboboxOpen, setAgentComboboxOpen] = useState(false);
-    const [modelComboboxOpen, setModelComboboxOpen] = useState(false);
 
     return (
       <div className="flex flex-wrap items-center gap-1.5">
@@ -89,14 +78,13 @@ const ComposerSelectionControls = memo(
           </div>
         ) : (
           <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
-            <PopoverAnchor asChild>
+            <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
                 role="combobox"
                 aria-expanded={agentComboboxOpen}
                 className="h-8 w-55 justify-between gap-2 px-2 text-xs text-muted-foreground"
-                onClick={() => setAgentComboboxOpen((open) => !open)}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <Bot className="h-3.5 w-3.5 shrink-0" />
@@ -104,7 +92,7 @@ const ComposerSelectionControls = memo(
                 </span>
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
               </Button>
-            </PopoverAnchor>
+            </PopoverTrigger>
 
             <PopoverContent align="start" className="w-65 p-0" side="top">
               <Command>
@@ -144,62 +132,17 @@ const ComposerSelectionControls = memo(
           </Popover>
         )}
 
-        <Popover open={modelComboboxOpen} onOpenChange={setModelComboboxOpen}>
-          <PopoverAnchor asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              role="combobox"
-              aria-expanded={modelComboboxOpen}
-              className="h-8 w-70 justify-between gap-2 px-2 text-xs text-muted-foreground"
-              onClick={() => setModelComboboxOpen((open) => !open)}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate">{currentModelLabel}</span>
-              </span>
-              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-            </Button>
-          </PopoverAnchor>
-
-          <PopoverContent align="start" className="w-95 p-0" side="top">
-            <Command>
-              <CommandInput placeholder="Search models..." />
-              <CommandList>
-                <CommandEmpty>No model found.</CommandEmpty>
-                <CommandGroup heading="Models">
-                  {modelItems.map((item) => {
-                    const isSelected =
-                      selectedModel?.providerID === item.providerID &&
-                      selectedModel?.modelID === item.modelID;
-
-                    return (
-                      <CommandItem
-                        key={`${item.providerID}-${item.modelID}`}
-                        value={`${item.providerName} ${item.modelName} ${item.providerID} ${item.modelID}`}
-                        onSelect={() => {
-                          setSelectedModel({ providerID: item.providerID, modelID: item.modelID });
-                          setModelComboboxOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn("h-4 w-4", isSelected ? "opacity-100" : "opacity-0")}
-                        />
-                        <div className="min-w-0">
-                          <div className="truncate text-sm">
-                            {item.providerName} / {item.modelName}
-                          </div>
-                          <div className="truncate text-[10px] text-muted-foreground">
-                            {item.providerID} / {item.modelID}
-                          </div>
-                        </div>
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        <CompactModelVariantPicker
+          ariaLabel="Select model"
+          contentAlign="start"
+          contentSide="top"
+          emptyLabel="Model"
+          modelItems={modelItems}
+          onSelect={setSelectedModel}
+          selectedModel={selectedModel}
+          triggerClassName="h-8 w-70 px-2 text-xs text-muted-foreground"
+          variantsByModel={variantsByModel}
+        />
       </div>
     );
   }
@@ -218,7 +161,8 @@ const MessageComposer = ({
   placeholder,
 }: Props) => {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providers, setProviders] = useState<OpencodeProvider[]>([]);
+  const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
 
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
@@ -255,8 +199,9 @@ const MessageComposer = ({
     const loadProviders = async () => {
       const response = await fetch("/api/providers").catch(() => null);
       if (!response?.ok) return;
-      const data = (await response.json()) as ProvidersResponse;
+      const data = (await response.json()) as OpencodeProvidersResponse;
       setProviders(data.providers ?? []);
+      setVariantsByModel(data.variantsByModel ?? {});
       const currentModel = useChatStore.getState().selectedModel;
       if (!currentModel && data.providers?.length) {
         const provider = data.providers[0];
@@ -273,25 +218,7 @@ const MessageComposer = ({
     loadProviders();
   }, [lockedAgent]);
 
-  const modelItems = useMemo<ModelItem[]>(() => {
-    return providers.flatMap((provider) =>
-      Object.values(provider.models ?? {}).map((model) => ({
-        providerID: provider.id,
-        providerName: provider.name,
-        modelID: model.id,
-        modelName: model.name,
-      }))
-    );
-  }, [providers]);
-
-  const currentModelLabel = useMemo(() => {
-    const current = modelItems.find(
-      (item) =>
-        item.providerID === selectedModel?.providerID && item.modelID === selectedModel?.modelID
-    );
-    if (current) return `${current.providerName} / ${current.modelName}`;
-    return "Model";
-  }, [modelItems, selectedModel]);
+  const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
 
   const getSendOptions = useCallback(() => {
     return { agent: lockedAgent ?? selectedAgent };
@@ -312,12 +239,12 @@ const MessageComposer = ({
         <ComposerSelectionControls
           agents={agents}
           modelItems={modelItems}
-          currentModelLabel={currentModelLabel}
           lockedAgent={lockedAgent}
           selectedAgent={selectedAgent}
           selectedModel={selectedModel}
           setSelectedAgent={setSelectedAgent}
           setSelectedModel={setSelectedModel}
+          variantsByModel={variantsByModel}
         />
       }
     />

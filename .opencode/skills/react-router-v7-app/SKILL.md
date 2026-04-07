@@ -8,6 +8,8 @@ description: Implements React Router v7 app structure, routing patterns, and com
 ## 1. Route Structure
 - Use file-based routing in `app/routes/`.
 - Route files: `route.tsx` for route components.
+- Prefer folder routes like `users.$id/route.tsx` when a route needs colocated helpers, components, or tests; sibling files in the folder do not become routes.
+- If tests live under `app/routes/`, configure `flatRoutes({ ignoredRouteFiles: [...] })` to exclude `*.test.*` and `*.spec.*` from route discovery.
 - Use underscore prefix for route groups: `_app`, `_landing`.
 - Use dot notation for nested routes: `users.$id.tsx`.
 
@@ -112,6 +114,8 @@ app/components
 ### routes
 
 Use collocation to group files related to layouts and pages.
+
+- Keep the route module in `route.tsx` and colocate route-local tests as `route.test.ts` only when route discovery is configured to ignore test/spec files.
 
 ```sh
 app/routes/_app._index

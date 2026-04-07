@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { PROJECT_SCOPES, type ProjectScope } from "@/lib/project-scopes";
 import { ensureRequiredWebConfigFiles } from "@/lib/required-config.server";
@@ -103,6 +103,50 @@ export function getProjectDefinitionPath(root: string, id: string): string {
   return join(root, "projects", id, "project.yaml");
 }
 
+function resolveManifestPath(projectDefinitionPath: string, filePath: unknown): string {
+  if (typeof filePath !== "string" || filePath.length === 0) {
+    return "";
+  }
+
+  if (isAbsolute(filePath)) {
+    return resolve(filePath);
+  }
+
+  return resolve(dirname(projectDefinitionPath), filePath);
+}
+
+function readProjectDefinitionFile(projectPath: string): RegisteredProjectDefinition | null {
+  try {
+    const raw = readFileSync(projectPath, "utf-8");
+    const parsed = parseYaml(raw);
+
+    if (!parsed?.id || typeof parsed.id !== "string") {
+      return null;
+    }
+
+    const instructionFiles = Array.isArray(parsed.instruction_files)
+      ? parsed.instruction_files
+          .filter(
+            (file: unknown): file is Record<string, unknown> => !!file && typeof file === "object"
+          )
+          .map((file: Record<string, unknown>) => ({
+            path: resolveManifestPath(projectPath, file.path),
+            enabled: file.enabled !== false,
+          }))
+      : [];
+
+    return {
+      id: parsed.id,
+      name: typeof parsed.name === "string" ? parsed.name : parsed.id,
+      rootPath: resolveManifestPath(projectPath, parsed.root_path),
+      serenaProject: typeof parsed.serena_project === "string" ? parsed.serena_project : "",
+      instructionFiles,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function readRegisteredProjects(root: string): ProjectEntry[] {
   const projectsDir = join(root, "projects");
   const projects: ProjectEntry[] = [];
@@ -116,35 +160,30 @@ export function readRegisteredProjects(root: string): ProjectEntry[] {
   );
 
   for (const directory of directories) {
-    try {
-      const raw = readFileSync(join(projectsDir, directory.name, "project.yaml"), "utf-8");
-      const parsed = parseYaml(raw);
-      if (!parsed?.id) {
-        continue;
-      }
-
-      let branchName = "";
-      if (parsed.root_path && existsSync(parsed.root_path)) {
-        try {
-          branchName = execSync("git branch --show-current", {
-            cwd: parsed.root_path,
-            encoding: "utf-8",
-            stdio: ["ignore", "pipe", "ignore"],
-          }).trim();
-        } catch {
-          // non-git project root — ignore
-        }
-      }
-
-      projects.push({
-        id: parsed.id,
-        displayName: parsed.name ?? parsed.id,
-        path: parsed.root_path ?? "",
-        branchName: branchName || undefined,
-      });
-    } catch {
-      // skip malformed project files
+    const definition = readProjectDefinitionFile(join(projectsDir, directory.name, "project.yaml"));
+    if (!definition) {
+      continue;
     }
+
+    let branchName = "";
+    if (definition.rootPath && existsSync(definition.rootPath)) {
+      try {
+        branchName = execSync("git branch --show-current", {
+          cwd: definition.rootPath,
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
+      } catch {
+        // non-git project root — ignore
+      }
+    }
+
+    projects.push({
+      id: definition.id,
+      displayName: definition.name,
+      path: definition.rootPath,
+      branchName: branchName || undefined,
+    });
   }
 
   return projects;
@@ -160,35 +199,41 @@ export function readRegisteredProjectDefinition(
     return null;
   }
 
-  try {
-    const raw = readFileSync(projectPath, "utf-8");
-    const parsed = parseYaml(raw);
+  return readProjectDefinitionFile(projectPath);
+}
 
-    if (!parsed?.id || typeof parsed.id !== "string") {
-      return null;
+export function getProjectAuthoringDirectory(root: string, id: string): string {
+  return dirname(getProjectDefinitionPath(root, id));
+}
+
+export function getActiveProjectDefinitionsForScope(
+  appRoot: string,
+  scope: ProjectScope | null
+): RegisteredProjectDefinition[] {
+  if (scope === null) {
+    return [];
+  }
+
+  const { projectScopes } = readScopedProjectsConfig(appRoot);
+  const activeProjectIds = projectScopes[scope].activeProjectIds;
+  const definitions: RegisteredProjectDefinition[] = [];
+  const seen = new Set<string>();
+
+  for (const id of activeProjectIds) {
+    if (seen.has(id)) {
+      continue;
     }
 
-    const instructionFiles = Array.isArray(parsed.instruction_files)
-      ? parsed.instruction_files
-          .filter(
-            (file: unknown): file is Record<string, unknown> => !!file && typeof file === "object"
-          )
-          .map((file: Record<string, unknown>) => ({
-            path: typeof file.path === "string" ? file.path : "",
-            enabled: file.enabled !== false,
-          }))
-      : [];
+    const definition = readRegisteredProjectDefinition(appRoot, id);
+    if (!definition) {
+      continue;
+    }
 
-    return {
-      id: parsed.id,
-      name: typeof parsed.name === "string" ? parsed.name : parsed.id,
-      rootPath: typeof parsed.root_path === "string" ? parsed.root_path : "",
-      serenaProject: typeof parsed.serena_project === "string" ? parsed.serena_project : "",
-      instructionFiles,
-    };
-  } catch {
-    return null;
+    seen.add(id);
+    definitions.push(definition);
   }
+
+  return definitions;
 }
 
 export function getActiveProjectRootsForScope(
@@ -199,24 +244,15 @@ export function getActiveProjectRootsForScope(
     return [];
   }
 
-  const { projectScopes } = readScopedProjectsConfig(appRoot);
-  const activeProjectIds = projectScopes[scope].activeProjectIds;
   const roots: string[] = [];
 
-  for (const id of activeProjectIds) {
-    const projectPath = getProjectDefinitionPath(appRoot, id);
-    if (!existsSync(projectPath)) {
+  for (const definition of getActiveProjectDefinitionsForScope(appRoot, scope)) {
+    if (!definition.rootPath) {
       continue;
     }
 
-    try {
-      const raw = readFileSync(projectPath, "utf-8");
-      const parsed = parseYaml(raw);
-      if (parsed?.root_path && existsSync(parsed.root_path)) {
-        roots.push(parsed.root_path);
-      }
-    } catch {
-      // ignore malformed project definitions
+    if (existsSync(definition.rootPath)) {
+      roots.push(definition.rootPath);
     }
   }
 

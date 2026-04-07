@@ -12,6 +12,7 @@ import type {
   MissionStatus,
   MissionSummary,
   ModelSelection,
+  OperationState,
   Task,
   TaskStatus,
   WorkerAgentId,
@@ -20,12 +21,33 @@ import type {
 
 const store = new Map<string, Mission>();
 
-function getMissionStoreDir(): string {
+export function getMissionStoreDir(): string {
   return join(getProjectRoot(), "runtime", "noctis-missions");
 }
 
-function getMissionFilePath(id: string): string {
-  return join(getMissionStoreDir(), `${id}.json`);
+export function getMissionDir(id: string): string {
+  return join(getMissionStoreDir(), id);
+}
+
+export function getMissionFilePath(id: string): string {
+  return join(getMissionDir(id), "mission.json");
+}
+
+export function getMissionOutputsDir(id: string): string {
+  return join(getMissionDir(id), "outputs");
+}
+
+export function getMissionTaskOutputDir(missionId: string, step: string, taskId: string): string {
+  return join(getMissionOutputsDir(missionId), step, taskId);
+}
+
+export function getMissionOutputFilePath(
+  missionId: string,
+  step: string,
+  taskId: string,
+  filename: string,
+): string {
+  return join(getMissionTaskOutputDir(missionId, step, taskId), filename);
 }
 
 function ensureMissionStoreDir(): void {
@@ -35,8 +57,16 @@ function ensureMissionStoreDir(): void {
   }
 }
 
-function persistMission(mission: Mission): void {
+function ensureMissionDir(id: string): void {
   ensureMissionStoreDir();
+  const dir = getMissionDir(id);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+export function persistMissionToDisk(mission: Mission): void {
+  ensureMissionDir(mission.id);
   writeFileSync(getMissionFilePath(mission.id), JSON.stringify(mission, null, 2), "utf-8");
 }
 
@@ -48,7 +78,48 @@ function readMissionFromDisk(id: string): Mission | null {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
+    parsed.allowedWorkers = Array.isArray(parsed.allowedWorkers)
+      ? parsed.allowedWorkers.filter(
+          (item): item is WorkerAgentId =>
+            item === "ignis" || item === "gladiolus" || item === "prompto",
+        )
+      : [];
     parsed.archivedAt = typeof parsed.archivedAt === "string" ? parsed.archivedAt : undefined;
+    if (parsed.operationState && "previousResponse" in parsed.operationState) {
+      delete (parsed.operationState as { previousResponse?: string | null }).previousResponse;
+    }
+    if (parsed.operationState) {
+      const operationState = parsed.operationState as OperationState & {
+        delegatedTasks?: unknown;
+      };
+      operationState.delegatedTasks = Array.isArray(operationState.delegatedTasks)
+        ? operationState.delegatedTasks
+            .filter(
+              (item): item is NonNullable<OperationState["delegatedTasks"]>[number] =>
+                !!item &&
+                typeof item === "object" &&
+                typeof (item as { parentStep?: unknown }).parentStep === "string" &&
+                typeof (item as { taskId?: unknown }).taskId === "string" &&
+                ((item as { agent?: unknown }).agent === "ignis" ||
+                  (item as { agent?: unknown }).agent === "gladiolus" ||
+                  (item as { agent?: unknown }).agent === "prompto") &&
+                ((item as { status?: unknown }).status === "dispatched" ||
+                  (item as { status?: unknown }).status === "completed" ||
+                  (item as { status?: unknown }).status === "failed") &&
+                typeof (item as { createdAt?: unknown }).createdAt === "string",
+            )
+            .map((item) => ({
+              parentStep: item.parentStep,
+              taskId: item.taskId,
+              agent: item.agent,
+              status: item.status,
+              createdAt: item.createdAt,
+              completedAt: typeof item.completedAt === "string" ? item.completedAt : undefined,
+              message: typeof item.message === "string" ? item.message : undefined,
+              summary: typeof item.summary === "string" ? item.summary : undefined,
+            }))
+        : [];
+    }
     return parsed;
   } catch {
     return null;
@@ -72,19 +143,20 @@ function touchMission(mission: Mission, status?: MissionStatus): void {
   if (status) {
     mission.status = status;
   }
-  persistMission(mission);
+  persistMissionToDisk(mission);
 }
 
 export function createMission(
   id: string,
   noctisSessionId: string,
-  options?: { title?: string; objective?: string }
+  options?: { title?: string; objective?: string; allowedWorkers?: WorkerAgentId[] }
 ): Mission {
   const now = new Date().toISOString();
   const mission: Mission = {
     id,
     noctisSessionId,
     workerSessions: {},
+    allowedWorkers: options?.allowedWorkers ?? [],
     taskGraph: [],
     delegationLedger: {
       missionId: id,
@@ -101,7 +173,7 @@ export function createMission(
     activityLog: [],
   };
   store.set(id, mission);
-  persistMission(mission);
+  persistMissionToDisk(mission);
   return mission;
 }
 
@@ -129,9 +201,11 @@ export function listMissionSummaries(options?: { view?: "active" | "archived" | 
 
   const view = options?.view ?? "active";
 
-  const filenames = readdirSync(dir).filter((name) => name.endsWith(".json"));
-  const missions = filenames
-    .map((filename) => readMissionFromDisk(filename.replace(/\.json$/, "")))
+  const missionIds = readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  const missions = missionIds
+    .map((missionId) => readMissionFromDisk(missionId))
     .filter((mission): mission is Mission => mission !== null)
     .filter((mission) => {
       if (view === "all") {
@@ -186,6 +260,13 @@ export function setAgentModels(
   const mission = getMission(missionId);
   if (!mission) return;
   mission.agentModels = { ...mission.agentModels, ...agentModels };
+  touchMission(mission);
+}
+
+export function setAllowedWorkers(missionId: string, allowedWorkers: WorkerAgentId[]): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.allowedWorkers = [...allowedWorkers];
   touchMission(mission);
 }
 

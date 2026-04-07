@@ -19,7 +19,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     const client = getOpencodeClient();
     const [statusResult, messagesResult] = await Promise.all([
       client.session.status(),
-      client.session.messages({ path: { id: mission.noctisSessionId } }),
+      client.session.messages({ sessionID: mission.noctisSessionId }),
     ]);
 
     if (statusResult.error) {
@@ -76,6 +76,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       },
       delegationLedger: mission.delegationLedger,
       messageLog: mission.messageLog,
+      operationState: mission.operationState ?? null,
       contextUsageByAgent,
       sessionStatuses,
       noctisMessages: messagesResult.data ?? [],

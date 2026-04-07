@@ -43,8 +43,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const title =
       typeof body?.title === "string" && body.title.trim() ? body.title.trim() : undefined;
     const result = await client.session.create({
-      query: { directory: projectRoot },
-      body: title ? { title } : {},
+      directory: projectRoot,
+      ...(title ? { title } : {}),
     });
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });

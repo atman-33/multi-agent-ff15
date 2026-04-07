@@ -10,9 +10,9 @@ describe("team message envelopes", () => {
       type: "report",
       body: "Mission complete",
       taskId: "task-42",
+      next: "COMPLETE",
       reportStatus: "completed",
       artifacts: ["docs/report.md"],
-      details: "All objectives met.",
     });
 
     expect(parseRoutedMessageEnvelope(envelope)).toEqual({
@@ -20,14 +20,41 @@ describe("team message envelopes", () => {
       to: "noctis",
       messageType: "report",
       taskId: "task-42",
+      next: "COMPLETE",
       status: "completed",
-      summary: "Mission complete",
-      details: "All objectives met.",
+      body: "Mission complete",
+      summary: undefined,
+      details: undefined,
       artifacts: ["docs/report.md"],
     });
   });
 
-  it("parses legacy envelopes and normalizes actor aliases", () => {
+  it("round-trips next in routed report envelopes", () => {
+    const envelope = buildTeamMessageEnvelope({
+      from: "gladiolus",
+      to: "noctis",
+      type: "report",
+      body: "Implementation complete",
+      taskId: "task-99",
+      next: "refactor",
+      reportStatus: "completed",
+    });
+
+    expect(parseRoutedMessageEnvelope(envelope)).toEqual({
+      speaker: "gladiolus",
+      to: "noctis",
+      messageType: "report",
+      taskId: "task-99",
+      next: "refactor",
+      status: "completed",
+      body: "Implementation complete",
+      summary: undefined,
+      details: undefined,
+      artifacts: undefined,
+    });
+  });
+
+  it("parses legacy envelopes and normalizes the gladio alias", () => {
     const legacyEnvelope = [
       "[TEAM_MESSAGE]",
       "from: Gladio",

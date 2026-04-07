@@ -1,22 +1,14 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { getMission } from "@/lib/mission-store";
+import { getMission, setAllowedWorkers } from "@/lib/mission-store";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
   coerceAllowedWorkers,
-  getNoctisAgentProfile,
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
-import type { ModelSelection } from "@/lib/types/mission";
+import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
+import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import type { Route } from "./+types/api.noctis.mission.continue";
-
-function isModelSelection(value: unknown): value is ModelSelection {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return typeof v.providerID === "string" && typeof v.modelID === "string";
-}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
@@ -60,47 +52,50 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   const missionId = body.missionId.trim();
-  const routedPromptParts: PromptPart[] = [
-    {
-      type: "text",
-      text: buildRoutedMessageEnvelope({
-        speaker: "crystal",
-        to: "noctis",
-        messageType: "chat",
-        body: stringifyPromptParts(promptParts),
-      }),
-    },
-  ];
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
-  const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
-  const executionMode = getNoctisExecutionMode(allowedWorkers);
-  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
 
   const mission = getMission(missionId);
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
 
+  const allowedWorkers =
+    body.allowedWorkers === undefined
+      ? mission.allowedWorkers
+      : coerceAllowedWorkers(body.allowedWorkers);
+  setAllowedWorkers(missionId, allowedWorkers);
+  const executionMode = getNoctisExecutionMode(allowedWorkers);
+  const noctisAgentProfile = "noctis" as const;
+
   const effectiveModel = noctisModel ?? mission.agentModels.noctis;
+  const { model, variant } = splitModelSelection(effectiveModel);
 
   try {
     const client = getOpencodeClient();
-    const injectedContext = buildInjectedPromptContext({
+    const appRoot = getProjectRoot();
+
+    const userMessage = stringifyPromptParts(promptParts);
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        missionId,
+        sessionId: mission.noctisSessionId,
+        agent: noctisAgentProfile,
+        allowedWorkers,
+        appRoot,
+        executionMode,
+      },
+      userMessage,
       missionId,
       sessionId: mission.noctisSessionId,
-      agent: noctisAgentProfile,
-      allowedWorkers,
-      appRoot: getProjectRoot(),
-      executionMode,
+      isNewMission: false,
     });
 
     const result = await client.session.promptAsync({
-      path: { id: mission.noctisSessionId },
-      body: {
-        parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
-        agent: noctisAgentProfile,
-        ...(effectiveModel ? { model: effectiveModel } : {}),
-      },
+      sessionID: mission.noctisSessionId,
+      parts: composed.payloadParts,
+      agent: noctisAgentProfile,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
     });
 
     if (result.error) {

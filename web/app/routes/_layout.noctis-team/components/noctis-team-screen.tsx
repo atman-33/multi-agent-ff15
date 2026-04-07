@@ -20,18 +20,24 @@ import {
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type MissionResumePayload,
   type MissionSummary,
   useAgentSession,
 } from "@/hooks/use-agent-session";
 import type { AppLanguage } from "@/lib/app-language.server";
+import type { MissionOutputDocument, MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import { BanterLog } from "./banter-log";
 import { ChatArea } from "./chat-area";
+import {
+  getMissionOutputKey,
+  MissionOutputBrowser,
+  pickPreferredMissionOutput,
+} from "./mission-output-browser";
 import { PartyStatusPanel } from "./party-status-panel";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
@@ -43,6 +49,8 @@ type BulkMissionDialogState = {
   count: number;
   skipped: number;
 } | null;
+
+type InspectorTab = "banter" | "outputs";
 
 type MissionHistoryItemProps = {
   mission: MissionSummary;
@@ -121,38 +129,37 @@ const MissionHistoryItem = memo(
     return (
       <div
         className={cn(
-          "group w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 transition-colors",
+          "group relative w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-3 transition-colors",
           isActive ? "border-primary/40 bg-primary/10" : "border-border/50 bg-card/40 hover:bg-card/70"
         )}
       >
-        <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-          <NavLink
-            className="block min-w-0"
-            to={`/noctis-team/mission/${mission.missionId}`}
-          >
-            <div className="mb-1 flex min-w-0 items-center gap-2">
-              <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-sm">
-                {mission.title}
-              </span>
-              <span className="max-w-28 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
+        <NavLink
+          aria-label={`Open mission ${mission.title}`}
+          className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+          to={`/noctis-team/mission/${mission.missionId}`}
+        />
+        <div className="relative w-full min-w-0">
+          <div className="pointer-events-none min-w-0 pr-14">
+            <span className="block min-w-0 pr-1 font-semibold text-sm leading-5 line-clamp-2 wrap-break-word">
+              {mission.title}
+            </span>
+            <div className="mt-2 flex min-w-0 items-center gap-2">
+              <span className="max-w-24 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
                 {mission.status}
               </span>
+              <p className="min-w-0 flex-1 truncate text-right font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
+                {new Date(mission.updatedAt).toLocaleString("en-US", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })}
+              </p>
             </div>
-            <p className="line-clamp-2 font-mono text-[10px] text-muted-foreground/70">
-              {mission.objective || "No objective recorded"}
-            </p>
-            <p className="mt-2 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
-              {new Date(mission.updatedAt).toLocaleString("en-US", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })}
-            </p>
-          </NavLink>
-          <div className="flex items-center gap-1">
+          </div>
+          <div className="absolute right-0 top-0 z-10 flex items-center gap-1">
             {!isArchivedView ? (
               <Button
                 type="button"
@@ -238,6 +245,15 @@ export function NoctisTeamScreen({
   const [bulkMissionDialog, setBulkMissionDialog] = useState<BulkMissionDialogState>(null);
   const [isBulkMissionActionPending, setIsBulkMissionActionPending] = useState(false);
   const [isRenamingMission, setIsRenamingMission] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("banter");
+  const [missionOutputs, setMissionOutputs] = useState<MissionOutputSummary[]>([]);
+  const [isLoadingMissionOutputs, setIsLoadingMissionOutputs] = useState(false);
+  const [missionOutputsError, setMissionOutputsError] = useState<string | null>(null);
+  const [selectedOutputKey, setSelectedOutputKey] = useState<string | null>(null);
+  const [selectedOutputDocument, setSelectedOutputDocument] = useState<MissionOutputDocument | null>(null);
+  const [isLoadingSelectedOutput, setIsLoadingSelectedOutput] = useState(false);
+  const [selectedOutputError, setSelectedOutputError] = useState<string | null>(null);
+  const [isOutputPreviewOpen, setIsOutputPreviewOpen] = useState(false);
   const {
     messages,
     banterEntries,
@@ -247,6 +263,11 @@ export function NoctisTeamScreen({
     isSessionActive,
     isStreaming,
     isLoadingHistory,
+    availableOperations,
+    selectedOperation,
+    activeOperationState,
+    isOperationSelectionLocked,
+    setSelectedOperation,
     send,
     abort,
   } = useAgentSession({
@@ -255,6 +276,19 @@ export function NoctisTeamScreen({
     initialMissionData,
     initialMessageInfos,
   });
+  const currentOperationStep =
+    activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
+
+  const resetMissionOutputsState = useCallback(() => {
+    setMissionOutputs([]);
+    setMissionOutputsError(null);
+    setSelectedOutputKey(null);
+    setSelectedOutputDocument(null);
+    setSelectedOutputError(null);
+    setIsLoadingMissionOutputs(false);
+    setIsLoadingSelectedOutput(false);
+    setIsOutputPreviewOpen(false);
+  }, []);
 
   const loadMissions = useCallback(async () => {
     setIsLoadingMissions(true);
@@ -272,9 +306,120 @@ export function NoctisTeamScreen({
     }
   }, []);
 
+  const loadMissionOutputs = useCallback(async () => {
+    if (!effectiveMissionId) {
+      resetMissionOutputsState();
+      return;
+    }
+
+    setIsLoadingMissionOutputs(true);
+    setMissionOutputsError(null);
+    try {
+      const response = await fetch(`/api/missions/${effectiveMissionId}/outputs`);
+      if (!response.ok) {
+        throw new Error(`outputs failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { error?: string; outputs?: MissionOutputSummary[] };
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setMissionOutputs(Array.isArray(data.outputs) ? data.outputs : []);
+    } catch (error) {
+      setMissionOutputs([]);
+      setMissionOutputsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsLoadingMissionOutputs(false);
+    }
+  }, [effectiveMissionId, resetMissionOutputsState]);
+
   useEffect(() => {
     void loadMissions();
   }, [loadMissions]);
+
+  useEffect(() => {
+    void loadMissionOutputs();
+  }, [loadMissionOutputs]);
+
+  useEffect(() => {
+    if (missionOutputs.length === 0) {
+      setSelectedOutputKey(null);
+      setSelectedOutputDocument(null);
+      setSelectedOutputError(null);
+      setIsOutputPreviewOpen(false);
+      return;
+    }
+
+    setSelectedOutputKey((current) => {
+      if (
+        current &&
+        missionOutputs.some((output) => getMissionOutputKey(output) === current)
+      ) {
+        return current;
+      }
+
+      const preferredOutput = pickPreferredMissionOutput(missionOutputs, currentOperationStep);
+      return preferredOutput ? getMissionOutputKey(preferredOutput) : null;
+    });
+  }, [currentOperationStep, missionOutputs]);
+
+  const selectedOutput = useMemo(
+    () =>
+      missionOutputs.find((output) => getMissionOutputKey(output) === selectedOutputKey) ?? null,
+    [missionOutputs, selectedOutputKey],
+  );
+
+  useEffect(() => {
+    if (!effectiveMissionId || !selectedOutput) {
+      setSelectedOutputDocument(null);
+      setSelectedOutputError(null);
+      setIsLoadingSelectedOutput(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSelectedOutput = async () => {
+      setIsLoadingSelectedOutput(true);
+      setSelectedOutputError(null);
+      try {
+        const params = new URLSearchParams({
+          step: selectedOutput.step,
+          taskId: selectedOutput.taskId,
+          file: selectedOutput.filename,
+        });
+        const response = await fetch(`/api/missions/${effectiveMissionId}/output?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error(`output failed: ${response.status}`);
+        }
+
+        const data = (await response.json()) as MissionOutputDocument & { error?: string };
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        if (!cancelled) {
+          setSelectedOutputDocument(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedOutputDocument(null);
+          setSelectedOutputError(error instanceof Error ? error.message : String(error));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingSelectedOutput(false);
+        }
+      }
+    };
+
+    void loadSelectedOutput();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveMissionId, selectedOutput]);
 
   const missionCounts = useMemo(() => {
     return missions.reduce(
@@ -517,6 +662,16 @@ export function NoctisTeamScreen({
     [effectiveMissionId, loadMissions, navigate, send]
   );
 
+  const handleOpenOutputs = useCallback(() => {
+    setInspectorTab("outputs");
+  }, []);
+
+  const handleSelectOutput = useCallback((output: MissionOutputSummary) => {
+    setSelectedOutputKey(getMissionOutputKey(output));
+    setInspectorTab("outputs");
+    setIsOutputPreviewOpen(true);
+  }, []);
+
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden">
       <ResizablePanelGroup
@@ -642,9 +797,16 @@ export function NoctisTeamScreen({
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
+              availableOperations={availableOperations}
+              selectedOperation={selectedOperation}
+              activeOperationState={activeOperationState}
+              isOperationSelectionLocked={isOperationSelectionLocked}
+              onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}
               onSend={handleSend}
               showAbortAction={isSessionActive && !isLoadingHistory}
+              outputCount={missionOutputs.length}
+              onOpenOutputs={handleOpenOutputs}
             />
           </div>
         </ResizablePanel>
@@ -655,12 +817,48 @@ export function NoctisTeamScreen({
               <PartyStatusPanel members={partyMembers} speakingAgentId={speakingAgentId} />
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden p-3">
-              <BanterLog
-                entries={effectiveMissionId ? banterEntries : []}
-                latestEntryId={effectiveMissionId ? latestBanterEntryId : null}
-              />
-            </div>
+            <Tabs
+              className="flex min-h-0 flex-1 flex-col"
+              value={inspectorTab}
+              onValueChange={(value) => setInspectorTab(value === "outputs" ? "outputs" : "banter")}
+            >
+              <div className="shrink-0 border-border/50 border-b px-3 pt-2">
+                <TabsList className="w-full justify-start border-border/50" variant="line">
+                  <TabsTrigger className="px-3" value="banter" variant="line">
+                    Banter
+                  </TabsTrigger>
+                  <TabsTrigger className="px-3" value="outputs" variant="line">
+                    Outputs ({missionOutputs.length})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent className="mt-0 min-h-0 flex-1 overflow-hidden p-3" value="banter">
+                <BanterLog
+                  entries={effectiveMissionId ? banterEntries : []}
+                  latestEntryId={effectiveMissionId ? latestBanterEntryId : null}
+                />
+              </TabsContent>
+
+              <TabsContent className="mt-0 min-h-0 flex-1 overflow-hidden" value="outputs">
+                <MissionOutputBrowser
+                  currentStep={currentOperationStep}
+                  isLoadingOutputs={isLoadingMissionOutputs}
+                  isLoadingPreview={isLoadingSelectedOutput}
+                  onPreviewOpenChange={setIsOutputPreviewOpen}
+                  onReload={() => {
+                    void loadMissionOutputs();
+                  }}
+                  onSelectOutput={handleSelectOutput}
+                  outputs={missionOutputs}
+                  outputsError={missionOutputsError}
+                  previewDocument={selectedOutputDocument}
+                  previewError={selectedOutputError}
+                  previewOpen={isOutputPreviewOpen}
+                  selectedOutput={selectedOutput}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

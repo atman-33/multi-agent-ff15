@@ -9,7 +9,7 @@ export const action = async ({ params }: Route.ActionArgs) => {
 
   try {
     const client = getOpencodeClient();
-    const result = await client.session.abort({ path: { id: sessionId } });
+    const result = await client.session.abort({ sessionID: sessionId });
 
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });

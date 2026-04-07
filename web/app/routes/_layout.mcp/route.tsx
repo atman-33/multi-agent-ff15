@@ -216,7 +216,7 @@ const McpPage = ({ loaderData }: Route.ComponentProps) => {
               <Card
                 className={cn(
                   "overflow-hidden transition-all duration-150",
-                  isEnabled ? "border-primary/40 bg-primary/5" : "border-border/60"
+                  isEnabled ? "border-primary/40 bg-card" : "border-border/40 bg-card/45"
                 )}
                 key={name}
               >

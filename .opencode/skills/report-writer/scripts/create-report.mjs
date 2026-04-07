@@ -97,12 +97,8 @@ function renderTags(tags) {
   return `[${tags.map((tag) => JSON.stringify(tag)).join(", ")}]`;
 }
 
-function renderTemplate(title, language) {
-  if (language === "ja") {
-    return `# ${title}\n\n## Scope\n\n## Summary\n\n## Details\n\n## Follow-up\n`;
-  }
-
-  return `# ${title}\n\n## Scope\n\n## Summary\n\n## Details\n\n## Follow-up\n`;
+function renderTemplate(title) {
+  return `# ${title}\n\n`;
 }
 
 function main() {
@@ -128,7 +124,7 @@ function main() {
     "",
   ].join("\n");
 
-  const body = renderTemplate(options.title, language);
+  const body = renderTemplate(options.title);
 
   writeFileSync(absolutePath, `${frontmatter}${body}`, {
     encoding: "utf8",

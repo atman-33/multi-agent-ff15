@@ -13,7 +13,7 @@ model_definitions:
   opencode/trinity-large-preview-free: "Trinity Large Preview"
 
 # Model configuration by mode
-# Each agent has: model (OpenCode model ID), agent (optional, for future use)
+# Each agent has: model (OpenCode model ID), variant (optional named variant), agent (optional, for future use)
 # Comrades: ignis, gladiolus, prompto / Independent: lunafreya / Guardian: iris
 # _description: Mode description shown in help text and startup banner
 modes:
@@ -21,16 +21,22 @@ modes:
     _description: Standard configuration
     noctis:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     ignis:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     gladiolus:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     prompto:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     lunafreya:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     iris:
       model: github-copilot/gpt-5-mini
+      variant: high
 
   fullpower:
     _description: High-performance configuration
@@ -44,8 +50,10 @@ modes:
       model: github-copilot/claude-opus-4.6
     lunafreya:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     iris:
       model: github-copilot/gpt-5-mini
+      variant: high
 
   lite:
     _description: Low-cost configuration
@@ -61,6 +69,7 @@ modes:
       model: github-copilot/claude-haiku-4.5
     iris:
       model: github-copilot/gpt-5-mini
+      variant: high
 
   free:
     _description: Free (minimax-m2.5-free)
@@ -76,33 +85,46 @@ modes:
       model: opencode/minimax-m2.5-free
     iris:
       model: github-copilot/gpt-5-mini
+      variant: high
 
   gpt5mini:
     _description: All agents use GPT-5 Mini
     noctis:
       model: github-copilot/gpt-5-mini
+      variant: high
     ignis:
       model: github-copilot/gpt-5-mini
+      variant: high
     gladiolus:
       model: github-copilot/gpt-5-mini
+      variant: high
     prompto:
       model: github-copilot/gpt-5-mini
+      variant: high
     lunafreya:
       model: github-copilot/gpt-5-mini
+      variant: high
     iris:
       model: github-copilot/gpt-5-mini
+      variant: high
 
   gpt54:
     _description: All agents use GPT-5.4 except Iris
     noctis:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     ignis:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     gladiolus:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     prompto:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     lunafreya:
       model: github-copilot/gpt-5.4
+      variant: xhigh
     iris:
       model: github-copilot/gpt-5-mini
+      variant: high

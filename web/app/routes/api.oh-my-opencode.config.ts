@@ -1,12 +1,14 @@
-import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import {
   readOhMyOpenCodeData,
   writeOhMyOpenCodeConfig,
-  type OhMyOpenCodeConfig,
 } from "@/lib/oh-my-opencode-config.server";
+import type { OhMyOpenCodeConfig } from "@/lib/oh-my-opencode-config";
 
-export const loader = () => {
-  return Response.json(readOhMyOpenCodeData());
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const refreshCatalog = new URL(request.url).searchParams.get("refresh") === "1";
+
+  return Response.json(await readOhMyOpenCodeData({ refreshCatalog }));
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {

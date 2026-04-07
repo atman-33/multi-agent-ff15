@@ -2,25 +2,27 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import type { OhMyOpenCodeConfig, OhMyOpenCodeData } from "@/lib/oh-my-opencode-config";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getOpencodeClient } from "@/lib/opencode-client";
+import {
+  readOpencodeModelCatalog,
+  refreshOpencodeModelCatalog,
+} from "@/lib/opencode-model-catalog.server";
 
-const CONFIG_PATH = join(homedir(), ".config/opencode/oh-my-opencode.json");
+function getConfigPaths(): [string, string] {
+  const configDir = join(homedir(), ".config/opencode");
 
-export interface ModelEntry {
-  model: string;
-  variant?: string;
+  return [
+    join(configDir, "oh-my-openagent.json"),
+    join(configDir, "oh-my-opencode.json"),
+  ];
 }
 
-export interface OhMyOpenCodeConfig {
-  agents?: Record<string, ModelEntry>;
-  categories?: Record<string, ModelEntry>;
-}
+function resolveConfigPath(): string {
+  const configPaths = getConfigPaths();
 
-export interface OhMyOpenCodeData {
-  config: OhMyOpenCodeConfig | null;
-  error?: string;
-  isInstalled: boolean;
-  models: string[];
-  version: string;
+  return configPaths.find((configPath) => existsSync(configPath)) ?? configPaths[0];
 }
 
 function readVersion(): { isInstalled: boolean; version: string } {
@@ -35,58 +37,87 @@ function readVersion(): { isInstalled: boolean; version: string } {
   }
 }
 
-function readModels(): string[] {
-  try {
-    const stdout = execFileSync("opencode", ["models"], {
-      encoding: "utf-8",
-    });
-
-    return stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(
-        (line) => line && !line.startsWith("opencode") && !line.includes("--") && line.includes("/")
-      );
-  } catch {
-    return [];
-  }
-}
-
 function readConfig(): { config: OhMyOpenCodeConfig | null; error?: string } {
-  if (!existsSync(CONFIG_PATH)) {
+  const configPaths = getConfigPaths();
+  const configPath = resolveConfigPath();
+
+  if (!existsSync(configPath)) {
     return {
       config: null,
-      error: `Configuration file not found at ${CONFIG_PATH}`,
+      error: `Configuration file not found at ${configPaths.join(" or ")}`,
     };
   }
 
   try {
-    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    const raw = readFileSync(configPath, "utf-8");
     const config = JSON.parse(raw) as OhMyOpenCodeConfig;
     return { config };
   } catch (error) {
     return {
       config: null,
-      error: `Failed to parse config: ${String(error)}`,
+      error: `Failed to parse config at ${configPath}: ${String(error)}`,
     };
   }
 }
 
-export function readOhMyOpenCodeData(): OhMyOpenCodeData {
+async function readProviders(): Promise<OhMyOpenCodeData["providers"]> {
+  try {
+    const client = getOpencodeClient();
+    const result = await client.config.providers();
+
+    if (result.error || !result.data || !Array.isArray(result.data.providers)) {
+      return [];
+    }
+
+    return result.data.providers;
+  } catch {
+    return [];
+  }
+}
+
+export async function readOhMyOpenCodeData(options?: {
+  refreshCatalog?: boolean;
+}): Promise<OhMyOpenCodeData> {
   const { isInstalled, version } = readVersion();
   const { config, error } = readConfig();
-  const models = readModels();
+  const root = getProjectRoot();
+
+  if (options?.refreshCatalog) {
+    try {
+      await refreshOpencodeModelCatalog(root);
+    } catch {
+      // fall through to the last successful snapshot if available
+    }
+  }
+
+  const [catalog, providers] = await Promise.all([
+    readOpencodeModelCatalog({
+      root,
+      waitForLatest: !options?.refreshCatalog,
+    }),
+    readProviders(),
+  ]);
 
   return {
+    catalog: {
+      generatedAt: catalog.snapshot?.generatedAt ?? null,
+      lastError: catalog.lastError ?? undefined,
+      refreshState: catalog.refreshState,
+      stale: catalog.stale,
+    },
     config,
     error,
     isInstalled,
-    models,
+    models: catalog.snapshot?.models ?? [],
+    providers,
+    variantsByModel: catalog.snapshot?.variantsByModel ?? {},
     version,
   };
 }
 
 export function writeOhMyOpenCodeConfig(config: OhMyOpenCodeConfig) {
-  mkdirSync(dirname(CONFIG_PATH), { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+  const configPath = resolveConfigPath();
+
+  mkdirSync(dirname(configPath), { recursive: true });
+  writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
 }

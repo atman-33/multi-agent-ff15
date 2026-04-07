@@ -326,7 +326,9 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
               <Card
                 className={cn(
                   "transition-all duration-150",
-                  isActiveInAnyScope ? "border-primary/40 bg-primary/5" : "border-border/60"
+                  isActiveInAnyScope
+                    ? "border-primary/40 bg-card"
+                    : "border-border/40 bg-card/45"
                 )}
                 key={project.id}
               >

@@ -1,8 +1,9 @@
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
-export type ActivityActorId = AgentId | "crystal" | "iris" | "system";
+export type ActivityActorId = AgentId | "user" | "iris" | "system";
 export type TeamMessageType = "task" | "report" | "message";
 export type ReportStatus = "running" | "blocked" | "completed" | "failed";
+export type WorkflowNext = string;
 export type MissionActivityKind =
   | "user_message"
   | "assistant_message"
@@ -14,6 +15,7 @@ export type MissionActivityKind =
 export interface ModelSelection {
   providerID: string;
   modelID: string;
+  variant?: string;
 }
 
 export interface AgentContextUsage {
@@ -37,12 +39,16 @@ export interface AgentContextUsage {
 
 export type MissionStatus = "active" | "completed" | "archived";
 
-export interface WorkerResult {
+export interface StepResult {
   task_id: string;
-  status: ReportStatus;
-  summary: string;
+  next: WorkflowNext;
+  message: string;
   artifacts: string[];
+  summary?: string;
+  reportStatus?: ReportStatus;
 }
+
+export type WorkerResult = StepResult;
 
 export type TaskStatus = "pending" | "running" | "blocked" | "completed" | "failed";
 
@@ -52,7 +58,7 @@ export interface Task {
   dependencies: string[];
   status: TaskStatus;
   message: string;
-  result?: WorkerResult;
+  result?: StepResult;
 }
 
 export interface DelegationLedger {
@@ -73,6 +79,7 @@ export interface Mission {
   id: string;
   noctisSessionId: string;
   workerSessions: Partial<Record<WorkerAgentId, string>>;
+  allowedWorkers: WorkerAgentId[];
   taskGraph: Task[];
   delegationLedger: DelegationLedger;
   agentModels: Partial<Record<AgentId, ModelSelection>>;
@@ -84,6 +91,65 @@ export interface Mission {
   status: MissionStatus;
   messageLog: MissionMessageLogEntry[];
   activityLog: MissionActivityLogEntry[];
+  operationState?: OperationState;
+}
+
+export type OperationStatus = "running" | "waiting_for_report" | "complete" | "aborted";
+
+export type DeviationType = "agent_mismatch" | "step_skip" | "order_deviation";
+
+export interface DeviationEntry {
+  type: DeviationType;
+  expected: string;
+  actual: string;
+  timestamp: string;
+}
+
+export interface DeviationTracker {
+  totalDeviations: number;
+  history: DeviationEntry[];
+}
+
+export type DelegatedTaskStatus = "dispatched" | "completed" | "failed";
+
+export interface DelegatedTaskRecord {
+  parentStep: string;
+  taskId: string;
+  agent: WorkerAgentId;
+  status: DelegatedTaskStatus;
+  createdAt: string;
+  completedAt?: string;
+  message?: string;
+  summary?: string;
+}
+
+export type StepHistoryStatus = "dispatched" | "completed" | "failed";
+
+export interface StepHistoryEntry {
+  step: string;
+  agent: AgentId;
+  taskId?: string;
+  status: StepHistoryStatus;
+  ruleMatched?: number;
+  ruleCondition?: string;
+  nextStep?: string;
+  dispatchedAt: string;
+  completedAt?: string;
+  summary?: string;
+}
+
+export interface OperationState {
+  operationName: string;
+  operationRef: string;
+  currentStep: string;
+  iteration: number;
+  status: OperationStatus;
+  activatedAt: string;
+  updatedAt: string;
+  reportDir: string;
+  stepHistory: StepHistoryEntry[];
+  delegatedTasks: DelegatedTaskRecord[];
+  deviations: DeviationTracker;
 }
 
 export interface MissionActivitySource {
@@ -91,6 +157,7 @@ export interface MissionActivitySource {
   sessionId?: string;
   messageId?: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
   deliveryStatus?: "sent" | "failed";
 }
@@ -114,6 +181,7 @@ export interface TeamMessage {
   type: TeamMessageType;
   body: string;
   taskId?: string;
+  next?: WorkflowNext;
   reportStatus?: ReportStatus;
   artifacts?: string[];
   createdAt: string;
@@ -135,6 +203,22 @@ export interface MissionSummary {
   status: MissionStatus;
 }
 
+export interface MissionOutputSummary {
+  step: string;
+  taskId: string;
+  filename: string;
+  title: string;
+  author: string;
+  date: string;
+  filePath: string;
+  tags: string[];
+}
+
+export interface MissionOutputDocument extends MissionOutputSummary {
+  content: string;
+  rawContent: string;
+}
+
 export interface TaskContextParams {
   missionId: string;
   missionObjective: string;
@@ -150,7 +234,7 @@ export function buildTaskContext(params: TaskContextParams): string {
 
   const depSection =
     dependencyResults.length > 0
-      ? dependencyResults.map((r) => `${r.task_id}: ${r.summary}`).join("\n")
+      ? dependencyResults.map((r) => `${r.task_id}: ${r.summary ?? r.message}`).join("\n")
       : "(none)";
 
   return `[GLOBAL CONTEXT]
@@ -167,17 +251,17 @@ ${depSection}
 [CONSTRAINTS]
 - No new external dependencies
 - Chat output alone is not task completion
-- Workers return to Noctis only through scripts/send_report.sh
+- Step results return to runtime through scripts/send_report.sh
 - The report must include the same taskId: ${taskId}
-- A task is complete only after Noctis receives the report for ${taskId}
+- A task is complete only after runtime accepts the report for ${taskId}
 - Do not stop after printing JSON in chat
 
 [OUTPUT FORMAT]
-Return results in WorkerResult format: { task_id, status, summary, artifacts }
+Return results in StepResult format: { task_id, next, message, artifacts }
 
 [MANDATORY DELIVERY]
-- Use scripts/send_report.sh to send your result back to Noctis
-- Use status=running for progress, status=blocked for blockers, status=completed for final success, status=failed for final failure
+- Use scripts/send_report.sh to send your result back to runtime
+- Use one next value plus one quoted message payload
 - Include the same taskId in the report command
 
 [EXPECTED OUTPUT]

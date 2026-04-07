@@ -1,16 +1,19 @@
 import type { ActionFunctionArgs } from "react-router";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
+import { createOpencodeMessageId } from "@/lib/opencode-message-id";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import type { PromptPart } from "@/lib/prompt-parts";
-import { buildPromptPayloadParts, stringifyPromptParts } from "@/lib/prompt-parts";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
+import { stringifyPromptParts } from "@/lib/prompt-parts";
+import { saveSessionRequestAnchor } from "@/lib/session-request-anchors.server";
+import type { SessionSelection } from "@/lib/session-selection-adjustment";
+import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
+import type { ModelSelection } from "@/lib/types/mission";
 
 type StartSessionPayload = {
   parts?: unknown;
-  model?: {
-    providerID: string;
-    modelID: string;
-  };
+  model?: ModelSelection;
   agent?: string;
   missionId?: string;
 };
@@ -41,8 +44,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
+  const requestId = crypto.randomUUID();
   const body = (await request.json().catch(() => null)) as StartSessionPayload | null;
   const parts = Array.isArray(body?.parts) ? body.parts.filter(isPromptPart) : [];
+
+  appendSessionPromptDebugLog({
+    route: "api.opencode.session.start",
+    stage: "request-received",
+    requestId,
+    payload: {
+      body: body ?? null,
+      filteredParts: parts,
+    },
+  });
 
   if (parts.length === 0) {
     return Response.json({ error: "Missing parts" }, { status: 400 });
@@ -52,10 +66,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
     const title = stringifyPromptParts(parts).slice(0, 80).trim() || "Untitled";
+    const selectedModel = isModelSelection(body?.model) ? body.model : undefined;
+    const { model, variant } = splitModelSelection(selectedModel);
+    const userMessageId = createOpencodeMessageId();
+    const requestedSelection: SessionSelection = {
+      agent: body?.agent ? body.agent : null,
+      model: selectedModel ?? null,
+    };
 
     const sessionResult = await client.session.create({
-      query: { directory: projectRoot },
-      body: { title },
+      directory: projectRoot,
+      title,
     });
 
     if (sessionResult.error) {
@@ -67,19 +88,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
     }
 
-    const injectedContext = buildInjectedPromptContext({
-      missionId: typeof body?.missionId === "string" ? body.missionId : undefined,
+    const composed = composeGenericSessionPrompt({
+      context: {
+        missionId: typeof body?.missionId === "string" ? body.missionId : undefined,
+        sessionId,
+        agent: body?.agent,
+        appRoot: projectRoot,
+      },
+      parts,
+    });
+
+    appendSessionPromptDebugLog({
+      route: "api.opencode.session.start",
+      stage: "prompt-dispatched",
+      requestId,
       sessionId,
-      agent: body?.agent,
-      appRoot: projectRoot,
+      payload: {
+        sessionID: sessionId,
+        messageID: userMessageId,
+        model: model ?? null,
+        variant: variant ?? null,
+        agent: body?.agent ?? null,
+        parts: composed.payloadParts,
+      },
     });
 
     const promptResult = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: buildPromptPayloadParts(injectedContext, parts),
-        model: body?.model,
-        agent: body?.agent,
+      sessionID: sessionId,
+      messageID: userMessageId,
+      parts: composed.payloadParts,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
+      ...(body?.agent ? { agent: body.agent } : {}),
+    });
+
+    appendSessionPromptDebugLog({
+      route: "api.opencode.session.start",
+      stage: promptResult.error ? "prompt-error" : "prompt-result",
+      requestId,
+      sessionId,
+      payload: {
+        error: promptResult.error ?? null,
       },
     });
 
@@ -87,8 +136,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: promptResult.error }, { status: 502 });
     }
 
+    try {
+      saveSessionRequestAnchor({
+        sessionId,
+        userMessageId,
+        requested: requestedSelection,
+      });
+    } catch {
+      // Request tracking must never block prompt delivery.
+    }
+
     return Response.json({ session: sessionResult.data }, { status: 201 });
-  } catch {
+  } catch (error) {
+    appendSessionPromptDebugLog({
+      route: "api.opencode.session.start",
+      stage: "prompt-error",
+      requestId,
+      payload: {
+        error,
+      },
+    });
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }
 };

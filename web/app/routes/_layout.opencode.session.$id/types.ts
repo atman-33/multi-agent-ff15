@@ -1,3 +1,6 @@
+import type { ModelSelection } from "@/lib/types/mission";
+import type { SessionSelectionAdjustment } from "@/lib/session-selection-adjustment";
+
 export type MessagePart = {
   type: string;
   text?: string;
@@ -15,6 +18,9 @@ export type MessageInfo = {
     id: string;
     role: "user" | "assistant";
     agent?: string;
+    model?: ModelSelection;
+    parentID?: string;
+    selectionAdjustment?: SessionSelectionAdjustment;
     time: {
       created: number;
       completed?: number;

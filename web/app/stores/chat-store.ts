@@ -5,11 +5,7 @@ import {
   type WorkingPartyState,
 } from "@/lib/noctis-working-party";
 import type { SessionStatus } from "@/lib/session-status";
-
-type ModelSelection = {
-  providerID: string;
-  modelID: string;
-};
+import type { ModelSelection } from "@/lib/types/mission";
 
 type SessionDraftSlashMention = {
   description?: string;
@@ -181,7 +177,11 @@ const getInitialAgentModels = (): Record<string, ModelSelection | null> => {
       }
       const v = value as Record<string, unknown>;
       if (typeof v.providerID === "string" && typeof v.modelID === "string") {
-        result[normalizedAgentId] = { providerID: v.providerID, modelID: v.modelID };
+        result[normalizedAgentId] = {
+          providerID: v.providerID,
+          modelID: v.modelID,
+          ...(typeof v.variant === "string" ? { variant: v.variant } : {}),
+        };
       }
     }
     return sanitizeAgentModels(result);

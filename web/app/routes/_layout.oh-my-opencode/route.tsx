@@ -6,23 +6,29 @@ import {
   Search,
   UserCircle2,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import {
   readOhMyOpenCodeData,
-  type OhMyOpenCodeConfig,
-  type OhMyOpenCodeData,
 } from "@/lib/oh-my-opencode-config.server";
+import {
+  getModelSelectionFromEntry,
+  type OhMyOpenCodeConfig,
+  type OhMyOpenCodeConfigSection,
+  type OhMyOpenCodeData,
+  updateConfigPickerSelection,
+} from "@/lib/oh-my-opencode-config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/page-container";
+import { parseModelReference } from "@/lib/model-variant-selection";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  findModelCatalogItem,
+  flattenProviderModels,
+  type ModelCatalogItem,
+} from "@/lib/opencode-provider-catalog";
+import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
@@ -52,9 +58,60 @@ const LoadingGrid = () => {
   );
 };
 
+function buildFallbackModelItems(models: string[]): ModelCatalogItem[] {
+  const seen = new Set<string>();
+
+  return models.flatMap((modelReference) => {
+    if (seen.has(modelReference)) {
+      return [];
+    }
+
+    seen.add(modelReference);
+    const parsed = parseModelReference(modelReference);
+    if (!parsed) {
+      return [];
+    }
+
+    return [
+      {
+        providerID: parsed.providerID,
+        providerName: parsed.providerID,
+        modelID: parsed.modelID,
+        modelName: parsed.modelID,
+      },
+    ];
+  });
+}
+
+function getModelSummaryLabel(
+  modelItems: ModelCatalogItem[],
+  selection: ModelSelection | null,
+  fallbackModel: string
+): string {
+  const selectedItem = findModelCatalogItem(modelItems, selection);
+  return selectedItem
+    ? `${selectedItem.providerName} / ${selectedItem.modelName}`
+    : fallbackModel;
+}
+
 export const loader = async (_args: Route.LoaderArgs) => readOhMyOpenCodeData();
 
-const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
+function getCatalogStatusLabel(data: OhMyOpenCodeData): string {
+  const generatedAt = data.catalog.generatedAt;
+
+  switch (data.catalog.refreshState) {
+    case "refreshing":
+      return generatedAt ? `Catalog refreshing · last snapshot ${generatedAt}` : "Catalog refreshing";
+    case "error":
+      return generatedAt ? `Catalog stale · last snapshot ${generatedAt}` : "Catalog refresh failed";
+    case "ready":
+      return generatedAt ? `Catalog updated ${generatedAt}` : "Catalog ready";
+    default:
+      return "Catalog unavailable";
+  }
+}
+
+export const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
   const [data, setData] = useState<OhMyOpenCodeData>(loaderData);
   const [config, setConfig] = useState<OhMyOpenCodeConfig>(loaderData.config ?? {});
   const [search, setSearch] = useState("");
@@ -67,12 +124,17 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
     setConfig(loaderData.config ?? {});
   }, [loaderData]);
 
+  const modelItems = useMemo<ModelCatalogItem[]>(() => {
+    const providerItems = flattenProviderModels(data.providers ?? []);
+    return providerItems.length > 0 ? providerItems : buildFallbackModelItems(data.models);
+  }, [data.models, data.providers]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
 
     try {
-      const res = await fetch("/api/oh-my-opencode/config");
+      const res = await fetch("/api/oh-my-opencode/config?refresh=1");
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -80,6 +142,12 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
       const result: OhMyOpenCodeData = await res.json();
       setData(result);
       setConfig(result.config ?? {});
+
+      if (result.catalog.lastError) {
+        toast.error("Catalog refresh failed", { description: result.catalog.lastError });
+      } else {
+        toast.success("Catalog refreshed");
+      }
     } catch (e) {
       setFetchError(String(e));
     } finally {
@@ -87,18 +155,12 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
     }
   }, []);
 
-  const handleModelChange = (type: "agents" | "categories", key: string, model: string) => {
-    setConfig((prev) => ({
-      ...prev,
-      [type]: {
-        ...prev[type],
-        [key]: {
-          ...prev[type]?.[key],
-          model,
-        },
-      },
-    }));
-  };
+  const handleModelSelectionChange = useCallback(
+    (type: OhMyOpenCodeConfigSection, key: string, selection: ModelSelection) => {
+      setConfig((prev) => updateConfigPickerSelection(prev, type, key, selection, data.variantsByModel));
+    },
+    [data.variantsByModel]
+  );
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -146,6 +208,7 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
             <p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
               Configuration v{data?.version ?? "unknown"}
             </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{getCatalogStatusLabel(data)}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button disabled={loading} onClick={fetchData} size="sm" variant="outline">
@@ -178,6 +241,14 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Configuration warning</AlertTitle>
             <AlertDescription className="mt-1">{data.error}</AlertDescription>
+          </Alert>
+        )}
+
+        {data.catalog.lastError && (
+          <Alert variant={data.catalog.stale ? "default" : "destructive"}>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Model catalog warning</AlertTitle>
+            <AlertDescription className="mt-1">{data.catalog.lastError}</AlertDescription>
           </Alert>
         )}
 
@@ -236,33 +307,34 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
                     <div className="min-h-0 overflow-y-auto pr-1">
                       <div className="grid gap-1.5">
                         {filteredAgents.map(([key, entry]) => (
-                          <div
-                            className="flex items-center gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2"
-                            key={key}
-                          >
+                          <div className="flex gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2" key={key}>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-medium text-sm">{key}</div>
-                              {entry.variant ? (
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                                  {entry.variant}
-                                </div>
-                              ) : null}
+                              {(() => {
+                                const selectedModel = getModelSelectionFromEntry(entry);
+                                const modelLabel = getModelSummaryLabel(modelItems, selectedModel, entry.model);
+
+                                return (
+                                  <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                    <span>Model: {modelLabel}</span>
+                                    <span>Variant: {entry.variant ?? "auto"}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-                            <Select
-                              onValueChange={(value) => handleModelChange("agents", key, value)}
-                              value={entry.model}
-                            >
-                              <SelectTrigger className="w-55 sm:w-70 2xl:w-80">
-                                <SelectValue placeholder="Select model" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {data.models.map((model) => (
-                                  <SelectItem key={model} value={model}>
-                                    {model}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="w-55 sm:w-70 2xl:w-80">
+                              <CompactModelVariantPicker
+                                ariaLabel={`Select model for ${key}`}
+                                contentAlign="end"
+                                emptyLabel="Select model"
+                                modelItems={modelItems}
+                                onSelect={(selection) => handleModelSelectionChange("agents", key, selection)}
+                                selectedModel={getModelSelectionFromEntry(entry)}
+                                showProviderName={false}
+                                triggerClassName="h-9 w-full rounded-md border border-border/50 bg-background/60 px-2 text-xs text-foreground hover:bg-accent/60"
+                                variantsByModel={data.variantsByModel}
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -283,33 +355,34 @@ const OhMyOpenCodePage = ({ loaderData }: Route.ComponentProps) => {
                     <div className="min-h-0 overflow-y-auto pr-1">
                       <div className="grid gap-1.5">
                         {filteredCategories.map(([key, entry]) => (
-                          <div
-                            className="flex items-center gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2"
-                            key={key}
-                          >
+                          <div className="flex gap-3 rounded-md border border-border/40 bg-card/30 px-3 py-2" key={key}>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-medium text-sm">{key}</div>
-                              {entry.variant ? (
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                                  {entry.variant}
-                                </div>
-                              ) : null}
+                              {(() => {
+                                const selectedModel = getModelSelectionFromEntry(entry);
+                                const modelLabel = getModelSummaryLabel(modelItems, selectedModel, entry.model);
+
+                                return (
+                                  <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                    <span>Model: {modelLabel}</span>
+                                    <span>Variant: {entry.variant ?? "auto"}</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-                            <Select
-                              onValueChange={(value) => handleModelChange("categories", key, value)}
-                              value={entry.model}
-                            >
-                              <SelectTrigger className="w-55 sm:w-70 2xl:w-80">
-                                <SelectValue placeholder="Select model" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {data.models.map((model) => (
-                                  <SelectItem key={model} value={model}>
-                                    {model}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="w-55 sm:w-70 2xl:w-80">
+                              <CompactModelVariantPicker
+                                ariaLabel={`Select model for ${key}`}
+                                contentAlign="end"
+                                emptyLabel="Select model"
+                                modelItems={modelItems}
+                                onSelect={(selection) => handleModelSelectionChange("categories", key, selection)}
+                                selectedModel={getModelSelectionFromEntry(entry)}
+                                showProviderName={false}
+                                triggerClassName="h-9 w-full rounded-md border border-border/50 bg-background/60 px-2 text-xs text-foreground hover:bg-accent/60"
+                                variantsByModel={data.variantsByModel}
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>

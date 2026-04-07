@@ -3,7 +3,6 @@ export const WORKING_PARTY_MEMBER_IDS = ["ignis", "gladiolus", "prompto"] as con
 export type WorkingPartyMemberId = (typeof WORKING_PARTY_MEMBER_IDS)[number];
 export type WorkingPartyState = Record<WorkingPartyMemberId, boolean>;
 export type NoctisExecutionMode = "solo" | "orchestrated";
-export type NoctisAgentProfile = "noctis" | "noctis-solo";
 
 const WORKING_PARTY_MEMBER_NAMES: Record<WorkingPartyMemberId, string> = {
   ignis: "Ignis",
@@ -64,12 +63,6 @@ export function getNoctisExecutionMode(
   allowedWorkers: readonly WorkingPartyMemberId[]
 ): NoctisExecutionMode {
   return allowedWorkers.length > 0 ? "orchestrated" : "solo";
-}
-
-export function getNoctisAgentProfile(
-  allowedWorkers: readonly WorkingPartyMemberId[]
-): NoctisAgentProfile {
-  return allowedWorkers.length > 0 ? "noctis" : "noctis-solo";
 }
 
 export function getWorkingPartySummary(allowedWorkers: readonly WorkingPartyMemberId[]): string {

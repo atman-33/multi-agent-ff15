@@ -1,22 +1,18 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
+import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
   coerceAllowedWorkers,
-  getNoctisAgentProfile,
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { buildInjectedPromptContext } from "@/lib/prompt-context.server";
-import { buildPromptPayloadParts, type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import { buildRoutedMessageEnvelope } from "@/lib/team-message-format";
+import { resolveDefaultOperationRef } from "@/lib/operation-definition/operation-catalog";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { getOperationState } from "@/lib/operation-runtime/state";
+import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
+import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
-
-function isModelSelection(value: unknown): value is ModelSelection {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return typeof v.providerID === "string" && typeof v.modelID === "string";
-}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
@@ -29,6 +25,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     noctisModel?: unknown;
     workerModels?: unknown;
     allowedWorkers?: unknown;
+    selectedOperation?: unknown;
     title?: unknown;
     objective?: unknown;
   } | null;
@@ -58,23 +55,16 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   const message = stringifyPromptParts(promptParts);
-  const routedPromptParts: PromptPart[] = [
-    {
-      type: "text",
-      text: buildRoutedMessageEnvelope({
-        speaker: "crystal",
-        to: "noctis",
-        messageType: "chat",
-        body: message,
-      }),
-    },
-  ];
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
+  const selectedOperationInput =
+    typeof body.selectedOperation === "string" && body.selectedOperation.trim().length > 0
+      ? body.selectedOperation.trim()
+      : null;
   const noctisModel = isModelSelection(body.noctisModel) ? body.noctisModel : undefined;
   const allowedWorkers = coerceAllowedWorkers(body.allowedWorkers);
   const executionMode = getNoctisExecutionMode(allowedWorkers);
-  const noctisAgentProfile = getNoctisAgentProfile(allowedWorkers);
+  const noctisAgentProfile = "noctis" as const;
 
   const workerModelsRaw =
     body.workerModels && typeof body.workerModels === "object"
@@ -90,11 +80,23 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const language = readOperationLanguage();
+    const selectedOperation =
+      selectedOperationInput ??
+      resolveDefaultOperationRef({
+        root: projectRoot,
+        scope: "noctis_team",
+        builtinLanguages: language === "en" ? ["en"] : [language, "en"],
+      });
+    if (!selectedOperation) {
+      return Response.json({ error: "No workflow is available" }, { status: 409 });
+    }
     const missionId = crypto.randomUUID();
+    const { model, variant } = splitModelSelection(noctisModel);
 
     const sessionResult = await client.session.create({
-      query: { directory: projectRoot },
-      body: { title: `mission:${missionId}` },
+      directory: projectRoot,
+      title: `mission:${missionId}`,
     });
 
     if (sessionResult.error) {
@@ -109,34 +111,45 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const mission = createMission(missionId, sessionId, {
       title: title || message.slice(0, 80),
       objective,
+      allowedWorkers,
     });
     setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);
 
-    const injectedContext = buildInjectedPromptContext({
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        missionId,
+        sessionId,
+        agent: noctisAgentProfile,
+        allowedWorkers,
+        appRoot: projectRoot,
+        executionMode,
+      },
+      userMessage: message,
       missionId,
       sessionId,
-      agent: noctisAgentProfile,
-      allowedWorkers,
-      appRoot: projectRoot,
-      executionMode,
+      isNewMission: true,
+      selectedOperation,
     });
 
     const promptResult = await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        parts: buildPromptPayloadParts(injectedContext, routedPromptParts),
-        agent: noctisAgentProfile,
-        system: ledger,
-        ...(noctisModel ? { model: noctisModel } : {}),
-      },
+      sessionID: sessionId,
+      parts: composed.payloadParts,
+      agent: noctisAgentProfile,
+      system: ledger,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
     });
 
     if (promptResult.error) {
       return Response.json({ error: promptResult.error }, { status: 502 });
     }
 
-    return Response.json({ missionId, noctisSessionId: sessionId });
+    return Response.json({
+      missionId,
+      noctisSessionId: sessionId,
+      operationState: getOperationState(missionId) ?? null,
+    });
   } catch {
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }

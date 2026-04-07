@@ -1,4 +1,4 @@
-import { Radio } from "lucide-react";
+import { FileText, Radio } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -9,16 +9,35 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
+import {
+  DEFAULT_AUTONOMOUS_OPERATION_LABEL,
+  getOperationDisplayLabel,
+  type OperationOption,
+} from "@/lib/operation-presentation";
+import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type { PromptPart } from "@/lib/prompt-parts";
+import {
+  buildRenderedSessionMessages,
+  type RenderedSessionMessage,
+  type SessionPresentationMessage,
+} from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
-import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
+import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
-import { parseInternalContext, removeInternalContext } from "./internal-context";
 import MessageDetailSheet from "./message-detail-sheet";
-import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
+import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-parts";
 
 export interface ChatMessage {
   id: string;
@@ -39,14 +58,16 @@ interface ChatAreaProps {
   isResponding: boolean;
   isSessionActive?: boolean;
   isStreaming?: boolean;
+  availableOperations: OperationOption[];
+  selectedOperation: string | null;
+  activeOperationState: OperationState | null;
+  isOperationSelectionLocked: boolean;
+  onSelectedOperationChange: (operationRef: string | null) => void;
   onAbort?: () => void;
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
-}
-
-interface RenderedChatMessage extends ChatMessage {
-  displayContent: string;
-  intermediateOnly?: boolean;
+  outputCount?: number;
+  onOpenOutputs?: () => void;
 }
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
@@ -56,11 +77,15 @@ const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   prompto: "/images/prompto.png",
 };
 
-function getSenderAvatar(sender: ActivityActorId): string | null {
-  return SENDER_AVATARS[sender] ?? null;
+function getSenderAvatar(sender: ActivityActorId | null): string | null {
+  return sender ? SENDER_AVATARS[sender] ?? null : null;
 }
 
-function getAvatarThemeStyle(sender: ActivityActorId): React.CSSProperties | undefined {
+function getAvatarThemeStyle(sender: ActivityActorId | null): React.CSSProperties | undefined {
+  if (!sender) {
+    return undefined;
+  }
+
   const theme = getAgentTheme(sender);
   if (!theme) {
     return undefined;
@@ -73,193 +98,56 @@ function getAvatarThemeStyle(sender: ActivityActorId): React.CSSProperties | und
   };
 }
 
-function toMessageParts(message: ChatMessage): MessagePart[] {
-  if (message.sender !== "noctis") {
-    if (!message.content) {
-      return [];
-    }
-
-    return [{ type: "text", text: message.content } as MessagePart];
-  }
-
-  if (message.parts && message.parts.length > 0) {
-    return message.parts;
-  }
-
-  if (!message.content) {
-    return [];
-  }
-
-  return [{ type: "text", text: message.content } as MessagePart];
-}
-
-function getMessageRawText(message: ChatMessage): string {
-  if (typeof message.rawText === "string" && message.rawText.trim()) {
-    return message.rawText;
-  }
-
-  if (message.sender !== "noctis") {
-    return message.content;
-  }
-
-  if (message.parts && message.parts.length > 0) {
-    const extracted = extractText(message.parts);
-    return extracted || message.content;
-  }
-
-  return message.content;
-}
-
-function getMessageDisplayText(message: ChatMessage): string {
-  if (message.sender !== "noctis") {
-    return removeInternalContext(message.content).trim();
-  }
-
-  return removeInternalContext(getMessageRawText(message)).trim();
-}
-
-function getIntermediatePreview(parts: MessagePart[]): string | null {
-  const reasoning = extractReasoning(parts)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (reasoning.length > 0) {
-    return reasoning.slice(0, 2).join("\n");
-  }
-
-  const tools = extractTools(parts);
-  if (tools.length > 0) {
-    return `Tool activity: ${tools.length} ${tools.length === 1 ? "event" : "events"}.`;
-  }
-
-  return null;
-}
-
-function pickDetailRawText(message: ChatMessage): string {
-  const rawText = typeof message.rawText === "string" ? message.rawText.trim() : "";
-  if (rawText && parseInternalContext(rawText)) {
-    return rawText;
-  }
-
-  if (typeof message.detailContent === "string" && message.detailContent.trim()) {
-    return message.detailContent;
-  }
-
-  return getMessageRawText(message);
-}
-
-function buildDetailText(messages: ChatMessage[]): string {
-  return messages
-    .map((message) => {
-      if (typeof message.detailContent === "string" && message.detailContent.trim()) {
-        return message.detailContent.trim();
-      }
-
-      return getMessageRawText(message).trim();
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function buildRenderedMessages(messages: ChatMessage[]): RenderedChatMessage[] {
-  const rendered: RenderedChatMessage[] = [];
-  let pendingNoctis: ChatMessage[] = [];
-
-  const flushPendingNoctis = () => {
-    if (pendingNoctis.length === 0) {
-      return;
-    }
-
-    const parts = pendingNoctis.flatMap((message) => toMessageParts(message));
-    const preview = getIntermediatePreview(parts);
-
-    if (!preview) {
-      pendingNoctis = [];
-      return;
-    }
-
-    rendered.push({
-      id: pendingNoctis.map((message) => message.id).join(":"),
-      sender: "noctis",
-      actor: "noctis",
-      speaker: "noctis",
-      kind: "assistant_message",
-      content: "",
-      detailContent: buildDetailText(pendingNoctis),
-      parts: parts.length > 0 ? parts : undefined,
-      timestamp: pendingNoctis[pendingNoctis.length - 1].timestamp,
-      source: "session",
-      displayContent: preview,
-      intermediateOnly: true,
-    });
-
-    pendingNoctis = [];
+function toSessionPresentationMessage(message: ChatMessage): SessionPresentationMessage {
+  return {
+    id: message.id,
+    role: message.sender === "user" ? "user" : "assistant",
+    sender: message.sender,
+    senderLabel: getActivityActorLabel(message.sender),
+    kind: message.kind,
+    content: message.content,
+    detailContent: message.detailContent,
+    rawText: message.rawText,
+    parts: message.parts,
+    timestamp: message.timestamp,
+    source: message.source,
   };
-
-  messages.forEach((message) => {
-    const isOutgoing = message.sender === "crystal";
-    const canCollapseToIntermediate = message.sender === "noctis" && message.source === "session";
-
-    if (isOutgoing) {
-      flushPendingNoctis();
-      rendered.push({
-        ...message,
-        displayContent: getMessageDisplayText(message),
-      });
-      return;
-    }
-
-    const displayContent = getMessageDisplayText(message);
-
-    if (!displayContent && canCollapseToIntermediate) {
-      pendingNoctis.push(message);
-      return;
-    }
-
-    const groupedMessages = [...pendingNoctis, message];
-    const parts = groupedMessages.flatMap((entry) => toMessageParts(entry));
-
-    rendered.push({
-      ...message,
-      detailContent: buildDetailText(groupedMessages),
-      parts: parts.length > 0 ? parts : undefined,
-      displayContent,
-    });
-
-    pendingNoctis = [];
-  });
-
-  flushPendingNoctis();
-
-  return rendered;
 }
 
 const MessageBubble = memo(
-  ({ message, showCursor }: { message: RenderedChatMessage; showCursor: boolean }) => {
+  ({ message, showCursor }: { message: RenderedSessionMessage; showCursor: boolean }) => {
     const [detailsExpanded, setDetailsExpanded] = useState(false);
-    const isOutgoing = message.sender === "crystal";
+    const messageDisplay = message.messageDisplay;
+    const isOutgoing = messageDisplay.resolvedSenderIsUser;
     const isNoctis = message.sender === "noctis";
-    const senderLabel = getActivityActorLabel(message.sender);
+    const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
-    const detailRawText = useMemo(() => pickDetailRawText(message), [message]);
-    const internalContext = useMemo(() => parseInternalContext(detailRawText), [detailRawText]);
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const messageMarkdown = useMemo(
-      () => buildMessageMarkdown(message.displayContent, reasoning, tools),
-      [message.displayContent, reasoning, tools]
+      () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
+      [messageDisplay.displayContent, reasoning, tools]
     );
     const copyContent = messageMarkdown.trim()
       ? messageMarkdown
-      : message.displayContent.trim()
-        ? message.displayContent
-        : detailRawText;
-    const hasDetails = reasoning.trim().length > 0 || tools.length > 0 || internalContext !== null;
-    const hasVisibleBody = message.displayContent.trim().length > 0 || showCursor;
+      : messageDisplay.displayContent.trim()
+        ? messageDisplay.displayContent
+        : message.detailRawText;
+    const hasDetails =
+      reasoning.trim().length > 0 ||
+      tools.length > 0 ||
+      Boolean(messageDisplay.reportDetails?.trim()) ||
+      messageDisplay.promptContextSections.length > 0;
+    const hasVisibleBody = messageDisplay.displayContent.trim().length > 0 || showCursor;
     const detailSummary = useMemo(
-      () => buildIntermediateDetailSummary(internalContext, reasoning, tools),
-      [internalContext, reasoning, tools]
+      () =>
+        buildIntermediateDetailSummary(
+          reasoning,
+          tools,
+          messageDisplay.reportDetails,
+          messageDisplay.promptContextSections,
+        ),
+      [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools],
     );
 
     return (
@@ -286,11 +174,11 @@ const MessageBubble = memo(
           hasVisibleBody ? (
             !isOutgoing ? (
               <div className="markdown-body text-[13px] leading-6 [&_li]:leading-6 [&_p]:leading-6 [&_pre]:text-[11px]">
-                <MessageMarkdown>{`${message.displayContent}${showCursor ? "▌" : ""}`}</MessageMarkdown>
+                <MessageMarkdown>{`${messageDisplay.displayContent}${showCursor ? "▌" : ""}`}</MessageMarkdown>
               </div>
             ) : (
               <p className="wrap-anywhere whitespace-pre-wrap text-[13px] leading-6 text-foreground/90">
-                {message.displayContent}
+                {messageDisplay.displayContent}
                 {showCursor ? <span className="animate-pulse text-primary">▌</span> : null}
               </p>
             )
@@ -309,8 +197,10 @@ const MessageBubble = memo(
               onToggle={() => setDetailsExpanded((value) => !value)}
             >
               <MessageIntermediateDetails
-                internalContext={internalContext}
+                promptContextSections={messageDisplay.promptContextSections}
+                promptContextSource={messageDisplay.promptContextSource}
                 reasoning={reasoning}
+                reportDetails={messageDisplay.reportDetails}
                 tools={tools}
               />
             </MessageIntermediateDetailsToggle>
@@ -319,8 +209,9 @@ const MessageBubble = memo(
         renderDetailSheet={({ open, onOpenChange }) =>
           open ? (
             <MessageDetailSheet
-              content={message.displayContent}
-              rawTextContent={detailRawText}
+              content={messageDisplay.displayContent}
+              messageDisplay={messageDisplay}
+              rawTextContent={message.detailRawText}
               parts={message.parts}
               onOpenChange={onOpenChange}
               open={open}
@@ -341,16 +232,70 @@ export const ChatArea = ({
   messages,
   isSessionActive = false,
   isStreaming = false,
+  availableOperations,
+  selectedOperation,
+  activeOperationState,
+  isOperationSelectionLocked,
+  onSelectedOperationChange,
   onAbort,
   onSend,
   showAbortAction = false,
+  outputCount = 0,
+  onOpenOutputs,
 }: ChatAreaProps) => {
-  const renderedMessages = useMemo(() => buildRenderedMessages(messages), [messages]);
+  const renderedMessages = useMemo(
+    () => buildRenderedSessionMessages(messages.map(toSessionPresentationMessage)),
+    [messages],
+  );
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
     const allowedWorkers = getAllowedWorkers(workingParty);
     return getWorkingPartySummary(allowedWorkers);
   }, [workingParty]);
+  const defaultOperation = useMemo(
+    () =>
+      availableOperations.find((operation) => operation.isDefault) ?? {
+        value: "",
+        label: DEFAULT_AUTONOMOUS_OPERATION_LABEL,
+        description: "",
+        isDefault: true,
+        name: INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        sourceKind: "builtin" as const,
+        sourceLabel: "Builtin",
+      },
+    [availableOperations]
+  );
+  const operationSelectValue =
+    selectedOperation ??
+    (isOperationSelectionLocked ? undefined : defaultOperation.value);
+  const selectedOperationOption = useMemo(() => {
+    const activeOperationRef = activeOperationState?.operationRef ?? operationSelectValue;
+    if (!activeOperationRef) {
+      return null;
+    }
+
+    return (
+      availableOperations.find((operation) => operation.value === activeOperationRef) ?? {
+        value: activeOperationRef,
+        label: getOperationDisplayLabel(activeOperationState?.operationName ?? activeOperationRef),
+        description: "",
+        isDefault: (activeOperationState?.operationName ?? "") === INTERNAL_AUTONOMOUS_OPERATION_NAME,
+        name: activeOperationState?.operationName ?? activeOperationRef,
+        sourceKind: "builtin" as const,
+        sourceLabel: "Builtin",
+      }
+    );
+  }, [
+    activeOperationState?.operationName,
+    activeOperationState?.operationRef,
+    availableOperations,
+    operationSelectValue,
+  ]);
+  const operationBadgeLabel = selectedOperationOption?.label ?? "Workflow unavailable";
+  const operationDescription = selectedOperationOption?.description ?? "";
+  const operationPlaceholder = isOperationSelectionLocked
+    ? "Workflow unavailable"
+    : defaultOperation.label;
 
   return (
     <ChatThreadFrame
@@ -374,17 +319,36 @@ export const ChatArea = ({
             </div>
           </div>
 
-          {isSessionActive ? (
-            <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
-              <Radio
-                className="h-3 w-3 text-primary"
-                style={{ animation: "agent-glow 1s ease-in-out infinite" }}
-              />
-              <span className="animate-pulse font-mono text-[9px] font-semibold uppercase tracking-widest text-primary">
-                Radio Incoming
-              </span>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex max-w-60 items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/85">
+              <span className="truncate">Workflow: {operationBadgeLabel}</span>
             </div>
-          ) : null}
+
+            {onOpenOutputs ? (
+              <Button
+                className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+                onClick={onOpenOutputs}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Outputs{outputCount > 0 ? ` (${outputCount})` : ""}
+              </Button>
+            ) : null}
+
+            {isSessionActive ? (
+              <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
+                <Radio
+                  className="h-3 w-3 text-primary"
+                  style={{ animation: "agent-glow 1s ease-in-out infinite" }}
+                />
+                <span className="animate-pulse font-mono text-[9px] font-semibold uppercase tracking-widest text-primary">
+                  Radio Incoming
+                </span>
+              </div>
+            ) : null}
+          </div>
         </div>
       }
       footer={
@@ -392,12 +356,56 @@ export const ChatArea = ({
           onSend={onSend}
           onAbort={onAbort}
           showAbortAction={showAbortAction}
+          topSlot={
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                  Mission Workflow
+                </p>
+                <p className="text-xs text-muted-foreground/75">
+                  {isOperationSelectionLocked
+                    ? "This mission is already running with its current workflow setting."
+                    : `${defaultOperation.label} is selected unless you choose another workflow.`}
+                </p>
+              </div>
+
+              <div className="w-full sm:max-w-56">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Select
+                        disabled={isOperationSelectionLocked}
+                        value={operationSelectValue}
+                        onValueChange={onSelectedOperationChange}
+                      >
+                        <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                          <SelectValue placeholder={operationPlaceholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableOperations.map((operation) => (
+                            <SelectItem key={operation.value} value={operation.value}>
+                              {operation.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TooltipTrigger>
+                  {operationDescription ? (
+                    <TooltipContent side="top" className="max-w-80 text-xs leading-relaxed">
+                      {operationDescription}
+                    </TooltipContent>
+                  ) : null}
+                </Tooltip>
+              </div>
+            </div>
+          }
           footerStart={
             <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
               <span className="truncate">{composerSummary}</span>
             </div>
           }
-          placeholder="Send a message to Noctis... Use @ for files/folders and / for commands/skills. Shift+Enter for new line"
+          placeholder="Send a message to Noctis"
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />
       }

@@ -44,9 +44,11 @@ The script prints JSON with the created file path and selected language.
 
 - Put reports in `docs/reports/`.
 - Keep reports concise and decision-oriented.
-- State scope and constraints early.
+- Choose headings freely based on what best fits the content — do not use a fixed heading structure.
+- State the most important context (scope, purpose, or constraints) near the top of the report.
 - Add follow-up items only when work is deferred.
 - Treat paths as relative to the repository root unless stated otherwise.
+- When revising an existing report, always create a new file (e.g. append `-v2`, `-v3` to the slug via `--slug`) rather than overwriting the original. Move the superseded version to `docs/reports/archive/` after the new file is created.
 
 ## Trigger Examples
 
