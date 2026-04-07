@@ -105,4 +105,57 @@ Respond after reviewing the worker report.
 
     expect(markup).not.toContain("Raw Prompt Payload");
   });
+
+  it("renders requested and actual selection details for adjusted assistant replies", () => {
+    const markup = renderToStaticMarkup(
+      <MessageDetailSheet
+        content="Adjusted reply."
+        messageDisplay={{
+          displayContent: "Adjusted reply.",
+          promptContextSections: [],
+          promptContextSource: null,
+          rawWorkflowPrompt: null,
+          rawPromptPayload: null,
+          reportDetails: null,
+          selectionAdjustment: {
+            explanation: "Runtime adjusted the requested selection before recording this reply.",
+            requestMessageId: "user-1",
+            requested: {
+              agent: "Sisyphus (Ultraworker)",
+              model: {
+                providerID: "github-copilot",
+                modelID: "gpt-5-mini",
+                variant: "high",
+              },
+            },
+            actual: {
+              agent: "Hephaestus (Deep Agent)",
+              model: {
+                providerID: "github-copilot",
+                modelID: "gpt-5.4",
+              },
+            },
+          },
+          resolvedSender: null,
+          resolvedSenderIsUser: false,
+          resolvedSenderLabel: "Hephaestus (Deep Agent)",
+          workflowPresentation: null,
+        }}
+        messageRole="assistant"
+        onOpenChange={() => undefined}
+        open={true}
+        parts={[{ type: "text", text: "Adjusted reply." }]}
+        rawTextContent="Adjusted reply."
+        senderLabel="Hephaestus (Deep Agent)"
+      />,
+    );
+
+    expect(markup).toContain("Selection Adjustment");
+    expect(markup).toContain("Requested");
+    expect(markup).toContain("Actual");
+    expect(markup).toContain("Sisyphus (Ultraworker)");
+    expect(markup).toContain("Hephaestus (Deep Agent)");
+    expect(markup).toContain("github-copilot/gpt-5-mini (high)");
+    expect(markup).toContain("github-copilot/gpt-5.4");
+  });
 });

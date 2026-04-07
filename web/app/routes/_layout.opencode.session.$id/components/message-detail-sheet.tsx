@@ -3,10 +3,25 @@ import { useMemo, useRef } from "react";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
+import { getModelKey } from "@/lib/model-variant-selection";
 import type { SessionMessageDisplay } from "@/lib/session-message-presentation";
+import type { SessionSelection } from "@/lib/session-selection-adjustment";
 import { getPromptContextSourceLabel } from "@/lib/chat-workflow-presentation";
 import type { MessagePart } from "../types";
 import { resolveSessionMessageDisplay } from "./message-display";
+
+function formatSelectionAgent(agent: string | null | undefined): string {
+  return agent?.trim() ? agent : "Not specified";
+}
+
+function formatSelectionModel(selection: SessionSelection): string {
+  const modelKey = getModelKey(selection.model);
+  if (!modelKey) {
+    return "Not specified";
+  }
+
+  return selection.model?.variant ? `${modelKey} (${selection.model.variant})` : modelKey;
+}
 
 type Props = {
   content: string;
@@ -55,6 +70,7 @@ const MessageDetailSheet = ({
     [resolvedMessageDisplay.displayContent, reasoning, tools],
   );
   const hasVisibleBody = resolvedMessageDisplay.displayContent.trim().length > 0;
+  const selectionAdjustment = resolvedMessageDisplay.selectionAdjustment;
   const hasIntermediateDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
@@ -106,6 +122,45 @@ const MessageDetailSheet = ({
             : "No final answer text was captured for this message."}
         </div>
       )}
+
+      {selectionAdjustment ? (
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">
+          <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-400">
+            Selection Adjustment
+          </div>
+          <p className="text-[12px] leading-6 text-slate-200/85">
+            {selectionAdjustment.explanation}
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400">
+                Requested
+              </div>
+              <div className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">Agent</div>
+              <div className="text-[13px] text-slate-100">
+                {formatSelectionAgent(selectionAdjustment.requested.agent)}
+              </div>
+              <div className="mt-3 text-[11px] uppercase tracking-wide text-slate-500">Model</div>
+              <div className="text-[13px] text-slate-100">
+                {formatSelectionModel(selectionAdjustment.requested)}
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400">
+                Actual
+              </div>
+              <div className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">Agent</div>
+              <div className="text-[13px] text-slate-100">
+                {formatSelectionAgent(selectionAdjustment.actual.agent)}
+              </div>
+              <div className="mt-3 text-[11px] uppercase tracking-wide text-slate-500">Model</div>
+              <div className="text-[13px] text-slate-100">
+                {formatSelectionModel(selectionAdjustment.actual)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {resolvedMessageDisplay.reportDetails ? (
         <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">

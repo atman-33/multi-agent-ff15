@@ -68,6 +68,7 @@ const MessageDetailSheet = ({
         reportDetails: !workflowPresentation.usedFallback
           ? workflowPresentation.reportDetails ?? null
           : null,
+        selectionAdjustment: null,
         resolvedSender,
         resolvedSenderIsUser: resolvedSender === "user",
         resolvedSenderLabel: resolvedSender

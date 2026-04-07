@@ -104,6 +104,50 @@ Hello from User.
     expect(resolved.rawPromptPayload).toBeNull();
   });
 
+  it("carries tracked selection adjustment metadata into rendered assistant messages", () => {
+    const rendered = buildRenderedSessionMessages(
+      toSessionPresentationMessages([
+        {
+          info: {
+            id: "assistant-1",
+            role: "assistant",
+            agent: "Hephaestus (Deep Agent)",
+            selectionAdjustment: {
+              explanation: "Runtime adjusted the requested selection before recording this reply.",
+              requestMessageId: "user-1",
+              requested: {
+                agent: "Sisyphus (Ultraworker)",
+                model: {
+                  providerID: "github-copilot",
+                  modelID: "gpt-5-mini",
+                  variant: "high",
+                },
+              },
+              actual: {
+                agent: "Hephaestus (Deep Agent)",
+                model: {
+                  providerID: "github-copilot",
+                  modelID: "gpt-5.4",
+                },
+              },
+            },
+            time: { created: Date.parse("2026-04-07T10:20:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Adjusted reply." }],
+        },
+      ]),
+    );
+
+    expect(rendered[0]?.messageDisplay.selectionAdjustment).toMatchObject({
+      requested: {
+        agent: "Sisyphus (Ultraworker)",
+      },
+      actual: {
+        agent: "Hephaestus (Deep Agent)",
+      },
+    });
+  });
+
   it("groups tool-only Noctis activity into the following visible Noctis reply", () => {
     const rendered = buildRenderedSessionMessages([
       {

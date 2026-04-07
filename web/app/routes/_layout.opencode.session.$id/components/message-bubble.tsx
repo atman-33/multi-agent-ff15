@@ -49,6 +49,12 @@ const MessageBubble = ({ message, showCursor = false }: Props) => {
       ),
     [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools]
   );
+  const adjustmentIndicator =
+    !messageDisplay.resolvedSenderIsUser && messageDisplay.selectionAdjustment ? (
+      <span className="rounded-full border border-border/40 bg-black/15 px-2 py-0.5 text-[9px] font-medium tracking-normal text-muted-foreground/85">
+        Adjusted
+      </span>
+    ) : null;
 
   if (
     !messageDisplay.displayContent &&
@@ -118,6 +124,7 @@ const MessageBubble = ({ message, showCursor = false }: Props) => {
           />
         ) : null
       }
+      senderMetaSupplement={adjustmentIndicator}
       senderLabel={message.senderLabel}
       timestamp={message.timestamp}
     />

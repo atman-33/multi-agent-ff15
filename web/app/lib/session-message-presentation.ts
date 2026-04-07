@@ -7,6 +7,10 @@ import {
   type PromptContextSource,
   type WorkflowMessagePresentation,
 } from "@/lib/chat-workflow-presentation";
+import {
+  isSessionSelectionAdjustment,
+  type SessionSelectionAdjustment,
+} from "@/lib/session-selection-adjustment";
 import { getActivityActorLabel, parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
 import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
@@ -14,6 +18,7 @@ import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session
 export type SessionPresentationMessage = {
   id: string;
   role: "user" | "assistant";
+  selectionAdjustment?: SessionSelectionAdjustment | null;
   sender: ActivityActorId | null;
   senderLabel: string;
   kind: MissionActivityKind;
@@ -32,6 +37,7 @@ export type SessionMessageDisplay = {
   rawWorkflowPrompt: string | null;
   rawPromptPayload?: string | null;
   reportDetails: string | null;
+  selectionAdjustment: SessionSelectionAdjustment | null;
   resolvedSender: ActivityActorId | null;
   resolvedSenderIsUser: boolean;
   resolvedSenderLabel: string;
@@ -213,6 +219,7 @@ function prepareSessionMessage(message: SessionPresentationMessage): PreparedSes
       rawText,
       fallbackSender: message.sender,
       fallbackSenderLabel: message.senderLabel,
+      selectionAdjustment: message.selectionAdjustment,
     }),
   };
 }
@@ -286,6 +293,7 @@ function flushPendingNoctisMessages(
       rawWorkflowPrompt,
       rawPromptPayload,
       reportDetails,
+      selectionAdjustment: null,
       resolvedSender: "noctis",
       resolvedSenderIsUser: false,
       resolvedSenderLabel: getActivityActorLabel("noctis"),
@@ -351,10 +359,14 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
       typeof (info.time as { created?: unknown }).created === "number"
         ? (info.time as { created: number }).created
         : null;
+    const selectionAdjustment = isSessionSelectionAdjustment(info.selectionAdjustment)
+      ? info.selectionAdjustment
+      : null;
 
     accumulator.push({
       id,
       role: rawRole,
+      selectionAdjustment,
       sender,
       senderLabel,
       kind:
@@ -379,6 +391,7 @@ export function resolveSessionMessageDisplay(input: {
   rawText: string;
   fallbackSender: ActivityActorId | null;
   fallbackSenderLabel: string;
+  selectionAdjustment?: SessionSelectionAdjustment | null;
 }): SessionMessageDisplay {
   const workflowPresentation = parseWorkflowMessagePresentation(input.rawText);
   const hasStructuredWorkflow = Boolean(workflowPresentation && !workflowPresentation.usedFallback);
@@ -402,6 +415,7 @@ export function resolveSessionMessageDisplay(input: {
     rawWorkflowPrompt: hasStructuredWorkflow ? workflowPresentation?.rawPrompt ?? null : null,
     rawPromptPayload: resolveRawPromptPayload(input.rawText, displayContent),
     reportDetails: hasStructuredWorkflow ? workflowPresentation?.reportDetails ?? null : null,
+    selectionAdjustment: input.selectionAdjustment ?? null,
     resolvedSender,
     resolvedSenderIsUser: resolvedSender === "user",
     resolvedSenderLabel: workflowSender

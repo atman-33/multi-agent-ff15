@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   align: "start" | "end";
   senderLabel: string;
+  senderMetaSupplement?: ReactNode;
   timestamp: Date;
   avatar?: ReactNode;
   senderMetaClassName?: string;
@@ -19,6 +20,7 @@ type Props = {
 export function MessageBubbleBase({
   align,
   senderLabel,
+  senderMetaSupplement,
   timestamp,
   avatar,
   senderMetaClassName,
@@ -67,6 +69,7 @@ export function MessageBubbleBase({
           )}
         >
           <span className="font-semibold">{senderLabel}</span>
+          {senderMetaSupplement}
           {timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
