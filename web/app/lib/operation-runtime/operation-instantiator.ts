@@ -23,6 +23,7 @@ import {
   joinXmlSections,
 } from "@/lib/prompt-composition-engine/prompt-xml";
 import {
+  completeDelegatedTask,
   createOperationState,
   ensureActiveStepTaskId,
   getDelegatedTaskRecord,
@@ -54,6 +55,7 @@ export interface ActivateOperationInput {
   message: string;
   selectedOperation?: string | null;
   allowReuseActiveOperation?: boolean;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }
 
 export interface ActivateOperationResult {
@@ -97,6 +99,7 @@ export interface ProcessStepReportInput {
   taskId: string;
   next?: WorkflowNext;
   operationState?: OperationState;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }
 
 export interface ProcessStepReportResult {
@@ -107,6 +110,7 @@ export interface ProcessStepReportResult {
   operationState: OperationState | null;
   currentStep: StepDefinition | null;
   nextStep: StepDefinition | null;
+  promptArtifact: OperationPromptArtifact | null;
 }
 
 function listPreferredBuiltinLanguages(language: string): string[] {
@@ -133,6 +137,7 @@ function buildActivationArtifact(input: {
   operation: OperationDefinition;
   operationState: OperationState;
   step: StepDefinition;
+  allowedWorkersOverride?: readonly WorkerAgentId[];
 }): OperationPromptArtifact {
   const language = readOperationLanguage();
   const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
@@ -144,6 +149,7 @@ function buildActivationArtifact(input: {
     facets,
     missionId: input.missionId,
     taskId,
+    allowedWorkersOverride: input.allowedWorkersOverride,
   });
 
   return {
@@ -297,6 +303,19 @@ function buildTerminalGuidance(
   ]);
 }
 
+function buildDelegatedReturnGuidance(input: {
+  step: StepDefinition;
+  promptArtifact: OperationPromptArtifact;
+}): string {
+  return joinXmlSections([
+    buildTextSection(
+      "operation-note",
+      `A delegated child task returned to the active "${input.step.name}" step. Integrate the result and decide whether to continue the conversation or delegate again.`,
+    ),
+    input.promptArtifact.promptText,
+  ]);
+}
+
 export function createOperationInstantiator(): OperationInstantiator {
   return {
     activateOperation(input) {
@@ -314,6 +333,7 @@ export function createOperationInstantiator(): OperationInstantiator {
             operation,
             operationState: existingState,
             step: currentStep,
+            allowedWorkersOverride: input.allowedWorkersOverride,
           });
           saveOperationState(input.missionId, existingState);
 
@@ -372,6 +392,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operation,
           operationState,
           step,
+          allowedWorkersOverride: input.allowedWorkersOverride,
         });
         activationText = promptArtifact.promptText;
       } else {
@@ -461,6 +482,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operationState,
           currentStep: null,
           nextStep: null,
+          promptArtifact: null,
         };
       }
 
@@ -470,6 +492,50 @@ export function createOperationInstantiator(): OperationInstantiator {
       ) ?? null;
 
       if (!currentStep || currentStep.rules.length === 0) {
+        const delegatedTask = currentStep
+          ? getDelegatedTaskRecord(operationState, input.taskId)
+          : undefined;
+
+        if (
+          currentStep &&
+          currentStep.agent === "noctis" &&
+          hasDelegationPolicy(currentStep) &&
+          delegatedTask &&
+          delegatedTask.parentStep === currentStep.name
+        ) {
+          completeDelegatedTask(operationState, {
+            taskId: input.taskId,
+            status: input.next === "ABORT" ? "failed" : "completed",
+            summary: input.reportBody,
+          });
+
+          const promptArtifact = buildActivationArtifact({
+            missionId: input.missionId,
+            operation,
+            operationState,
+            step: currentStep,
+            allowedWorkersOverride: input.allowedWorkersOverride,
+          });
+
+          if (!input.operationState) {
+            saveOperationState(input.missionId, operationState);
+          }
+
+          return {
+            noctisGuidance: buildDelegatedReturnGuidance({
+              step: currentStep,
+              promptArtifact,
+            }),
+            stateTransition: null,
+            nextWorkerDispatch: null,
+            operation,
+            operationState,
+            currentStep,
+            nextStep: currentStep,
+            promptArtifact,
+          };
+        }
+
         return {
           noctisGuidance: "",
           stateTransition: null,
@@ -478,6 +544,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operationState,
           currentStep,
           nextStep: null,
+          promptArtifact: null,
         };
       }
 
@@ -498,6 +565,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operationState,
           currentStep,
           nextStep: null,
+          promptArtifact: null,
         };
       }
 
@@ -523,6 +591,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operationState,
           currentStep,
           nextStep: null,
+          promptArtifact: null,
         };
       }
 
@@ -535,6 +604,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operation,
           operationState,
           step: nextStep,
+          allowedWorkersOverride: input.allowedWorkersOverride,
         });
 
         if (!input.operationState) {
@@ -549,6 +619,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           operationState,
           currentStep,
           nextStep,
+          promptArtifact,
         };
       }
 
@@ -571,6 +642,7 @@ export function createOperationInstantiator(): OperationInstantiator {
         operationState,
         currentStep,
         nextStep,
+        promptArtifact: null,
       };
     },
   };

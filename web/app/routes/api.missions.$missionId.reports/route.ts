@@ -4,11 +4,9 @@ import { getMissionOutputFilePath, updateTask } from "@/lib/mission-store";
 import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
 import { createOperationInstantiator } from "@/lib/operation-runtime/operation-instantiator";
 import {
-  completeDelegatedTask,
   getDelegatedTaskRecord,
   getOperationRef,
   getOperationState,
-  saveOperationState,
 } from "@/lib/operation-runtime/state";
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { dispatchCurrentOperationStepToWorker } from "@/lib/task-dispatch.server";
@@ -160,26 +158,16 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
           );
         }
 
-        completeDelegatedTask(operationState, {
-          taskId,
-          status: next === "COMPLETE" ? "completed" : "failed",
-          summary,
-        });
-        saveOperationState(missionId, operationState);
-
-        const reentry = operationInstantiator.activateOperation({
+        const reportResult = operationInstantiator.processStepReport({
           missionId,
-          message,
-          allowReuseActiveOperation: true,
+          reportBody: message,
+          fromAgent: body.fromAgent,
+          taskId,
+          next,
         });
 
-        workflowGuidance = joinXmlSections([
-          buildTextSection(
-            "operation-note",
-            `A delegated child task returned to the active "${currentStep.name}" step. Integrate the result and decide whether to continue the conversation or delegate again.`,
-          ),
-          reentry.activationText,
-        ]);
+        workflowGuidance = reportResult.noctisGuidance || undefined;
+        nextStep = reportResult.nextStep?.name ?? currentStep.name;
       } else {
 
         if (currentStep?.agent !== body.fromAgent) {

@@ -4,8 +4,6 @@ import { dirname } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getMissionDir, getMissionOutputFilePath } from "@/lib/mission-store";
 import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
-import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
-import { readOperationLanguage } from "@/lib/operation-definition/language";
 import type {
   OperationDefinition,
   ResolvedFacets,
@@ -17,10 +15,10 @@ import {
 } from "@/lib/operation-runtime/autonomous";
 import {
   createOperationInstantiator,
+  type OperationPromptArtifact,
   type ProcessStepReportResult,
 } from "@/lib/operation-runtime/operation-instantiator";
 import {
-  completeDelegatedTask,
   createOperationState,
   ensureActiveStepTaskId,
   registerDelegatedTask,
@@ -31,11 +29,9 @@ import {
   composeWorkerTaskPrompt,
 } from "@/lib/prompt-composition-engine";
 import {
-  buildActivationInstruction,
   buildOperationContextSummary,
   findStepHandoffSource,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
-import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import type { AgentId, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 
 export const PREVIEW_PARTY_MODES = ["full", "solo", "custom"] as const;
@@ -353,43 +349,6 @@ function buildStepSummary(stepName: string, from: string, to: string, decisionSu
   return `${from} completed the previous handoff, Runtime activates ${to} for "${stepName}", and the synthetic report resolves as ${decisionSummary}.`;
 }
 
-function buildNoctisStepGuidance(input: {
-  operation: OperationDefinition;
-  step: StepDefinition;
-  operationState: ReturnType<typeof createOperationState>;
-  facets: ResolvedFacets;
-  missionId: string;
-  allowedWorkersOverride?: readonly WorkerAgentId[];
-}): string {
-  const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
-  return buildActivationInstruction({
-    operation: input.operation,
-    step: input.step,
-    operationState: input.operationState,
-    facets: input.facets,
-    missionId: input.missionId,
-    taskId,
-    allowedWorkersOverride: input.allowedWorkersOverride,
-  });
-}
-
-function buildDelegatedReturnGuidance(input: {
-  operation: OperationDefinition;
-  step: StepDefinition;
-  operationState: ReturnType<typeof createOperationState>;
-  facets: ResolvedFacets;
-  missionId: string;
-  allowedWorkersOverride?: readonly WorkerAgentId[];
-}): string {
-  return joinXmlSections([
-    buildTextSection(
-      "operation-note",
-      `A delegated child task returned to the active "${input.step.name}" step. Integrate the result and decide whether to continue the conversation or delegate again.`,
-    ),
-    buildNoctisStepGuidance(input),
-  ]);
-}
-
 export function buildOperationDebugBundle(input: {
   missionId?: string;
   userMessage?: string;
@@ -400,7 +359,6 @@ export function buildOperationDebugBundle(input: {
   taskInstruction?: string;
 }): OperationDebugBundle {
   const root = getProjectRoot();
-  const language = readOperationLanguage();
   const operation = loadOperationByRef(input.operationRef);
   const missionId =
     input.missionId?.trim() ||
@@ -416,15 +374,21 @@ export function buildOperationDebugBundle(input: {
   ];
 
   const flowSteps: FlowStepPreview[] = [];
-  const operationState = createOperationState(
-    operation.name,
-    operation.initial_step,
-    input.operationRef,
-  );
+  const activationResult = operationInstantiator.activateOperation({
+    missionId,
+    message: userMessageBase,
+    selectedOperation: input.operationRef,
+    allowedWorkersOverride: previewAllowedWorkers,
+  });
+  const operationState =
+    activationResult.operationState ??
+    createOperationState(operation.name, operation.initial_step, input.operationRef);
+  let pendingNoctisPromptArtifact: OperationPromptArtifact | null =
+    activationResult.promptArtifact;
 
   const stepOccurrences = new Map<string, number>();
   const maxExecutions = Math.max(operation.steps.length * 4, 12);
-  let currentStepName: string | null = operation.initial_step;
+  let currentStepName: string | null = operationState.currentStep;
   let previousActor: AgentId | "user" = "user";
   let executions = 0;
 
@@ -441,7 +405,6 @@ export function buildOperationDebugBundle(input: {
       const flowStepId = buildFlowId(step.name, occurrence);
 
       const taskId = ensureActiveStepTaskId(operationState, step.agent);
-      const facets = resolveStepFacets(operation, step, language);
       const operationContextSummary = buildOperationContextSummary(operation, operationState);
       const from = displayActorName(previousActor);
       const to = displayActorName(step.agent);
@@ -459,19 +422,16 @@ export function buildOperationDebugBundle(input: {
       let promptDescription = "";
       let kind: FlowStepKind = "worker-step";
       let hookTrail: PreviewNodeId[] = ["hook2", "hook3"];
+      let promptArtifact: OperationPromptArtifact | null = null;
 
       if (step.agent === "noctis") {
         kind = "noctis-step";
         hookTrail = ["hook1", "hook3"];
-        injectedPrompt = buildActivationInstruction({
-          operation,
-          step,
-          operationState,
-          facets,
-          missionId,
-          taskId,
-          allowedWorkersOverride: previewAllowedWorkers,
-        });
+        promptArtifact = pendingNoctisPromptArtifact;
+        if (!promptArtifact || promptArtifact.step.name !== step.name) {
+          throw new Error(`Missing Noctis prompt artifact for debug preview step "${step.name}".`);
+        }
+        injectedPrompt = promptArtifact.promptText;
         const composed = composeUserToNoctisPromptPreview({
           context: {
             missionId,
@@ -497,11 +457,20 @@ export function buildOperationDebugBundle(input: {
         });
         promptTitle = "Runtime -> Noctis Prompt";
         promptDescription = "Activation prompt reconstructed from the current workflow state and user input.";
+        pendingNoctisPromptArtifact = null;
       } else {
         const workerAgent = toWorkerAgent(step.agent);
         const dispatchPrompt =
           input.taskInstruction?.trim() ||
           `Synthetic task for ${workerAgent}: implement the current step as Noctis instructed.`;
+        const workerPrompt = operationInstantiator.augmentTaskPrompt({
+          missionId,
+          originalPrompt: dispatchPrompt,
+          agentId: workerAgent,
+          taskId,
+          operationState,
+        });
+        promptArtifact = workerPrompt.promptArtifact;
         const dispatchComposed = composeWorkerTaskPrompt({
           context: {
             missionId,
@@ -519,7 +488,7 @@ export function buildOperationDebugBundle(input: {
         sourceInput = dispatchPrompt;
         internalContext = dispatchComposed.sharedContext;
         suppressedContext = dispatchComposed.suppressedContext;
-        injectedPrompt = dispatchComposed.workflowExtension || "(no workflow extension generated)";
+        injectedPrompt = promptArtifact?.promptText || "(no workflow extension generated)";
         effectivePrompt = dispatchComposed.effectivePrompt ?? injectedPrompt;
         promptHighlights = buildPromptHighlights({
           step,
@@ -586,7 +555,7 @@ export function buildOperationDebugBundle(input: {
           decisionSummary: parentDecisionSummary,
           operationContextSummary,
           normalizedStep: step,
-          resolvedFacets: facets,
+          resolvedFacets: promptArtifact?.facets,
           targetAgent: step.agent,
           nextStep: step.name,
           nextAction: effectiveWorkers.length > 0 ? "delegate_child_task" : "continue_conversation",
@@ -614,6 +583,14 @@ export function buildOperationDebugBundle(input: {
             taskId: delegatedTaskId,
             agent: delegatedAgent,
             message: delegatedPrompt,
+          });
+
+          const delegatedPromptResult = operationInstantiator.augmentTaskPrompt({
+            missionId,
+            originalPrompt: delegatedPrompt,
+            agentId: delegatedAgent,
+            taskId: delegatedTaskId,
+            operationState,
           });
 
           const workerComposed = composeWorkerTaskPrompt({
@@ -657,7 +634,9 @@ export function buildOperationDebugBundle(input: {
             }),
             internalContext: workerComposed.sharedContext,
             suppressedContext: workerComposed.suppressedContext,
-            injectedPrompt: workerComposed.workflowExtension || "(no workflow extension generated)",
+            injectedPrompt:
+              delegatedPromptResult.promptArtifact?.promptText ||
+              "(no workflow extension generated)",
             effectivePrompt: workerComposed.effectivePrompt,
             completionTitle: `${displayActorName(delegatedAgent)} -> Runtime Completion Contract`,
             completionDescription: `Default child-task completion contract for the active "${step.name}" step.`,
@@ -675,7 +654,7 @@ export function buildOperationDebugBundle(input: {
             decisionSummary: `delegate_child_task -> ${displayActorName(delegatedAgent)} (${step.name})`,
             operationContextSummary,
             normalizedStep: step,
-            resolvedFacets: facets,
+            resolvedFacets: delegatedPromptResult.promptArtifact?.facets,
             targetAgent: delegatedAgent,
             nextStep: step.name,
             nextAction: "await_child_report",
@@ -685,18 +664,13 @@ export function buildOperationDebugBundle(input: {
             workflowGuidance: "",
           });
 
-          completeDelegatedTask(operationState, {
-            taskId: delegatedTaskId,
-            status: delegatedNext === "COMPLETE" ? "completed" : "failed",
-            summary: reportMessage,
-          });
-
-          const delegatedReturnGuidance = buildDelegatedReturnGuidance({
-            operation,
-            step,
-            operationState,
-            facets,
+          const delegatedReturnResult = operationInstantiator.processStepReport({
             missionId,
+            operationState,
+            reportBody: reportMessage,
+            fromAgent: delegatedAgent,
+            taskId: delegatedTaskId,
+            next: delegatedNext,
             allowedWorkersOverride: previewAllowedWorkers,
           });
           const delegatedReportTransport = buildReportTransport(
@@ -719,8 +693,8 @@ export function buildOperationDebugBundle(input: {
             body: reportMessage,
             taskId: delegatedTaskId,
             next: delegatedNext,
-            workflowExtensionOverride: delegatedReturnGuidance,
-            stateTransitionOverride: null,
+            workflowExtensionOverride: delegatedReturnResult.noctisGuidance,
+            stateTransitionOverride: delegatedReturnResult.stateTransition,
           });
 
           flowSteps.push({
@@ -751,7 +725,7 @@ export function buildOperationDebugBundle(input: {
             }),
             internalContext: delegatedReturnComposed.sharedContext,
             suppressedContext: delegatedReturnComposed.suppressedContext,
-            injectedPrompt: delegatedReturnGuidance,
+            injectedPrompt: delegatedReturnResult.noctisGuidance,
             effectivePrompt: delegatedReturnComposed.effectivePrompt,
             completionTitle: "Worker -> Runtime Report Transport",
             completionDescription: `Synthetic delegated child report accepted by Runtime before returning control to Noctis.`,
@@ -772,14 +746,14 @@ export function buildOperationDebugBundle(input: {
             ].join("\n"),
             operationContextSummary,
             normalizedStep: step,
-            resolvedFacets: facets,
+            resolvedFacets: delegatedReturnResult.promptArtifact?.facets,
             targetAgent: "noctis",
             nextStep: step.name,
             nextAction: "return_to_self_step",
             nextTarget: "Noctis",
             hookTrail: ["hook3"],
             reportTransport: delegatedReportTransport,
-            workflowGuidance: delegatedReturnGuidance,
+            workflowGuidance: delegatedReturnResult.noctisGuidance,
           });
         }
 
@@ -796,6 +770,7 @@ export function buildOperationDebugBundle(input: {
         fromAgent: step.agent,
         taskId,
         next: reportNext,
+        allowedWorkersOverride: previewAllowedWorkers,
       });
       seedSyntheticOutputs({ missionId, step, taskId });
       const runtimeDecision = buildRuntimeDecision({
@@ -805,6 +780,7 @@ export function buildOperationDebugBundle(input: {
         reportResult,
       });
       const workflowGuidance = reportResult.noctisGuidance || "";
+      pendingNoctisPromptArtifact = reportResult.promptArtifact;
       const ruleEvaluation = [
         runtimeDecision.runtimeDecision,
         "",
@@ -842,7 +818,7 @@ export function buildOperationDebugBundle(input: {
         ruleEvaluation,
         operationContextSummary,
         normalizedStep: step,
-        resolvedFacets: facets,
+        resolvedFacets: promptArtifact?.facets,
         targetAgent: step.agent,
         nextStep: runtimeDecision.nextStep,
         nextAction: runtimeDecision.nextAction,

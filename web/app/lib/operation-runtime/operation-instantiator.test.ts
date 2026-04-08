@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createMission, deleteMission } from "@/lib/mission-store";
 import { createOperationInstantiator } from "./operation-instantiator";
+import { registerDelegatedTask, saveOperationState } from "./state";
 import { getOperationState } from "./state";
+import type { WorkerAgentId } from "@/lib/types/mission";
 
 const tempRoots: string[] = [];
 const missionIds: string[] = [];
@@ -27,10 +29,14 @@ function createTempRoot(): string {
   return root;
 }
 
-function createMissionFixture(missionId: string): void {
+function createMissionFixture(
+  missionId: string,
+  options?: { allowedWorkers?: WorkerAgentId[] },
+): void {
   missionIds.push(missionId);
   createMission(missionId, `${missionId}-noctis-session`, {
     title: `Mission ${missionId}`,
+    allowedWorkers: options?.allowedWorkers,
   });
 }
 
@@ -113,6 +119,31 @@ function seedActivationBoundaryOperation(root: string): void {
       "",
       "## Rule",
       "Create the output before reporting completion.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function seedAutonomousBoundaryOperation(root: string): void {
+  writeFileSync(
+    join(root, "builtins", "ja", "operations", "autonomous-boundary.yaml"),
+    [
+      "name: autonomous-boundary",
+      "description: Operation instantiator delegated return fixture",
+      "initial_step: autonomous",
+      "steps:",
+      "  - name: autonomous",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Continue the conversation and delegate when useful.",
+      "    delegation:",
+      "      allowed_workers:",
+      "        - ignis",
+      "      worker_job:",
+      "        inline: Investigate the current issue.",
+      "      worker_instruction:",
+      "        inline: Summarize the outcome for Noctis.",
       "",
     ].join("\n"),
     "utf-8",
@@ -251,5 +282,85 @@ describe("OperationInstantiator", () => {
 
     const savedState = getOperationState("mission-augment");
     expect(savedState?.deviations.totalDeviations).toBe(1);
+  });
+
+  it("returns delegated child reports to the same active Noctis-owned step", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedAutonomousBoundaryOperation(root);
+    createMissionFixture("mission-delegated", { allowedWorkers: ["ignis"] });
+
+    const instantiator = createOperationInstantiator();
+    const activation = instantiator.activateOperation({
+      missionId: "mission-delegated",
+      message: "Please run autonomous-boundary for this mission.",
+    });
+
+    expect(activation.operationState?.currentStep).toBe("autonomous");
+    if (!activation.operationState) {
+      throw new Error("Expected operationState for delegated return test.");
+    }
+
+    registerDelegatedTask(activation.operationState, {
+      parentStep: "autonomous",
+      taskId: "task-delegated-1",
+      agent: "ignis",
+      message: "Investigate the current issue and summarize the outcome.",
+    });
+    saveOperationState("mission-delegated", activation.operationState);
+
+    const result = instantiator.processStepReport({
+      missionId: "mission-delegated",
+      reportBody: "Collected the needed context for Noctis.",
+      fromAgent: "ignis",
+      taskId: "task-delegated-1",
+      next: "COMPLETE",
+    });
+
+    expect(result.stateTransition).toBeNull();
+    expect(result.nextWorkerDispatch).toBeNull();
+    expect(result.currentStep?.name).toBe("autonomous");
+    expect(result.nextStep?.name).toBe("autonomous");
+    expect(result.noctisGuidance).toContain('active "autonomous" step');
+    expect(result.noctisGuidance).toContain("scripts/send_task.sh mission-delegated ignis");
+    expect(result.promptArtifact?.mode).toBe("activation");
+
+    const savedState = getOperationState("mission-delegated");
+    expect(savedState?.currentStep).toBe("autonomous");
+    expect(savedState?.delegatedTasks[0]).toMatchObject({
+      taskId: "task-delegated-1",
+      status: "completed",
+      summary: "Collected the needed context for Noctis.",
+    });
+  });
+
+  it("rejects legacy operation state without operationRef", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedActivationBoundaryOperation(root);
+    createMissionFixture("mission-legacy");
+
+    const instantiator = createOperationInstantiator();
+    instantiator.activateOperation({
+      missionId: "mission-legacy",
+      message: "Please run activation-boundary for this mission.",
+    });
+
+    const operationState = getOperationState("mission-legacy");
+    const legacyState = {
+      ...operationState,
+      operationRef: undefined,
+    } as unknown as NonNullable<typeof operationState>;
+
+    expect(() =>
+      instantiator.processStepReport({
+        missionId: "mission-legacy",
+        operationState: legacyState,
+        reportBody: "Approved.",
+        fromAgent: "noctis",
+        taskId: operationState?.stepHistory.at(-1)?.taskId ?? "task-legacy",
+        next: "implement",
+      }),
+    ).toThrow(/missing operationRef/i);
   });
 });
