@@ -13,18 +13,17 @@ import MessageDetailSheet from "./message-detail-sheet";
 type Props = {
   message: RenderedSessionMessage;
   showCursor?: boolean;
-  viewportRef: React.RefObject<HTMLDivElement | null>;
   detailsExpanded?: boolean;
-  expandedDetailIds?: string[];
-  onToggleDetails?: () => void;
-  onToggleDetail?: (detailId: string) => void;
+  expandedDetailEntries?: Record<string, true>;
+  onToggleDetails?: (conversationUnitId: string) => void;
+  onToggleDetail?: (conversationUnitId: string, detailId: string) => void;
 };
 
 const MessageBubble = ({
   message,
   showCursor = false,
   detailsExpanded = false,
-  expandedDetailIds = [],
+  expandedDetailEntries = {},
   onToggleDetails = () => undefined,
   onToggleDetail = () => undefined,
 }: Props) => {
@@ -108,11 +107,11 @@ const MessageBubble = ({
           <MessageIntermediateDetailsToggle
             detailSummary={detailSummary}
             expanded={detailsExpanded}
-            onToggle={onToggleDetails}
+            onToggle={() => onToggleDetails(message.conversationUnitId)}
           >
             <MessageIntermediateDetails
-              expandedDetailIds={expandedDetailIds}
-              onToggleDetail={onToggleDetail}
+              expandedDetailEntries={expandedDetailEntries}
+              onToggleDetail={(detailId) => onToggleDetail(message.conversationUnitId, detailId)}
               promptContextSections={messageDisplay.promptContextSections}
               promptContextSource={messageDisplay.promptContextSource}
               reasoning={reasoning}

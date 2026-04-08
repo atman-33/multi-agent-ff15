@@ -4,12 +4,15 @@ import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Button } from "@/components/ui/button";
+import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
+import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { fetchSessionStatus, isSessionStatusActive } from "@/lib/session-status";
 import {
   mergeMessageInfoText,
   mergeStreamingText,
   parseSessionTextPartEvent,
 } from "@/lib/session-stream";
+import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
 import { useChatStore } from "@/stores/chat-store";
 import type { OpenCodeOutletContext } from "../_layout.opencode/route";
 import type { Route } from "./+types/route";
@@ -44,6 +47,25 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
     return sessions.find((session) => session.id === sessionId)?.title || "Untitled";
   }, [sessionId, sessions]);
+  const presentationMessages = useMemo(() => toSessionPresentationMessages(messages), [messages]);
+  const streamingText = useMemo(
+    () =>
+      streamingContent
+        ? {
+            content: streamingContent,
+            fallbackSender: null,
+            fallbackSenderLabel: "Assistant",
+          }
+        : null,
+    [streamingContent],
+  );
+  const renderSnapshot = useSessionChatRenderSnapshot({
+    messages: presentationMessages,
+    streamingText,
+  });
+  const inspectability = useConversationUnitInspectability(
+    renderSnapshot.inspectabilityBoundaries,
+  );
 
   const loadMessages = useCallback(async () => {
     if (!sessionId) return;
@@ -308,8 +330,10 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
 
   return (
     <ChatThreadFrame
+      autoFollowKey={renderSnapshot.autoFollowKey}
       outerClassName="flex h-full flex-col"
       resetKey={sessionId ?? null}
+      scrollSignal={renderSnapshot.scrollSignal}
       header={
         <div className="flex items-start justify-between gap-3 border-border/50 border-b px-5 py-3">
           <div className="min-w-0">
@@ -342,7 +366,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       }
       contentClassName="mx-auto w-full max-w-3xl space-y-4"
     >
-      {(viewportRef) => (
+      {() => (
         <>
           {errorMessage ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -350,9 +374,12 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
             </div>
           ) : (
             <MessageList
-              messages={messages}
-              streamingContent={streamingContent}
-              viewportRef={viewportRef}
+              getExpandedDetailEntries={inspectability.getExpandedDetailEntries}
+              isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
+              onToggleConversationUnit={inspectability.toggleConversationUnit}
+              onToggleDetailEntry={inspectability.toggleDetailEntry}
+              renderedMessages={renderSnapshot.renderedMessages}
+              streamingMessage={renderSnapshot.streamingMessage}
             />
           )}
 

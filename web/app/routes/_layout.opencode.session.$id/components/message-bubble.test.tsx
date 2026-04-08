@@ -90,7 +90,6 @@ describe("message-bubble", () => {
             },
           })
         }
-        viewportRef={{ current: null }}
       />,
     );
 
@@ -98,9 +97,7 @@ describe("message-bubble", () => {
   });
 
   it("keeps untracked assistant replies on the existing sender-only path", () => {
-    const markup = renderToStaticMarkup(
-      <MessageBubble message={createMessage()} viewportRef={{ current: null }} />,
-    );
+    const markup = renderToStaticMarkup(<MessageBubble message={createMessage()} />);
 
     expect(markup).not.toContain("Adjusted");
   });

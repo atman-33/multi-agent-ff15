@@ -31,6 +31,7 @@ export type SessionChatRenderSnapshot = {
   inspectabilityBoundaries: MessageInspectabilityBoundary[];
   refreshKind: SessionChatRefreshKind;
   scrollSignal: SessionChatScrollSignal;
+  autoFollowKey: string | null;
   streamingMessage: RenderedSessionMessage | null;
 };
 
@@ -66,6 +67,16 @@ function buildStreamingMessage(input: {
     detailRawText: input.content,
     messageDisplay,
   };
+}
+
+function hashText(value: string): string {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash.toString(36);
 }
 
 function shallowEqualRecord(
@@ -196,6 +207,21 @@ function reuseRenderedMessageReferences(
   });
 }
 
+function reuseStreamingMessageReference(
+  streamingMessage: RenderedSessionMessage | null,
+  previousSnapshot?: SessionChatRenderSnapshot | null,
+): RenderedSessionMessage | null {
+  if (!streamingMessage) {
+    return null;
+  }
+
+  if (previousSnapshot?.streamingMessage?.content === streamingMessage.content) {
+    return previousSnapshot.streamingMessage;
+  }
+
+  return streamingMessage;
+}
+
 function classifyRefreshKind(
   previousSnapshot: SessionChatRenderSnapshot | null | undefined,
   renderedMessages: RenderedSessionMessage[],
@@ -256,6 +282,36 @@ function toScrollSignal(refreshKind: SessionChatRefreshKind): SessionChatScrollS
   return "none";
 }
 
+function buildAutoFollowKey(
+  refreshKind: SessionChatRefreshKind,
+  renderedMessages: RenderedSessionMessage[],
+  streamingMessage: RenderedSessionMessage | null,
+): string | null {
+  if (refreshKind === "tail-append") {
+    const tailMessage = renderedMessages.at(-1);
+    if (!tailMessage) {
+      return null;
+    }
+
+    return `tail:${tailMessage.conversationUnitId}:${tailMessage.sourceMessageIds.join("|")}`;
+  }
+
+  if (refreshKind === "streaming-growth") {
+    if (streamingMessage) {
+      return `stream:${streamingMessage.conversationUnitId}:${hashText(streamingMessage.content)}`;
+    }
+
+    const tailMessage = renderedMessages.at(-1);
+    if (!tailMessage) {
+      return null;
+    }
+
+    return `growth:${tailMessage.conversationUnitId}:${hashText(tailMessage.detailRawText)}`;
+  }
+
+  return null;
+}
+
 export function buildSessionChatRenderSnapshot({
   messages,
   previousSnapshot = null,
@@ -276,7 +332,10 @@ export function buildSessionChatRenderSnapshot({
   const inspectabilityBoundaries = nextRenderedMessages.map((message) =>
     buildMessageInspectabilityBoundary(message),
   );
-  const streamingMessage = buildStreamingMessage(streamingText);
+  const streamingMessage = reuseStreamingMessageReference(
+    buildStreamingMessage(streamingText),
+    previousSnapshot,
+  );
   const refreshKind = classifyRefreshKind(
     previousSnapshot,
     nextRenderedMessages,
@@ -289,6 +348,7 @@ export function buildSessionChatRenderSnapshot({
     inspectabilityBoundaries,
     refreshKind,
     scrollSignal: toScrollSignal(refreshKind),
+    autoFollowKey: buildAutoFollowKey(refreshKind, nextRenderedMessages, streamingMessage),
     streamingMessage,
   };
 }

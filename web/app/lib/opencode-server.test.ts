@@ -171,6 +171,17 @@ afterEach(() => {
 });
 
 describe("opencode-server", () => {
+  it("does not fall back to the legacy shared URL when no app-owned server is available", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+
+    const module = await loadModule();
+
+    expect(() => module.getOpencodeBaseUrl()).toThrow(
+      "App-owned OpenCode server URL is not available"
+    );
+  });
+
   it("starts a dedicated app-owned server and persists ownership instead of reusing a healthy legacy server", async () => {
     const root = createTempRoot();
     getProjectRootMock.mockReturnValue(root);
@@ -192,6 +203,48 @@ describe("opencode-server", () => {
     expect(existsSync(statePath)).toBe(true);
     expect(JSON.parse(readFileSync(statePath, "utf-8"))).toMatchObject({
       pid: 45678,
+      projectRoot: root,
+      url: APP_SERVER_URL,
+    });
+  });
+
+  it("reuses a healthy app-owned server recorded in runtime state", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: true, legacyOk: false, staleOk: false });
+    installProcessKillMock({ alivePids: [45678] });
+    writeServerState(root, {
+      pid: 45678,
+      url: APP_SERVER_URL,
+    });
+
+    const module = await loadModule();
+    const url = await module.ensureOpencodeServer();
+
+    expect(url).toBe(APP_SERVER_URL);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("clears a dead app-owned marker before starting a replacement server", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: true, legacyOk: false, staleOk: false });
+    installProcessKillMock({ alivePids: [] });
+    installSpawnSuccess({ pid: 56789, url: APP_SERVER_URL });
+
+    const statePath = writeServerState(root, {
+      pid: 34567,
+      url: STALE_SERVER_URL,
+    });
+
+    const module = await loadModule();
+    const url = await module.ensureOpencodeServer();
+
+    expect(url).toBe(APP_SERVER_URL);
+    expect(processKillSpy).toHaveBeenCalledWith(34567, 0);
+    expect(processKillSpy).not.toHaveBeenCalledWith(34567, "SIGTERM");
+    expect(JSON.parse(readFileSync(statePath, "utf-8"))).toMatchObject({
+      pid: 56789,
       projectRoot: root,
       url: APP_SERVER_URL,
     });
@@ -267,5 +320,26 @@ describe("opencode-server", () => {
     });
     expect(status.warning).toContain(LEGACY_SERVER_URL);
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("starts an app-owned replacement during recover without terminating a foreign legacy server", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: true, legacyOk: true, staleOk: false });
+    installProcessKillMock({ alivePids: [] });
+    installSpawnSuccess({ pid: 56789, url: APP_SERVER_URL });
+
+    const module = await loadModule();
+    const status = await module.recoverOpencodeServer();
+
+    expect(status).toMatchObject({
+      foreignServerUrl: LEGACY_SERVER_URL,
+      isRunning: true,
+      managedByApp: true,
+      recoveryBlocked: false,
+      url: APP_SERVER_URL,
+    });
+    expect(processKillSpy).not.toHaveBeenCalled();
+    expect(spawnMock).toHaveBeenCalledTimes(1);
   });
 });

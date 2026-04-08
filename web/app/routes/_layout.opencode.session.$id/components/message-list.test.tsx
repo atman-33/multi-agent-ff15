@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
+import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
 import MessageList from "./message-list";
 
 vi.mock("./message-bubble", () => ({
@@ -25,30 +27,36 @@ vi.mock("./message-bubble", () => ({
 
 describe("message-list", () => {
   it("renders grouped Noctis replies as one displayed message with merged intermediate details", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      messages: toSessionPresentationMessages([
+        {
+          info: {
+            id: "tool-1",
+            role: "assistant",
+            agent: "noctis",
+            time: { created: Date.parse("2026-04-04T10:00:00.000Z") },
+          },
+          parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+        },
+        {
+          info: {
+            id: "reply-1",
+            role: "assistant",
+            agent: "noctis",
+            time: { created: Date.parse("2026-04-04T10:00:05.000Z") },
+          },
+          parts: [{ type: "text", text: "了解。今、みんなに聞いている。" }],
+        },
+      ]),
+    });
     const markup = renderToStaticMarkup(
       <MessageList
-        messages={[
-          {
-            info: {
-              id: "tool-1",
-              role: "assistant",
-              agent: "noctis",
-              time: { created: Date.parse("2026-04-04T10:00:00.000Z") },
-            },
-            parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
-          },
-          {
-            info: {
-              id: "reply-1",
-              role: "assistant",
-              agent: "noctis",
-              time: { created: Date.parse("2026-04-04T10:00:05.000Z") },
-            },
-            parts: [{ type: "text", text: "了解。今、みんなに聞いている。" }],
-          },
-        ]}
-        streamingContent=""
-        viewportRef={{ current: null }}
+        getExpandedDetailEntries={() => ({})}
+        isConversationUnitExpanded={() => false}
+        onToggleConversationUnit={() => undefined}
+        onToggleDetailEntry={() => undefined}
+        renderedMessages={snapshot.renderedMessages}
+        streamingMessage={snapshot.streamingMessage}
       />,
     );
 

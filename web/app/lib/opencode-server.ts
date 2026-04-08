@@ -568,5 +568,10 @@ export async function recoverOpencodeServer(): Promise<OpencodeServerStatus> {
 }
 
 export function getOpencodeBaseUrl(): string {
-  return serverUrl ?? getRecordedOpencodeBaseUrl() ?? LEGACY_URL;
+  const url = serverUrl ?? getRecordedOpencodeBaseUrl();
+  if (!url) {
+    throw new Error("App-owned OpenCode server URL is not available");
+  }
+
+  return url;
 }

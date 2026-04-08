@@ -14,7 +14,7 @@ type Props = {
   tools: ChatMessagePart[];
   promptContextSections?: PromptContextSection[];
   promptContextSource?: PromptContextSource | null;
-  expandedDetailIds?: string[];
+  expandedDetailEntries?: Record<string, true>;
   onToggleDetail?: (detailId: string) => void;
 };
 
@@ -107,7 +107,7 @@ export function MessageIntermediateDetails({
   tools,
   promptContextSections = [],
   promptContextSource = null,
-  expandedDetailIds = [],
+  expandedDetailEntries = {},
   onToggleDetail,
 }: Props) {
   const hasDetails =
@@ -139,7 +139,6 @@ export function MessageIntermediateDetails({
       ? firstSource
       : null;
   }, [promptContextSections, promptContextSource]);
-  const expandedDetailIdSet = useMemo(() => new Set(expandedDetailIds), [expandedDetailIds]);
 
   if (!hasDetails) {
     return null;
@@ -183,7 +182,7 @@ export function MessageIntermediateDetails({
           <div className="space-y-2">
             {promptContextSections.map((section) => (
               <PromptContextSectionPanel
-                expanded={expandedDetailIdSet.has(section.detailId ?? section.key)}
+                expanded={Boolean(expandedDetailEntries[section.detailId ?? section.key])}
                 key={section.detailId ?? section.key}
                 onToggle={() => onToggleDetail?.(section.detailId ?? section.key)}
                 section={section}
@@ -214,7 +213,7 @@ export function MessageIntermediateDetails({
           <div className="space-y-2">
             {tools.map((tool, index) => {
               const detailId = tool.detailId ?? `tool:${tool.tool ?? "tool"}:${index}`;
-              const expanded = expandedDetailIdSet.has(detailId);
+              const expanded = Boolean(expandedDetailEntries[detailId]);
 
               return (
                 <div
