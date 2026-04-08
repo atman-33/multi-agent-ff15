@@ -149,7 +149,7 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
         <CardContent className="space-y-5 px-6 py-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              {status?.state === "running" ? (
+                {status?.state === "running" ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
               ) : status?.state === "starting" ? (
                 <LoaderCircle className="h-5 w-5 animate-spin text-amber-500" />
@@ -159,7 +159,9 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
               <div>
                 <div className="font-medium text-base">Current status</div>
                 <div className="text-muted-foreground text-sm">
-                  {status?.state === "running"
+                  {status?.recoveryBlocked
+                    ? "App-owned server recovery is blocked until the stale process is cleared."
+                    : status?.state === "running"
                     ? "The OpenCode server responded to the latest health check."
                     : status?.state === "starting"
                       ? "The server is starting up right now."
@@ -173,11 +175,12 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
                 "px-2 py-0.5 text-xs capitalize",
                 status?.state === "running" && "bg-emerald-500/15 text-emerald-600",
                 status?.state === "starting" && "bg-amber-500/15 text-amber-600",
-                status?.state === "down" && "bg-destructive/10 text-destructive"
+                (status?.state === "down" || status?.recoveryBlocked) &&
+                  "bg-destructive/10 text-destructive"
               )}
               variant="secondary"
             >
-              {status?.state ?? "unknown"}
+              {status?.recoveryBlocked ? "blocked" : status?.state ?? "unknown"}
             </Badge>
           </div>
 
@@ -208,7 +211,21 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
               </div>
               <div className="mt-2 text-sm">{formatTimestamp(status?.lastStartedAt ?? null)}</div>
             </div>
+            <div className="rounded-lg border border-border/60 bg-background/60 p-4 md:col-span-2">
+              <div className="text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                Foreign Server
+              </div>
+              <div className="mt-2 text-sm">{status?.foreignServerUrl ?? "-"}</div>
+            </div>
           </div>
+
+          {status?.warning && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Foreign server detected</AlertTitle>
+              <AlertDescription>{status.warning}</AlertDescription>
+            </Alert>
+          )}
 
           {status?.error && (
             <Alert variant="destructive">

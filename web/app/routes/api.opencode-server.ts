@@ -13,7 +13,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   try {
     const status = await recoverOpencodeServer();
-    return Response.json(status);
+    return Response.json(status, {
+      status: status.recoveryBlocked ? 500 : 200,
+    });
   } catch (error) {
     const status = await getOpencodeServerStatus();
     return Response.json(
