@@ -1,5 +1,5 @@
 import { FileText, Radio } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
@@ -19,6 +19,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
+import {
+  buildMessageInspectabilityBoundary,
+  createMessageInspectabilityState,
+  getExpandedDetailEntryIds,
+  isConversationUnitExpanded,
+  reconcileMessageInspectabilityState,
+  toggleConversationUnitExpansion,
+  toggleDetailEntryExpansion,
+} from "@/lib/message-inspectability-state";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -115,8 +124,21 @@ function toSessionPresentationMessage(message: ChatMessage): SessionPresentation
 }
 
 const MessageBubble = memo(
-  ({ message, showCursor }: { message: RenderedSessionMessage; showCursor: boolean }) => {
-    const [detailsExpanded, setDetailsExpanded] = useState(false);
+  ({
+    message,
+    showCursor,
+    detailsExpanded,
+    expandedDetailIds,
+    onToggleDetails,
+    onToggleDetail,
+  }: {
+    message: RenderedSessionMessage;
+    showCursor: boolean;
+    detailsExpanded: boolean;
+    expandedDetailIds: string[];
+    onToggleDetails: () => void;
+    onToggleDetail: (detailId: string) => void;
+  }) => {
     const messageDisplay = message.messageDisplay;
     const isOutgoing = messageDisplay.resolvedSenderIsUser;
     const isNoctis = message.sender === "noctis";
@@ -194,9 +216,11 @@ const MessageBubble = memo(
             <MessageIntermediateDetailsToggle
               detailSummary={detailSummary}
               expanded={detailsExpanded}
-              onToggle={() => setDetailsExpanded((value) => !value)}
+              onToggle={onToggleDetails}
             >
               <MessageIntermediateDetails
+                expandedDetailIds={expandedDetailIds}
+                onToggleDetail={onToggleDetail}
                 promptContextSections={messageDisplay.promptContextSections}
                 promptContextSource={messageDisplay.promptContextSource}
                 reasoning={reasoning}
@@ -247,6 +271,20 @@ export const ChatArea = ({
     () => buildRenderedSessionMessages(messages.map(toSessionPresentationMessage)),
     [messages],
   );
+  const [inspectabilityState, setInspectabilityState] = useState(
+    createMessageInspectabilityState,
+  );
+  const inspectabilityBoundaries = useMemo(
+    () => renderedMessages.map((message) => buildMessageInspectabilityBoundary(message)),
+    [renderedMessages],
+  );
+
+  useEffect(() => {
+    setInspectabilityState((current) =>
+      reconcileMessageInspectabilityState(current, inspectabilityBoundaries),
+    );
+  }, [inspectabilityBoundaries]);
+
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
     const allowedWorkers = getAllowedWorkers(workingParty);
@@ -416,7 +454,31 @@ export const ChatArea = ({
           {renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming && message.sender === "noctis" && index === renderedMessages.length - 1;
-            return <MessageBubble key={message.id} message={message} showCursor={isLastNoctis} />;
+            return (
+              <MessageBubble
+                detailsExpanded={isConversationUnitExpanded(
+                  inspectabilityState,
+                  message.conversationUnitId,
+                )}
+                expandedDetailIds={getExpandedDetailEntryIds(
+                  inspectabilityState,
+                  message.conversationUnitId,
+                )}
+                key={message.conversationUnitId}
+                message={message}
+                onToggleDetail={(detailId) =>
+                  setInspectabilityState((current) =>
+                    toggleDetailEntryExpansion(current, message.conversationUnitId, detailId),
+                  )
+                }
+                onToggleDetails={() =>
+                  setInspectabilityState((current) =>
+                    toggleConversationUnitExpansion(current, message.conversationUnitId),
+                  )
+                }
+                showCursor={isLastNoctis}
+              />
+            );
           })}
 
           {isSessionActive ? (

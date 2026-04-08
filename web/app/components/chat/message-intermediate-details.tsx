@@ -1,5 +1,5 @@
 import { BadgeInfo, ChevronDown, FileText, Sparkles, Wrench } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import type { ChatMessagePart } from "@/lib/chat-message-parts";
 import {
   getPromptContextSourceLabel,
@@ -14,16 +14,25 @@ type Props = {
   tools: ChatMessagePart[];
   promptContextSections?: PromptContextSection[];
   promptContextSource?: PromptContextSource | null;
+  expandedDetailIds?: string[];
+  onToggleDetail?: (detailId: string) => void;
 };
 
-function PromptContextSectionPanel({ section }: { section: PromptContextSection }) {
-  const [expanded, setExpanded] = useState(false);
+function PromptContextSectionPanel({
+  section,
+  expanded,
+  onToggle,
+}: {
+  section: PromptContextSection;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
 
   return (
     <div className="rounded-md border border-border/30 bg-black/10 p-2">
       <button
         className="flex w-full min-w-0 items-center gap-2 text-left"
-        onClick={() => setExpanded((value) => !value)}
+        onClick={onToggle}
         type="button"
       >
         <span className="min-w-0 flex-1 text-xs font-semibold text-muted-foreground">
@@ -98,9 +107,9 @@ export function MessageIntermediateDetails({
   tools,
   promptContextSections = [],
   promptContextSource = null,
+  expandedDetailIds = [],
+  onToggleDetail,
 }: Props) {
-  const toolKeyMapRef = useRef(new WeakMap<ChatMessagePart, string>());
-  const nextToolKeyRef = useRef(0);
   const hasDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
@@ -130,18 +139,7 @@ export function MessageIntermediateDetails({
       ? firstSource
       : null;
   }, [promptContextSections, promptContextSource]);
-
-  const getToolKey = (tool: ChatMessagePart) => {
-    const existingKey = toolKeyMapRef.current.get(tool);
-    if (existingKey) {
-      return existingKey;
-    }
-
-    nextToolKeyRef.current += 1;
-    const nextKey = `tool-${nextToolKeyRef.current}`;
-    toolKeyMapRef.current.set(tool, nextKey);
-    return nextKey;
-  };
+  const expandedDetailIdSet = useMemo(() => new Set(expandedDetailIds), [expandedDetailIds]);
 
   if (!hasDetails) {
     return null;
@@ -184,7 +182,12 @@ export function MessageIntermediateDetails({
           </div>
           <div className="space-y-2">
             {promptContextSections.map((section) => (
-              <PromptContextSectionPanel key={section.key} section={section} />
+              <PromptContextSectionPanel
+                expanded={expandedDetailIdSet.has(section.detailId ?? section.key)}
+                key={section.detailId ?? section.key}
+                onToggle={() => onToggleDetail?.(section.detailId ?? section.key)}
+                section={section}
+              />
             ))}
           </div>
         </section>
@@ -209,45 +212,77 @@ export function MessageIntermediateDetails({
             Tool Activity
           </div>
           <div className="space-y-2">
-            {tools.map((tool) => (
-              <details
-                key={getToolKey(tool)}
-                className="rounded-md border border-border/30 bg-black/10 p-2"
-              >
-                <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
-                  {tool.tool ?? "Tool"}
-                </summary>
-                <div className="mt-2 text-[11px] leading-4 text-muted-foreground">
-                  {tool.state?.status ? (
-                    <div className="mb-1">
-                      Status:{" "}
-                      <span
+            {tools.map((tool, index) => {
+              const detailId = tool.detailId ?? `tool:${tool.tool ?? "tool"}:${index}`;
+              const expanded = expandedDetailIdSet.has(detailId);
+
+              return (
+                <div
+                  key={detailId}
+                  className="rounded-md border border-border/30 bg-black/10 p-2"
+                >
+                  <button
+                    className="flex w-full items-center gap-2 text-left"
+                    onClick={() => onToggleDetail?.(detailId)}
+                    type="button"
+                  >
+                    <span className="flex-1 text-xs font-semibold text-muted-foreground">
+                      {tool.tool ?? "Tool"}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-3.5 w-3.5 shrink-0 text-muted-foreground/75 transition-transform duration-300 ease-out",
+                        expanded ? "rotate-180" : "rotate-0",
+                      )}
+                    />
+                  </button>
+
+                  <div
+                    className={cn(
+                      "grid transition-all duration-300 ease-out",
+                      expanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0",
+                    )}
+                  >
+                    <div className="overflow-hidden">
+                      <div
                         className={cn(
-                          "font-semibold",
-                          tool.state.status === "completed" && "text-emerald-400",
-                          tool.state.status === "error" && "text-destructive"
+                          "text-[11px] leading-4 text-muted-foreground transition-all duration-300 ease-out",
+                          expanded ? "translate-y-0" : "-translate-y-1",
                         )}
                       >
-                        {tool.state.status}
-                      </span>
+                        {tool.state?.status ? (
+                          <div className="mb-1">
+                            Status:{" "}
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                tool.state.status === "completed" && "text-emerald-400",
+                                tool.state.status === "error" && "text-destructive",
+                              )}
+                            >
+                              {tool.state.status}
+                            </span>
+                          </div>
+                        ) : null}
+                        {tool.state?.input ? (
+                          <pre className="whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+                            {JSON.stringify(tool.state.input, null, 2)}
+                          </pre>
+                        ) : null}
+                        {tool.state?.output ? (
+                          <pre className="mt-2 whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
+                            {tool.state.output}
+                          </pre>
+                        ) : null}
+                        {tool.state?.error ? (
+                          <div className="mt-2 text-xs text-destructive">{tool.state.error}</div>
+                        ) : null}
+                      </div>
                     </div>
-                  ) : null}
-                  {tool.state?.input ? (
-                    <pre className="whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
-                      {JSON.stringify(tool.state.input, null, 2)}
-                    </pre>
-                  ) : null}
-                  {tool.state?.output ? (
-                    <pre className="mt-2 whitespace-pre-wrap rounded-md bg-black/10 p-2 text-[11px] text-foreground/85">
-                      {tool.state.output}
-                    </pre>
-                  ) : null}
-                  {tool.state?.error ? (
-                    <div className="mt-2 text-xs text-destructive">{tool.state.error}</div>
-                  ) : null}
+                  </div>
                 </div>
-              </details>
-            ))}
+              );
+            })}
           </div>
         </section>
       ) : null}

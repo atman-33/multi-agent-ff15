@@ -45,6 +45,8 @@ export type SessionMessageDisplay = {
 };
 
 export type RenderedSessionMessage = Omit<SessionPresentationMessage, "parts"> & {
+  conversationUnitId: string;
+  sourceMessageIds: string[];
   parts: MessagePart[];
   detailRawText: string;
   messageDisplay: SessionMessageDisplay;
@@ -185,6 +187,44 @@ function resolveRawPromptPayload(rawText: string, displayContent: string): strin
   return normalizedRawText === displayContent.trim() ? null : normalizedRawText;
 }
 
+function buildToolDetailId(messageId: string, toolIndex: number): string {
+  return `tool:${messageId}:${toolIndex}`;
+}
+
+function buildPromptContextDetailId(messageId: string, sectionKey: string): string {
+  return `prompt:${messageId}:${sectionKey}`;
+}
+
+function attachToolDetailIds(messageId: string, parts: MessagePart[]): MessagePart[] {
+  let toolIndex = 0;
+
+  return parts.map((part) => {
+    if (part.type !== "tool") {
+      return part;
+    }
+
+    const nextPart = {
+      ...part,
+      detailId: part.detailId ?? buildToolDetailId(messageId, toolIndex),
+      sourceMessageId: part.sourceMessageId ?? messageId,
+    };
+
+    toolIndex += 1;
+    return nextPart;
+  });
+}
+
+function attachPromptContextDetailIds(
+  messageId: string,
+  sections: PromptContextSection[],
+): PromptContextSection[] {
+  return sections.map((section) => ({
+    ...section,
+    detailId: section.detailId ?? buildPromptContextDetailId(messageId, section.key),
+    sourceMessageId: section.sourceMessageId ?? messageId,
+  }));
+}
+
 function buildCombinedMessageDisplay(
   primary: SessionMessageDisplay,
   groupedMessages: PreparedSessionMessage[],
@@ -208,19 +248,23 @@ function buildCombinedMessageDisplay(
 }
 
 function prepareSessionMessage(message: SessionPresentationMessage): PreparedSessionMessage {
-  const parts = getMessageParts(message);
+  const parts = attachToolDetailIds(message.id, getMessageParts(message));
   const rawText = getMessageRawText(message);
+  const display = resolveSessionMessageDisplay({
+    rawText,
+    fallbackSender: message.sender,
+    fallbackSenderLabel: message.senderLabel,
+    selectionAdjustment: message.selectionAdjustment,
+  });
 
   return {
     message,
     parts,
     rawText,
-    display: resolveSessionMessageDisplay({
-      rawText,
-      fallbackSender: message.sender,
-      fallbackSenderLabel: message.senderLabel,
-      selectionAdjustment: message.selectionAdjustment,
-    }),
+    display: {
+      ...display,
+      promptContextSections: attachPromptContextDetailIds(message.id, display.promptContextSections),
+    },
   };
 }
 
@@ -229,9 +273,13 @@ function toRenderedSessionMessage(
   groupedMessages: PreparedSessionMessage[] = [prepared],
 ): RenderedSessionMessage {
   const messageDisplay = buildCombinedMessageDisplay(prepared.display, groupedMessages);
+  const conversationUnitId = groupedMessages[0]?.message.id ?? prepared.message.id;
 
   return {
     ...prepared.message,
+    id: conversationUnitId,
+    conversationUnitId,
+    sourceMessageIds: groupedMessages.map((entry) => entry.message.id),
     sender: messageDisplay.resolvedSender,
     senderLabel: messageDisplay.resolvedSenderLabel,
     parts: groupedMessages.flatMap((entry) => entry.parts),
@@ -269,9 +317,12 @@ function flushPendingNoctisMessages(
 
   const timestamp = pendingNoctis[pendingNoctis.length - 1].message.timestamp;
   const detailRawText = buildDetailText(pendingNoctis.map((entry) => entry.message));
+  const conversationUnitId = pendingNoctis[0]?.message.id ?? "pending-noctis";
 
   rendered.push({
-    id: pendingNoctis.map((entry) => entry.message.id).join(":"),
+    id: conversationUnitId,
+    conversationUnitId,
+    sourceMessageIds: pendingNoctis.map((entry) => entry.message.id),
     role: "assistant",
     sender: "noctis",
     senderLabel: getActivityActorLabel("noctis"),

@@ -5,6 +5,8 @@ export type MessagePart = {
   type: string;
   text?: string;
   tool?: string;
+  detailId?: string;
+  sourceMessageId?: string;
   state?: {
     status?: string;
     input?: Record<string, unknown>;

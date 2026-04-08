@@ -1,9 +1,19 @@
+import { useEffect, useMemo, useState } from "react";
 import {
   buildRenderedSessionMessages,
   resolveSessionMessageDisplay,
   toSessionPresentationMessages,
   type RenderedSessionMessage,
 } from "@/lib/session-message-presentation";
+import {
+  buildMessageInspectabilityBoundary,
+  createMessageInspectabilityState,
+  getExpandedDetailEntryIds,
+  isConversationUnitExpanded,
+  reconcileMessageInspectabilityState,
+  toggleConversationUnitExpansion,
+  toggleDetailEntryExpansion,
+} from "@/lib/message-inspectability-state";
 import type { MessageInfo } from "../types";
 import MessageBubble from "./message-bubble";
 
@@ -15,6 +25,20 @@ type Props = {
 
 const MessageList = ({ messages, streamingContent, viewportRef }: Props) => {
   const displayMessages = buildRenderedSessionMessages(toSessionPresentationMessages(messages));
+  const [inspectabilityState, setInspectabilityState] = useState(
+    createMessageInspectabilityState,
+  );
+  const inspectabilityBoundaries = useMemo(
+    () => displayMessages.map((message) => buildMessageInspectabilityBoundary(message)),
+    [displayMessages],
+  );
+
+  useEffect(() => {
+    setInspectabilityState((current) =>
+      reconcileMessageInspectabilityState(current, inspectabilityBoundaries),
+    );
+  }, [inspectabilityBoundaries]);
+
   const streamingMessageDisplay = streamingContent
     ? resolveSessionMessageDisplay({
         rawText: streamingContent,
@@ -26,6 +50,7 @@ const MessageList = ({ messages, streamingContent, viewportRef }: Props) => {
     streamingContent && streamingMessageDisplay
       ? {
           id: "streaming-assistant",
+          conversationUnitId: "streaming-assistant",
           role: "assistant",
           sender: streamingMessageDisplay.resolvedSender,
           senderLabel: streamingMessageDisplay.resolvedSenderLabel,
@@ -36,6 +61,7 @@ const MessageList = ({ messages, streamingContent, viewportRef }: Props) => {
           parts: [{ type: "text", text: streamingContent }],
           timestamp: new Date(),
           source: "session",
+          sourceMessageIds: ["streaming-assistant"],
           detailRawText: streamingContent,
           messageDisplay: streamingMessageDisplay,
         }
@@ -44,7 +70,29 @@ const MessageList = ({ messages, streamingContent, viewportRef }: Props) => {
   return (
     <div className="space-y-3">
       {displayMessages.map((message) => (
-        <MessageBubble key={message.id} message={message} viewportRef={viewportRef} />
+        <MessageBubble
+          detailsExpanded={isConversationUnitExpanded(
+            inspectabilityState,
+            message.conversationUnitId,
+          )}
+          expandedDetailIds={getExpandedDetailEntryIds(
+            inspectabilityState,
+            message.conversationUnitId,
+          )}
+          key={message.conversationUnitId}
+          message={message}
+          onToggleDetail={(detailId) =>
+            setInspectabilityState((current) =>
+              toggleDetailEntryExpansion(current, message.conversationUnitId, detailId),
+            )
+          }
+          onToggleDetails={() =>
+            setInspectabilityState((current) =>
+              toggleConversationUnitExpansion(current, message.conversationUnitId),
+            )
+          }
+          viewportRef={viewportRef}
+        />
       ))}
       {streamingMessage ? (
         <MessageBubble

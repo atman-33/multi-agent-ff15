@@ -179,9 +179,66 @@ Hello from User.
     ]);
 
     expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.conversationUnitId).toBe("tool-1");
     expect(rendered[0]?.messageDisplay.displayContent).toBe("了解。今、みんなに聞いている。");
     expect(rendered[0]?.parts.filter((part) => part.type === "tool")).toHaveLength(1);
     expect(rendered[0]?.detailRawText).toContain("了解。今、みんなに聞いている。");
+  });
+
+  it("keeps stable conversation-unit and detail identities across unchanged re-hydration", () => {
+    const createMessages = (): SessionPresentationMessage[] => [
+      {
+        id: "tool-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "",
+        detailContent: "",
+        rawText: "",
+        parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+        timestamp: new Date("2026-04-04T10:00:00.000Z"),
+        source: "session",
+      },
+      {
+        id: "reply-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "Implemented the requested change.",
+        detailContent: "Implemented the requested change.",
+        rawText: `
+<operation-prompt>
+<instruction>
+Follow the handoff.
+</instruction>
+
+      <team-message from="noctis" to="user">
+Implemented the requested change.
+      </team-message>
+</operation-prompt>
+        `.trim(),
+        parts: [{ type: "text", text: "Implemented the requested change." }],
+        timestamp: new Date("2026-04-04T10:00:05.000Z"),
+        source: "session",
+      },
+    ];
+
+    const firstRender = buildRenderedSessionMessages(createMessages());
+    const secondRender = buildRenderedSessionMessages(createMessages());
+
+    expect(firstRender).toHaveLength(1);
+    expect(secondRender).toHaveLength(1);
+    expect(firstRender[0]?.conversationUnitId).toBe("tool-1");
+    expect(secondRender[0]?.conversationUnitId).toBe(firstRender[0]?.conversationUnitId);
+    expect(secondRender[0]?.id).toBe(firstRender[0]?.id);
+    expect(secondRender[0]?.parts.find((part) => part.type === "tool")?.detailId).toBe(
+      firstRender[0]?.parts.find((part) => part.type === "tool")?.detailId,
+    );
+    expect(secondRender[0]?.messageDisplay.promptContextSections[0]?.detailId).toBe(
+      firstRender[0]?.messageDisplay.promptContextSections[0]?.detailId,
+    );
   });
 
   it("keeps trailing Noctis intermediate activity visible as its own displayed message", () => {
@@ -202,9 +259,63 @@ Hello from User.
     ]);
 
     expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.conversationUnitId).toBe("tool-1");
     expect(rendered[0]?.intermediateOnly).toBe(true);
     expect(rendered[0]?.messageDisplay.displayContent).toBe("Tool activity: 1 event.");
     expect(rendered[0]?.senderLabel).toBe("Noctis");
+  });
+
+  it("keeps the same conversation-unit identity when pending Noctis activity becomes visible", () => {
+    const pendingOnly = buildRenderedSessionMessages([
+      {
+        id: "tool-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "",
+        detailContent: "",
+        rawText: "",
+        parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+        timestamp: new Date("2026-04-04T10:00:00.000Z"),
+        source: "session",
+      },
+    ]);
+    const groupedVisible = buildRenderedSessionMessages([
+      {
+        id: "tool-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "",
+        detailContent: "",
+        rawText: "",
+        parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+        timestamp: new Date("2026-04-04T10:00:00.000Z"),
+        source: "session",
+      },
+      {
+        id: "reply-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "了解。今、みんなに聞いている。",
+        detailContent: "了解。今、みんなに聞いている。",
+        rawText: "了解。今、みんなに聞いている。",
+        parts: [{ type: "text", text: "了解。今、みんなに聞いている。" }],
+        timestamp: new Date("2026-04-04T10:00:05.000Z"),
+        source: "session",
+      },
+    ]);
+
+    expect(pendingOnly).toHaveLength(1);
+    expect(groupedVisible).toHaveLength(1);
+    expect(groupedVisible[0]?.conversationUnitId).toBe(pendingOnly[0]?.conversationUnitId);
+    expect(groupedVisible[0]?.parts.find((part) => part.type === "tool")?.detailId).toBe(
+      pendingOnly[0]?.parts.find((part) => part.type === "tool")?.detailId,
+    );
   });
 
   it("does not merge pending Noctis activity into a later different displayed sender", () => {
@@ -294,6 +405,9 @@ Implemented the requested change.
       noctisRendered[0]?.messageDisplay.displayContent,
     );
     expect(opencodeRendered[0]?.senderLabel).toBe(noctisRendered[0]?.senderLabel);
+    expect(opencodeRendered[0]?.conversationUnitId).toBe(
+      noctisRendered[0]?.conversationUnitId,
+    );
     expect(opencodeRendered[0]?.intermediateOnly).toBe(noctisRendered[0]?.intermediateOnly);
   });
 });
