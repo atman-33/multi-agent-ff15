@@ -46,20 +46,24 @@ If runtime behavior may change, also inspect:
 8. Do not use removed step fields such as `edit`, `pass_previous_response`, `job_file`, `instruction_file`, `knowledge_files`, `policy_files`, or `format_file`.
 9. `delegation` is only valid on `noctis` steps and is intended for autonomous parent steps that stay open while delegating child tasks.
 10. A step may omit `rules` only for an explicit Noctis-owned autonomous delegation flow.
-11. Preserve authored order for `knowledge`, `policies`, `delegation.worker_knowledge`, and `delegation.worker_policies` lists.
-12. The runtime owns dispatch. Do not design manual Noctis relay or message-body step tags as the transition mechanism.
-13. The canonical workflow identity is a source-aware `operationRef` derived from the workflow source tree and file name. Do not assume plain `name` is globally unique.
-14. The canonical completion transport is `taskId + next + message`.
-15. `delegation.allowed_workers` is the authored upper bound. Runtime intersects it with the mission allowed worker set to determine the effective child-task targets.
-16. Delegated worker prompts are composed from `delegation.worker_*` sources rather than the parent step's job and instruction.
-17. Output placeholders must resolve to existing mission-scoped files. Treat unresolved placeholders as blocking failures.
-18. Output-contract facets must contain exactly one `## Format` section followed by exactly one `## Rule` section.
+11. Default to the fewest steps that preserve clear ownership, required artifact boundaries, and explicit approval or input waits.
+12. Do not add Noctis relay steps or User-facing progress-update steps between worker steps unless checkpoints, approvals, or interactive monitoring were explicitly requested.
+13. User-facing messaging should normally happen only at final completion or when the workflow is blocked and waiting for User input.
+14. Preserve authored order for `knowledge`, `policies`, `delegation.worker_knowledge`, and `delegation.worker_policies` lists.
+15. The runtime owns dispatch. Do not design manual Noctis relay or message-body step tags as the transition mechanism.
+16. The canonical workflow identity is a source-aware `operationRef` derived from the workflow source tree and file name. Do not assume plain `name` is globally unique.
+17. The canonical completion transport is `taskId + next + message`.
+18. `delegation.allowed_workers` is the authored upper bound. Runtime intersects it with the mission allowed worker set to determine the effective child-task targets.
+19. Delegated worker prompts are composed from `delegation.worker_*` sources rather than the parent step's job and instruction.
+20. Output placeholders must resolve to existing mission-scoped files. Treat unresolved placeholders as blocking failures.
+21. Output-contract facets must contain exactly one `## Format` section followed by exactly one `## Rule` section.
 
 ## Autonomous Delegation Pattern
 
 - Use the dedicated autonomous delegation template when Noctis should remain in one open-ended parent step.
 - Keep the parent step owned by `noctis`.
 - Omit `rules` only when child reports should return to the same parent step instead of advancing the workflow.
+- Keep the parent step open for internal coordination. Message User only on completion, on a real blocker that needs input, or at explicitly requested checkpoints.
 - Put delegated worker prompt material under `delegation.worker_*` instead of reusing the parent step's prompt facets.
 - If the operation is internal-only, hide its operation name from normal user-facing operation lists.
 - When a project-authored autonomous flow shares a visible name with a builtin workflow, rely on its source-specific description and path rather than renaming refs by hand.
@@ -69,6 +73,7 @@ If runtime behavior may change, also inspect:
 - Confirm the operation already has the right step ownership model.
 - Confirm whether the workflow belongs in the builtin tree or a project authoring tree before copying templates.
 - Confirm whether the workflow is a standard routed operation or an autonomous delegation flow before choosing a template.
+- Challenge every step. If it does not change owner, produce a required artifact, or wait for explicit User input or approval, merge or remove it.
 - Resolve every facet path relative to the operation YAML file.
 - Keep reusable content in facet files and step-specific content inline.
 - Verify every `next` target exists or is one of `COMPLETE` or `ABORT`.

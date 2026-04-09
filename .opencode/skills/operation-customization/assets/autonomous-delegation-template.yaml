@@ -3,6 +3,7 @@
 # Keep facet paths relative to the operation file so `../facets/...` works in either source tree.
 # Use exactly one of file or inline for each content source.
 # This pattern intentionally omits parent-step rules so child reports return to the same Noctis step.
+# Keep the parent step open for internal coordination. Message User only on completion, on a blocker that needs input, or at explicitly requested checkpoints.
 # If another workflow already uses the same visible name, keep that duplication only when you intentionally want separate source-aware candidates and use description text to disambiguate.
 
 name: <internal-operation-name>
@@ -21,8 +22,9 @@ steps:
       file: ../facets/instructions/<noctis-instruction>.md
       # inline: |
       #   # <Step title>
-      #   1. <Stay in conversation with User.>
+      #   1. <Coordinate the work inside this parent step.>
       #   2. <Delegate a child task only when it helps advance the work.>
+      #   3. <Only message User at completion, on blocker, or on an explicitly requested checkpoint.>
     knowledge:
       - file: ../facets/knowledge/<shared-knowledge>.md
       # - inline: |
@@ -41,7 +43,7 @@ steps:
         # inline: |
         #   # <Delegated worker instruction>
         #   1. <Read the child task prompt.>
-        #   2. <Return a concise handoff for Noctis.>
+        #   2. <Return a concise internal handoff for Noctis.>
       worker_knowledge:
         - file: ../facets/knowledge/<delegated-worker-knowledge>.md
       # worker_policies:

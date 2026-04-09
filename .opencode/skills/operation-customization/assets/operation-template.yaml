@@ -3,6 +3,8 @@
 # Keep facet paths relative to the operation file so `../facets/...` works in either source tree.
 # Use exactly one of file or inline for each content source.
 # initial_step must point to a noctis-owned step and that step must not route directly to COMPLETE or ABORT.
+# Prefer the fewest steps that preserve ownership, required artifact boundaries, and explicit approvals or input waits.
+# Do not add Noctis relay steps or User-facing progress-update steps unless checkpoints or approvals were explicitly requested.
 # If another workflow already uses the same visible name, keep that duplication only when you intentionally want separate source-aware candidates and use description text to disambiguate.
 
 name: <operation-name>
@@ -60,4 +62,5 @@ steps:
 
 # Duplicate and adapt step blocks as needed.
 # This generic template assumes normal rule-driven step transitions.
+# Keep User-facing messaging at the end unless the workflow explicitly needs checkpoints or is blocked on User input.
 # Valid agent values in this repository are noctis, ignis, gladiolus, and prompto.
