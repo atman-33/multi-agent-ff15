@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
@@ -13,11 +13,20 @@ import MessageDetailSheet from "./message-detail-sheet";
 type Props = {
   message: RenderedSessionMessage;
   showCursor?: boolean;
-  viewportRef: React.RefObject<HTMLDivElement | null>;
+  detailsExpanded?: boolean;
+  expandedDetailEntries?: Record<string, true>;
+  onToggleDetails?: (conversationUnitId: string) => void;
+  onToggleDetail?: (conversationUnitId: string, detailId: string) => void;
 };
 
-const MessageBubble = ({ message, showCursor = false }: Props) => {
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
+const MessageBubble = ({
+  message,
+  showCursor = false,
+  detailsExpanded = false,
+  expandedDetailEntries = {},
+  onToggleDetails = () => undefined,
+  onToggleDetail = () => undefined,
+}: Props) => {
   const messageDisplay = message.messageDisplay;
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
@@ -98,9 +107,11 @@ const MessageBubble = ({ message, showCursor = false }: Props) => {
           <MessageIntermediateDetailsToggle
             detailSummary={detailSummary}
             expanded={detailsExpanded}
-            onToggle={() => setDetailsExpanded((value) => !value)}
+            onToggle={() => onToggleDetails(message.conversationUnitId)}
           >
             <MessageIntermediateDetails
+              expandedDetailEntries={expandedDetailEntries}
+              onToggleDetail={(detailId) => onToggleDetail(message.conversationUnitId, detailId)}
               promptContextSections={messageDisplay.promptContextSections}
               promptContextSource={messageDisplay.promptContextSource}
               reasoning={reasoning}

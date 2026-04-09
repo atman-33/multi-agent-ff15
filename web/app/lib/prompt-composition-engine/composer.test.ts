@@ -7,8 +7,9 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import { createMission, deleteMission, getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildOperationDebugBundle } from "@/lib/operation-debug/debug-preview.server";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
+import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { loadOperationByName } from "@/lib/operation-definition/operation-loader";
-import { processReport } from "@/lib/operation-runtime/runtime";
+import { createOperationInstantiator } from "@/lib/operation-runtime/operation-instantiator";
 import { ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import { registerDelegatedTask } from "@/lib/operation-runtime/state";
@@ -22,6 +23,7 @@ import {
 const tempRoots: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const repoRoot = getProjectRoot();
+const operationInstantiator = createOperationInstantiator();
 
 function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-prompt-composer-"));
@@ -235,6 +237,72 @@ function writeNoctisReentryOperation(root: string) {
   );
 }
 
+function writeProjectOutputPlaceholderOperation(root: string) {
+  const operationsDirectory = join(root, "projects", "alpha", "operations");
+  const outputContractsDirectory = join(root, "projects", "alpha", "facets", "output-contracts");
+
+  mkdirSync(operationsDirectory, { recursive: true });
+  mkdirSync(outputContractsDirectory, { recursive: true });
+
+  writeFileSync(
+    join(outputContractsDirectory, "draft-result.md"),
+    [
+      "## Format",
+      "",
+      "- Write a concise markdown report.",
+      "",
+      "## Rule",
+      "",
+      "- Return one markdown artifact for the draft step.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  writeFileSync(
+    join(operationsDirectory, "project-output-placeholder.yaml"),
+    [
+      "name: project-output-placeholder",
+      "description: Project-authored fixture for debug preview placeholder resolution",
+      "initial_step: kickoff",
+      "steps:",
+      "  - name: kickoff",
+      "    agent: noctis",
+      "    job:",
+      "      inline: Kickoff coordinator",
+      "    instruction:",
+      "      inline: Hand the drafting task to Gladiolus.",
+      "    rules:",
+      "      - condition: Drafting is ready to begin",
+      "        next: draft",
+      "  - name: draft",
+      "    agent: gladiolus",
+      "    job:",
+      "      inline: Draft writer",
+      "    instruction:",
+      "      inline: Produce the draft report.",
+      "    output_contracts:",
+      "      report:",
+      "        - name: draft-result.md",
+      "          format:",
+      "            file: ../facets/output-contracts/draft-result.md",
+      "    rules:",
+      "      - condition: Draft is ready",
+      "        next: summarize",
+      "  - name: summarize",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: |",
+      "        Read `{{ output(\"draft\", \"latest\", \"draft-result.md\") }}` before replying to User.",
+      "    rules:",
+      "      - condition: Summary delivered",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function writeRequiredOutput(input: {
   missionId: string;
   stepName: string;
@@ -286,7 +354,7 @@ function buildSyntheticOperationState(missionId: string): {
       "",
     ].join("\n"),
   });
-  processReport({
+  operationInstantiator.processStepReport({
     missionId,
     operationState: state,
     reportBody: "Synthetic report from worker",
@@ -595,6 +663,28 @@ describe("prompt composition engine", () => {
     ]);
     expect(reentryStep?.effectivePrompt).toContain(userMessage);
     expect(reentryStep?.effectivePrompt).toContain("Synthetic report from worker");
+  });
+
+  it("builds debug preview for project-authored outputs consumed by the next Noctis step", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeProjectOutputPlaceholderOperation(root);
+
+    const missionId = "mission-project-output-placeholder";
+    const bundle = buildOperationDebugBundle({
+      missionId,
+      operationRef: buildProjectOperationRef("alpha", "project-output-placeholder.yaml"),
+    });
+    const summarizeStep = bundle.flowSteps.find((step) => step.stepName === "summarize");
+    const expectedOutputPath = getMissionOutputFilePath(
+      missionId,
+      "draft",
+      "step_draft_2",
+      "draft-result.md",
+    );
+
+    expect(bundle.flowSteps.map((step) => step.stepName)).toEqual(["kickoff", "draft", "summarize"]);
+    expect(summarizeStep?.effectivePrompt).toContain(expectedOutputPath);
   });
 
   it("renders one knowledge catalog for workflow prompts and keeps debug preview aligned", () => {

@@ -32,6 +32,7 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 
 - Describe the execution procedure for one step.
 - Prefer numbered actions, explicit references, blocking conditions, and completion criteria.
+- Do not ask for routine User-facing progress updates unless the workflow explicitly requires checkpoints, approvals, or interactive monitoring.
 - Put step-specific placeholder usage or command references here.
 
 ## knowledge
@@ -53,6 +54,7 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 ## output-contracts
 
 - Define the exact report or artifact structure the agent must produce.
+- Use output contracts for persisted workflow artifacts, not routine chat updates to User.
 - Put headings, tables, and placeholders in `## Format`.
 - Put validation and verdict rules in `## Rule`.
 - Keep filename expectations synchronized with `output_contracts.report[].name` and any `output(...)` references.

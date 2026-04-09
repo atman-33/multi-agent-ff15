@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { MissionOutputDocument, MissionOutputSummary } from "@/lib/types/mission";
-
-vi.mock("@/components/markdown-document-sheet-preview", () => ({
-  MarkdownDocumentSheetPreview: ({ title }: { title: string }) => <section>{title}</section>,
-}));
+import type { MissionOutputSummary } from "@/lib/types/mission";
 
 vi.mock("@/components/ui/alert", () => ({
   Alert: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -21,12 +17,6 @@ vi.mock("@/components/ui/scroll-area", () => ({
   ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SheetClose: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
-
 import { MissionOutputBrowser } from "./mission-output-browser";
 
 const baseOutput: MissionOutputSummary = {
@@ -40,27 +30,16 @@ const baseOutput: MissionOutputSummary = {
   tags: [],
 };
 
-const baseDocument: MissionOutputDocument = {
-  ...baseOutput,
-  content: "# Review\n",
-  rawContent: "# Review\n",
-};
-
 describe("mission-output-browser", () => {
   it("renders an empty state when no outputs exist", () => {
     const markup = renderToStaticMarkup(
       <MissionOutputBrowser
         currentStep={null}
         isLoadingOutputs={false}
-        isLoadingPreview={false}
-        onPreviewOpenChange={() => undefined}
         onReload={() => undefined}
         onSelectOutput={() => undefined}
         outputs={[]}
         outputsError={null}
-        previewDocument={null}
-        previewError={null}
-        previewOpen={false}
         selectedOutput={null}
       />,
     );
@@ -74,8 +53,6 @@ describe("mission-output-browser", () => {
       <MissionOutputBrowser
         currentStep="review"
         isLoadingOutputs={false}
-        isLoadingPreview={false}
-        onPreviewOpenChange={() => undefined}
         onReload={() => undefined}
         onSelectOutput={() => undefined}
         outputs={[
@@ -91,9 +68,6 @@ describe("mission-output-browser", () => {
           },
         ]}
         outputsError={null}
-        previewDocument={null}
-        previewError={null}
-        previewOpen={false}
         selectedOutput={baseOutput}
       />,
     );
@@ -104,20 +78,15 @@ describe("mission-output-browser", () => {
     expect(markup).toContain("Fix notes");
   });
 
-  it("renders a preview sheet payload when a document is selected", () => {
+  it("marks the selected output item in the list", () => {
     const markup = renderToStaticMarkup(
       <MissionOutputBrowser
         currentStep="review"
         isLoadingOutputs={false}
-        isLoadingPreview={false}
-        onPreviewOpenChange={() => undefined}
         onReload={() => undefined}
         onSelectOutput={() => undefined}
         outputs={[baseOutput]}
         outputsError={null}
-        previewDocument={baseDocument}
-        previewError={null}
-        previewOpen={true}
         selectedOutput={baseOutput}
       />,
     );

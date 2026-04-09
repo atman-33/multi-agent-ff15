@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { readAppLanguage } from "@/lib/app-language.server";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
@@ -23,12 +23,15 @@ const NoctisTeamMissionPage = ({ loaderData }: Route.ComponentProps) => {
   }, [loaderData.exists, loaderData.requestedMissionId, navigate]);
 
   return (
-    <NoctisTeamScreen
-      activeMissionId={loaderData.exists ? loaderData.requestedMissionId : null}
-      language={loaderData.language}
-      initialMessageInfos={loaderData.messages}
-      initialMissionData={loaderData.mission}
-    />
+    <>
+      <NoctisTeamScreen
+        activeMissionId={loaderData.exists ? loaderData.requestedMissionId : null}
+        language={loaderData.language}
+        initialMessageInfos={loaderData.messages}
+        initialMissionData={loaderData.mission}
+      />
+      <Outlet />
+    </>
   );
 };
 

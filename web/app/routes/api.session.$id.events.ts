@@ -1,4 +1,5 @@
 import type { Event } from "@opencode-ai/sdk";
+import { unwrapOpencodeEvent } from "@/lib/opencode-event";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import type { Route } from "./+types/api.session.$id.events";
 
@@ -64,8 +65,7 @@ export const loader = async ({ request, params }: Route.LoaderArgs) => {
             break;
           }
 
-          const globalEvent = raw as { directory?: string; payload?: Event };
-          const event = globalEvent.payload;
+          const event = unwrapOpencodeEvent(raw);
           if (!event) continue;
 
           const eventSessionId = extractSessionId(event);

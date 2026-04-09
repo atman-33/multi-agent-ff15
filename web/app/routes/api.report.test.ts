@@ -76,11 +76,59 @@ describe("api.report", () => {
     const data = await readJson(response);
     expect(data).toMatchObject({
       archived,
+      displayMode: "markdown",
       filePath,
       filename,
+      frontmatter: {
+        title: "Absolute path report",
+        author: "Noctis",
+        date: "2026-04-01T00:00:00.000Z",
+      },
       title: "Absolute path report",
     });
     expect(typeof data.filePath).toBe("string");
     expect(isAbsolute(data.filePath as string)).toBe(true);
+  });
+
+  it("returns metadata-only state for frontmatter-only reports", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const root = process.env.MULTI_AGENT_FF15_ROOT;
+    if (!root) {
+      throw new Error("Missing test root");
+    }
+
+    const filename = "metadata-only-report-ignis-20260401.md";
+    const filePath = join(root, "docs", "reports", filename);
+    writeFileSync(
+      filePath,
+      [
+        "---",
+        "title: Metadata only report",
+        "author: Ignis",
+        "workflow: review",
+        "---",
+        "",
+      ].join("\n"),
+    );
+
+    const response = await loader({
+      request: new Request(`http://localhost/api/report?file=${encodeURIComponent(filename)}`),
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson(response)).resolves.toMatchObject({
+      filename,
+      filePath,
+      title: "Metadata only report",
+      author: "Ignis",
+      displayMode: "metadata-only",
+      content: "",
+      frontmatter: {
+        title: "Metadata only report",
+        author: "Ignis",
+        workflow: "review",
+      },
+    });
   });
 });

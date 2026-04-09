@@ -1,9 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { parseMarkdownDocument } from "@/lib/markdown-document.server";
 import { getMissionOutputFilePath, getMissionOutputsDir } from "@/lib/mission-store";
 import type { MissionOutputDocument, MissionOutputSummary } from "@/lib/types/mission";
-import yaml from "yaml";
 
-const FM_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const MARKDOWN_EXTENSION_REGEX = /\.md$/i;
 const SAFE_OUTPUT_SEGMENT_REGEX = /^[a-zA-Z0-9_.-]+$/;
 
@@ -23,51 +22,28 @@ function parseMissionOutputDocument(input: {
 }): MissionOutputDocument {
   const rawContent = readFileSync(input.filePath, "utf-8");
   const stats = statSync(input.filePath);
-
-  let content = rawContent;
-  let title = input.filename.replace(MARKDOWN_EXTENSION_REGEX, "");
-  let author = "";
-  let date = stats.mtime.toISOString();
-  let tags: string[] = [];
-
-  const fmMatch = rawContent.match(FM_REGEX);
-  if (fmMatch) {
-    content = rawContent.substring(fmMatch[0].length);
-    try {
-      const parsed = yaml.parse(fmMatch[1]);
-      if (parsed && typeof parsed === "object") {
-        if (typeof parsed.title === "string" && parsed.title.trim()) {
-          title = parsed.title.trim();
-        }
-        if (typeof parsed.author === "string" && parsed.author.trim()) {
-          author = parsed.author.trim();
-        }
-        if (parsed.date) {
-          date = String(parsed.date);
-        }
-        if (Array.isArray(parsed.tags)) {
-          tags = parsed.tags
-            .filter((tag: unknown): tag is string => typeof tag === "string")
-            .map((tag: string) => tag.trim())
-            .filter(Boolean);
-        }
-      }
-    } catch {
-      // Malformed frontmatter falls back to file-derived metadata.
-    }
-  }
+  const parsed = parseMarkdownDocument(rawContent, {
+    defaultMetadata: {
+      title: input.filename.replace(MARKDOWN_EXTENSION_REGEX, ""),
+      author: "",
+      date: stats.mtime.toISOString(),
+      tags: [],
+    },
+  });
 
   return {
     step: input.step,
     taskId: input.taskId,
     filename: input.filename,
-    title,
-    author,
-    date,
+    title: parsed.metadata.title,
+    author: parsed.metadata.author,
+    date: parsed.metadata.date,
     filePath: input.filePath,
-    tags,
-    content,
-    rawContent,
+    tags: parsed.metadata.tags,
+    content: parsed.content,
+    displayMode: parsed.displayMode,
+    frontmatter: parsed.frontmatter,
+    rawContent: parsed.rawContent,
   };
 }
 

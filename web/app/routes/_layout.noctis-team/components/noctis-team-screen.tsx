@@ -1,6 +1,6 @@
 import { Archive, Check, Ellipsis, History, Pencil, Plus, RotateCcw, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate, useParams } from "react-router";
+import { NavLink, useMatch, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +27,7 @@ import {
   useAgentSession,
 } from "@/hooks/use-agent-session";
 import type { AppLanguage } from "@/lib/app-language.server";
-import type { MissionOutputDocument, MissionOutputSummary } from "@/lib/types/mission";
+import type { MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
@@ -36,8 +36,13 @@ import { ChatArea } from "./chat-area";
 import {
   getMissionOutputKey,
   MissionOutputBrowser,
-  pickPreferredMissionOutput,
 } from "./mission-output-browser";
+import {
+  buildMissionOutputDetailPath,
+  buildMissionPath,
+  hasMissionOutputDetailRoute,
+  resolveMissionInspectorTab,
+} from "./output-detail-routing";
 import { PartyStatusPanel } from "./party-status-panel";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
@@ -138,9 +143,9 @@ const MissionHistoryItem = memo(
           className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
           to={`/noctis-team/mission/${mission.missionId}`}
         />
-        <div className="relative w-full min-w-0">
-          <div className="pointer-events-none min-w-0 pr-14">
-            <span className="block min-w-0 pr-1 font-semibold text-sm leading-5 line-clamp-2 wrap-break-word">
+        <div className="grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 overflow-hidden">
+          <div className="pointer-events-none min-w-0 overflow-hidden">
+            <span className="block min-w-0 font-semibold text-sm leading-5 line-clamp-2 wrap-break-word">
               {mission.title}
             </span>
             <div className="mt-2 flex min-w-0 items-center gap-2">
@@ -159,7 +164,7 @@ const MissionHistoryItem = memo(
               </p>
             </div>
           </div>
-          <div className="absolute right-0 top-0 z-10 flex items-center gap-1">
+          <div className="relative z-10 flex items-center gap-1">
             {!isArchivedView ? (
               <Button
                 type="button"
@@ -222,8 +227,17 @@ export function NoctisTeamScreen({
   const initialView = initialMissionData?.status === "archived" ? "archived" : "active";
   const navigate = useNavigate();
   const params = useParams();
+  const outputDetailMatch = useMatch("/noctis-team/mission/:id/output/:step/:taskId/:filename");
   const routeMissionId = params.id ?? null;
+  const routeOutputStep = outputDetailMatch?.params.step ?? null;
+  const routeOutputTaskId = outputDetailMatch?.params.taskId ?? null;
+  const routeOutputFilename = outputDetailMatch?.params.filename ?? null;
   const effectiveMissionId = activeMissionId ?? routeMissionId;
+  const outputDetailActive = hasMissionOutputDetailRoute({
+    step: routeOutputStep,
+    taskId: routeOutputTaskId,
+    filename: routeOutputFilename,
+  });
 
   useEffect(() => {
     if (!effectiveMissionId) {
@@ -249,11 +263,6 @@ export function NoctisTeamScreen({
   const [missionOutputs, setMissionOutputs] = useState<MissionOutputSummary[]>([]);
   const [isLoadingMissionOutputs, setIsLoadingMissionOutputs] = useState(false);
   const [missionOutputsError, setMissionOutputsError] = useState<string | null>(null);
-  const [selectedOutputKey, setSelectedOutputKey] = useState<string | null>(null);
-  const [selectedOutputDocument, setSelectedOutputDocument] = useState<MissionOutputDocument | null>(null);
-  const [isLoadingSelectedOutput, setIsLoadingSelectedOutput] = useState(false);
-  const [selectedOutputError, setSelectedOutputError] = useState<string | null>(null);
-  const [isOutputPreviewOpen, setIsOutputPreviewOpen] = useState(false);
   const {
     messages,
     banterEntries,
@@ -278,16 +287,25 @@ export function NoctisTeamScreen({
   });
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
+  const selectedOutputKey =
+    outputDetailActive && routeOutputStep && routeOutputTaskId && routeOutputFilename
+      ? getMissionOutputKey({
+          step: routeOutputStep,
+          taskId: routeOutputTaskId,
+          filename: routeOutputFilename,
+        })
+      : null;
+
+  useEffect(() => {
+    if (outputDetailActive) {
+      setInspectorTab("outputs");
+    }
+  }, [outputDetailActive]);
 
   const resetMissionOutputsState = useCallback(() => {
     setMissionOutputs([]);
     setMissionOutputsError(null);
-    setSelectedOutputKey(null);
-    setSelectedOutputDocument(null);
-    setSelectedOutputError(null);
     setIsLoadingMissionOutputs(false);
-    setIsLoadingSelectedOutput(false);
-    setIsOutputPreviewOpen(false);
   }, []);
 
   const loadMissions = useCallback(async () => {
@@ -342,84 +360,11 @@ export function NoctisTeamScreen({
     void loadMissionOutputs();
   }, [loadMissionOutputs]);
 
-  useEffect(() => {
-    if (missionOutputs.length === 0) {
-      setSelectedOutputKey(null);
-      setSelectedOutputDocument(null);
-      setSelectedOutputError(null);
-      setIsOutputPreviewOpen(false);
-      return;
-    }
-
-    setSelectedOutputKey((current) => {
-      if (
-        current &&
-        missionOutputs.some((output) => getMissionOutputKey(output) === current)
-      ) {
-        return current;
-      }
-
-      const preferredOutput = pickPreferredMissionOutput(missionOutputs, currentOperationStep);
-      return preferredOutput ? getMissionOutputKey(preferredOutput) : null;
-    });
-  }, [currentOperationStep, missionOutputs]);
-
   const selectedOutput = useMemo(
     () =>
       missionOutputs.find((output) => getMissionOutputKey(output) === selectedOutputKey) ?? null,
     [missionOutputs, selectedOutputKey],
   );
-
-  useEffect(() => {
-    if (!effectiveMissionId || !selectedOutput) {
-      setSelectedOutputDocument(null);
-      setSelectedOutputError(null);
-      setIsLoadingSelectedOutput(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadSelectedOutput = async () => {
-      setIsLoadingSelectedOutput(true);
-      setSelectedOutputError(null);
-      try {
-        const params = new URLSearchParams({
-          step: selectedOutput.step,
-          taskId: selectedOutput.taskId,
-          file: selectedOutput.filename,
-        });
-        const response = await fetch(`/api/missions/${effectiveMissionId}/output?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error(`output failed: ${response.status}`);
-        }
-
-        const data = (await response.json()) as MissionOutputDocument & { error?: string };
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        if (!cancelled) {
-          setSelectedOutputDocument(data);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setSelectedOutputDocument(null);
-          setSelectedOutputError(error instanceof Error ? error.message : String(error));
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingSelectedOutput(false);
-        }
-      }
-    };
-
-    void loadSelectedOutput();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveMissionId, selectedOutput]);
 
   const missionCounts = useMemo(() => {
     return missions.reduce(
@@ -667,10 +612,30 @@ export function NoctisTeamScreen({
   }, []);
 
   const handleSelectOutput = useCallback((output: MissionOutputSummary) => {
-    setSelectedOutputKey(getMissionOutputKey(output));
+    if (!effectiveMissionId) {
+      return;
+    }
+
     setInspectorTab("outputs");
-    setIsOutputPreviewOpen(true);
-  }, []);
+    navigate(buildMissionOutputDetailPath(effectiveMissionId, output));
+  }, [effectiveMissionId, navigate]);
+
+  const handleInspectorTabChange = useCallback(
+    (value: string) => {
+      if (value === "outputs") {
+        setInspectorTab("outputs");
+        return;
+      }
+
+      setInspectorTab("banter");
+      if (outputDetailActive && effectiveMissionId) {
+        navigate(buildMissionPath(effectiveMissionId));
+      }
+    },
+    [effectiveMissionId, navigate, outputDetailActive],
+  );
+
+  const activeInspectorTab = resolveMissionInspectorTab(inspectorTab, outputDetailActive);
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden">
@@ -819,8 +784,8 @@ export function NoctisTeamScreen({
 
             <Tabs
               className="flex min-h-0 flex-1 flex-col"
-              value={inspectorTab}
-              onValueChange={(value) => setInspectorTab(value === "outputs" ? "outputs" : "banter")}
+              value={activeInspectorTab}
+              onValueChange={handleInspectorTabChange}
             >
               <div className="shrink-0 border-border/50 border-b px-3 pt-2">
                 <TabsList className="w-full justify-start border-border/50" variant="line">
@@ -844,17 +809,12 @@ export function NoctisTeamScreen({
                 <MissionOutputBrowser
                   currentStep={currentOperationStep}
                   isLoadingOutputs={isLoadingMissionOutputs}
-                  isLoadingPreview={isLoadingSelectedOutput}
-                  onPreviewOpenChange={setIsOutputPreviewOpen}
                   onReload={() => {
                     void loadMissionOutputs();
                   }}
                   onSelectOutput={handleSelectOutput}
                   outputs={missionOutputs}
                   outputsError={missionOutputsError}
-                  previewDocument={selectedOutputDocument}
-                  previewError={selectedOutputError}
-                  previewOpen={isOutputPreviewOpen}
                   selectedOutput={selectedOutput}
                 />
               </TabsContent>

@@ -593,7 +593,7 @@ export function PromptComposer({
             }
             title={effectiveShowAbortAction ? "Stop" : "Send"}
             className={cn(
-              "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",
+              "ml-auto flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-all",
               effectiveShowAbortAction
                 ? "border-red-500/25 bg-red-500/15 text-red-50 hover:border-red-400/35 hover:bg-red-500/20"
                 : !canSubmit || disabled

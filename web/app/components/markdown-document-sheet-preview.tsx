@@ -7,6 +7,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type {
+  MarkdownDocumentDisplayMode,
+  MarkdownDocumentFrontmatter,
+} from "@/lib/types/markdown-document";
 import { cn } from "@/lib/utils";
 
 type TocItem = {
@@ -16,6 +20,13 @@ type TocItem = {
 };
 
 const HEADING_SCROLL_OFFSET = 24;
+const STANDARD_FRONTMATTER_KEYS = new Set(["title", "author", "date", "tags"]);
+
+type FrontmatterEntry = {
+  key: string;
+  value: string;
+  multiline: boolean;
+};
 
 function buildToc(markdown: string): TocItem[] {
   const lines = markdown.split(/\r?\n/);
@@ -74,13 +85,56 @@ function buildToc(markdown: string): TocItem[] {
   return toc;
 }
 
+function buildFrontmatterEntries(
+  frontmatter: MarkdownDocumentFrontmatter | null | undefined,
+  displayMode: MarkdownDocumentDisplayMode,
+): FrontmatterEntry[] {
+  if (!frontmatter) {
+    return [];
+  }
+
+  const entries = Object.entries(frontmatter).filter(([key]) => {
+    if (displayMode === "metadata-only") {
+      return true;
+    }
+
+    return !STANDARD_FRONTMATTER_KEYS.has(key);
+  });
+
+  return entries.map(([key, rawValue]) => {
+    if (typeof rawValue === "string") {
+      return {
+        key,
+        value: rawValue,
+        multiline: rawValue.includes("\n"),
+      } satisfies FrontmatterEntry;
+    }
+
+    if (typeof rawValue === "number" || typeof rawValue === "boolean" || rawValue === null) {
+      return {
+        key,
+        value: String(rawValue),
+        multiline: false,
+      } satisfies FrontmatterEntry;
+    }
+
+    return {
+      key,
+      value: JSON.stringify(rawValue, null, 2),
+      multiline: true,
+    } satisfies FrontmatterEntry;
+  });
+}
+
 export interface MarkdownDocumentSheetPreviewProps {
   previewLabel: string;
   title: string;
   content: string;
+  displayMode?: MarkdownDocumentDisplayMode;
   author?: string | null;
   date?: string | null;
   filePath?: string | null;
+  frontmatter?: MarkdownDocumentFrontmatter | null;
   loading?: boolean;
   error?: string | null;
   headerBadges?: ReactNode;
@@ -93,9 +147,11 @@ export function MarkdownDocumentSheetPreview({
   previewLabel,
   title,
   content,
+  displayMode,
   author,
   date,
   filePath,
+  frontmatter,
   loading = false,
   error = null,
   headerBadges,
@@ -108,7 +164,15 @@ export function MarkdownDocumentSheetPreview({
   const markdownBodyRef = useRef<HTMLDivElement | null>(null);
   const copiedTimeoutRef = useRef<number | null>(null);
   const [copied, setCopied] = useState<"content" | "path" | null>(null);
-  const headings = useMemo(() => buildToc(content), [content]);
+  const effectiveDisplayMode = displayMode ?? (content.trim() ? "markdown" : "empty");
+  const headings = useMemo(
+    () => (effectiveDisplayMode === "markdown" ? buildToc(content) : []),
+    [content, effectiveDisplayMode],
+  );
+  const frontmatterEntries = useMemo(
+    () => buildFrontmatterEntries(frontmatter, effectiveDisplayMode),
+    [frontmatter, effectiveDisplayMode],
+  );
 
   const setCopiedFeedback = (value: "content" | "path") => {
     if (copiedTimeoutRef.current !== null) {
@@ -339,9 +403,35 @@ export function MarkdownDocumentSheetPreview({
                   )}
                   ref={markdownBodyRef}
                 >
-                  <ReactMarkdown rehypePlugins={[rehypeSlug]} remarkPlugins={[remarkGfm]}>
-                    {content || "*No content.*"}
-                  </ReactMarkdown>
+                  {frontmatterEntries.length > 0 ? (
+                    <section className="mb-6 rounded-xl border border-border/60 bg-muted/20 p-4">
+                      <div className="mb-3 font-semibold text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
+                        Document metadata
+                      </div>
+                      <dl className="space-y-3">
+                        {frontmatterEntries.map((entry) => (
+                          <div className="grid gap-1 md:grid-cols-[140px_minmax(0,1fr)] md:gap-3" key={entry.key}>
+                            <dt className="font-mono text-[11px] text-muted-foreground">{entry.key}</dt>
+                            <dd className="min-w-0 text-foreground text-sm">
+                              {entry.multiline ? (
+                                <pre className="overflow-x-auto rounded-md bg-background/80 p-3 font-mono text-[11px] leading-5 whitespace-pre-wrap">
+                                  {entry.value}
+                                </pre>
+                              ) : (
+                                <span>{entry.value}</span>
+                              )}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  ) : null}
+
+                  {effectiveDisplayMode === "metadata-only" && frontmatterEntries.length > 0 ? null : (
+                    <ReactMarkdown rehypePlugins={[rehypeSlug]} remarkPlugins={[remarkGfm]}>
+                      {content || "*No content.*"}
+                    </ReactMarkdown>
+                  )}
                 </div>
               </CardContent>
             </Card>

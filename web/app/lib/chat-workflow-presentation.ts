@@ -59,6 +59,8 @@ export interface PromptContextSection {
   content: string;
   preview: string;
   source: PromptContextSource;
+  detailId?: string;
+  sourceMessageId?: string;
 }
 
 export interface WorkflowMessagePresentation {

@@ -43,6 +43,7 @@ function createMessage(selectionAdjustment?: RenderedSessionMessage["messageDisp
 
   return {
     id: "assistant-1",
+    conversationUnitId: "assistant-1",
     role: "assistant",
     sender: null,
     senderLabel: "Hephaestus (Deep Agent)",
@@ -53,6 +54,7 @@ function createMessage(selectionAdjustment?: RenderedSessionMessage["messageDisp
     parts: [{ type: "text", text: bodyText }],
     timestamp: new Date("2026-04-07T10:30:00.000Z"),
     source: "session",
+    sourceMessageIds: ["assistant-1"],
     detailRawText: bodyText,
     messageDisplay: {
       displayContent: bodyText,
@@ -88,7 +90,6 @@ describe("message-bubble", () => {
             },
           })
         }
-        viewportRef={{ current: null }}
       />,
     );
 
@@ -96,9 +97,7 @@ describe("message-bubble", () => {
   });
 
   it("keeps untracked assistant replies on the existing sender-only path", () => {
-    const markup = renderToStaticMarkup(
-      <MessageBubble message={createMessage()} viewportRef={{ current: null }} />,
-    );
+    const markup = renderToStaticMarkup(<MessageBubble message={createMessage()} />);
 
     expect(markup).not.toContain("Adjusted");
   });

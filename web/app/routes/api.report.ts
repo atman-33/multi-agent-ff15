@@ -23,8 +23,11 @@ export function loader({ request }: { request: Request }) {
       author: report.author,
       content: report.content,
       date: report.date,
+      displayMode: report.displayMode,
       filePath: report.filePath,
       filename: report.filename,
+      frontmatter: report.frontmatter,
+      rawContent: report.rawContent,
       tags: report.tags,
       title: report.title,
     });

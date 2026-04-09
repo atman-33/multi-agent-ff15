@@ -2,6 +2,8 @@ import { ArrowDown } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { shouldAutoFollowThreadUpdate } from "@/lib/chat-thread-scroll-policy";
+import type { SessionChatScrollSignal } from "@/lib/session-chat-rendering-orchestration";
 
 type ChatThreadFrameProps = {
   header?: ReactNode;
@@ -12,6 +14,8 @@ type ChatThreadFrameProps = {
   viewportClassName?: string;
   contentClassName?: string;
   resetKey?: string | null;
+  autoFollowKey?: string | null;
+  scrollSignal?: SessionChatScrollSignal;
 };
 
 export function ChatThreadFrame({
@@ -23,8 +27,11 @@ export function ChatThreadFrame({
   viewportClassName,
   contentClassName = "mx-auto w-full min-w-0 max-w-3xl space-y-4 overflow-x-hidden",
   resetKey,
+  autoFollowKey = null,
+  scrollSignal = "none",
 }: ChatThreadFrameProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const previousAutoFollowKeyRef = useRef<string | null>(null);
   const previousResetKeyRef = useRef(resetKey);
   const shouldStickToBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -52,10 +59,20 @@ export function ChatThreadFrame({
   }, []);
 
   useEffect(() => {
-    if (shouldStickToBottomRef.current) {
+    if (!autoFollowKey || previousAutoFollowKeyRef.current === autoFollowKey) {
+      return;
+    }
+
+    previousAutoFollowKeyRef.current = autoFollowKey;
+    if (
+      shouldAutoFollowThreadUpdate({
+        nearBottom: shouldStickToBottomRef.current,
+        scrollSignal,
+      })
+    ) {
       window.setTimeout(() => scrollToBottom("smooth"), 0);
     }
-  });
+  }, [autoFollowKey, scrollSignal, scrollToBottom]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -82,6 +99,7 @@ export function ChatThreadFrame({
     }
 
     previousResetKeyRef.current = resetKey;
+    previousAutoFollowKeyRef.current = null;
     shouldStickToBottomRef.current = true;
     setShowScrollToBottom(false);
     window.setTimeout(() => scrollToBottom("auto"), 0);

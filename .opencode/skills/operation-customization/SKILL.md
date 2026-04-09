@@ -53,6 +53,8 @@ Create or revise operation workflows for this repository without breaking the ru
 ## Guardrails
 
 - Keep this file lean. Put detailed rules and examples in `references/`.
+- Default to the fewest steps that satisfy ownership, artifact boundaries, and required approvals.
+- Do not add User-facing progress updates or Noctis relay steps unless checkpoints, approvals, or interactive monitoring were explicitly requested.
 - Do not stretch the generic operation template into a rules-less delegation pattern; use the dedicated autonomous delegation template instead.
 - Prefer adapting neighboring repository patterns over inventing new structures.
 - Keep same-name builtin and project workflows as separate candidates; do not document or implement name-based collapsing.

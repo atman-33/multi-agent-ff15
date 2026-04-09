@@ -1,5 +1,5 @@
 import { FileText, Radio } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
+import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
@@ -27,10 +29,9 @@ import {
 } from "@/lib/operation-presentation";
 import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type { PromptPart } from "@/lib/prompt-parts";
-import {
-  buildRenderedSessionMessages,
-  type RenderedSessionMessage,
-  type SessionPresentationMessage,
+import type {
+  RenderedSessionMessage,
+  SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
@@ -115,8 +116,21 @@ function toSessionPresentationMessage(message: ChatMessage): SessionPresentation
 }
 
 const MessageBubble = memo(
-  ({ message, showCursor }: { message: RenderedSessionMessage; showCursor: boolean }) => {
-    const [detailsExpanded, setDetailsExpanded] = useState(false);
+  ({
+    message,
+    showCursor,
+    detailsExpanded,
+    expandedDetailEntries,
+    onToggleDetails,
+    onToggleDetail,
+  }: {
+    message: RenderedSessionMessage;
+    showCursor: boolean;
+    detailsExpanded: boolean;
+    expandedDetailEntries: Record<string, true>;
+    onToggleDetails: (conversationUnitId: string) => void;
+    onToggleDetail: (conversationUnitId: string, detailId: string) => void;
+  }) => {
     const messageDisplay = message.messageDisplay;
     const isOutgoing = messageDisplay.resolvedSenderIsUser;
     const isNoctis = message.sender === "noctis";
@@ -194,9 +208,11 @@ const MessageBubble = memo(
             <MessageIntermediateDetailsToggle
               detailSummary={detailSummary}
               expanded={detailsExpanded}
-              onToggle={() => setDetailsExpanded((value) => !value)}
+              onToggle={() => onToggleDetails(message.conversationUnitId)}
             >
               <MessageIntermediateDetails
+                expandedDetailEntries={expandedDetailEntries}
+                onToggleDetail={(detailId) => onToggleDetail(message.conversationUnitId, detailId)}
                 promptContextSections={messageDisplay.promptContextSections}
                 promptContextSource={messageDisplay.promptContextSource}
                 reasoning={reasoning}
@@ -243,10 +259,17 @@ export const ChatArea = ({
   outputCount = 0,
   onOpenOutputs,
 }: ChatAreaProps) => {
-  const renderedMessages = useMemo(
-    () => buildRenderedSessionMessages(messages.map(toSessionPresentationMessage)),
+  const presentationMessages = useMemo(
+    () => messages.map(toSessionPresentationMessage),
     [messages],
   );
+  const renderSnapshot = useSessionChatRenderSnapshot({
+    messages: presentationMessages,
+  });
+  const inspectability = useConversationUnitInspectability(
+    renderSnapshot.inspectabilityBoundaries,
+  );
+
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
     const allowedWorkers = getAllowedWorkers(workingParty);
@@ -299,6 +322,7 @@ export const ChatArea = ({
 
   return (
     <ChatThreadFrame
+      autoFollowKey={renderSnapshot.autoFollowKey}
       header={
         <div className="flex shrink-0 items-center justify-between border-border/50 border-b px-4 py-3">
           <div className="flex items-center gap-3">
@@ -410,13 +434,30 @@ export const ChatArea = ({
         />
       }
       contentClassName="mx-auto w-full min-w-0 max-w-3xl space-y-5 overflow-x-hidden"
+      scrollSignal={renderSnapshot.scrollSignal}
     >
       {() => (
         <>
-          {renderedMessages.map((message, index) => {
+          {renderSnapshot.renderedMessages.map((message, index) => {
             const isLastNoctis =
-              isStreaming && message.sender === "noctis" && index === renderedMessages.length - 1;
-            return <MessageBubble key={message.id} message={message} showCursor={isLastNoctis} />;
+              isStreaming &&
+              message.sender === "noctis" &&
+              index === renderSnapshot.renderedMessages.length - 1;
+            return (
+              <MessageBubble
+                detailsExpanded={inspectability.isConversationUnitExpanded(
+                  message.conversationUnitId,
+                )}
+                expandedDetailEntries={inspectability.getExpandedDetailEntries(
+                  message.conversationUnitId,
+                )}
+                key={message.conversationUnitId}
+                message={message}
+                onToggleDetail={inspectability.toggleDetailEntry}
+                onToggleDetails={inspectability.toggleConversationUnit}
+                showCursor={isLastNoctis}
+              />
+            );
           })}
 
           {isSessionActive ? (
