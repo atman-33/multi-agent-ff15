@@ -216,6 +216,8 @@ export interface MissionOutputSummary {
 
 export interface MissionOutputDocument extends MissionOutputSummary {
   content: string;
+  displayMode: import("@/lib/types/markdown-document").MarkdownDocumentDisplayMode;
+  frontmatter: import("@/lib/types/markdown-document").MarkdownDocumentFrontmatter | null;
   rawContent: string;
 }
 

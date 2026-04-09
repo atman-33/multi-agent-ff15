@@ -1,11 +1,9 @@
-import { AlertCircle, FileText, RefreshCw, Tag, Workflow, X } from "lucide-react";
+import { AlertCircle, FileText, RefreshCw, Tag, Workflow } from "lucide-react";
 import { useMemo } from "react";
-import { MarkdownDocumentSheetPreview } from "@/components/markdown-document-sheet-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
-import type { MissionOutputDocument, MissionOutputSummary } from "@/lib/types/mission";
+import type { MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 
 type MissionOutputBrowserProps = {
@@ -16,11 +14,6 @@ type MissionOutputBrowserProps = {
   selectedOutput: MissionOutputSummary | null;
   onReload: () => void;
   onSelectOutput: (output: MissionOutputSummary) => void;
-  previewDocument: MissionOutputDocument | null;
-  isLoadingPreview: boolean;
-  previewError: string | null;
-  previewOpen: boolean;
-  onPreviewOpenChange: (open: boolean) => void;
 };
 
 type OutputTaskGroup = {
@@ -123,11 +116,6 @@ export function MissionOutputBrowser({
   selectedOutput,
   onReload,
   onSelectOutput,
-  previewDocument,
-  isLoadingPreview,
-  previewError,
-  previewOpen,
-  onPreviewOpenChange,
 }: MissionOutputBrowserProps) {
   const groupedOutputs = useMemo(() => buildOutputGroups(outputs, currentStep), [currentStep, outputs]);
   const selectedOutputKey = selectedOutput ? getMissionOutputKey(selectedOutput) : null;
@@ -247,42 +235,6 @@ export function MissionOutputBrowser({
         </ScrollArea>
       )}
 
-      <Sheet onOpenChange={onPreviewOpenChange} open={previewOpen && selectedOutput !== null}>
-        <SheetContent
-          className="w-[98vw] max-w-[98vw] p-0 sm:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
-          showCloseButton={false}
-        >
-          <MarkdownDocumentSheetPreview
-            author={previewDocument?.author ?? selectedOutput?.author ?? ""}
-            content={previewDocument?.content ?? ""}
-            date={previewDocument?.date ?? selectedOutput?.date ?? ""}
-            error={previewError}
-            filePath={previewDocument?.filePath ?? selectedOutput?.filePath ?? ""}
-            headerActions={
-              <SheetClose asChild>
-                <Button className="h-8 w-8 shrink-0" size="icon" type="button" variant="ghost">
-                  <X className="h-4 w-4" />
-                </Button>
-              </SheetClose>
-            }
-            headerBadges={
-              selectedOutput ? (
-                <>
-                  <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {selectedOutput.step}
-                  </span>
-                  <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-                    {selectedOutput.taskId}
-                  </span>
-                </>
-              ) : null
-            }
-            loading={isLoadingPreview}
-            previewLabel="Mission output"
-            title={previewDocument?.title ?? selectedOutput?.title ?? selectedOutput?.filename ?? "Mission output"}
-          />
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

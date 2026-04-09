@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { readAppLanguage } from "@/lib/app-language.server";
 import type { Route } from "./+types/route";
 import { NoctisTeamScreen } from "./components/noctis-team-screen";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
 
-const NoctisTeamPage = ({ loaderData }: Route.ComponentProps) => {
+export const NoctisTeamPage = ({ loaderData }: Route.ComponentProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
@@ -55,6 +55,10 @@ const NoctisTeamPage = ({ loaderData }: Route.ComponentProps) => {
       }
     })();
   }, [activeMissionId, navigate, shouldSkipMissionRestore]);
+
+  if (activeMissionId) {
+    return <Outlet />;
+  }
 
   return <NoctisTeamScreen activeMissionId={activeMissionId} language={loaderData.language} />;
 };

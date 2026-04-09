@@ -151,8 +151,56 @@ describe("api.missions.$missionId.output", () => {
       taskId: "step_spec-planning_1",
       filename: "spec-plan.md",
       title: "Spec plan",
+      displayMode: "markdown",
       filePath,
       content: expect.stringContaining("# Plan"),
+      frontmatter: {
+        title: "Spec plan",
+        date: "2026-04-05T00:00:00.000Z",
+      },
+    });
+  });
+
+  it("returns metadata-only state for frontmatter-only mission outputs", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-output-frontmatter-only-${crypto.randomUUID()}`;
+    seedMission(missionId);
+    writeOutput({
+      missionId,
+      step: "prepare-run",
+      taskId: "step_prepare-run_1",
+      filename: "news-run-plan.md",
+      content: [
+        "---",
+        "title: News run plan",
+        "author: Noctis",
+        "change_name: shared-frontmatter-document-preview",
+        "---",
+        "",
+      ].join("\n"),
+    });
+
+    const response = await outputLoader({
+      request: new Request(
+        `http://localhost/api/missions/${missionId}/output?step=prepare-run&taskId=step_prepare-run_1&file=news-run-plan.md`,
+      ),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson(response)).resolves.toMatchObject({
+      step: "prepare-run",
+      taskId: "step_prepare-run_1",
+      filename: "news-run-plan.md",
+      title: "News run plan",
+      author: "Noctis",
+      displayMode: "metadata-only",
+      content: "",
+      frontmatter: {
+        title: "News run plan",
+        author: "Noctis",
+        change_name: "shared-frontmatter-document-preview",
+      },
     });
   });
 

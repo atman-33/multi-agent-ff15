@@ -1,10 +1,14 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import yaml from "yaml";
+import { parseMarkdownDocument } from "@/lib/markdown-document.server";
+import type {
+  MarkdownDocumentDisplayMode,
+  MarkdownDocumentFrontmatter,
+} from "@/lib/types/markdown-document";
 
 const DATE8_REGEX = /^\d{8}$/;
 const FILENAME_REGEX = /^(.*?)-([a-zA-Z0-9_-]+)-(\d{8})(?:[-_].*)?\.md$/;
-const FM_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const MARKDOWN_EXTENSION_REGEX = /\.md$/i;
 const SAFE_REPORT_FILENAME_REGEX = /[^a-zA-Z0-9_.-]/g;
 
@@ -20,6 +24,8 @@ export interface ReportMeta {
 
 export interface ReportDocument extends ReportMeta {
   content: string;
+  displayMode: MarkdownDocumentDisplayMode;
+  frontmatter: MarkdownDocumentFrontmatter | null;
   rawContent: string;
 }
 
@@ -37,38 +43,10 @@ function parseReportDocument(
   const rawContent = readFileSync(filePath, "utf-8");
   const stats = statSync(filePath);
 
-  let content = rawContent;
   let title = filename.replace(MARKDOWN_EXTENSION_REGEX, "");
   let author = "Unknown";
   let date = stats.mtime.toISOString();
-  let tags: string[] = [];
-
-  const fmMatch = rawContent.match(FM_REGEX);
-  if (fmMatch) {
-    content = rawContent.substring(fmMatch[0].length);
-    try {
-      const parsed = yaml.parse(fmMatch[1]);
-      if (parsed && typeof parsed === "object") {
-        if (typeof parsed.title === "string" && parsed.title.trim()) {
-          title = parsed.title.trim();
-        }
-        if (typeof parsed.author === "string" && parsed.author.trim()) {
-          author = parsed.author.trim();
-        }
-        if (parsed.date) {
-          date = String(parsed.date);
-        }
-        if (Array.isArray(parsed.tags)) {
-          tags = parsed.tags
-            .filter((tag: unknown): tag is string => typeof tag === "string")
-            .map((tag: string) => tag.trim())
-            .filter(Boolean);
-        }
-      }
-    } catch {
-      // malformed frontmatter — keep fallback metadata
-    }
-  }
+  const tags: string[] = [];
 
   const nameMatch = filename.match(FILENAME_REGEX);
   if (nameMatch) {
@@ -78,7 +56,7 @@ function parseReportDocument(
     if (title === filename.replace(MARKDOWN_EXTENSION_REGEX, "")) {
       title = `${nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)} Report (${nameMatch[2]})`;
     }
-    if (!fmMatch) {
+    if (!FRONTMATTER_REGEX.test(rawContent)) {
       const tsString = nameMatch[3];
       if (DATE8_REGEX.test(tsString)) {
         const year = tsString.slice(0, 4);
@@ -89,16 +67,27 @@ function parseReportDocument(
     }
   }
 
+  const parsed = parseMarkdownDocument(rawContent, {
+    defaultMetadata: {
+      title,
+      author,
+      date,
+      tags,
+    },
+  });
+
   return {
     archived,
-    author,
-    content,
-    date,
+    author: parsed.metadata.author,
+    content: parsed.content,
+    date: parsed.metadata.date,
+    displayMode: parsed.displayMode,
     filePath,
     filename,
-    rawContent,
-    tags,
-    title,
+    frontmatter: parsed.frontmatter,
+    rawContent: parsed.rawContent,
+    tags: parsed.metadata.tags,
+    title: parsed.metadata.title,
   };
 }
 

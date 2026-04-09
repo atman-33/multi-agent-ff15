@@ -763,6 +763,7 @@ export function buildOperationDebugBundle(input: {
       const completionContract =
         extractXmlSection(effectivePrompt, "step-completion-contract") || "(no completion contract found)";
 
+      seedSyntheticOutputs({ missionId, step, taskId });
       const reportResult = operationInstantiator.processStepReport({
         missionId,
         operationState,
@@ -772,7 +773,6 @@ export function buildOperationDebugBundle(input: {
         next: reportNext,
         allowedWorkersOverride: previewAllowedWorkers,
       });
-      seedSyntheticOutputs({ missionId, step, taskId });
       const runtimeDecision = buildRuntimeDecision({
         operation,
         step,

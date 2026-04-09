@@ -4,6 +4,10 @@ import { useNavigate, useOutletContext, useParams, useSearchParams } from "react
 import { MarkdownDocumentSheetPreview } from "@/components/markdown-document-sheet-preview";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
+import type {
+  MarkdownDocumentDisplayMode,
+  MarkdownDocumentFrontmatter,
+} from "@/lib/types/markdown-document";
 import type { Route } from "./+types/route";
 
 interface ReportsOutletContext {
@@ -14,8 +18,12 @@ type ReportResponse = {
   author?: string;
   content?: string;
   date?: string;
+  displayMode?: MarkdownDocumentDisplayMode;
   error?: string;
   filePath?: string;
+  frontmatter?: MarkdownDocumentFrontmatter | null;
+  rawContent?: string;
+  tags?: string[];
   title?: string;
 };
 
@@ -30,6 +38,8 @@ const ReportDetail = (_props: Route.ComponentProps) => {
   const [title, setTitle] = useState<string>("");
   const [author, setAuthor] = useState<string>("");
   const [date, setDate] = useState<string>("");
+  const [displayMode, setDisplayMode] = useState<MarkdownDocumentDisplayMode>("empty");
+  const [frontmatter, setFrontmatter] = useState<MarkdownDocumentFrontmatter | null>(null);
   const [reportFilePath, setReportFilePath] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -42,6 +52,8 @@ const ReportDetail = (_props: Route.ComponentProps) => {
 
     setLoading(true);
     setContent("");
+    setDisplayMode("empty");
+    setFrontmatter(null);
     setReportFilePath("");
     setError(null);
     try {
@@ -58,6 +70,8 @@ const ReportDetail = (_props: Route.ComponentProps) => {
       setTitle(data.title || filename);
       setAuthor(data.author || "");
       setDate(data.date || "");
+      setDisplayMode(data.displayMode || (data.content ? "markdown" : "empty"));
+      setFrontmatter(data.frontmatter ?? null);
       setReportFilePath(typeof data.filePath === "string" ? data.filePath : "");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -88,8 +102,10 @@ const ReportDetail = (_props: Route.ComponentProps) => {
       author={author}
       content={content}
       date={date}
+      displayMode={displayMode}
       error={error}
       filePath={reportFilePath}
+      frontmatter={frontmatter}
       headerActions={
         <SheetClose asChild>
           <Button className="h-8 w-8 shrink-0" size="icon" type="button" variant="ghost">
