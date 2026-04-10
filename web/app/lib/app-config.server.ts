@@ -4,6 +4,7 @@ import { parseDocument } from "yaml";
 import { ensureRequiredWebConfigFiles } from "@/lib/required-config.server";
 
 export interface AppConfig {
+  executionWorkspaceRoot?: string;
   language: string;
 }
 
@@ -39,8 +40,14 @@ function readAppConfigDocument(root: string) {
 export function readAppConfig(root: string): AppConfig {
   const document = readAppConfigDocument(root);
   const parsed = document.toJSON() as Record<string, unknown> | null;
+  const executionWorkspaceRoot =
+    typeof parsed?.execution_workspace_root === "string" &&
+    parsed.execution_workspace_root.trim().length > 0
+      ? parsed.execution_workspace_root.trim()
+      : undefined;
 
   return {
+    ...(executionWorkspaceRoot ? { executionWorkspaceRoot } : {}),
     language: normalizeLanguage(parsed?.language),
   };
 }
@@ -50,6 +57,14 @@ export function writeAppConfig(root: string, nextConfig: AppConfig): AppConfig {
   const document = readAppConfigDocument(root);
 
   document.set("language", language);
+  if (
+    typeof nextConfig.executionWorkspaceRoot === "string" &&
+    nextConfig.executionWorkspaceRoot.trim().length > 0
+  ) {
+    document.set("execution_workspace_root", nextConfig.executionWorkspaceRoot.trim());
+  } else {
+    document.delete("execution_workspace_root");
+  }
   writeFileSync(getSettingsPath(root), String(document), "utf-8");
 
   return readAppConfig(root);

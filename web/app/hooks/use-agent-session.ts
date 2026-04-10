@@ -159,8 +159,15 @@ export type MissionResumePayload = {
   updatedAt: string;
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
+  executionProjectId?: string | null;
+  contextProjectIds?: string[];
+  baseBranch?: string | null;
+  branch?: string | null;
+  workspacePath?: string | null;
+  workspaceStatus?: "ready" | "missing" | "deleted" | null;
+  resumeBlockedReason?: string | null;
   sessions: {
-    noctis: string;
+    noctis: string | null;
     ignis: string | null;
     gladiolus: string | null;
     prompto: string | null;
@@ -371,6 +378,7 @@ export interface UseAgentSessionOptions {
   language?: AppLanguage;
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
+  selectedExecutionProjectId?: string | null;
 }
 
 export interface UseAgentSessionReturn {
@@ -396,6 +404,7 @@ export function useAgentSession({
   language = "other",
   initialMissionData,
   initialMessageInfos,
+  selectedExecutionProjectId,
 }: UseAgentSessionOptions): UseAgentSessionReturn {
   const pendingMissionSessionId = useChatStore((state) =>
     activeMissionId ? (state.pendingMissionSessions[activeMissionId] ?? null) : null
@@ -467,7 +476,10 @@ export function useAgentSession({
 
     const loadAvailableOperations = async () => {
       try {
-        const response = await fetch("/api/noctis/operations");
+        const query = selectedExecutionProjectId
+          ? `?executionProjectId=${encodeURIComponent(selectedExecutionProjectId)}`
+          : "";
+        const response = await fetch(`/api/noctis/operations${query}`);
         if (!response.ok) {
           return;
         }
@@ -488,7 +500,19 @@ export function useAgentSession({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedExecutionProjectId]);
+
+  useEffect(() => {
+    if (activeMissionId || !selectedOperation) {
+      return;
+    }
+
+    if (availableOperations.some((operation) => operation.value === selectedOperation)) {
+      return;
+    }
+
+    setSelectedOperation(null);
+  }, [activeMissionId, availableOperations, selectedOperation]);
 
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
   const isSessionActive = isSessionStatusActive(sessionStatus);
@@ -1058,8 +1082,9 @@ export function useAgentSession({
       setSelectedOperation(runtime.operationState?.operationRef ?? null);
 
       const nextNoctisSessionId = runtime.sessions.noctis;
-      const optimisticNoctisStatus =
-        useChatStore.getState().optimisticSessionStates[nextNoctisSessionId] ?? null;
+      const optimisticNoctisStatus = nextNoctisSessionId
+        ? (useChatStore.getState().optimisticSessionStates[nextNoctisSessionId] ?? null)
+        : null;
       const shouldPreserveNoctisActive =
         isSessionStatusActive(optimisticNoctisStatus) ||
         pendingMissionSessionId === nextNoctisSessionId ||
@@ -1075,7 +1100,12 @@ export function useAgentSession({
         noctisSessionIdRef.current = nextNoctisSessionId;
         setNoctisSessionId(nextNoctisSessionId);
         streamingMessageIdRef.current = null;
-        subscribeToSession(nextNoctisSessionId);
+        if (nextNoctisSessionId) {
+          subscribeToSession(nextNoctisSessionId);
+        } else {
+          eventSourceRef.current?.close();
+          eventSourceRef.current = null;
+        }
       } else {
         setNoctisSessionId((current) => current ?? nextNoctisSessionId);
       }
@@ -1110,15 +1140,19 @@ export function useAgentSession({
         prompto: runtime.contextUsageByAgent?.prompto ?? null,
       });
 
-      const nextNoctisStatus = runtime.sessionStatuses[nextNoctisSessionId];
+      const nextNoctisStatus = nextNoctisSessionId
+        ? runtime.sessionStatuses[nextNoctisSessionId]
+        : null;
 
-      if (nextNoctisStatus) {
+      if (nextNoctisSessionId && nextNoctisStatus) {
         setServerSessionState(nextNoctisSessionId, nextNoctisStatus);
         sessionStatusRef.current = nextNoctisStatus;
       } else if (shouldPreserveNoctisActive) {
-      } else {
+      } else if (nextNoctisSessionId) {
         setServerSessionState(nextNoctisSessionId, "idle");
         sessionStatusRef.current = "idle";
+      } else {
+        sessionStatusRef.current = null;
       }
 
       const nextWorkerSessionIds = toWorkerSessionIds(runtime.sessions);
@@ -1142,7 +1176,8 @@ export function useAgentSession({
         hasHydratedRuntimeRef.current = true;
       } else if (
         latestIncomingMessage?.id &&
-        latestIncomingMessage.id !== lastIncomingNoctisMessageIdRef.current
+        latestIncomingMessage.id !== lastIncomingNoctisMessageIdRef.current &&
+        nextNoctisSessionId
       ) {
         lastIncomingNoctisMessageIdRef.current = latestIncomingMessage.id;
         setOptimisticSessionState(nextNoctisSessionId, "busy", 4000);
@@ -1281,7 +1316,9 @@ export function useAgentSession({
             const preloadedMessages = toSessionChatMessages(initialMessageInfos ?? []);
             setSessionMessages(preloadedMessages.length > 0 ? preloadedMessages : INITIAL_MESSAGES);
           }
-          subscribeToSession(initialMissionData.sessions.noctis);
+          if (initialMissionData.sessions.noctis) {
+            subscribeToSession(initialMissionData.sessions.noctis);
+          }
         }
 
         setPartyRuntime(createInitialPartyRuntimeState());
@@ -1356,6 +1393,10 @@ export function useAgentSession({
 
       try {
         if (!missionIdRef.current) {
+          if (!selectedExecutionProjectId) {
+            throw new Error("Choose an execution project before starting a mission.");
+          }
+
           const res = await fetch("/api/noctis/mission/start", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1363,6 +1404,7 @@ export function useAgentSession({
               parts,
               title: text.slice(0, 80),
               objective: text,
+              executionProjectId: selectedExecutionProjectId,
               selectedOperation,
               noctisModel: agentModels.noctis ?? null,
               allowedWorkers,
@@ -1461,6 +1503,7 @@ export function useAgentSession({
       subscribeToSession,
       syncSessionMessages,
       waitForActiveStatus,
+      selectedExecutionProjectId,
     ]
   );
 

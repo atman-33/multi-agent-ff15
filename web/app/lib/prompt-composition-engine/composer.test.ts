@@ -506,7 +506,7 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).not.toContain("output-path=");
     expect(composed.effectivePrompt).not.toContain("name=");
     expect(composed.effectivePrompt).toContain(
-      `scripts/send_report.sh ${missionId} gladiolus ${taskId} review "<message>"`,
+      `${root}/scripts/send_report.sh ${missionId} gladiolus ${taskId} review "<message>"`,
     );
     expect(composed.effectivePrompt).toContain("from_step: spec-planning");
     expect(composed.effectivePrompt).toContain("from_agent: noctis");
@@ -795,7 +795,7 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
     expect(composed.effectivePrompt).toContain("<instruction>");
     expect(composed.effectivePrompt).toContain("<delegation-guidance>");
-    expect(composed.effectivePrompt).toContain("scripts/send_task.sh mission-autonomous ignis");
+    expect(composed.effectivePrompt).toContain(`${root}/scripts/send_task.sh mission-autonomous ignis`);
     expect(composed.effectivePrompt).not.toContain("<step-completion-contract>");
     expect(composed.effectivePrompt).not.toContain("allowed_workers:");
   });
@@ -832,7 +832,7 @@ describe("prompt composition engine", () => {
       expect(composed.effectivePrompt).toContain(
         "Continue the conversation yourself until delegation becomes available.",
       );
-      expect(composed.effectivePrompt).not.toContain("scripts/send_task.sh mission-autonomous-solo ignis");
+      expect(composed.effectivePrompt).not.toContain(`${root}/scripts/send_task.sh mission-autonomous-solo ignis`);
       expect(composed.payloadParts[0]?.text).not.toContain("<delegation-context");
     } finally {
       deleteMission("mission-autonomous-solo");

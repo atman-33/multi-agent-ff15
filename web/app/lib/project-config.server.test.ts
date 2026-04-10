@@ -151,4 +151,41 @@ describe("project-config.server", () => {
       instructionFiles: [{ path: `${projectRoot}/AGENTS.md`, enabled: true }],
     });
   });
+
+  it("reads execution workspace defaults from project manifests", () => {
+    const root = createTempRoot();
+    const projectRoot = join(root, "external-gamma");
+    mkdirSync(projectRoot, { recursive: true });
+
+    writeProjectManifest(
+      root,
+      "gamma",
+      [
+        'id: "gamma"',
+        'name: "Gamma Project"',
+        'root_path: "../../external-gamma"',
+        'default_base_branch: "develop"',
+        "",
+      ].join("\n")
+    );
+
+    expect(readRegisteredProjectDefinition(root, "gamma")).toEqual({
+      id: "gamma",
+      name: "Gamma Project",
+      rootPath: projectRoot,
+      serenaProject: "",
+      instructionFiles: [],
+      defaultBaseBranch: "develop",
+    });
+
+    expect(readRegisteredProjects(root)).toEqual([
+      {
+        id: "gamma",
+        displayName: "Gamma Project",
+        path: projectRoot,
+        branchName: undefined,
+        defaultBaseBranch: "develop",
+      },
+    ]);
+  });
 });

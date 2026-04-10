@@ -28,6 +28,7 @@ import {
   composeUserToNoctisPromptPreview,
   composeWorkerTaskPrompt,
 } from "@/lib/prompt-composition-engine";
+import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import {
   buildOperationContextSummary,
   findStepHandoffSource,
@@ -641,8 +642,8 @@ export function buildOperationDebugBundle(input: {
             completionTitle: `${displayActorName(delegatedAgent)} -> Runtime Completion Contract`,
             completionDescription: `Default child-task completion contract for the active "${step.name}" step.`,
             completionContract: [
-              `scripts/send_report.sh ${missionId} ${delegatedAgent} ${delegatedTaskId} COMPLETE "<message>"`,
-              `scripts/send_report.sh ${missionId} ${delegatedAgent} ${delegatedTaskId} ABORT "<message>"`,
+              `${getRuntimeScriptPath("send_report.sh")} ${missionId} ${delegatedAgent} ${delegatedTaskId} COMPLETE "<message>"`,
+              `${getRuntimeScriptPath("send_report.sh")} ${missionId} ${delegatedAgent} ${delegatedTaskId} ABORT "<message>"`,
             ].join("\n"),
             runtimeDecision: [
               `parent_step: ${step.name}`,

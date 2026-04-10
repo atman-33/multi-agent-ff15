@@ -566,7 +566,9 @@ describe("operation prompt builder", () => {
 
     expect(prompt).toContain("Effective allowed workers: none");
     expect(prompt).toContain("Continue the conversation yourself until delegation becomes available.");
-    expect(prompt).not.toContain('scripts/send_task.sh mission-solo-guidance ignis');
+    expect(prompt).not.toContain(
+      `${process.env.MULTI_AGENT_FF15_ROOT}/scripts/send_task.sh mission-solo-guidance ignis`,
+    );
     expect(prompt).not.toContain("<job>");
     expect(prompt).not.toContain("<knowledge-catalog>");
     expect(prompt).not.toContain("<instruction>");

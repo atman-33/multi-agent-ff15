@@ -11,6 +11,7 @@ export interface ProjectInstructionFile {
 }
 
 export interface RegisteredProjectDefinition {
+  defaultBaseBranch?: string;
   id: string;
   instructionFiles: ProjectInstructionFile[];
   name: string;
@@ -20,6 +21,7 @@ export interface RegisteredProjectDefinition {
 
 export interface ProjectEntry {
   branchName?: string;
+  defaultBaseBranch?: string;
   displayName: string;
   id: string;
   path: string;
@@ -136,6 +138,9 @@ function readProjectDefinitionFile(projectPath: string): RegisteredProjectDefini
       : [];
 
     return {
+      ...(typeof parsed.default_base_branch === "string" && parsed.default_base_branch.trim().length > 0
+        ? { defaultBaseBranch: parsed.default_base_branch.trim() }
+        : {}),
       id: parsed.id,
       name: typeof parsed.name === "string" ? parsed.name : parsed.id,
       rootPath: resolveManifestPath(projectPath, parsed.root_path),
@@ -183,6 +188,7 @@ export function readRegisteredProjects(root: string): ProjectEntry[] {
       displayName: definition.name,
       path: definition.rootPath,
       branchName: branchName || undefined,
+      ...(definition.defaultBaseBranch ? { defaultBaseBranch: definition.defaultBaseBranch } : {}),
     });
   }
 

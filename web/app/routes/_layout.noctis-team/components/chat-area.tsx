@@ -1,4 +1,4 @@
-import { FileText, Radio } from "lucide-react";
+import { FileText, Info, Radio } from "lucide-react";
 import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -59,6 +59,15 @@ interface ChatAreaProps {
   isResponding: boolean;
   isSessionActive?: boolean;
   isStreaming?: boolean;
+  showExecutionProjectSelector?: boolean;
+  executionProjectOptions?: Array<{
+    value: string;
+    label: string;
+  }>;
+  selectedExecutionProjectId?: string | null;
+  executionProjectHint?: string | null;
+  executionProjectError?: string | null;
+  onSelectedExecutionProjectChange?: (projectId: string) => void;
   availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
@@ -248,6 +257,12 @@ export const ChatArea = ({
   messages,
   isSessionActive = false,
   isStreaming = false,
+  showExecutionProjectSelector = false,
+  executionProjectOptions = [],
+  selectedExecutionProjectId = null,
+  executionProjectHint = null,
+  executionProjectError = null,
+  onSelectedExecutionProjectChange,
   availableOperations,
   selectedOperation,
   activeOperationState,
@@ -319,6 +334,35 @@ export const ChatArea = ({
   const operationPlaceholder = isOperationSelectionLocked
     ? "Workflow unavailable"
     : defaultOperation.label;
+  const workflowSelector = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div>
+          <Select
+            disabled={isOperationSelectionLocked}
+            value={operationSelectValue}
+            onValueChange={onSelectedOperationChange}
+          >
+            <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+              <SelectValue placeholder={operationPlaceholder} />
+            </SelectTrigger>
+            <SelectContent>
+              {availableOperations.map((operation) => (
+                <SelectItem key={operation.value} value={operation.value}>
+                  {operation.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </TooltipTrigger>
+      {operationDescription ? (
+        <TooltipContent side="top" className="max-w-80 text-xs leading-relaxed">
+          {operationDescription}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
+  );
 
   return (
     <ChatThreadFrame
@@ -381,48 +425,75 @@ export const ChatArea = ({
           onAbort={onAbort}
           showAbortAction={showAbortAction}
           topSlot={
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                  Mission Workflow
-                </p>
-                <p className="text-xs text-muted-foreground/75">
-                  {isOperationSelectionLocked
-                    ? "This mission is already running with its current workflow setting."
-                    : `${defaultOperation.label} is selected unless you choose another workflow.`}
-                </p>
-              </div>
-
-              <div className="w-full sm:max-w-56">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Select
-                        disabled={isOperationSelectionLocked}
-                        value={operationSelectValue}
-                        onValueChange={onSelectedOperationChange}
-                      >
-                        <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-                          <SelectValue placeholder={operationPlaceholder} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableOperations.map((operation) => (
-                            <SelectItem key={operation.value} value={operation.value}>
-                              {operation.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </TooltipTrigger>
-                  {operationDescription ? (
-                    <TooltipContent side="top" className="max-w-80 text-xs leading-relaxed">
-                      {operationDescription}
-                    </TooltipContent>
+            showExecutionProjectSelector ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                      Execution Project
+                    </p>
+                    {executionProjectHint ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label="Execution project help"
+                            className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <Info className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+                          {executionProjectHint}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                  </div>
+                  <Select
+                    value={selectedExecutionProjectId ?? undefined}
+                    onValueChange={onSelectedExecutionProjectChange}
+                  >
+                    <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                      <SelectValue placeholder="Choose a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {executionProjectOptions.map((project) => (
+                        <SelectItem key={project.value} value={project.value}>
+                          {project.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {executionProjectError ? (
+                    <p className="text-[11px] text-destructive">{executionProjectError}</p>
                   ) : null}
-                </Tooltip>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                    Workflow
+                  </p>
+                  {workflowSelector}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                    Mission Workflow
+                  </p>
+                  <p className="text-xs text-muted-foreground/75">
+                    {isOperationSelectionLocked
+                      ? "This mission is already running with its current workflow setting."
+                      : `${defaultOperation.label} is selected unless you choose another workflow.`}
+                  </p>
+                </div>
+
+                <div className="w-full sm:max-w-56">{workflowSelector}</div>
+              </div>
+            )
           }
           footerStart={
             <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">

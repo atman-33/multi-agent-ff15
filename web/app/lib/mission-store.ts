@@ -20,6 +20,53 @@ import type {
 } from "./types/mission";
 
 const store = new Map<string, Mission>();
+const MISSION_WORKSPACE_STATUSES = new Set(["ready", "missing", "deleted"]);
+
+function normalizeExecutionProjectId(executionProjectId: unknown): string | undefined {
+  if (typeof executionProjectId !== "string") {
+    return undefined;
+  }
+
+  const normalized = executionProjectId.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeContextProjectIds(
+  executionProjectId: string | undefined,
+  contextProjectIds: unknown,
+): string[] {
+  if (!Array.isArray(contextProjectIds)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const projectId of contextProjectIds) {
+    if (typeof projectId !== "string") {
+      continue;
+    }
+
+    const trimmed = projectId.trim();
+    if (trimmed.length === 0 || trimmed === executionProjectId || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
 
 export function getMissionStoreDir(): string {
   return join(getProjectRoot(), "runtime", "noctis-missions");
@@ -76,6 +123,17 @@ function readMissionFromDisk(id: string): Mission | null {
 
   try {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
+    parsed.executionProjectId = normalizeExecutionProjectId(parsed.executionProjectId);
+    parsed.contextProjectIds = normalizeContextProjectIds(
+      parsed.executionProjectId,
+      parsed.contextProjectIds,
+    );
+    parsed.baseBranch = normalizeOptionalString(parsed.baseBranch);
+    parsed.branch = normalizeOptionalString(parsed.branch);
+    parsed.workspacePath = normalizeOptionalString(parsed.workspacePath);
+    parsed.workspaceStatus = MISSION_WORKSPACE_STATUSES.has(String(parsed.workspaceStatus))
+      ? parsed.workspaceStatus
+      : undefined;
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
     parsed.allowedWorkers = Array.isArray(parsed.allowedWorkers)
@@ -149,13 +207,30 @@ function touchMission(mission: Mission, status?: MissionStatus): void {
 export function createMission(
   id: string,
   noctisSessionId: string,
-  options?: { title?: string; objective?: string; allowedWorkers?: WorkerAgentId[] }
+  options?: {
+    title?: string;
+    objective?: string;
+    allowedWorkers?: WorkerAgentId[];
+    executionProjectId?: string;
+    contextProjectIds?: string[];
+    baseBranch?: string;
+    branch?: string;
+    workspacePath?: string;
+    workspaceStatus?: Mission["workspaceStatus"];
+  }
 ): Mission {
   const now = new Date().toISOString();
+  const executionProjectId = normalizeExecutionProjectId(options?.executionProjectId);
   const mission: Mission = {
     id,
     noctisSessionId,
     workerSessions: {},
+    executionProjectId,
+    contextProjectIds: normalizeContextProjectIds(executionProjectId, options?.contextProjectIds),
+    ...(options?.baseBranch ? { baseBranch: options.baseBranch.trim() } : {}),
+    ...(options?.branch ? { branch: options.branch.trim() } : {}),
+    ...(options?.workspacePath ? { workspacePath: options.workspacePath.trim() } : {}),
+    ...(options?.workspaceStatus ? { workspaceStatus: options.workspaceStatus } : {}),
     allowedWorkers: options?.allowedWorkers ?? [],
     taskGraph: [],
     delegationLedger: {
@@ -250,6 +325,78 @@ export function setWorkerSession(
   const mission = getMission(missionId);
   if (!mission) return;
   mission.workerSessions[agentId] = sessionId;
+  touchMission(mission);
+}
+
+export function setNoctisSession(missionId: string, sessionId: string): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.noctisSessionId = sessionId.trim();
+  touchMission(mission);
+}
+
+export function clearMissionSessions(missionId: string): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.noctisSessionId = "";
+  mission.workerSessions = {};
+  touchMission(mission);
+}
+
+export function updateMissionExecutionContext(
+  missionId: string,
+  patch: Partial<
+    Pick<
+      Mission,
+      | "executionProjectId"
+      | "contextProjectIds"
+      | "baseBranch"
+      | "branch"
+      | "workspacePath"
+      | "workspaceStatus"
+    >
+  >,
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+
+  if ("executionProjectId" in patch) {
+    const nextExecutionProjectId = normalizeExecutionProjectId(patch.executionProjectId);
+    if (
+      mission.executionProjectId &&
+      nextExecutionProjectId &&
+      mission.executionProjectId !== nextExecutionProjectId
+    ) {
+      throw new Error("Execution project cannot be changed after mission creation.");
+    }
+    mission.executionProjectId = nextExecutionProjectId;
+  }
+
+  if ("contextProjectIds" in patch) {
+    mission.contextProjectIds = normalizeContextProjectIds(
+      mission.executionProjectId,
+      patch.contextProjectIds,
+    );
+  }
+
+  if ("baseBranch" in patch) {
+    mission.baseBranch = normalizeOptionalString(patch.baseBranch);
+  }
+
+  if ("branch" in patch) {
+    mission.branch = normalizeOptionalString(patch.branch);
+  }
+
+  if ("workspacePath" in patch) {
+    mission.workspacePath = normalizeOptionalString(patch.workspacePath);
+  }
+
+  if ("workspaceStatus" in patch) {
+    mission.workspaceStatus = MISSION_WORKSPACE_STATUSES.has(String(patch.workspaceStatus))
+      ? patch.workspaceStatus
+      : undefined;
+  }
+
   touchMission(mission);
 }
 

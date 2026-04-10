@@ -1,9 +1,13 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { ensureMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import {
   appendMissionActivity,
   appendMissionMessage,
+  clearMissionSessions,
   getMission,
+  setNoctisSession,
   setWorkerSession,
+  updateMissionExecutionContext,
 } from "@/lib/mission-store";
 import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
@@ -99,8 +103,44 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     throw new Error("Mission not found");
   }
 
+  if (!mission.executionProjectId || !mission.branch || !mission.workspacePath) {
+    throw new Error("Mission requires an execution workspace before team messages can be delivered.");
+  }
+
+  const executionWorkspace = ensureMissionExecutionWorkspace({
+    appRoot: getProjectRoot(),
+    executionProjectId: mission.executionProjectId,
+    branch: mission.branch,
+    workspacePath: mission.workspacePath,
+  });
+  updateMissionExecutionContext(missionId, {
+    workspacePath: executionWorkspace.workspacePath,
+    workspaceStatus: executionWorkspace.workspaceStatus,
+  });
+
+  if (executionWorkspace.recreated) {
+    clearMissionSessions(missionId);
+  }
+
+  const client = getOpencodeClient();
+
   if (toAgent === "noctis") {
-    return mission.noctisSessionId;
+    if (mission.noctisSessionId) {
+      return mission.noctisSessionId;
+    }
+
+    const sessionResult = await client.session.create({
+      directory: executionWorkspace.workspacePath,
+      title: `mission:${missionId}`,
+    });
+
+    const sessionId = sessionResult.data?.id;
+    if (!sessionId) {
+      throw new Error("Session creation returned no ID");
+    }
+
+    setNoctisSession(missionId, sessionId);
+    return sessionId;
   }
 
   const existing = mission.workerSessions[toAgent];
@@ -108,10 +148,8 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     return existing;
   }
 
-  const client = getOpencodeClient();
-  const projectRoot = getProjectRoot();
   const sessionResult = await client.session.create({
-    directory: projectRoot,
+    directory: executionWorkspace.workspacePath,
     title: `mission:${missionId}:${toAgent}`,
   });
 

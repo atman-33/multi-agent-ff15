@@ -56,11 +56,14 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
     }
 
     const mission = await response.json();
-
-    const messagesResponse = await fetch(`${url.origin}/api/session/${mission.sessions.noctis}`);
-    const messages = messagesResponse.ok
-      ? (((await messagesResponse.json()) as { messages?: MessageInfo[] }).messages ?? [])
-      : null;
+    const messages = mission.sessions?.noctis
+      ? await (async () => {
+          const messagesResponse = await fetch(`${url.origin}/api/session/${mission.sessions.noctis}`);
+          return messagesResponse.ok
+            ? (((await messagesResponse.json()) as { messages?: MessageInfo[] }).messages ?? [])
+            : null;
+        })()
+      : [];
 
     return {
       exists: true,

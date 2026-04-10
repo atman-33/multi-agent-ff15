@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { getMission } from "@/lib/mission-store";
 import {
   type RegisteredProjectDefinition,
   readRegisteredProjectDefinition,
@@ -10,6 +11,11 @@ import {
   type ProjectScopedAgentId,
 } from "@/lib/project-scopes";
 import { buildYamlSection, joinXmlSections } from "./prompt-xml";
+
+type PromptProjectContext = RegisteredProjectDefinition & {
+  activationTarget?: string;
+  openspecRoot?: string;
+};
 
 function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | null {
   if (
@@ -29,7 +35,7 @@ function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | nul
 function collectActiveProjects(
   appRoot: string,
   agent: string | undefined,
-): { projects: RegisteredProjectDefinition[]; scopeLabel: string } {
+): { projects: PromptProjectContext[]; scopeLabel: string } {
   const { projectScopes } = readScopedProjectsConfig(appRoot);
   const scopedAgent = parseScopedAgent(agent);
 
@@ -46,7 +52,7 @@ function collectActiveProjects(
   }
 
   const seen = new Set<string>();
-  const projects: RegisteredProjectDefinition[] = [];
+  const projects: PromptProjectContext[] = [];
 
   for (const scope of targetScopes) {
     const ids = projectScopes[scope as keyof typeof projectScopes]?.activeProjectIds ?? [];
@@ -59,6 +65,72 @@ function collectActiveProjects(
   }
 
   return { projects, scopeLabel };
+}
+
+function remapInstructionFiles(
+  project: RegisteredProjectDefinition,
+  rootPathOverride?: string,
+): RegisteredProjectDefinition["instructionFiles"] {
+  if (!rootPathOverride || !project.rootPath) {
+    return project.instructionFiles;
+  }
+
+  const projectPrefix = `${project.rootPath}/`;
+  return project.instructionFiles.map((file) => {
+    if (!file.path.startsWith(projectPrefix)) {
+      return file;
+    }
+
+    return {
+      ...file,
+      path: `${rootPathOverride}/${file.path.slice(projectPrefix.length)}`,
+    };
+  });
+}
+
+function collectMissionProjects(
+  appRoot: string,
+  missionId: string,
+): { projects: PromptProjectContext[]; scopeLabel: string } {
+  const mission = getMission(missionId);
+  if (!mission) {
+    return { projects: [], scopeLabel: "mission" };
+  }
+
+  if (!mission.executionProjectId) {
+    return { projects: [], scopeLabel: "mission" };
+  }
+
+  const executionProject = readRegisteredProjectDefinition(appRoot, mission.executionProjectId);
+  if (!executionProject) {
+    return { projects: [], scopeLabel: "mission" };
+  }
+
+  const executionRoot = mission.workspacePath?.trim() || executionProject.rootPath;
+  const projects: PromptProjectContext[] = [
+    {
+      ...executionProject,
+      rootPath: executionRoot,
+      instructionFiles: remapInstructionFiles(executionProject, executionRoot),
+      activationTarget: executionRoot,
+      openspecRoot: executionRoot,
+    },
+  ];
+
+  for (const projectId of mission.contextProjectIds) {
+    if (projectId === mission.executionProjectId) {
+      continue;
+    }
+
+    const contextProject = readRegisteredProjectDefinition(appRoot, projectId);
+    if (!contextProject) {
+      continue;
+    }
+
+    projects.push(contextProject);
+  }
+
+  return { projects, scopeLabel: "mission" };
 }
 
 export type BuildSharedPromptContextOptions = {
@@ -75,7 +147,7 @@ export type SharedPromptContextBundle = {
   suppressedContext: string | null;
 };
 
-function getInstructionFilePaths(project: RegisteredProjectDefinition): string[] {
+function getInstructionFilePaths(project: PromptProjectContext): string[] {
   return project.instructionFiles
     .filter((file) => file.enabled && file.path && existsSync(file.path))
     .map((file) => file.path);
@@ -93,7 +165,7 @@ function appendInstructionFiles(lines: string[], instructionFiles: string[], ind
   }
 }
 
-function buildWorkspaceContext(projects: RegisteredProjectDefinition[]): string {
+function buildWorkspaceContext(projects: PromptProjectContext[]): string {
   if (projects.length === 0) {
     return buildYamlSection("workspace-context", "projects: []");
   }
@@ -115,17 +187,19 @@ function buildWorkspaceContext(projects: RegisteredProjectDefinition[]): string 
   return buildYamlSection("workspace-context", lines.join("\n"));
 }
 
-function buildToolingContext(projects: RegisteredProjectDefinition[]): string | null {
+function buildToolingContext(projects: PromptProjectContext[]): string | null {
   if (projects.length === 0) {
     return null;
   }
 
   const firstProject = projects[0];
   const lines = [
-    firstProject.serenaProject
-      ? `serena_project: ${firstProject.serenaProject}`
-      : `activate_project: ${firstProject.id}`,
-    `openspec_root: ${firstProject.rootPath || "not set"}`,
+    firstProject.activationTarget
+      ? `activate_project: ${firstProject.activationTarget}`
+      : firstProject.serenaProject
+        ? `serena_project: ${firstProject.serenaProject}`
+        : `activate_project: ${firstProject.id}`,
+    `openspec_root: ${firstProject.openspecRoot ?? firstProject.rootPath ?? "not set"}`,
   ];
 
   return buildYamlSection("tooling-context", lines.join("\n"));
@@ -147,7 +221,7 @@ function buildDelegationContext(allowedWorkers: string[] | undefined): string | 
 function buildSuppressedPromptContext(input: {
   executionMode?: string;
   missionId?: string;
-  projects: RegisteredProjectDefinition[];
+  projects: PromptProjectContext[];
   scopeLabel: string;
   sessionId: string;
 }): string | null {
@@ -189,7 +263,9 @@ export function buildSharedPromptContextBundle({
   missionId,
   sessionId,
 }: BuildSharedPromptContextOptions): SharedPromptContextBundle {
-  const { projects, scopeLabel } = collectActiveProjects(appRoot, agent);
+  const { projects, scopeLabel } = missionId
+    ? collectMissionProjects(appRoot, missionId)
+    : collectActiveProjects(appRoot, agent);
 
   return {
     agentContext: joinXmlSections([

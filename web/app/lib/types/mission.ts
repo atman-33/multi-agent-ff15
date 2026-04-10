@@ -39,6 +39,8 @@ export interface AgentContextUsage {
 
 export type MissionStatus = "active" | "completed" | "archived";
 
+export type MissionWorkspaceStatus = "ready" | "missing" | "deleted";
+
 export interface StepResult {
   task_id: string;
   next: WorkflowNext;
@@ -79,6 +81,12 @@ export interface Mission {
   id: string;
   noctisSessionId: string;
   workerSessions: Partial<Record<WorkerAgentId, string>>;
+  executionProjectId?: string;
+  contextProjectIds: string[];
+  baseBranch?: string;
+  branch?: string;
+  workspacePath?: string;
+  workspaceStatus?: MissionWorkspaceStatus;
   allowedWorkers: WorkerAgentId[];
   taskGraph: Task[];
   delegationLedger: DelegationLedger;

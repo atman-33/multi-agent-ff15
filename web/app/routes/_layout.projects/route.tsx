@@ -259,8 +259,8 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-muted-foreground text-sm">
-            Manage scoped project injection for the Noctis team. Iris is excluded from project
-            settings.
+            Manage preset context projects for future Noctis missions. Each mission now chooses
+            its execution project separately and snapshots these presets as secondary references.
           </p>
         </div>
 
@@ -312,7 +312,7 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
             <span>Project</span>
             {VISIBLE_PROJECT_SCOPES.map((scope) => (
               <div className="text-center" key={scope} title={PROJECT_SCOPE_DESCRIPTIONS[scope]}>
-                {PROJECT_SCOPE_LABELS[scope]}
+                {PROJECT_SCOPE_LABELS[scope]} Preset
               </div>
             ))}
           </div>

@@ -11,6 +11,7 @@ import {
 import { buildTextSection, joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { dispatchCurrentOperationStepToWorker } from "@/lib/task-dispatch.server";
 import { sendWorkerReport } from "@/lib/team-message.server";
+import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type { AgentId, ReportStatus, StepResult, WorkerAgentId } from "@/lib/types/mission";
 import type { Route } from "./+types/route";
 
@@ -56,7 +57,7 @@ function listMissingRequiredOutputs(input: {
 }
 
 function buildMissingOutputRetryGuidance(): string {
-  return "Create the missing output files at the paths above, then rerun the same scripts/send_report.sh command.";
+  return `Create the missing output files at the paths above, then rerun the same ${getRuntimeScriptPath("send_report.sh")} command.`;
 }
 
 export const action = async ({ request, params }: Route.ActionArgs) => {

@@ -9,13 +9,16 @@ import {
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type { Route } from "./+types/api.noctis.operations";
 
-export const loader = async (_args: Route.LoaderArgs) => {
+export const loader = async ({ request }: Route.LoaderArgs) => {
   try {
     const root = getProjectRoot();
     const language = readOperationLanguage();
+    const url = new URL(request.url);
+    const executionProjectId = url.searchParams.get("executionProjectId")?.trim() || undefined;
     const operations = listOperationCatalogEntriesForScope({
       root,
       scope: "noctis_team",
+      projectFilterId: executionProjectId,
       builtinLanguages: language === "en" ? ["en"] : [language, "en"],
     })
       .map(toOperationOption)

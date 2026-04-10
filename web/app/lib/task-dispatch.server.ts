@@ -1,10 +1,13 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { ensureMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import {
   addTask,
   appendMissionMessage,
   buildDelegationLedger,
+  clearMissionSessions,
   getMission,
   setWorkerSession,
+  updateMissionExecutionContext,
   updateTask,
 } from "@/lib/mission-store";
 import { splitModelSelection } from "@/lib/model-variant-selection";
@@ -20,6 +23,7 @@ import {
   saveOperationState,
 } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
+import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
@@ -50,6 +54,7 @@ function buildCompactTaskPrompt(input: {
   missionId: string;
   agentId: WorkerAgentId;
 }): string {
+  const sendReportScript = getRuntimeScriptPath("send_report.sh");
   const lines = [`Task ID: ${input.taskId}`, `Task: ${input.instruction}`];
 
   if (input.missionObjective.trim()) {
@@ -65,19 +70,46 @@ function buildCompactTaskPrompt(input: {
 
   lines.push("");
   lines.push("Reply:");
-  lines.push("- Use the bash tool to run send_report.sh.");
+  lines.push(`- Use the bash tool to run ${sendReportScript}.`);
   lines.push("- Do not print the command in chat. Run it with the bash tool.");
-  lines.push("- send_report.sh returns the step result to runtime; runtime decides the next actor.");
+  lines.push(`- ${sendReportScript} returns the step result to runtime; runtime decides the next actor.`);
   lines.push("- If the workflow prompt includes <step-completion-contract>, follow its allowed next values exactly.");
   lines.push("- If no workflow-specific next values are provided, use COMPLETE for success and ABORT for failure.");
   lines.push(
-    `- Success example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} COMPLETE "<message>"`
+    `- Success example: ${sendReportScript} ${input.missionId} ${input.agentId} ${input.taskId} COMPLETE "<message>"`
   );
   lines.push(
-    `- Failure example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} ABORT "<message>"`
+    `- Failure example: ${sendReportScript} ${input.missionId} ${input.agentId} ${input.taskId} ABORT "<message>"`
   );
 
   return lines.join("\n");
+}
+
+function resolveExecutionRootForWorkerDispatch(missionId: string): string {
+  const mission = getMission(missionId);
+  if (!mission) {
+    throw new Error("Mission not found");
+  }
+  if (!mission.executionProjectId || !mission.branch || !mission.workspacePath) {
+    throw new Error("Mission requires an execution workspace before workers can be dispatched.");
+  }
+
+  const executionWorkspace = ensureMissionExecutionWorkspace({
+    appRoot: getProjectRoot(),
+    executionProjectId: mission.executionProjectId,
+    branch: mission.branch,
+    workspacePath: mission.workspacePath,
+  });
+  updateMissionExecutionContext(missionId, {
+    workspacePath: executionWorkspace.workspacePath,
+    workspaceStatus: executionWorkspace.workspaceStatus,
+  });
+
+  if (executionWorkspace.recreated) {
+    clearMissionSessions(missionId);
+  }
+
+  return executionWorkspace.workspacePath;
 }
 
 export async function dispatchCurrentOperationStepToWorker(input: {
@@ -203,6 +235,7 @@ export async function dispatchTaskToWorker(input: {
 
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
+  const executionRoot = resolveExecutionRootForWorkerDispatch(input.missionId);
   const existingSessionId = mission.workerSessions[input.agentId];
 
   const markDelegatedDispatchFailed = (summary: string) => {
@@ -283,7 +316,7 @@ export async function dispatchTaskToWorker(input: {
 
   const ledger = buildDelegationLedger(mission);
   const sessionResult = await client.session.create({
-    directory: projectRoot,
+    directory: executionRoot,
     title: `mission:${input.missionId}:${input.agentId}`,
   });
 

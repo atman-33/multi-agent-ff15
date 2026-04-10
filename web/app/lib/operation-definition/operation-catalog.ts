@@ -190,11 +190,13 @@ export function findUnambiguousOperationEntryForMessage(input: {
 
 export function resolveDefaultOperationRef(input: {
   builtinLanguages: string[];
+  projectFilterId?: string;
   root?: string;
   scope: ProjectScope;
 }): string | null {
   const entries = listOperationCatalogEntriesForScope({
     builtinLanguages: input.builtinLanguages,
+    projectFilterId: input.projectFilterId,
     root: input.root,
     scope: input.scope,
   });
