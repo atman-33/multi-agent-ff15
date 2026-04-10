@@ -96,4 +96,41 @@ describe("chat-area", () => {
     expect(markup).toContain("Secondary context starts with Projects page presets.");
     expect(markup).not.toContain("Mission Setup");
   });
+
+  it("shows execution summary instead of workflow help text after mission start", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        missionActionLabel="Mission Details"
+        onMissionAction={() => undefined}
+        availableOperations={[
+          {
+            value: "builtin:noctis-autonomous",
+            label: "Autonomous",
+            description: "",
+            isDefault: true,
+            name: "noctis-autonomous",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+        ]}
+        selectedOperation="builtin:noctis-autonomous"
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain(">Execution<");
+    expect(markup).toContain(">Core Repo<");
+    expect(markup).toContain(">Workflow<");
+    expect(markup).toContain(">Autonomous<");
+    expect(markup).toContain("Mission Details");
+    expect(markup).not.toContain("Workflow: Workflow unavailable");
+    expect(markup).not.toContain("This mission is already running with its current workflow setting.");
+    expect(markup).not.toContain("Mission Workflow");
+  });
 });

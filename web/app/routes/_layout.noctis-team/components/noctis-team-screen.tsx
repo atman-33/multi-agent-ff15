@@ -325,13 +325,6 @@ export function NoctisTeamScreen({
     (project) =>
       presetContextProjectIds.includes(project.id) && project.id !== effectiveExecutionProjectId,
   );
-  const selectedMissionContextProjects = availableProjects.filter((project) =>
-    (missionDetail?.contextProjectIds ?? []).includes(project.id),
-  );
-  const missionContextCountLabel =
-    selectedMissionContextProjects.length > 0
-      ? `${selectedMissionContextProjects.length} context project${selectedMissionContextProjects.length === 1 ? "" : "s"}`
-      : "No context projects";
   const newMissionContextHint =
     visiblePresetContextProjects.length > 0
       ? `Preset context: ${visiblePresetContextProjects.map((project) => project.displayName).join(", ")}`
@@ -346,6 +339,27 @@ export function NoctisTeamScreen({
         : missionDetail?.workspaceStatus === "missing"
           ? "Missing"
           : "Not provisioned";
+  const missionActionLabel = isLegacyMissionBlocked ? "Assign Execution Project" : "Mission Details";
+  const missionStatusAlert = isLegacyMissionBlocked
+    ? {
+        toneClassName: "border-amber-500/30 bg-amber-500/10 text-amber-100",
+        message:
+          "This legacy mission can be viewed, but it cannot resume until an execution project is assigned.",
+        actionLabel: "Assign Execution Project",
+      }
+    : missionDetail?.workspaceStatus === "deleted"
+      ? {
+          toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
+          message: "Workspace deleted. Resume will recreate a fresh workspace and sessions.",
+          actionLabel: "Mission Details",
+        }
+      : missionDetail?.workspaceStatus === "missing"
+        ? {
+            toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
+            message: "Workspace missing. Resume will recreate it from the persisted mission branch.",
+            actionLabel: "Mission Details",
+          }
+        : null;
   const isWorkspaceDeleteDisabled =
     !effectiveMissionId ||
     !missionDetail?.workspacePath ||
@@ -992,6 +1006,13 @@ export function NoctisTeamScreen({
               executionProjectHint={newMissionContextHint}
               executionProjectError={activeProjectsError}
               onSelectedExecutionProjectChange={(projectId) => setDraftExecutionProjectId(projectId)}
+              missionExecutionLabel={
+                effectiveMissionId
+                  ? selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"
+                  : null
+              }
+              missionActionLabel={effectiveMissionId ? missionActionLabel : null}
+              onMissionAction={effectiveMissionId ? openContextDialog : undefined}
               availableOperations={availableOperations}
               selectedOperation={selectedOperation}
               activeOperationState={activeOperationState}
@@ -1009,48 +1030,13 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={30}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 border-border/50 border-b p-3">
-              {effectiveMissionId ? (
-                <div className="mb-3 rounded-xl border border-border/50 bg-card/40 p-3">
-                  {isLegacyMissionBlocked ? (
-                    <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-100">
-                      This legacy mission can be viewed, but it cannot resume until an execution project is assigned.
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground/80">
-                        <span className="rounded-full border border-border/50 px-2.5 py-1">
-                          Execution: {selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"}
-                        </span>
-                        <span className="rounded-full border border-border/50 px-2.5 py-1">
-                          Context: {missionContextCountLabel}
-                        </span>
-                        <span className="rounded-full border border-border/50 px-2.5 py-1">
-                          Workspace: {workspaceStatusLabel}
-                        </span>
-                      </div>
-                      {missionDetail?.workspaceStatus === "deleted" ? (
-                        <p className="mt-2 text-[11px] text-muted-foreground/75">
-                          Resume will recreate a fresh workspace and sessions.
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={openContextDialog}>
-                        {missionDetail?.executionProjectId ? "Edit Context" : "Assign Execution Project"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void deleteWorkspace()}
-                        disabled={isWorkspaceDeleteDisabled}
-                      >
-                        Delete Workspace
-                      </Button>
-                    </div>
+              {missionStatusAlert ? (
+                <div className={cn("mb-3 rounded-lg border p-2.5", missionStatusAlert.toneClassName)}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs">{missionStatusAlert.message}</p>
+                    <Button type="button" variant="outline" size="sm" onClick={openContextDialog}>
+                      {missionStatusAlert.actionLabel}
+                    </Button>
                   </div>
                 </div>
               ) : null}
@@ -1129,10 +1115,16 @@ export function NoctisTeamScreen({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {missionDetail?.executionProjectId ? "Edit mission context" : "Assign execution project"}
+              {effectiveMissionId
+                ? missionDetail?.executionProjectId
+                  ? "Mission details"
+                  : "Assign execution project"
+                : "Mission context"}
             </DialogTitle>
             <DialogDescription>
-              Choose the writable execution project once, then manage secondary context projects for future prompts.
+              {effectiveMissionId
+                ? "Review execution workspace details and manage mission-specific context."
+                : "Choose the writable execution project once, then manage secondary context projects for future prompts."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1165,6 +1157,16 @@ export function NoctisTeamScreen({
               </div>
             )}
 
+            {effectiveMissionId ? (
+              <div className="space-y-1.5">
+                <p className="font-medium text-sm">Workspace</p>
+                <p className="text-muted-foreground text-sm">{workspaceStatusLabel}</p>
+                <p className="break-all font-mono text-[11px] text-muted-foreground/75">
+                  {missionDetail?.workspacePath ?? "No workspace provisioned yet."}
+                </p>
+              </div>
+            ) : null}
+
             <div className="space-y-2">
               <p className="font-medium text-sm">Context projects</p>
               <div className="flex flex-wrap gap-2">
@@ -1189,6 +1191,16 @@ export function NoctisTeamScreen({
           </div>
 
           <DialogFooter>
+            {effectiveMissionId ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void deleteWorkspace()}
+                disabled={isWorkspaceDeleteDisabled}
+              >
+                Delete Workspace
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" onClick={() => setIsContextDialogOpen(false)}>
               Cancel
             </Button>

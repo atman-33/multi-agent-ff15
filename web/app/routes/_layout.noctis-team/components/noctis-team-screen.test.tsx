@@ -102,11 +102,15 @@ vi.mock("./chat-area", () => ({
     selectedExecutionProjectId,
     executionProjectHint,
     executionProjectOptions,
+    missionExecutionLabel,
+    missionActionLabel,
   }: {
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
     executionProjectHint?: string | null;
     executionProjectOptions?: Array<{ value: string; label: string }>;
+    missionExecutionLabel?: string | null;
+    missionActionLabel?: string | null;
   }) => (
     <div>
       <div>chat-area</div>
@@ -117,6 +121,8 @@ vi.mock("./chat-area", () => ({
         <div>{`execution-options:${executionProjectOptions.map((project) => project.label).join(",")}`}</div>
       ) : null}
       {executionProjectHint ? <div>{executionProjectHint}</div> : null}
+      {missionExecutionLabel ? <div>{`started-execution:${missionExecutionLabel}`}</div> : null}
+      {missionActionLabel ? <div>{`mission-action:${missionActionLabel}`}</div> : null}
     </div>
   ),
 }));
@@ -252,42 +258,23 @@ describe("noctis-team-screen", () => {
       />,
     );
 
-    expect(markup).toContain("Execution: Core Repo");
-    expect(markup).toContain("Context: 1 context project");
-    expect(markup).toContain("Workspace: Ready");
-    expect(markup).toContain("Delete Workspace");
-    expect(markup).toContain("Edit Context");
+    expect(markup).toContain("started-execution:Core Repo");
+    expect(markup).toContain("mission-action:Mission Details");
+    expect(markup).not.toContain("Workspace: Ready");
   });
 
-  it("disables workspace deletion while a mission is actively running", () => {
+  it("shows a workspace alert only for non-ready mission states", () => {
     paramsMock.mockReturnValue({ id: "mission-1" });
-    agentSessionStateMock.mockReturnValue({
-      messages: [],
-      banterEntries: [],
-      latestBanterEntryId: null,
-      partyMembers: [],
-      speakingAgentId: null,
-      isSessionActive: true,
-      isStreaming: false,
-      isLoadingHistory: false,
-      availableOperations: [],
-      selectedOperation: null,
-      activeOperationState: { status: "running" },
-      isOperationSelectionLocked: true,
-      setSelectedOperation: vi.fn(),
-      send: vi.fn(),
-      abort: vi.fn(),
-    });
 
     const markup = renderToStaticMarkup(
       <NoctisTeamScreen
         activeMissionId="mission-1"
-        initialMissionData={buildMission()}
+        initialMissionData={buildMission({ workspaceStatus: "deleted" })}
         language="other"
       />,
     );
 
-    expect(markup).toContain("Delete Workspace");
-    expect(markup).toContain("disabled");
+    expect(markup).toContain("Workspace deleted. Resume will recreate a fresh workspace and sessions.");
+    expect(markup).toContain("mission-action:Mission Details");
   });
 });

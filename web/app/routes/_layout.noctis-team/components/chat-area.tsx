@@ -68,6 +68,9 @@ interface ChatAreaProps {
   executionProjectHint?: string | null;
   executionProjectError?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
+  missionExecutionLabel?: string | null;
+  missionActionLabel?: string | null;
+  onMissionAction?: () => void;
   availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
@@ -263,6 +266,9 @@ export const ChatArea = ({
   executionProjectHint = null,
   executionProjectError = null,
   onSelectedExecutionProjectChange,
+  missionExecutionLabel = null,
+  missionActionLabel = null,
+  onMissionAction,
   availableOperations,
   selectedOperation,
   activeOperationState,
@@ -334,6 +340,8 @@ export const ChatArea = ({
   const operationPlaceholder = isOperationSelectionLocked
     ? "Workflow unavailable"
     : defaultOperation.label;
+  const startedMissionChipClass =
+    "inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm";
   const workflowSelector = (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -388,10 +396,6 @@ export const ChatArea = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="inline-flex max-w-60 items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/85">
-              <span className="truncate">Workflow: {operationBadgeLabel}</span>
-            </div>
-
             {onOpenOutputs ? (
               <Button
                 className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
@@ -478,6 +482,37 @@ export const ChatArea = ({
                   {workflowSelector}
                 </div>
               </div>
+            ) : isOperationSelectionLocked ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {missionExecutionLabel ? (
+                    <span className={startedMissionChipClass}>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                        Execution
+                      </span>
+                      <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
+                    </span>
+                  ) : null}
+                  <span className={startedMissionChipClass}>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                      Workflow
+                    </span>
+                    <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
+                  </span>
+                </div>
+
+                {missionActionLabel && onMissionAction ? (
+                  <Button
+                    className="h-8 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+                    onClick={onMissionAction}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {missionActionLabel}
+                  </Button>
+                ) : null}
+              </div>
             ) : (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
@@ -485,9 +520,7 @@ export const ChatArea = ({
                     Mission Workflow
                   </p>
                   <p className="text-xs text-muted-foreground/75">
-                    {isOperationSelectionLocked
-                      ? "This mission is already running with its current workflow setting."
-                      : `${defaultOperation.label} is selected unless you choose another workflow.`}
+                    {`${defaultOperation.label} is selected unless you choose another workflow.`}
                   </p>
                 </div>
 
