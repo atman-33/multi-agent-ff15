@@ -1,4 +1,8 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import {
+  recordDirectedReportReturn,
+  recordDirectedTaskDelegation,
+} from "@/lib/banter/conversation-service";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
   appendMissionActivity,
@@ -164,7 +168,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
 
 async function deliverMissionMessage(
   input: SendTeamMessageInput
-): Promise<{ sessionId: string; messageId: string }> {
+): Promise<{ sessionId: string; messageId: string; createdAt: string }> {
   assertHubSafe(input.fromAgent, input.toAgent);
   assertIntentContract(input);
 
@@ -248,7 +252,7 @@ async function deliverMissionMessage(
         deliveryStatus: "sent",
       },
     });
-    return { sessionId, messageId: message.id };
+    return { sessionId, messageId: message.id, createdAt: message.createdAt };
   } catch (error) {
     const failedEntry: MissionMessageLogEntry = {
       ...message,
@@ -267,7 +271,7 @@ export async function sendSimpleMessage(input: {
   body: string;
   fromActor: ActivityActorId;
 }): Promise<{ sessionId: string; messageId: string }> {
-  return deliverMissionMessage({
+  const delivery = await deliverMissionMessage({
     missionId: input.missionId,
     fromAgent: "noctis",
     toAgent: input.toAgent,
@@ -277,6 +281,22 @@ export async function sendSimpleMessage(input: {
     activitySpeaker: input.fromActor,
     activityKind: "team_message",
   });
+
+  recordDirectedTaskDelegation({
+    missionId: input.missionId,
+    fromAgent: "noctis",
+    toAgent: input.toAgent,
+    orchestratedBy: "noctis",
+    canonicalMessage: input.body,
+    createdAt: delivery.createdAt,
+    transport: {
+      deliveredToSessionId: delivery.sessionId,
+      deliveryStatus: "sent",
+      sessionId: delivery.sessionId,
+    },
+  });
+
+  return delivery;
 }
 
 export async function sendWorkerReport(input: {
@@ -289,7 +309,7 @@ export async function sendWorkerReport(input: {
   artifacts?: string[];
   workflowGuidance?: string;
 }): Promise<{ sessionId: string; messageId: string }> {
-  return deliverMissionMessage({
+  const delivery = await deliverMissionMessage({
     missionId: input.missionId,
     fromAgent: input.fromAgent,
     toAgent: "noctis",
@@ -304,4 +324,23 @@ export async function sendWorkerReport(input: {
     activityKind: "team_message",
     workflowGuidance: input.workflowGuidance,
   });
+
+  recordDirectedReportReturn({
+    missionId: input.missionId,
+    fromAgent: input.fromAgent,
+    toAgent: "noctis",
+    orchestratedBy: "noctis",
+    taskId: input.taskId,
+    next: input.next,
+    reportStatus: input.reportStatus ?? "completed",
+    reportBody: input.message,
+    createdAt: delivery.createdAt,
+    transport: {
+      deliveredToSessionId: delivery.sessionId,
+      deliveryStatus: "sent",
+      sessionId: delivery.sessionId,
+    },
+  });
+
+  return delivery;
 }

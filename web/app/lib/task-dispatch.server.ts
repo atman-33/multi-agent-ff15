@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { recordDirectedTaskDelegation } from "@/lib/banter/conversation-service";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
   addTask,
@@ -24,7 +25,7 @@ import {
 } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
-import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
+import type { AgentId, MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
   return `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -114,6 +115,9 @@ function resolveExecutionRootForWorkerDispatch(missionId: string): string {
 
 export async function dispatchCurrentOperationStepToWorker(input: {
   missionId: string;
+  fromAgent?: AgentId;
+  orchestratedBy?: AgentId;
+  canonicalMessage?: string;
 }): Promise<{ sessionId: string; taskId: string; stepName: string; agentId: WorkerAgentId }> {
   const operationState = getOperationState(input.missionId);
   if (!operationState) {
@@ -137,6 +141,10 @@ export async function dispatchCurrentOperationStepToWorker(input: {
     message: `Execute the active operation step "${currentStep.name}" for operation "${operation.name}".`,
     taskId,
     missionObjective: mission?.objective,
+    fromAgent: input.fromAgent ?? "noctis",
+    orchestratedBy: input.orchestratedBy ?? "noctis",
+    stepName: currentStep.name,
+    canonicalMessage: input.canonicalMessage,
   });
 
   return {
@@ -153,11 +161,18 @@ export async function dispatchTaskToWorker(input: {
   taskId?: string;
   missionObjective?: string;
   outputSchema?: string;
+  fromAgent?: AgentId;
+  orchestratedBy?: AgentId;
+  stepName?: string;
+  canonicalMessage?: string;
 }): Promise<{ sessionId: string; taskId: string }> {
   const mission = getMission(input.missionId);
   if (!mission) {
     throw new Error("Mission not found");
   }
+
+  const handoffFromAgent = input.fromAgent ?? "noctis";
+  const orchestratedBy = input.orchestratedBy ?? "noctis";
 
   const explicitTaskId = input.taskId?.trim();
   const operationState = getOperationState(input.missionId);
@@ -251,11 +266,15 @@ export async function dispatchTaskToWorker(input: {
     saveOperationState(input.missionId, operationState);
   };
 
-  const appendLog = (sessionId: string, deliveryStatus: "sent" | "failed", error?: string) => {
+  const appendLog = (
+    sessionId: string,
+    deliveryStatus: "sent" | "failed",
+    error?: string,
+  ): MissionMessageLogEntry => {
     const entry: MissionMessageLogEntry = {
       id: `msg_${crypto.randomUUID()}`,
       missionId: input.missionId,
-      fromAgent: "noctis",
+      fromAgent: handoffFromAgent,
       toAgent: input.agentId,
       type: "task",
       body: input.message,
@@ -266,6 +285,7 @@ export async function dispatchTaskToWorker(input: {
       error,
     };
     appendMissionMessage(input.missionId, entry);
+    return entry;
   };
 
   if (existingSessionId) {
@@ -301,7 +321,23 @@ export async function dispatchTaskToWorker(input: {
       }
 
       updateTask(input.missionId, taskId, "running");
-      appendLog(existingSessionId, "sent");
+      const entry = appendLog(existingSessionId, "sent");
+      recordDirectedTaskDelegation({
+        missionId: input.missionId,
+        fromAgent: handoffFromAgent,
+        toAgent: input.agentId,
+        orchestratedBy,
+        taskId,
+        stepName: input.stepName,
+        canonicalMessage: input.canonicalMessage ?? input.message,
+        createdAt: entry.createdAt,
+        transport: {
+          deliveredToSessionId: entry.deliveredToSessionId,
+          deliveryStatus: entry.deliveryStatus,
+          error: entry.error,
+          sessionId: entry.deliveredToSessionId,
+        },
+      });
       return { sessionId: existingSessionId, taskId };
     } catch (error) {
       appendLog(
@@ -365,7 +401,23 @@ export async function dispatchTaskToWorker(input: {
     }
 
     updateTask(input.missionId, taskId, "running");
-    appendLog(sessionId, "sent");
+    const entry = appendLog(sessionId, "sent");
+    recordDirectedTaskDelegation({
+      missionId: input.missionId,
+      fromAgent: handoffFromAgent,
+      toAgent: input.agentId,
+      orchestratedBy,
+      taskId,
+      stepName: input.stepName,
+      canonicalMessage: input.canonicalMessage ?? input.message,
+      createdAt: entry.createdAt,
+      transport: {
+        deliveredToSessionId: entry.deliveredToSessionId,
+        deliveryStatus: entry.deliveryStatus,
+        error: entry.error,
+        sessionId: entry.deliveredToSessionId,
+      },
+    });
     return { sessionId, taskId };
   } catch (error) {
     appendLog(sessionId, "failed", error instanceof Error ? error.message : String(error));

@@ -1,3 +1,4 @@
+import { buildMissionBanterTimeline } from "@/lib/banter/timeline";
 import { getMission } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readSessionContextUsage } from "@/lib/session-context.server";
@@ -89,7 +90,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
         prompto: mission.workerSessions.prompto ?? null,
       },
       delegationLedger: mission.delegationLedger,
-      messageLog: mission.messageLog,
+      banterTimeline: buildMissionBanterTimeline(mission),
       operationState: mission.operationState ?? null,
       contextUsageByAgent,
       sessionStatuses,

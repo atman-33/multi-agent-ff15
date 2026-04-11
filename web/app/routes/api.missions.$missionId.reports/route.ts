@@ -240,7 +240,12 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
         if (reportResult.nextWorkerDispatch) {
           try {
-            const dispatched = await dispatchCurrentOperationStepToWorker({ missionId });
+            const dispatched = await dispatchCurrentOperationStepToWorker({
+              missionId,
+              fromAgent: body.fromAgent,
+              orchestratedBy: "noctis",
+              canonicalMessage: message,
+            });
             autoDispatch = {
               agentId: dispatched.agentId,
               stepName: dispatched.stepName,

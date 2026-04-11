@@ -339,7 +339,12 @@ describe("api.missions.$missionId.reports", () => {
       taskId: "task-refactor",
       sessionId: "prompto-session",
     });
-    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
+    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({
+      missionId,
+      fromAgent: "ignis",
+      orchestratedBy: "noctis",
+      canonicalMessage: "Review approved with no blocking issues.",
+    });
   });
 
   it("returns delegated child reports to the same Noctis-owned step", async () => {
@@ -451,7 +456,12 @@ describe("api.missions.$missionId.reports", () => {
       message: "Implementation complete and tests pass",
       reportStatus: "completed",
     });
-    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
+    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({
+      missionId,
+      fromAgent: "gladiolus",
+      orchestratedBy: "noctis",
+      canonicalMessage: "Implementation complete and tests pass",
+    });
     expect(sendWorkerReport).not.toHaveBeenCalled();
   });
 
@@ -516,7 +526,12 @@ describe("api.missions.$missionId.reports", () => {
 
     const mission = getMission(missionId);
     expect(mission?.operationState?.currentStep).toBe("implement");
-    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({ missionId });
+    expect(dispatchCurrentOperationStepToWorker).toHaveBeenCalledWith({
+      missionId,
+      fromAgent: "noctis",
+      orchestratedBy: "noctis",
+      canonicalMessage: "Plan is sufficient to start coding.",
+    });
     expect(sendWorkerReport).not.toHaveBeenCalled();
   });
 });

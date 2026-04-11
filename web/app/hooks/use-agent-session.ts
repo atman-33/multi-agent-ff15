@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppLanguage } from "@/lib/app-language.server";
-import { createBanterTemplate, normalizeBanterAgentId } from "@/lib/banter/runtime";
-import type { BanterCue, BanterTemplate, RecentBanterEntry } from "@/lib/banter/types";
+import {
+  createBanterRevealQueue,
+  type BanterRevealQueue,
+} from "@/lib/banter/reveal-queue";
+import {
+  createLiteralBanterTemplate,
+  normalizeBanterAgentId,
+} from "@/lib/banter/runtime";
+import type { RecentBanterEntry } from "@/lib/banter/types";
 import {
   type AgentEvent,
   applyPartyRuntimeUpdate,
@@ -20,11 +27,10 @@ import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { OperationOption } from "@/lib/operation-presentation";
 import type {
   AgentContextUsage,
+  BanterTimelineEntry,
   DelegationLedger,
-  MissionMessageLogEntry,
   MissionExecutionTargetMode,
   OperationState,
-  ReportStatus,
 } from "@/lib/types/mission";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
 import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
@@ -44,13 +50,6 @@ const PROGRESS_BANTER_DELAYS = {
 
 const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
 const SPEAKING_INDICATOR_MS = 980;
-
-const REPORT_BANTER_CUE: Record<ReportStatus, BanterCue> = {
-  running: "report-running",
-  blocked: "report-blocked",
-  completed: "report-completed",
-  failed: "report-failed",
-};
 
 type WorkerSessionKey = "ignis" | "gladiolus" | "prompto";
 
@@ -182,37 +181,34 @@ type MissionRuntimeSnapshot = MissionResumePayload & {
     "noctis" | "ignis" | "gladiolus" | "prompto",
     AgentContextUsage | null
   >;
+  banterTimeline: BanterTimelineEntry[];
   delegationLedger: DelegationLedger;
-  messageLog: MissionMessageLogEntry[];
   sessionStatuses: Record<string, SessionStatus>;
   noctisMessages: MessageInfo[];
 };
 
-function buildMissionMessageBanterTemplates(
-  entry: MissionMessageLogEntry,
-  options: { language: AppLanguage; recentEntries: RecentBanterEntry[] }
-): BanterTemplate[] {
-  if (entry.deliveryStatus !== "sent") {
-    return [];
+function toPersistedBanterEntry(entry: BanterTimelineEntry): BanterEntry | null {
+  const template = createLiteralBanterTemplate(entry.speakerAgent, entry.renderedMessage);
+  if (!template) {
+    return null;
   }
 
-  if (entry.fromAgent === "noctis" && entry.toAgent !== "noctis") {
-    return [
-      createBanterTemplate("noctis", "task-delegated", options),
-      createBanterTemplate(entry.toAgent, "message-received", options),
-    ].filter((template): template is BanterTemplate => template !== null);
-  }
+  const timestamp = new Date(entry.createdAt);
+  return {
+    ...template,
+    id: entry.id,
+    timestamp: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
+  };
+}
 
-  if (entry.type === "report" && entry.toAgent === "noctis" && entry.reportStatus) {
-    return [
-      createBanterTemplate(entry.fromAgent, REPORT_BANTER_CUE[entry.reportStatus], options),
-      ...(entry.reportStatus === "completed"
-        ? [createBanterTemplate("noctis", "report-acknowledged", options)]
-        : []),
-    ].filter((template): template is BanterTemplate => template !== null);
-  }
-
-  return [];
+function hasMatchingRenderedBanter(
+  existingEntries: RecentBanterEntry[],
+  entry: Pick<BanterTimelineEntry, "speakerAgent" | "renderedMessage">
+): boolean {
+  return existingEntries.some(
+    (existing) =>
+      existing.speakerId === entry.speakerAgent && existing.message === entry.renderedMessage
+  );
 }
 
 function computeBanterRevealDelay(queueLength: number): number {
@@ -419,7 +415,7 @@ export async function withMissionStartPending<T>(
 
 export function useAgentSession({
   activeMissionId,
-  language = "other",
+  language: _language = "other",
   initialMissionData,
   initialMessageInfos,
   selectedExecutionProjectId,
@@ -462,16 +458,16 @@ export function useAgentSession({
   const streamingMessageIdRef = useRef<string | null>(null);
   const lastIncomingNoctisMessageIdRef = useRef<string | null>(null);
   const hasHydratedRuntimeRef = useRef(false);
-  const hasHydratedMissionMessageLogRef = useRef(false);
+  const hasHydratedBanterTimelineRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
   const idleTimerRef = useRef<number | null>(null);
-  const banterRevealTimerRef = useRef<number | null>(null);
   const speakingResetTimerRef = useRef<number | null>(null);
   const banterEntriesRef = useRef<RecentBanterEntry[]>([]);
-  const banterMissionIdRef = useRef<string | null>(null);
-  const pendingBanterTemplatesRef = useRef<BanterTemplate[]>([]);
-  const seenMissionMessageIdsRef = useRef<Set<string>>(new Set());
+  const banterTimelineMissionIdRef = useRef<string | null>(null);
+  const seenBanterEntryIdsRef = useRef<Set<string>>(new Set());
+  const revealBanterEntryRef = useRef<(entry: BanterTimelineEntry) => void>(() => undefined);
+  const banterRevealQueueRef = useRef<BanterRevealQueue<BanterTimelineEntry> | null>(null);
   const hasHydratedNoctisSettledRef = useRef(false);
   const lastNoctisSettledRef = useRef(false);
   const lastSessionStateRef = useRef<SessionStatus | null>(null);
@@ -687,102 +683,153 @@ export function useAgentSession({
     });
   }, []);
 
-  const addBanter = useCallback((template: BanterTemplate) => {
-    pendingBanterTemplatesRef.current.push(template);
-
-    if (banterRevealTimerRef.current) {
+  const revealBanterEntry = useCallback((entry: BanterTimelineEntry) => {
+    const nextEntry = toPersistedBanterEntry(entry);
+    if (!nextEntry) {
       return;
     }
 
-    const revealNext = (delay: number) => {
-      banterRevealTimerRef.current = window.setTimeout(() => {
-        banterRevealTimerRef.current = null;
-        const nextTemplate = pendingBanterTemplatesRef.current.shift();
-        if (!nextTemplate) {
-          return;
-        }
+    seenBanterEntryIdsRef.current.add(entry.id);
+    setBanterEntries((prev) => {
+      if (prev.some((current) => current.id === nextEntry.id)) {
+        return prev;
+      }
 
-        const nextEntry = { ...nextTemplate, id: createId(), timestamp: new Date() };
-        setBanterEntries((prev) => {
-          const nextEntries = [...prev, nextEntry];
-          banterEntriesRef.current = nextEntries.map((entry) => ({
-            speakerId: entry.speakerId,
-            message: entry.message,
-          }));
-          return nextEntries;
-        });
-        setLatestBanterEntryId(nextEntry.id);
-        setSpeakingAgentId(nextEntry.speakerId);
+      const mergedEntries = [...prev, nextEntry].sort(
+        (left, right) => left.timestamp.getTime() - right.timestamp.getTime()
+      );
+      banterEntriesRef.current = mergedEntries.map((current) => ({
+        speakerId: current.speakerId,
+        message: current.message,
+      }));
+      return mergedEntries;
+    });
+    setLatestBanterEntryId(nextEntry.id);
+    setSpeakingAgentId(nextEntry.speakerId);
 
-        if (speakingResetTimerRef.current) {
-          clearTimeout(speakingResetTimerRef.current);
-        }
-        speakingResetTimerRef.current = window.setTimeout(() => {
-          setSpeakingAgentId((current) => (current === nextEntry.speakerId ? null : current));
-          speakingResetTimerRef.current = null;
-        }, SPEAKING_INDICATOR_MS);
-
-        if (pendingBanterTemplatesRef.current.length > 0) {
-          revealNext(computeBanterRevealDelay(pendingBanterTemplatesRef.current.length));
-        }
-      }, delay);
-    };
-
-    revealNext(INITIAL_BANTER_REVEAL_DELAY_MS);
+    if (speakingResetTimerRef.current) {
+      clearTimeout(speakingResetTimerRef.current);
+    }
+    speakingResetTimerRef.current = window.setTimeout(() => {
+      setSpeakingAgentId((current) => (current === nextEntry.speakerId ? null : current));
+      speakingResetTimerRef.current = null;
+    }, SPEAKING_INDICATOR_MS);
   }, []);
 
+  revealBanterEntryRef.current = revealBanterEntry;
+
+  if (!banterRevealQueueRef.current) {
+    banterRevealQueueRef.current = createBanterRevealQueue<BanterTimelineEntry>({
+      onReveal: (entry) => {
+        revealBanterEntryRef.current(entry);
+      },
+      initialDelayMs: INITIAL_BANTER_REVEAL_DELAY_MS,
+      computeDelay: computeBanterRevealDelay,
+    });
+  }
+
   const clearBanterEntries = useCallback(() => {
-    if (banterRevealTimerRef.current) {
-      clearTimeout(banterRevealTimerRef.current);
-      banterRevealTimerRef.current = null;
-    }
+    banterRevealQueueRef.current?.clear();
     if (speakingResetTimerRef.current) {
       clearTimeout(speakingResetTimerRef.current);
       speakingResetTimerRef.current = null;
     }
-    pendingBanterTemplatesRef.current = [];
     banterEntriesRef.current = [];
     setLatestBanterEntryId(null);
     setSpeakingAgentId(null);
     setBanterEntries([]);
   }, []);
 
-  const syncMissionMessageBanter = useCallback(
-    (messageLog: MissionMessageLogEntry[]) => {
-      const seenIds = seenMissionMessageIdsRef.current;
+  const syncPersistedBanterTimeline = useCallback(
+    (timeline: BanterTimelineEntry[]) => {
+      const seenIds = seenBanterEntryIdsRef.current;
+      const orderedEntries = [...timeline].sort(
+        (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+      );
 
-      if (!hasHydratedMissionMessageLogRef.current) {
-        for (const entry of messageLog) {
+      if (!hasHydratedBanterTimelineRef.current) {
+        for (const entry of orderedEntries) {
           seenIds.add(entry.id);
         }
-        hasHydratedMissionMessageLogRef.current = true;
+
+        hasHydratedBanterTimelineRef.current = true;
+        const hydratedEntries = orderedEntries
+          .filter((entry) => !hasMatchingRenderedBanter(banterEntriesRef.current, entry))
+          .map((entry) => toPersistedBanterEntry(entry))
+          .filter((entry): entry is BanterEntry => entry !== null);
+
+        setBanterEntries((prev) => {
+          const mergedEntries = [...prev, ...hydratedEntries].sort(
+            (left, right) => left.timestamp.getTime() - right.timestamp.getTime()
+          );
+          banterEntriesRef.current = mergedEntries.map((entry) => ({
+            speakerId: entry.speakerId,
+            message: entry.message,
+          }));
+          return mergedEntries;
+        });
+        setLatestBanterEntryId(null);
         return;
       }
 
-      let recentEntries = banterEntriesRef.current;
-      const orderedEntries = messageLog
+      const nextEntries = orderedEntries
         .filter((entry) => !seenIds.has(entry.id))
-        .sort(
-          (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-        );
+        .filter((entry) => !hasMatchingRenderedBanter(banterEntriesRef.current, entry))
+        .map((entry) => {
+          seenIds.add(entry.id);
+          return entry;
+        })
+        .filter((entry): entry is BanterTimelineEntry => entry !== null);
 
-      for (const entry of orderedEntries) {
-        seenIds.add(entry.id);
-        const templates = buildMissionMessageBanterTemplates(entry, {
-          language,
-          recentEntries,
-        });
+      if (nextEntries.length === 0) {
+        return;
+      }
 
-        for (const template of templates) {
-          addBanter(template);
-          recentEntries = [
-            ...recentEntries,
-            { speakerId: template.speakerId, message: template.message },
-          ];
-        }
+      banterRevealQueueRef.current?.enqueue(nextEntries);
+    },
+    []
+  );
+
+  const persistAmbientBanter = useCallback(
+    async (input: {
+      speakerAgent: string;
+      cue: string;
+      renderedMessage?: string;
+      sourceEvent: string;
+      createdAt?: string;
+    }) => {
+      const missionId = missionIdRef.current ?? activeMissionIdRef.current;
+      if (!missionId) {
+        return;
+      }
+
+      const response = await fetch(`/api/noctis/missions/${missionId}/banter`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          speakerAgent: input.speakerAgent,
+          cue: input.cue,
+          renderedMessage: input.renderedMessage,
+          sourceEvent: input.sourceEvent,
+          createdAt: input.createdAt ?? new Date().toISOString(),
+        }),
+      }).catch(() => null);
+
+      if (!response?.ok) {
+        return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as {
+        entry?: BanterTimelineEntry | null;
+      } | null;
+
+      if (payload?.entry) {
+        banterRevealQueueRef.current?.enqueue([payload.entry]);
       }
     },
-    [addBanter, language]
+    []
   );
 
   const clearProgressBanter = useCallback((agentId?: string) => {
@@ -835,10 +882,10 @@ export function useAgentSession({
     streamingMessageIdRef.current = null;
     lastIncomingNoctisMessageIdRef.current = null;
     hasHydratedRuntimeRef.current = false;
-    hasHydratedMissionMessageLogRef.current = false;
+    hasHydratedBanterTimelineRef.current = false;
     hasHydratedNoctisSettledRef.current = false;
     lastNoctisSettledRef.current = false;
-    seenMissionMessageIdsRef.current = new Set();
+    seenBanterEntryIdsRef.current = new Set();
     setIsStreaming(false);
     lastSessionStateRef.current = null;
     lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
@@ -931,18 +978,24 @@ export function useAgentSession({
         scheduleIdleReset();
       }
 
-      const update = eventToPartyUpdate(event, {
-        language,
-        recentEntries: banterEntriesRef.current,
-      });
+      const update = eventToPartyUpdate(event);
       if (update) {
         setPartyRuntime((prev) => applyPartyRuntimeUpdate(prev, update));
-        if (update.banterTemplate) {
-          addBanter(update.banterTemplate);
+        if (update.cue && update.speakerAgent) {
+          void persistAmbientBanter({
+            speakerAgent: update.speakerAgent,
+            cue: update.cue,
+            sourceEvent: event.type,
+          });
         }
       }
     },
-    [addBanter, clearProgressBanter, language, scheduleIdleReset, setOptimisticSessionState]
+    [
+      clearProgressBanter,
+      persistAmbientBanter,
+      scheduleIdleReset,
+      setOptimisticSessionState,
+    ]
   );
 
   const _scheduleProgressBanter = useCallback(
@@ -1146,18 +1199,16 @@ export function useAgentSession({
           : nextWorkerSessionIds;
       });
       setDelegationLedger(runtime.delegationLedger);
-      syncMissionMessageBanter(runtime.messageLog ?? []);
+      syncPersistedBanterTimeline(runtime.banterTimeline ?? []);
       if (!hasHydratedNoctisSettledRef.current) {
         hasHydratedNoctisSettledRef.current = true;
         lastNoctisSettledRef.current = isNoctisSettled;
       } else if (isNoctisSettled && !lastNoctisSettledRef.current) {
-        const settledTemplate = createBanterTemplate("noctis", "session-settled", {
-          language,
-          recentEntries: banterEntriesRef.current,
+        void persistAmbientBanter({
+          speakerAgent: "noctis",
+          cue: "session-settled",
+          sourceEvent: "session.settled",
         });
-        if (settledTemplate) {
-          addBanter(settledTemplate);
-        }
         lastNoctisSettledRef.current = true;
       } else {
         lastNoctisSettledRef.current = isNoctisSettled;
@@ -1226,12 +1277,11 @@ export function useAgentSession({
       clearPendingMissionSession,
       isStreaming,
       pendingMissionSessionId,
-      language,
-      addBanter,
+      persistAmbientBanter,
       setOptimisticSessionState,
       setServerSessionState,
       subscribeToSession,
-      syncMissionMessageBanter,
+      syncPersistedBanterTimeline,
     ]
   );
 
@@ -1242,12 +1292,10 @@ export function useAgentSession({
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
-      if (banterRevealTimerRef.current) {
-        clearTimeout(banterRevealTimerRef.current);
-      }
       if (speakingResetTimerRef.current) {
         clearTimeout(speakingResetTimerRef.current);
       }
+      banterRevealQueueRef.current?.clear();
       clearProgressBanter();
     };
   }, [clearProgressBanter, closeWorkerEventSources]);
@@ -1292,11 +1340,11 @@ export function useAgentSession({
         noctisSessionIdRef.current = null;
         lastIncomingNoctisMessageIdRef.current = null;
         hasHydratedRuntimeRef.current = false;
-        hasHydratedMissionMessageLogRef.current = false;
+        hasHydratedBanterTimelineRef.current = false;
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
-        banterMissionIdRef.current = null;
-        seenMissionMessageIdsRef.current = new Set();
+        banterTimelineMissionIdRef.current = null;
+        seenBanterEntryIdsRef.current = new Set();
         setNoctisSessionId(null);
         setActiveOperationState(null);
         setSelectedOperation(null);
@@ -1321,9 +1369,9 @@ export function useAgentSession({
 
       setIsLoadingHistory(true);
       try {
-        if (banterMissionIdRef.current !== activeMissionId) {
+        if (banterTimelineMissionIdRef.current !== activeMissionId) {
           clearBanterEntries();
-          banterMissionIdRef.current = activeMissionId;
+          banterTimelineMissionIdRef.current = activeMissionId;
         }
 
         const hasPreloadedMessages =
@@ -1364,10 +1412,10 @@ export function useAgentSession({
         noctisSessionIdRef.current = null;
         lastIncomingNoctisMessageIdRef.current = null;
         hasHydratedRuntimeRef.current = false;
-        hasHydratedMissionMessageLogRef.current = false;
+        hasHydratedBanterTimelineRef.current = false;
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
-        seenMissionMessageIdsRef.current = new Set();
+        seenBanterEntryIdsRef.current = new Set();
         setNoctisSessionId(null);
         setActiveOperationState(null);
         setSelectedOperation(null);

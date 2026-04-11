@@ -13,7 +13,7 @@ import {
   setWorkerSession,
 } from "@/lib/mission-store";
 import { dispatchTaskToWorker } from "@/lib/task-dispatch.server";
-import { sendSimpleMessage } from "@/lib/team-message.server";
+import { sendSimpleMessage, sendWorkerReport } from "@/lib/team-message.server";
 
 const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
   promptAsyncMock: vi.fn(),
@@ -169,6 +169,44 @@ describe("execution workspace sessions", () => {
     );
   });
 
+  it("records directed handoff banter from the actual handoff source", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-worker" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Continue with review.",
+      fromAgent: "gladiolus",
+      orchestratedBy: "noctis",
+      stepName: "review",
+    });
+
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        kind: "directed",
+        fromAgent: "gladiolus",
+        toAgent: "ignis",
+        speakerAgent: "gladiolus",
+        orchestratedBy: "noctis",
+        cue: "task-delegated",
+        stepName: "review",
+      }),
+      expect.objectContaining({
+        kind: "directed",
+        fromAgent: "gladiolus",
+        toAgent: "ignis",
+        speakerAgent: "ignis",
+        orchestratedBy: "noctis",
+        cue: "message-received",
+        stepName: "review",
+      }),
+    ]);
+  });
+
   it("recreates missing workspaces before dispatch and clears stale sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -233,6 +271,43 @@ describe("execution workspace sessions", () => {
     );
   });
 
+  it("records directed banter when Noctis sends a simple team message to a worker", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-message" } });
+
+    await sendSimpleMessage({
+      missionId,
+      toAgent: "ignis",
+      body: "Share the updated plan.",
+      fromActor: "user",
+    });
+
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        kind: "directed",
+        fromAgent: "noctis",
+        toAgent: "ignis",
+        speakerAgent: "noctis",
+        orchestratedBy: "noctis",
+        cue: "task-delegated",
+        payload: expect.objectContaining({
+          canonicalMessage: "Share the updated plan.",
+        }),
+      }),
+      expect.objectContaining({
+        kind: "directed",
+        fromAgent: "noctis",
+        toAgent: "ignis",
+        speakerAgent: "ignis",
+        orchestratedBy: "noctis",
+        cue: "message-received",
+      }),
+    ]);
+  });
+
   it("uses the execution project root for direct-mode team-message worker sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -253,5 +328,38 @@ describe("execution workspace sessions", () => {
         title: `mission:${missionId}:ignis`,
       }),
     );
+  });
+
+  it("records report-return banter when a worker sends a report back to Noctis", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-report" } });
+
+    await sendWorkerReport({
+      missionId,
+      fromAgent: "prompto",
+      taskId: "task-review",
+      next: "COMPLETE",
+      message: "Looks good from my side.",
+      reportStatus: "completed",
+    });
+
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        kind: "directed",
+        fromAgent: "prompto",
+        toAgent: "noctis",
+        speakerAgent: "prompto",
+        cue: "report-completed",
+      }),
+      expect.objectContaining({
+        kind: "directed",
+        fromAgent: "prompto",
+        toAgent: "noctis",
+        speakerAgent: "noctis",
+        cue: "report-acknowledged",
+      }),
+    ]);
   });
 });

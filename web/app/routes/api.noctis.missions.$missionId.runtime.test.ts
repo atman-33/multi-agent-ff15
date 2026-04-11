@@ -17,7 +17,13 @@ vi.mock("@/lib/opencode-client", () => ({
   }),
 }));
 
-import { createMission, deleteMission, setWorkerSession } from "@/lib/mission-store";
+import {
+  appendAmbientBanter,
+  appendConversationLogEntry,
+  createMission,
+  deleteMission,
+  setWorkerSession,
+} from "@/lib/mission-store";
 import { loader } from "./api.noctis.missions.$missionId.runtime";
 
 const tempRoots: string[] = [];
@@ -60,6 +66,80 @@ afterEach(() => {
 });
 
 describe("api.noctis.missions.$missionId.runtime", () => {
+  it("returns a merged banter timeline for directed and ambient entries", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-banter-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Banter mission",
+      objective: "Verify banter timeline",
+    });
+
+    appendConversationLogEntry(missionId, {
+      id: "conversation-1",
+      missionId,
+      kind: "directed",
+      fromAgent: "ignis",
+      toAgent: "gladiolus",
+      speakerAgent: "ignis",
+      orchestratedBy: "noctis",
+      cue: "task-delegated",
+      renderedMessage: "こっちを頼む。",
+      createdAt: "2026-04-11T00:00:00.000Z",
+      payload: {
+        taskId: "task-review",
+        stepName: "review",
+        canonicalMessage: "Please take the review step.",
+      },
+      transport: {
+        deliveryStatus: "sent",
+        deliveredToSessionId: "session-gladiolus",
+      },
+    });
+
+    appendAmbientBanter(missionId, {
+      id: "ambient-1",
+      missionId,
+      kind: "ambient",
+      speakerAgent: "ignis",
+      cue: "task-progress-early",
+      renderedMessage: "関連箇所を洗っている。",
+      createdAt: "2026-04-11T00:00:01.000Z",
+      payload: {
+        sourceEvent: "task.progress",
+      },
+    });
+
+    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle" } });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      banterTimeline: Array<{
+        id: string;
+        kind: "directed" | "ambient";
+        renderedMessage: string;
+      }>;
+    }>(response);
+
+    expect(data.banterTimeline).toEqual([
+      expect.objectContaining({
+        id: "conversation-1",
+        kind: "directed",
+        renderedMessage: "こっちを頼む。",
+      }),
+      expect.objectContaining({
+        id: "ambient-1",
+        kind: "ambient",
+        renderedMessage: "関連箇所を洗っている。",
+      }),
+    ]);
+  });
+
   it("returns normalized context usage for new and legacy snapshots", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

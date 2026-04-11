@@ -1,3 +1,5 @@
+import type { BanterCue } from "@/lib/banter/types";
+
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
 export type AgentId = "noctis" | WorkerAgentId;
 export type ActivityActorId = AgentId | "user" | "iris" | "system";
@@ -101,6 +103,8 @@ export interface Mission {
   title: string;
   objective?: string;
   status: MissionStatus;
+  conversationLog: ConversationLogEntry[];
+  ambientBanterLog: AmbientBanterEntry[];
   messageLog: MissionMessageLogEntry[];
   activityLog: MissionActivityLogEntry[];
   operationState?: OperationState;
@@ -184,6 +188,52 @@ export interface MissionActivityLogEntry {
   createdAt: string;
   source?: MissionActivitySource;
 }
+
+export interface BanterEntryPayload {
+  artifacts?: string[];
+  body?: string;
+  canonicalMessage?: string;
+  next?: WorkflowNext;
+  reportBody?: string;
+  reportStatus?: ReportStatus;
+  sourceEvent?: string;
+  stepName?: string;
+  taskId?: string;
+}
+
+export interface BanterTransport {
+  deliveredToSessionId?: string;
+  deliveryStatus?: "sent" | "failed";
+  error?: string;
+  sessionId?: string;
+}
+
+export interface BanterTimelineEntryBase {
+  id: string;
+  missionId: string;
+  kind: "directed" | "ambient";
+  speakerAgent: AgentId;
+  cue: BanterCue;
+  renderedMessage: string;
+  createdAt: string;
+  payload?: BanterEntryPayload;
+  transport?: BanterTransport;
+}
+
+export interface ConversationLogEntry extends BanterTimelineEntryBase {
+  kind: "directed";
+  fromAgent: AgentId;
+  toAgent: AgentId;
+  orchestratedBy: AgentId;
+  stepName?: string;
+  taskId?: string;
+}
+
+export interface AmbientBanterEntry extends BanterTimelineEntryBase {
+  kind: "ambient";
+}
+
+export type BanterTimelineEntry = ConversationLogEntry | AmbientBanterEntry;
 
 export interface TeamMessage {
   id: string;

@@ -6,8 +6,10 @@ import {
 } from "@/lib/execution-context";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
+  AmbientBanterEntry,
   ActivityActorId,
   AgentId,
+  ConversationLogEntry,
   DelegationLedger,
   Mission,
   MissionExecutionTargetMode,
@@ -117,6 +119,8 @@ function readMissionFromDisk(id: string): Mission | null {
     parsed.workspaceStatus = MISSION_WORKSPACE_STATUSES.has(String(parsed.workspaceStatus))
       ? parsed.workspaceStatus
       : undefined;
+    parsed.conversationLog = Array.isArray(parsed.conversationLog) ? parsed.conversationLog : [];
+    parsed.ambientBanterLog = Array.isArray(parsed.ambientBanterLog) ? parsed.ambientBanterLog : [];
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
     parsed.allowedWorkers = Array.isArray(parsed.allowedWorkers)
@@ -233,6 +237,8 @@ export function createMission(
     title: options?.title?.trim() || `Mission ${now}`,
     objective: options?.objective?.trim() || undefined,
     status: "active",
+    conversationLog: [],
+    ambientBanterLog: [],
     messageLog: [],
     activityLog: [],
   };
@@ -514,6 +520,20 @@ export function appendMissionMessage(missionId: string, message: MissionMessageL
   const mission = getMission(missionId);
   if (!mission) return;
   mission.messageLog.push(message);
+  touchMission(mission);
+}
+
+export function appendConversationLogEntry(missionId: string, entry: ConversationLogEntry): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.conversationLog.push(entry);
+  touchMission(mission);
+}
+
+export function appendAmbientBanter(missionId: string, entry: AmbientBanterEntry): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.ambientBanterLog.push(entry);
   touchMission(mission);
 }
 
