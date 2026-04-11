@@ -47,6 +47,12 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
 }));
 
+vi.mock("@/components/ui/popover", () => ({
+  Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  PopoverContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock("@/components/ui/switch", () => ({
   Switch: ({
     checked,
@@ -226,5 +232,76 @@ describe("chat-area", () => {
     expect(markup).not.toContain("This mission is already running with its current workflow setting.");
     expect(markup).not.toContain("Mission Workflow");
     expect(markup).not.toContain("Starting Mission");
+    expect(markup).not.toContain("Workflow Progress");
+  });
+
+  it("shows compact workflow progress and revisit details in the header", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[{ id: "docs-repo", label: "Reference Docs" }]}
+        missionActionLabel="Mission Details"
+        onMissionAction={() => undefined}
+        availableOperations={[]}
+        selectedOperation="builtin:ja:openspec-dev.yaml"
+        activeOperationState={null}
+        workflowProgress={{
+          workflowLabel: "openspec-dev",
+          currentStep: "review",
+          currentStepIndex: 3,
+          totalSteps: 5,
+          status: "waiting_for_report",
+          updatedAt: "2026-04-11T00:16:00.000Z",
+          visitCount: 2,
+          isTerminal: false,
+        }}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Workflow Progress");
+    expect(markup).toContain("3/5");
+    expect(markup).toContain("Waiting");
+    expect(markup).toContain("review");
+    expect(markup).toContain("openspec-dev");
+    expect(markup).toContain("Pass 2");
+  });
+
+  it("keeps terminal workflow progress visible in the header", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        missionActionLabel="Mission Details"
+        onMissionAction={() => undefined}
+        availableOperations={[]}
+        selectedOperation="builtin:ja:openspec-dev.yaml"
+        activeOperationState={null}
+        workflowProgress={{
+          workflowLabel: "openspec-dev",
+          currentStep: "refactor",
+          currentStepIndex: 5,
+          totalSteps: 5,
+          status: "complete",
+          updatedAt: "2026-04-11T00:20:00.000Z",
+          visitCount: 1,
+          isTerminal: true,
+        }}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Workflow Progress");
+    expect(markup).toContain("5/5");
+    expect(markup).toContain("Done");
+    expect(markup).toContain("refactor");
   });
 });

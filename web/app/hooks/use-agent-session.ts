@@ -25,6 +25,7 @@ import type {
   AgentContextUsage,
   BanterTimelineEntry,
   DelegationLedger,
+  MissionWorkflowProgress,
   MissionExecutionTargetMode,
   OperationState,
 } from "@/lib/types/mission";
@@ -170,6 +171,7 @@ export type MissionResumePayload = {
     prompto: string | null;
   };
   operationState?: OperationState | null;
+  workflowProgress?: MissionWorkflowProgress | null;
 };
 
 type MissionRuntimeSnapshot = MissionResumePayload & {
@@ -366,6 +368,7 @@ export interface UseAgentSessionReturn {
   availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
+  workflowProgress: MissionWorkflowProgress | null;
   isOperationSelectionLocked: boolean;
   setSelectedOperation: (operationRef: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
@@ -409,6 +412,11 @@ export function useAgentSession({
   const [availableOperations, setAvailableOperations] = useState<OperationOption[]>([]);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [activeOperationState, setActiveOperationState] = useState<OperationState | null>(null);
+  const [workflowProgress, setWorkflowProgress] = useState<MissionWorkflowProgress | null>(
+    activeMissionId && initialMissionData?.missionId === activeMissionId
+      ? (initialMissionData.workflowProgress ?? null)
+      : null,
+  );
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [latestBanterEntryId, setLatestBanterEntryId] = useState<string | null>(null);
   const [speakingAgentId, setSpeakingAgentId] = useState<string | null>(null);
@@ -1041,6 +1049,7 @@ export function useAgentSession({
     (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
       missionIdRef.current = runtime.missionId;
       setActiveOperationState(runtime.operationState ?? null);
+      setWorkflowProgress(runtime.workflowProgress ?? null);
       setSelectedOperation(runtime.operationState?.operationRef ?? null);
 
       const nextNoctisSessionId = runtime.sessions.noctis;
@@ -1222,6 +1231,7 @@ export function useAgentSession({
         banterTimelineMissionIdRef.current = null;
         setNoctisSessionId(null);
         setActiveOperationState(null);
+        setWorkflowProgress(null);
         setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
@@ -1260,6 +1270,7 @@ export function useAgentSession({
           noctisSessionIdRef.current = initialMissionData.sessions.noctis;
           setNoctisSessionId(initialMissionData.sessions.noctis);
           setActiveOperationState(initialMissionData.operationState ?? null);
+          setWorkflowProgress(initialMissionData.workflowProgress ?? null);
           setSelectedOperation(initialMissionData.operationState?.operationRef ?? null);
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
           setContextUsageByAgent(createInitialContextUsageByAgent());
@@ -1291,6 +1302,7 @@ export function useAgentSession({
         lastNoctisSettledRef.current = false;
         setNoctisSessionId(null);
         setActiveOperationState(null);
+        setWorkflowProgress(null);
         setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
@@ -1381,6 +1393,7 @@ export function useAgentSession({
             missionIdRef.current = data.missionId;
             noctisSessionIdRef.current = data.noctisSessionId;
             setActiveOperationState(data.operationState ?? null);
+            setWorkflowProgress(null);
             setSelectedOperation(data.operationState?.operationRef ?? null);
             setNoctisSessionId(data.noctisSessionId);
             setOptimisticSessionState(data.noctisSessionId, "busy");
@@ -1524,6 +1537,7 @@ export function useAgentSession({
     availableOperations,
     selectedOperation,
     activeOperationState,
+    workflowProgress,
     isOperationSelectionLocked: activeMissionId !== null,
     setSelectedOperation,
     send,

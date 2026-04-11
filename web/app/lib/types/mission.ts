@@ -168,6 +168,17 @@ export interface OperationState {
   deviations: DeviationTracker;
 }
 
+export interface MissionWorkflowProgress {
+  workflowLabel: string;
+  currentStep: string;
+  currentStepIndex: number;
+  totalSteps: number;
+  status: OperationStatus;
+  updatedAt: string;
+  visitCount: number;
+  isTerminal: boolean;
+}
+
 export interface MissionActivitySource {
   type: "session_message" | "team_message" | "system";
   sessionId?: string;

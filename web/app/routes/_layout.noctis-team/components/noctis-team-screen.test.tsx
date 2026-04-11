@@ -108,6 +108,7 @@ vi.mock("./chat-area", () => ({
     missionActionLabel,
     isStartingMission,
     showAbortAction,
+    workflowProgress,
   }: {
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
@@ -120,11 +121,20 @@ vi.mock("./chat-area", () => ({
     missionActionLabel?: string | null;
     isStartingMission?: boolean;
     showAbortAction?: boolean;
+    workflowProgress?: {
+      currentStepIndex: number;
+      totalSteps: number;
+      status: string;
+      currentStep: string;
+    } | null;
   }) => (
     <div>
       <div>chat-area</div>
       <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
+      {workflowProgress ? (
+        <div>{`workflow-progress:${workflowProgress.currentStepIndex}/${workflowProgress.totalSteps}:${workflowProgress.status}:${workflowProgress.currentStep}`}</div>
+      ) : null}
       {showExecutionProjectSelector ? (
         <div>{`execution-selector:${selectedExecutionProjectId ?? "none"}`}</div>
       ) : null}
@@ -344,5 +354,30 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("Execution project direct");
     expect(markup).toContain("This mission is using the execution project directly without a dedicated workspace.");
     expect(markup).toContain("/repos/core");
+  });
+
+  it("passes initial workflow progress into the chat area for existing missions", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({
+          workflowProgress: {
+            workflowLabel: "openspec-dev",
+            currentStep: "review",
+            currentStepIndex: 3,
+            totalSteps: 5,
+            status: "waiting_for_report",
+            updatedAt: "2026-04-11T00:16:00.000Z",
+            visitCount: 2,
+            isTerminal: false,
+          },
+        })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("workflow-progress:3/5:waiting_for_report:review");
   });
 });

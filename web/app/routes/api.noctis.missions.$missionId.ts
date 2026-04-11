@@ -1,4 +1,5 @@
 import { getMission } from "@/lib/mission-store";
+import { buildMissionWorkflowProgress } from "@/lib/mission-workflow-progress.server";
 import type { Route } from "./+types/api.noctis.missions.$missionId";
 
 export const loader = async ({ params }: Route.LoaderArgs) => {
@@ -39,5 +40,6 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     agentModels: mission.agentModels,
     delegationLedger: mission.delegationLedger,
     operationState: mission.operationState ?? null,
+    workflowProgress: buildMissionWorkflowProgress(mission.operationState),
   });
 };

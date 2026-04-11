@@ -350,6 +350,7 @@ export function NoctisTeamScreen({
     availableOperations,
     selectedOperation,
     activeOperationState,
+    workflowProgress,
     isOperationSelectionLocked,
     setSelectedOperation,
     send,
@@ -366,6 +367,8 @@ export function NoctisTeamScreen({
   const isMissionStartPending = !effectiveMissionId && isStartingMission;
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
+  const effectiveWorkflowProgress =
+    workflowProgress ?? missionDetail?.workflowProgress ?? initialMissionData?.workflowProgress ?? null;
   const selectedExecutionProject = availableProjects.find(
     (project) => project.id === effectiveExecutionProjectId,
   ) ?? null;
@@ -1158,6 +1161,7 @@ export function NoctisTeamScreen({
               availableOperations={availableOperations}
               selectedOperation={selectedOperation}
               activeOperationState={activeOperationState}
+              workflowProgress={effectiveWorkflowProgress}
               isOperationSelectionLocked={isOperationSelectionLocked}
               onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}

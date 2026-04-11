@@ -24,6 +24,7 @@ import {
   deleteMission,
   setWorkerSession,
 } from "@/lib/mission-store";
+import { createOperationState, saveOperationState } from "@/lib/operation-runtime/state";
 import { loader } from "./api.noctis.missions.$missionId.runtime";
 
 const tempRoots: string[] = [];
@@ -34,9 +35,61 @@ function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-runtime-route-"));
   tempRoots.push(root);
   mkdirSync(join(root, "scripts"), { recursive: true });
+  mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
   mkdirSync(join(root, "runtime", "session-context"), { recursive: true });
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
   return root;
+}
+
+function seedWorkflowFixture(root: string): void {
+  writeFileSync(
+    join(root, "builtins", "ja", "operations", "openspec-dev.yaml"),
+    [
+      "name: openspec-dev",
+      "description: Guided OpenSpec delivery workflow.",
+      "initial_step: spec-planning",
+      "steps:",
+      "  - name: spec-planning",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Plan the change.",
+      "    rules:",
+      "      - condition: Planned",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: gladiolus",
+      "    instruction:",
+      "      inline: Implement the plan.",
+      "    rules:",
+      "      - condition: Implemented",
+      "        next: review",
+      "  - name: review",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Review the implementation.",
+      "    rules:",
+      "      - condition: Approved",
+      "        next: refactor",
+      "      - condition: Fix needed",
+      "        next: fix",
+      "  - name: fix",
+      "    agent: gladiolus",
+      "    instruction:",
+      "      inline: Fix review findings.",
+      "    rules:",
+      "      - condition: Fixed",
+      "        next: review",
+      "  - name: refactor",
+      "    agent: prompto",
+      "    instruction:",
+      "      inline: Perform final cleanup.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -66,6 +119,83 @@ afterEach(() => {
 });
 
 describe("api.noctis.missions.$missionId.runtime", () => {
+  it("returns derived workflow progress for the active mission workflow", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedWorkflowFixture(root);
+
+    const missionId = `mission-progress-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Progress mission",
+      objective: "Verify workflow progress projection",
+    });
+
+    const operationState = createOperationState(
+      "openspec-dev",
+      "spec-planning",
+      "builtin:ja:openspec-dev.yaml",
+    );
+    operationState.currentStep = "review";
+    operationState.status = "waiting_for_report";
+    operationState.stepHistory = [
+      {
+        step: "spec-planning",
+        agent: "noctis",
+        taskId: "task-spec",
+        status: "completed",
+        dispatchedAt: "2026-04-11T00:00:00.000Z",
+        completedAt: "2026-04-11T00:01:00.000Z",
+        nextStep: "implement",
+      },
+      {
+        step: "implement",
+        agent: "gladiolus",
+        taskId: "task-implement",
+        status: "completed",
+        dispatchedAt: "2026-04-11T00:02:00.000Z",
+        completedAt: "2026-04-11T00:10:00.000Z",
+        nextStep: "review",
+      },
+      {
+        step: "review",
+        agent: "ignis",
+        taskId: "task-review",
+        status: "dispatched",
+        dispatchedAt: "2026-04-11T00:11:00.000Z",
+      },
+    ];
+    saveOperationState(missionId, operationState);
+
+    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "busy" } });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      workflowProgress: {
+        workflowLabel: string;
+        currentStep: string;
+        currentStepIndex: number;
+        totalSteps: number;
+        status: string;
+        visitCount: number;
+        isTerminal: boolean;
+      } | null;
+    }>(response);
+
+    expect(data.workflowProgress).toMatchObject({
+      workflowLabel: "openspec-dev",
+      currentStep: "review",
+      currentStepIndex: 3,
+      totalSteps: 5,
+      status: "waiting_for_report",
+      visitCount: 1,
+      isTerminal: false,
+    });
+  });
+
   it("returns a merged banter timeline for directed and ambient entries", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

@@ -1,4 +1,4 @@
-import { FileText, Info, Radio, SlidersHorizontal } from "lucide-react";
+import { FileText, Info, Radio, SlidersHorizontal, Workflow } from "lucide-react";
 import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -11,6 +11,7 @@ import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -40,7 +41,9 @@ import type {
   ActivityActorId,
   MissionActivityKind,
   MissionExecutionTargetMode,
+  MissionWorkflowProgress,
   OperationState,
+  OperationStatus,
 } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
@@ -91,6 +94,7 @@ interface ChatAreaProps {
   availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
+  workflowProgress?: MissionWorkflowProgress | null;
   isOperationSelectionLocked: boolean;
   onSelectedOperationChange: (operationRef: string | null) => void;
   onAbort?: () => void;
@@ -220,6 +224,120 @@ function MissionContextActionButton({
         {label}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function getWorkflowProgressStatusLabel(status: OperationStatus): string {
+  switch (status) {
+    case "waiting_for_report":
+      return "Waiting";
+    case "complete":
+      return "Done";
+    case "aborted":
+      return "Stopped";
+    default:
+      return "In Progress";
+  }
+}
+
+function formatWorkflowProgressUpdatedAt(updatedAt: string): string {
+  const parsed = new Date(updatedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Unavailable";
+  }
+
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function WorkflowProgressSummary({
+  workflowProgress,
+}: {
+  workflowProgress: MissionWorkflowProgress;
+}) {
+  const statusLabel = getWorkflowProgressStatusLabel(workflowProgress.status);
+  const revisitLabel = workflowProgress.visitCount > 1 ? `Pass ${workflowProgress.visitCount}` : null;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          className="h-auto min-h-9 max-w-full justify-start gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-left shadow-sm hover:bg-primary/15"
+          type="button"
+          variant="outline"
+        >
+          <Workflow className="h-3.5 w-3.5 shrink-0 text-primary/80" />
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
+                Workflow Progress
+              </span>
+              <span className="rounded-full border border-primary/20 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
+                {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
+              </span>
+              <span className="rounded-full bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+                {statusLabel}
+              </span>
+            </div>
+            <p className="truncate font-semibold text-xs text-foreground">
+              {workflowProgress.currentStep}
+            </p>
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 space-y-3 border-border/60 bg-background/95 p-3 backdrop-blur">
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            Workflow Progress
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 font-mono text-[10px] text-foreground/85">
+              {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
+            </span>
+            <span className="rounded-full bg-primary/12 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+              {statusLabel}
+            </span>
+            {workflowProgress.isTerminal ? (
+              <span className="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80">
+                Terminal
+              </span>
+            ) : null}
+            {revisitLabel ? (
+              <span className="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 font-mono text-[10px] text-foreground/80">
+                {revisitLabel}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-2 text-xs leading-relaxed text-foreground/85">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/65">
+              Workflow
+            </p>
+            <p className="font-semibold text-sm">{workflowProgress.workflowLabel}</p>
+          </div>
+
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/65">
+              Current Step
+            </p>
+            <p className="font-semibold text-sm">{workflowProgress.currentStep}</p>
+          </div>
+
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/65">
+              Updated
+            </p>
+            <p>{formatWorkflowProgressUpdatedAt(workflowProgress.updatedAt)}</p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -374,6 +492,7 @@ export const ChatArea = ({
   availableOperations,
   selectedOperation,
   activeOperationState,
+  workflowProgress = null,
   isOperationSelectionLocked,
   onSelectedOperationChange,
   onAbort,
@@ -516,8 +635,8 @@ export const ChatArea = ({
     <ChatThreadFrame
       autoFollowKey={renderSnapshot.autoFollowKey}
       header={
-        <div className="flex shrink-0 items-center justify-between border-border/50 border-b px-4 py-3">
-          <div className="flex items-center gap-3">
+        <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-border/50 border-b px-4 py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center">
               <img
                 alt="FF15"
@@ -525,7 +644,7 @@ export const ChatArea = ({
                 src="/images/sword-32x32.png"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="font-bold text-sm tracking-[0.15em] text-foreground uppercase">
                 Regalia Command Center
               </h1>
@@ -533,9 +652,11 @@ export const ChatArea = ({
                 Noctis Lucis Caelum - Direct Line
               </p>
             </div>
+
+            {workflowProgress ? <WorkflowProgressSummary workflowProgress={workflowProgress} /> : null}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {onOpenOutputs ? (
               <Button
                 className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"

@@ -1,5 +1,6 @@
 import { buildMissionBanterTimeline } from "@/lib/banter/timeline";
 import { getMission } from "@/lib/mission-store";
+import { buildMissionWorkflowProgress } from "@/lib/mission-workflow-progress.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readSessionContextUsage } from "@/lib/session-context.server";
 import { coerceSessionStatus } from "@/lib/session-status";
@@ -92,6 +93,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       delegationLedger: mission.delegationLedger,
       banterTimeline: buildMissionBanterTimeline(mission),
       operationState: mission.operationState ?? null,
+      workflowProgress: buildMissionWorkflowProgress(mission.operationState),
       contextUsageByAgent,
       sessionStatuses,
       noctisMessages: messagesResult.data ?? [],
