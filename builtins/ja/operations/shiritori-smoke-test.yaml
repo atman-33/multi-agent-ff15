@@ -18,6 +18,21 @@ steps:
       - condition: 「りんご」を返した
         next: ignis-turn
       - condition: 指示どおりに返せなかった
+        next: start-failed
+
+  - name: start-failed
+    agent: noctis
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        初手のしりとり smoke test に失敗した。
+        失敗したことだけを短く報告する。
+        next は ABORT。
+    rules:
+      - condition: 初手 failure を報告した
+        next: ABORT
+      - condition: 指示どおりに返せなかった
         next: ABORT
 
   - name: ignis-turn

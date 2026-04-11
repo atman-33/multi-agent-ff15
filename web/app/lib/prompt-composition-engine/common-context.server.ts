@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
 import { readExecutionContextProjectDefinition } from "@/lib/execution-context.server";
+import { normalizeMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import { getMission } from "@/lib/mission-store";
 import {
   type RegisteredProjectDefinition,
@@ -53,7 +54,14 @@ function collectMissionProjects(
     return { projects: [], scopeLabel: "mission" };
   }
 
-  const executionRoot = mission.workspacePath?.trim() || executionProject.rootPath;
+  const executionTargetMode = normalizeMissionExecutionTargetMode(
+    mission.executionTargetMode,
+    mission.executionProjectId,
+  );
+  const executionRoot =
+    executionTargetMode === "execution_project"
+      ? executionProject.rootPath
+      : mission.workspacePath?.trim() || executionProject.rootPath;
   const projects: PromptProjectContext[] = [
     {
       ...executionProject,

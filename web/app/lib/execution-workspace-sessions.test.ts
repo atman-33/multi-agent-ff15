@@ -111,6 +111,22 @@ function createExecutionMission(root: string): {
   };
 }
 
+function createDirectExecutionMission(): string {
+  const missionId = `mission-${crypto.randomUUID()}`;
+  missionIds.push(missionId);
+
+  createMission(missionId, "session-noctis", {
+    title: "Direct execution mission",
+    objective: "Exercise direct execution roots",
+    allowedWorkers: [],
+    executionProjectId: "alpha",
+    executionTargetMode: "execution_project",
+    contextProjectIds: [],
+  });
+
+  return missionId;
+}
+
 afterEach(() => {
   vi.clearAllMocks();
   for (const missionId of missionIds.splice(0)) {
@@ -174,6 +190,27 @@ describe("execution workspace sessions", () => {
     expect(getMission(missionId)?.workerSessions).toEqual({ ignis: "session-ignis-new" });
   });
 
+  it("uses the execution project root for direct-mode worker dispatch sessions", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const missionId = createDirectExecutionMission();
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-direct" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-worker-direct" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Handle the task directly in the execution project.",
+    });
+
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: join(root, "external-alpha"),
+        title: `mission:${missionId}:ignis`,
+      }),
+    );
+  });
+
   it("uses the mission execution workspace for team-message worker sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -191,6 +228,28 @@ describe("execution workspace sessions", () => {
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         directory: workspacePath,
+        title: `mission:${missionId}:ignis`,
+      }),
+    );
+  });
+
+  it("uses the execution project root for direct-mode team-message worker sessions", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const missionId = createDirectExecutionMission();
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-direct-message" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-message-direct" } });
+
+    await sendSimpleMessage({
+      missionId,
+      toAgent: "ignis",
+      body: "Share the updated plan directly from the execution project.",
+      fromActor: "user",
+    });
+
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: join(root, "external-alpha"),
         title: `mission:${missionId}:ignis`,
       }),
     );

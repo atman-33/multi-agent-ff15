@@ -135,6 +135,48 @@ describe("mission store", () => {
     expect(mission?.workspaceStatus).toBeUndefined();
   });
 
+  it("defaults existing execution-backed missions to mission_workspace mode", () => {
+    const root = createTempRoot();
+    const missionId = "legacy-execution-mode";
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    mkdirSync(join(root, "runtime", "noctis-missions", missionId), { recursive: true });
+    writeFileSync(
+      join(root, "runtime", "noctis-missions", missionId, "mission.json"),
+      JSON.stringify({
+        id: missionId,
+        noctisSessionId: "session-legacy",
+        workerSessions: {},
+        executionProjectId: "alpha",
+        contextProjectIds: [],
+        branch: "mission/20260410-legacy-execution-mode",
+        baseBranch: "main",
+        workspacePath: "/tmp/worktrees/alpha/legacy-execution-mode",
+        workspaceStatus: "ready",
+        allowedWorkers: [],
+        taskGraph: [],
+        delegationLedger: {
+          missionId,
+          activeTasks: [],
+          completedSummaries: {},
+        },
+        agentModels: {},
+        createdAt: "2026-04-10T00:00:00.000Z",
+        updatedAt: "2026-04-10T00:00:00.000Z",
+        title: "Legacy Execution Mode Mission",
+        status: "active",
+        messageLog: [],
+        activityLog: [],
+      }),
+      "utf-8",
+    );
+
+    const mission = getMission(missionId);
+    missionIds.push(missionId);
+
+    expect(mission?.executionTargetMode).toBe("mission_workspace");
+  });
+
   it("lists canonical mission directories and ignores legacy flat files", () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

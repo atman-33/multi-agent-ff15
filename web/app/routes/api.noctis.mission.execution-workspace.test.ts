@@ -178,6 +178,44 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(sessionCreateMock).not.toHaveBeenCalled();
   });
 
+  it("starts direct-mode missions in the execution project root without provisioning a workspace", async () => {
+    const root = createTempRoot({ gitBacked: false });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-direct" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-direct" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Start directly in the execution project.",
+          executionProjectId: "alpha",
+          executionTargetMode: "execution_project",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    const mission = getMission(data.missionId);
+    expect(mission?.executionProjectId).toBe("alpha");
+    expect(mission?.executionTargetMode).toBe("execution_project");
+    expect(mission?.baseBranch).toBeUndefined();
+    expect(mission?.branch).toBeUndefined();
+    expect(mission?.workspacePath).toBeUndefined();
+    expect(mission?.workspaceStatus).toBeUndefined();
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: join(root, "external-alpha"),
+        title: `mission:${data.missionId}`,
+      }),
+    );
+  });
+
   it("persists explicit context projects selected before mission start", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-context" } });
@@ -249,6 +287,45 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(getMission(missionId)?.noctisSessionId).toBe("session-noctis-recreated");
     expect(getMission(missionId)?.workerSessions).toEqual({});
     expect(existsSync(getMission(missionId)?.workspacePath ?? "")).toBe(true);
+  });
+
+  it("continues direct-mode missions from the execution project root without workspace metadata", async () => {
+    const root = createTempRoot({ gitBacked: false });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const mission = createMission(`mission-direct-${crypto.randomUUID()}`, "", {
+      title: "Direct mission",
+      objective: "Resume directly in the execution project",
+      allowedWorkers: [],
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-direct-continued" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-direct-continue" } });
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume directly in the execution project.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await readJson<{ noctisSessionId: string }>(response)).toEqual({
+      noctisSessionId: "session-noctis-direct-continued",
+    });
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: join(root, "external-alpha"),
+        title: `mission:${mission.id}`,
+      }),
+    );
+    expect(getMission(mission.id)?.noctisSessionId).toBe("session-noctis-direct-continued");
   });
 
   it("blocks continue for legacy missions without an execution project", async () => {

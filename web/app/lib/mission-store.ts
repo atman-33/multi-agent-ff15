@@ -10,6 +10,7 @@ import type {
   AgentId,
   DelegationLedger,
   Mission,
+  MissionExecutionTargetMode,
   MissionActivityKind,
   MissionActivityLogEntry,
   MissionMessageLogEntry,
@@ -25,6 +26,17 @@ import type {
 
 const store = new Map<string, Mission>();
 const MISSION_WORKSPACE_STATUSES = new Set(["ready", "missing", "deleted"]);
+
+function normalizeExecutionTargetMode(
+  value: unknown,
+  executionProjectId?: string,
+): MissionExecutionTargetMode | undefined {
+  if (value === "mission_workspace" || value === "execution_project") {
+    return value;
+  }
+
+  return executionProjectId ? "mission_workspace" : undefined;
+}
 
 function normalizeOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -91,6 +103,10 @@ function readMissionFromDisk(id: string): Mission | null {
   try {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
     parsed.executionProjectId = normalizeExecutionProjectId(parsed.executionProjectId);
+    parsed.executionTargetMode = normalizeExecutionTargetMode(
+      parsed.executionTargetMode,
+      parsed.executionProjectId,
+    );
     parsed.contextProjectIds = normalizeContextProjectIds(
       parsed.executionProjectId,
       parsed.contextProjectIds,
@@ -179,6 +195,7 @@ export function createMission(
     objective?: string;
     allowedWorkers?: WorkerAgentId[];
     executionProjectId?: string;
+    executionTargetMode?: MissionExecutionTargetMode;
     contextProjectIds?: string[];
     baseBranch?: string;
     branch?: string;
@@ -188,11 +205,16 @@ export function createMission(
 ): Mission {
   const now = new Date().toISOString();
   const executionProjectId = normalizeExecutionProjectId(options?.executionProjectId);
+  const executionTargetMode = normalizeExecutionTargetMode(
+    options?.executionTargetMode,
+    executionProjectId,
+  );
   const mission: Mission = {
     id,
     noctisSessionId,
     workerSessions: {},
     executionProjectId,
+    ...(executionTargetMode ? { executionTargetMode } : {}),
     contextProjectIds: normalizeContextProjectIds(executionProjectId, options?.contextProjectIds),
     ...(options?.baseBranch ? { baseBranch: options.baseBranch.trim() } : {}),
     ...(options?.branch ? { branch: options.branch.trim() } : {}),
@@ -316,6 +338,7 @@ export function updateMissionExecutionContext(
     Pick<
       Mission,
       | "executionProjectId"
+      | "executionTargetMode"
       | "contextProjectIds"
       | "baseBranch"
       | "branch"
@@ -337,6 +360,25 @@ export function updateMissionExecutionContext(
       throw new Error("Execution project cannot be changed after mission creation.");
     }
     mission.executionProjectId = nextExecutionProjectId;
+    mission.executionTargetMode = normalizeExecutionTargetMode(
+      mission.executionTargetMode,
+      mission.executionProjectId,
+    );
+  }
+
+  if ("executionTargetMode" in patch) {
+    const nextExecutionTargetMode = normalizeExecutionTargetMode(
+      patch.executionTargetMode,
+      mission.executionProjectId,
+    );
+    if (
+      mission.executionTargetMode &&
+      nextExecutionTargetMode &&
+      mission.executionTargetMode !== nextExecutionTargetMode
+    ) {
+      throw new Error("Execution target mode cannot be changed after mission creation.");
+    }
+    mission.executionTargetMode = nextExecutionTargetMode;
   }
 
   if ("contextProjectIds" in patch) {

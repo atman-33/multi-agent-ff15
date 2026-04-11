@@ -24,6 +24,12 @@ export const action = async ({ params, request }: Route.ActionArgs) => {
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
+  if (mission.executionTargetMode === "execution_project") {
+    return Response.json(
+      { error: "Direct execution missions do not have a dedicated workspace to delete." },
+      { status: 409 },
+    );
+  }
   if (!mission.workspacePath) {
     return Response.json({ error: "Mission has no execution workspace." }, { status: 409 });
   }

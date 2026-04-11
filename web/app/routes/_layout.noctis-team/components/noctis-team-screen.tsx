@@ -38,7 +38,16 @@ import { useProjectRegistry } from "@/hooks/use-project-registry";
 import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
 import type { AppLanguage } from "@/lib/app-language.server";
 import { normalizeContextProjectIds } from "@/lib/execution-context";
-import type { MissionOutputSummary } from "@/lib/types/mission";
+import {
+  getMissionExecutionTargetModeLabel,
+  normalizeMissionExecutionTargetMode,
+} from "@/lib/mission-execution-target-mode";
+import {
+  clearNoctisTeamNewMissionDraft,
+  readNoctisTeamNewMissionDraft,
+  writeNoctisTeamNewMissionDraft,
+} from "@/lib/noctis-team-new-mission-draft";
+import type { MissionExecutionTargetMode, MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
@@ -278,9 +287,16 @@ export function NoctisTeamScreen({
   const [draftExecutionProjectId, setDraftExecutionProjectId] = useState<string | null>(
     initialMissionData?.executionProjectId ?? null,
   );
+  const [draftExecutionTargetMode, setDraftExecutionTargetMode] = useState<MissionExecutionTargetMode>(
+    normalizeMissionExecutionTargetMode(
+      initialMissionData?.executionTargetMode ?? undefined,
+      initialMissionData?.executionProjectId ?? undefined,
+    ) ?? "mission_workspace",
+  );
   const [draftContextProjectIds, setDraftContextProjectIds] = useState<string[]>(
     initialMissionData?.contextProjectIds ?? [],
   );
+  const [hasLoadedDraftState, setHasLoadedDraftState] = useState(false);
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
   const [isDeleteWorkspaceDialogOpen, setIsDeleteWorkspaceDialogOpen] = useState(false);
   const [isSavingContext, setIsSavingContext] = useState(false);
@@ -292,6 +308,11 @@ export function NoctisTeamScreen({
   const { vscodePreferences, updateVSCodePreference } = useVSCodePreferences();
   const availableProjects = projectRegistryData?.projects ?? [];
   const defaultExecutionProjectId = availableProjects[0]?.id ?? null;
+  const effectiveExecutionTargetMode =
+    normalizeMissionExecutionTargetMode(
+      missionDetail?.executionTargetMode ?? undefined,
+      missionDetail?.executionProjectId ?? undefined,
+    ) ?? draftExecutionTargetMode;
   const effectiveExecutionProjectId =
     missionDetail?.executionProjectId ??
     draftExecutionProjectId ??
@@ -339,6 +360,7 @@ export function NoctisTeamScreen({
     initialMissionData,
     initialMessageInfos,
     selectedExecutionProjectId: effectiveExecutionProjectId,
+    selectedExecutionTargetMode: effectiveExecutionTargetMode,
     selectedContextProjectIds: effectiveContextProjectIds,
   });
   const isMissionStartPending = !effectiveMissionId && isStartingMission;
@@ -347,6 +369,11 @@ export function NoctisTeamScreen({
   const selectedExecutionProject = availableProjects.find(
     (project) => project.id === effectiveExecutionProjectId,
   ) ?? null;
+  const missionExecutionTargetMode = normalizeMissionExecutionTargetMode(
+    missionDetail?.executionTargetMode ?? undefined,
+    missionDetail?.executionProjectId ?? undefined,
+  );
+  const isDirectExecutionMission = missionExecutionTargetMode === "execution_project";
   const workspaceLaunchPreferenceKey =
     missionDetail?.executionProjectId ?? effectiveExecutionProjectId ?? missionDetail?.workspacePath ?? null;
   const workspaceVSCodePreference = workspaceLaunchPreferenceKey
@@ -357,13 +384,18 @@ export function NoctisTeamScreen({
   const isLegacyMissionBlocked =
     Boolean(effectiveMissionId) && Boolean(missionDetail) && !missionDetail?.executionProjectId;
   const workspaceStatusLabel =
-    missionDetail?.workspaceStatus === "ready"
-      ? "Ready"
-      : missionDetail?.workspaceStatus === "deleted"
-        ? "Deleted"
-        : missionDetail?.workspaceStatus === "missing"
-          ? "Missing"
-          : "Not provisioned";
+    isDirectExecutionMission
+      ? "Direct execution"
+      : missionDetail?.workspaceStatus === "ready"
+        ? "Ready"
+        : missionDetail?.workspaceStatus === "deleted"
+          ? "Deleted"
+          : missionDetail?.workspaceStatus === "missing"
+            ? "Missing"
+            : "Not provisioned";
+  const displayedWorkspacePath = isDirectExecutionMission
+    ? selectedExecutionProject?.path ?? null
+    : missionDetail?.workspacePath ?? null;
   const missionActionLabel = isLegacyMissionBlocked ? "Assign Execution Project" : "Mission Details";
   const missionStatusAlert = isLegacyMissionBlocked
     ? {
@@ -372,13 +404,13 @@ export function NoctisTeamScreen({
           "This legacy mission can be viewed, but it cannot resume until an execution project is assigned.",
         actionLabel: "Assign Execution Project",
       }
-    : missionDetail?.workspaceStatus === "deleted"
+    : !isDirectExecutionMission && missionDetail?.workspaceStatus === "deleted"
       ? {
           toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
           message: "Workspace deleted. Resume will recreate a fresh workspace and sessions.",
           actionLabel: "Mission Details",
         }
-      : missionDetail?.workspaceStatus === "missing"
+      : !isDirectExecutionMission && missionDetail?.workspaceStatus === "missing"
         ? {
             toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
             message: "Workspace missing. Resume will recreate it from the persisted mission branch.",
@@ -386,6 +418,7 @@ export function NoctisTeamScreen({
           }
         : null;
   const isWorkspaceDeleteDisabled =
+    isDirectExecutionMission ||
     !effectiveMissionId ||
     !missionDetail?.workspacePath ||
     missionDetail.workspaceStatus !== "ready" ||
@@ -406,6 +439,33 @@ export function NoctisTeamScreen({
   }, [outputDetailActive]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      setHasLoadedDraftState(true);
+      return;
+    }
+
+    if (effectiveMissionId) {
+      setHasLoadedDraftState(true);
+      return;
+    }
+
+    try {
+      const draft = readNoctisTeamNewMissionDraft(window.localStorage);
+      if (!draft) {
+        return;
+      }
+
+      setDraftExecutionProjectId(draft.executionProjectId);
+      setDraftExecutionTargetMode(draft.executionTargetMode);
+      setDraftContextProjectIds(draft.contextProjectIds);
+    } catch {
+      clearNoctisTeamNewMissionDraft(window.localStorage);
+    } finally {
+      setHasLoadedDraftState(true);
+    }
+  }, [effectiveMissionId]);
+
+  useEffect(() => {
     if (initialMissionData?.missionId === effectiveMissionId) {
       setMissionDetail(initialMissionData);
       return;
@@ -419,6 +479,16 @@ export function NoctisTeamScreen({
   useEffect(() => {
     if (missionDetail?.executionProjectId) {
       setDraftExecutionProjectId(missionDetail.executionProjectId);
+      setDraftExecutionTargetMode(
+        normalizeMissionExecutionTargetMode(
+          missionDetail.executionTargetMode ?? undefined,
+          missionDetail.executionProjectId,
+        ) ?? "mission_workspace",
+      );
+      return;
+    }
+
+    if (!hasLoadedDraftState) {
       return;
     }
 
@@ -431,7 +501,27 @@ export function NoctisTeamScreen({
     defaultExecutionProjectId,
     draftExecutionProjectId,
     effectiveMissionId,
+    hasLoadedDraftState,
+    missionDetail?.executionTargetMode,
     missionDetail?.executionProjectId,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || effectiveMissionId || !hasLoadedDraftState) {
+      return;
+    }
+
+    writeNoctisTeamNewMissionDraft(window.localStorage, {
+      executionProjectId: draftExecutionProjectId,
+      executionTargetMode: draftExecutionTargetMode,
+      contextProjectIds: draftContextProjectIds,
+    });
+  }, [
+    draftContextProjectIds,
+    draftExecutionProjectId,
+    draftExecutionTargetMode,
+    effectiveMissionId,
+    hasLoadedDraftState,
   ]);
 
   const resetMissionOutputsState = useCallback(() => {
@@ -766,6 +856,9 @@ export function NoctisTeamScreen({
 
       const missionId = await send(parts);
       if (!effectiveMissionId && missionId) {
+        if (typeof window !== "undefined") {
+          clearNoctisTeamNewMissionDraft(window.localStorage);
+        }
         await loadMissions();
         navigate(`/noctis-team/mission/${missionId}`, { replace: true });
       }
@@ -1045,9 +1138,13 @@ export function NoctisTeamScreen({
                 label: project.displayName,
               }))}
               selectedExecutionProjectId={effectiveExecutionProjectId}
+              selectedExecutionTargetMode={effectiveExecutionTargetMode}
               executionProjectHint={newMissionContextHint}
               executionProjectError={projectRegistryError}
               onSelectedExecutionProjectChange={(projectId) => setDraftExecutionProjectId(projectId)}
+              onSelectedExecutionTargetModeChange={
+                !effectiveMissionId ? setDraftExecutionTargetMode : undefined
+              }
               missionExecutionLabel={
                 effectiveMissionId
                   ? selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"
@@ -1203,17 +1300,31 @@ export function NoctisTeamScreen({
             )}
 
             {effectiveMissionId ? (
+              <div className="space-y-1">
+                <p className="font-medium text-sm">Execution mode</p>
+                <p className="text-muted-foreground text-sm">
+                  {getMissionExecutionTargetModeLabel(missionExecutionTargetMode)}
+                </p>
+              </div>
+            ) : null}
+
+            {effectiveMissionId ? (
               <div className="space-y-1.5">
                 <p className="font-medium text-sm">Workspace</p>
                 <p className="text-muted-foreground text-sm">{workspaceStatusLabel}</p>
                 <p className="break-all font-mono text-[11px] text-muted-foreground/75">
-                  {missionDetail?.workspacePath ?? "No workspace provisioned yet."}
+                  {displayedWorkspacePath ?? "No workspace provisioned yet."}
                 </p>
-                {missionDetail?.workspacePath ? (
+                {isDirectExecutionMission ? (
+                  <p className="text-xs text-muted-foreground/75">
+                    This mission is using the execution project directly without a dedicated workspace.
+                  </p>
+                ) : null}
+                {displayedWorkspacePath ? (
                   <WorkspaceLaunchActions
                     className="pt-1"
-                    disabled={missionDetail.workspaceStatus !== "ready"}
-                    path={missionDetail.workspacePath}
+                    disabled={!isDirectExecutionMission && missionDetail?.workspaceStatus !== "ready"}
+                    path={displayedWorkspacePath}
                     vscodePreference={workspaceVSCodePreference}
                     onVSCodePreferenceChange={(preference) => {
                       if (!workspaceLaunchPreferenceKey) {
@@ -1258,7 +1369,7 @@ export function NoctisTeamScreen({
           </div>
 
           <DialogFooter className="mt-4 border-border/50 border-t pt-4">
-            {effectiveMissionId ? (
+            {effectiveMissionId && !isDirectExecutionMission ? (
               <Button
                 type="button"
                 variant="outline"

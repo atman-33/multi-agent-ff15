@@ -32,6 +32,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     allowedWorkers?: unknown;
     selectedOperation?: unknown;
     executionProjectId?: unknown;
+    executionTargetMode?: unknown;
     contextProjectIds?: unknown;
     title?: unknown;
     objective?: unknown;
@@ -66,6 +67,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
     typeof body.executionProjectId === "string" && body.executionProjectId.trim().length > 0
       ? body.executionProjectId.trim()
       : "";
+  const executionTargetMode = body?.executionTargetMode === "execution_project"
+    ? "execution_project"
+    : "mission_workspace";
   if (!executionProjectId) {
     return Response.json({ error: "Missing executionProjectId" }, { status: 400 });
   }
@@ -100,6 +104,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
+    if (!executionProject) {
+      return Response.json({ error: "Execution project is not registered." }, { status: 409 });
+    }
     const registeredContextProjectIds = contextProjectIds.filter(
       (projectId) =>
         projectId !== executionProjectId && !!readRegisteredProjectDefinition(projectRoot, projectId),
@@ -130,16 +138,20 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
     const missionId = crypto.randomUUID();
     const missionCreatedAt = new Date().toISOString();
-    const executionWorkspace = provisionMissionExecutionWorkspace({
-      appRoot: projectRoot,
-      createdAt: missionCreatedAt,
-      executionProjectId,
-      title: missionTitle,
-    });
+    const executionWorkspace =
+      executionTargetMode === "mission_workspace"
+        ? provisionMissionExecutionWorkspace({
+            appRoot: projectRoot,
+            createdAt: missionCreatedAt,
+            executionProjectId,
+            title: missionTitle,
+          })
+        : null;
     const { model, variant } = splitModelSelection(noctisModel);
+    const executionRoot = executionWorkspace?.workspacePath ?? executionProject.rootPath;
 
     const sessionResult = await client.session.create({
-      directory: executionWorkspace.workspacePath,
+      directory: executionRoot,
       title: `mission:${missionId}`,
     });
 
@@ -157,11 +169,16 @@ export const action = async ({ request }: Route.ActionArgs) => {
       objective,
       allowedWorkers,
       executionProjectId,
+      executionTargetMode,
       contextProjectIds: registeredContextProjectIds,
-      baseBranch: executionWorkspace.baseBranch,
-      branch: executionWorkspace.branch,
-      workspacePath: executionWorkspace.workspacePath,
-      workspaceStatus: executionWorkspace.workspaceStatus,
+      ...(executionWorkspace
+        ? {
+            baseBranch: executionWorkspace.baseBranch,
+            branch: executionWorkspace.branch,
+            workspacePath: executionWorkspace.workspacePath,
+            workspaceStatus: executionWorkspace.workspaceStatus,
+          }
+        : {}),
     });
     setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);

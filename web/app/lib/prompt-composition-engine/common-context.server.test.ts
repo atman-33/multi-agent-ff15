@@ -161,4 +161,32 @@ describe("common-context.server", () => {
     expect(context).toContain(`activate_project: ${executionRoot}`);
     expect(context).toContain(`openspec_root: ${executionRoot}`);
   });
+
+  it("uses the execution project root for direct-mode missions without workspace metadata", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const alphaRoot = writeProject(root, "alpha");
+    const betaRoot = writeProject(root, "beta");
+
+    const mission = createMission(`mission-${crypto.randomUUID()}`, "session-noctis", {
+      title: "Direct mission context",
+      objective: "Use the execution project directly",
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+      contextProjectIds: ["beta"],
+    });
+    missionIds.push(mission.id);
+
+    const context = buildSharedPromptContext({
+      appRoot: root,
+      agent: "noctis",
+      missionId: mission.id,
+      sessionId: "session-noctis",
+    });
+
+    expect(context).toContain(`project_root: ${alphaRoot}`);
+    expect(context).toContain(`    project_root: ${betaRoot}`);
+    expect(context).toContain(`activate_project: ${alphaRoot}`);
+    expect(context).toContain(`openspec_root: ${alphaRoot}`);
+  });
 });

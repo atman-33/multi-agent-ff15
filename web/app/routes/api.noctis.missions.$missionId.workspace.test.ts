@@ -100,6 +100,21 @@ function createExecutionMission(root: string) {
   return executionWorkspace.workspacePath;
 }
 
+function createDirectExecutionMission() {
+  const missionId = `mission-${crypto.randomUUID()}`;
+  missionIds.push(missionId);
+
+  createMission(missionId, "session-noctis", {
+    title: "Direct execution mission",
+    objective: "Exercise direct execution workspace delete behavior",
+    executionProjectId: "alpha",
+    executionTargetMode: "execution_project",
+    contextProjectIds: [],
+  });
+
+  return missionId;
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -187,5 +202,24 @@ describe("workspace delete route", () => {
     expect(response.status).toBe(200);
     expect(await readJson<{ deleted: boolean }>(response)).toEqual({ deleted: true });
     expect(existsSync(workspacePath)).toBe(false);
+  });
+
+  it("rejects workspace deletion for direct-mode missions", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const missionId = createDirectExecutionMission();
+
+    const response = await workspaceAction({
+      params: { missionId },
+      request: new Request(`http://localhost/api/noctis/missions/${missionId}/workspace`, {
+        method: "DELETE",
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: "Direct execution missions do not have a dedicated workspace to delete.",
+    });
+    expect(sessionAbortMock).not.toHaveBeenCalled();
   });
 });

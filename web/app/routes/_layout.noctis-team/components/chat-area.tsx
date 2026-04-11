@@ -10,6 +10,7 @@ import {
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
@@ -35,7 +36,12 @@ import type {
   SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
-import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
+import type {
+  ActivityActorId,
+  MissionActivityKind,
+  MissionExecutionTargetMode,
+  OperationState,
+} from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
@@ -68,9 +74,11 @@ interface ChatAreaProps {
     label: string;
   }>;
   selectedExecutionProjectId?: string | null;
+  selectedExecutionTargetMode?: MissionExecutionTargetMode;
   executionProjectHint?: string | null;
   executionProjectError?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
+  onSelectedExecutionTargetModeChange?: (mode: MissionExecutionTargetMode) => void;
   missionExecutionLabel?: string | null;
   contextProjects: Array<{
     id: string;
@@ -352,9 +360,11 @@ export const ChatArea = ({
   showExecutionProjectSelector = false,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
+  selectedExecutionTargetMode = "mission_workspace",
   executionProjectHint = null,
   executionProjectError = null,
   onSelectedExecutionProjectChange,
+  onSelectedExecutionTargetModeChange,
   missionExecutionLabel = null,
   contextProjects,
   contextActionLabel = null,
@@ -626,9 +636,29 @@ export const ChatArea = ({
                       <ContextProjectBadges projects={contextProjects} />
                     </div>
 
-                    {contextActionLabel && onContextAction ? (
-                      <MissionContextActionButton label={contextActionLabel} onClick={onContextAction} />
-                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {onSelectedExecutionTargetModeChange ? (
+                        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+                            Direct
+                          </span>
+                          <Switch
+                            aria-label="Use execution project directly"
+                            checked={selectedExecutionTargetMode === "execution_project"}
+                            disabled={isMissionStartPending}
+                            onCheckedChange={(checked) =>
+                              onSelectedExecutionTargetModeChange(
+                                checked ? "execution_project" : "mission_workspace",
+                              )
+                            }
+                          />
+                        </div>
+                      ) : null}
+
+                      {contextActionLabel && onContextAction ? (
+                        <MissionContextActionButton label={contextActionLabel} onClick={onContextAction} />
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </div>

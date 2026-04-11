@@ -47,6 +47,25 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
 }));
 
+vi.mock("@/components/ui/switch", () => ({
+  Switch: ({
+    checked,
+    disabled,
+    "aria-label": ariaLabel,
+  }: {
+    checked?: boolean;
+    disabled?: boolean;
+    "aria-label"?: string;
+  }) => (
+    <button
+      aria-label={ariaLabel}
+      data-disabled={disabled ? "yes" : "no"}
+      data-state={checked ? "checked" : "unchecked"}
+      type="button"
+    />
+  ),
+}));
+
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   TooltipContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -91,6 +110,7 @@ describe("chat-area", () => {
         ]}
         selectedExecutionProjectId="core-repo"
         executionProjectHint="Secondary context starts with Projects page presets."
+        selectedExecutionTargetMode="mission_workspace"
         contextProjects={[
           { id: "docs-repo", label: "Reference Docs" },
           { id: "api-repo", label: "API Notes" },
@@ -103,6 +123,7 @@ describe("chat-area", () => {
         activeOperationState={null}
         isOperationSelectionLocked={false}
         onSelectedExecutionProjectChange={() => undefined}
+        onSelectedExecutionTargetModeChange={() => undefined}
         onSelectedOperationChange={() => undefined}
         onSend={() => undefined}
       />,
@@ -117,6 +138,8 @@ describe("chat-area", () => {
     expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
+    expect(markup).toContain("Use execution project directly");
+    expect(markup).toContain('data-state="unchecked"');
     expect(markup).not.toContain("+1");
     expect(markup).not.toContain("Mission Setup");
   });
@@ -134,6 +157,7 @@ describe("chat-area", () => {
         ]}
         selectedExecutionProjectId="core-repo"
         executionProjectHint="Secondary context starts with Projects page presets."
+        selectedExecutionTargetMode="execution_project"
         contextProjects={[]}
         contextActionLabel="Mission Context"
         onContextAction={() => undefined}
@@ -142,6 +166,7 @@ describe("chat-area", () => {
         activeOperationState={null}
         isOperationSelectionLocked={false}
         onSelectedExecutionProjectChange={() => undefined}
+        onSelectedExecutionTargetModeChange={() => undefined}
         onSelectedOperationChange={() => undefined}
         onSend={() => undefined}
       />,
@@ -151,6 +176,8 @@ describe("chat-area", () => {
     expect(markup).toContain("Preparing workspace and briefing Noctis.");
     expect(markup).toContain("/images/chocobo.png");
     expect(markup).toContain("send-disabled");
+    expect(markup).toContain('data-state="checked"');
+    expect(markup).toContain('data-disabled="yes"');
   });
 
   it("shows execution and context summary instead of workflow help text after mission start", () => {

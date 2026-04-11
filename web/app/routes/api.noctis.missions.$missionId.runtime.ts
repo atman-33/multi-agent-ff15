@@ -73,6 +73,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       updatedAt: mission.updatedAt,
       status: mission.status,
       executionProjectId: mission.executionProjectId ?? null,
+      executionTargetMode: mission.executionTargetMode ?? null,
       contextProjectIds: mission.contextProjectIds,
       baseBranch: mission.baseBranch ?? null,
       branch: mission.branch ?? null,

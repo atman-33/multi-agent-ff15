@@ -42,6 +42,8 @@ export type MissionStatus = "active" | "completed" | "archived";
 
 export type MissionWorkspaceStatus = "ready" | "missing" | "deleted";
 
+export type MissionExecutionTargetMode = "mission_workspace" | "execution_project";
+
 export interface StepResult {
   task_id: string;
   next: WorkflowNext;
@@ -83,6 +85,7 @@ export interface Mission {
   noctisSessionId: string;
   workerSessions: Partial<Record<WorkerAgentId, string>>;
   executionProjectId?: string;
+  executionTargetMode?: MissionExecutionTargetMode;
   contextProjectIds: string[];
   baseBranch?: string;
   branch?: string;

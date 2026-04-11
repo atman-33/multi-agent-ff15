@@ -48,8 +48,7 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) =>
-    open === false ? null : <div>{children}</div>,
+  Dialog: ({ children }: { children?: ReactNode; open?: boolean }) => <div>{children}</div>,
   DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
   DialogFooter: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -100,6 +99,7 @@ vi.mock("./chat-area", () => ({
   ChatArea: ({
     showExecutionProjectSelector,
     selectedExecutionProjectId,
+    selectedExecutionTargetMode,
     executionProjectHint,
     executionProjectOptions,
     contextProjects,
@@ -111,6 +111,7 @@ vi.mock("./chat-area", () => ({
   }: {
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
+    selectedExecutionTargetMode?: string | null;
     executionProjectHint?: string | null;
     executionProjectOptions?: Array<{ value: string; label: string }>;
     contextProjects?: Array<{ id: string; label: string }>;
@@ -126,6 +127,9 @@ vi.mock("./chat-area", () => ({
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
       {showExecutionProjectSelector ? (
         <div>{`execution-selector:${selectedExecutionProjectId ?? "none"}`}</div>
+      ) : null}
+      {showExecutionProjectSelector ? (
+        <div>{`execution-mode:${selectedExecutionTargetMode ?? "none"}`}</div>
       ) : null}
       {executionProjectOptions?.length ? (
         <div>{`execution-options:${executionProjectOptions.map((project) => project.label).join(",")}`}</div>
@@ -160,6 +164,7 @@ const buildMission = (overrides: Partial<MissionResumePayload> = {}): MissionRes
   updatedAt: "2026-04-01T00:00:00.000Z",
   status: "active",
   executionProjectId: "core-repo",
+  executionTargetMode: "mission_workspace",
   contextProjectIds: ["docs-repo"],
   baseBranch: "main",
   branch: "mission/20260401-mission-one",
@@ -227,6 +232,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("execution-selector:core-repo");
+    expect(markup).toContain("execution-mode:mission_workspace");
     expect(markup).toContain("execution-options:Core Repo,Reference Docs");
     expect(markup).toContain("Context projects start empty for new missions.");
     expect(markup).toContain("context:None");
@@ -317,5 +323,26 @@ describe("noctis-team-screen", () => {
 
     expect(markup).toContain("Workspace deleted. Resume will recreate a fresh workspace and sessions.");
     expect(markup).toContain("mission-action:Mission Details");
+  });
+
+  it("shows direct execution details without a delete-workspace action", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({
+          executionTargetMode: "execution_project",
+          workspacePath: null,
+          workspaceStatus: null,
+        })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Execution mode");
+    expect(markup).toContain("Execution project direct");
+    expect(markup).toContain("This mission is using the execution project directly without a dedicated workspace.");
+    expect(markup).toContain("/repos/core");
   });
 });

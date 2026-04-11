@@ -1,5 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { ensureMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
+import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
   appendMissionActivity,
   appendMissionMessage,
@@ -103,22 +103,22 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     throw new Error("Mission not found");
   }
 
-  if (!mission.executionProjectId || !mission.branch || !mission.workspacePath) {
+  if (!mission.executionProjectId) {
     throw new Error("Mission requires an execution workspace before team messages can be delivered.");
   }
 
-  const executionWorkspace = ensureMissionExecutionWorkspace({
+  const executionRoot = resolveMissionExecutionRoot({
     appRoot: getProjectRoot(),
-    executionProjectId: mission.executionProjectId,
-    branch: mission.branch,
-    workspacePath: mission.workspacePath,
+    mission,
   });
-  updateMissionExecutionContext(missionId, {
-    workspacePath: executionWorkspace.workspacePath,
-    workspaceStatus: executionWorkspace.workspaceStatus,
-  });
+  if (executionRoot.workspacePath && executionRoot.workspaceStatus) {
+    updateMissionExecutionContext(missionId, {
+      workspacePath: executionRoot.workspacePath,
+      workspaceStatus: executionRoot.workspaceStatus,
+    });
+  }
 
-  if (executionWorkspace.recreated) {
+  if (executionRoot.recreated) {
     clearMissionSessions(missionId);
   }
 
@@ -130,7 +130,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     }
 
     const sessionResult = await client.session.create({
-      directory: executionWorkspace.workspacePath,
+      directory: executionRoot.executionRoot,
       title: `mission:${missionId}`,
     });
 
@@ -149,7 +149,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
   }
 
   const sessionResult = await client.session.create({
-    directory: executionWorkspace.workspacePath,
+    directory: executionRoot.executionRoot,
     title: `mission:${missionId}:${toAgent}`,
   });
 

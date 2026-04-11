@@ -22,6 +22,7 @@ import type {
   AgentContextUsage,
   DelegationLedger,
   MissionMessageLogEntry,
+  MissionExecutionTargetMode,
   OperationState,
   ReportStatus,
 } from "@/lib/types/mission";
@@ -160,6 +161,7 @@ export type MissionResumePayload = {
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
   executionProjectId?: string | null;
+  executionTargetMode?: MissionExecutionTargetMode | null;
   contextProjectIds?: string[];
   baseBranch?: string | null;
   branch?: string | null;
@@ -379,6 +381,7 @@ export interface UseAgentSessionOptions {
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
   selectedExecutionProjectId?: string | null;
+  selectedExecutionTargetMode?: MissionExecutionTargetMode;
   selectedContextProjectIds?: string[];
 }
 
@@ -420,6 +423,7 @@ export function useAgentSession({
   initialMissionData,
   initialMessageInfos,
   selectedExecutionProjectId,
+  selectedExecutionTargetMode = "mission_workspace",
   selectedContextProjectIds = [],
 }: UseAgentSessionOptions): UseAgentSessionReturn {
   const pendingMissionSessionId = useChatStore((state) =>
@@ -1431,6 +1435,7 @@ export function useAgentSession({
                 title: text.slice(0, 80),
                 objective: text,
                 executionProjectId: selectedExecutionProjectId,
+                executionTargetMode: selectedExecutionTargetMode,
                 contextProjectIds: selectedContextProjectIds,
                 selectedOperation,
                 noctisModel: agentModels.noctis ?? null,
@@ -1533,6 +1538,7 @@ export function useAgentSession({
       waitForActiveStatus,
       selectedContextProjectIds,
       selectedExecutionProjectId,
+      selectedExecutionTargetMode,
     ]
   );
 

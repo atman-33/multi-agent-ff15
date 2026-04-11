@@ -1,5 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { ensureMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
+import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
   addTask,
   appendMissionMessage,
@@ -90,26 +90,26 @@ function resolveExecutionRootForWorkerDispatch(missionId: string): string {
   if (!mission) {
     throw new Error("Mission not found");
   }
-  if (!mission.executionProjectId || !mission.branch || !mission.workspacePath) {
+  if (!mission.executionProjectId) {
     throw new Error("Mission requires an execution workspace before workers can be dispatched.");
   }
 
-  const executionWorkspace = ensureMissionExecutionWorkspace({
+  const executionRoot = resolveMissionExecutionRoot({
     appRoot: getProjectRoot(),
-    executionProjectId: mission.executionProjectId,
-    branch: mission.branch,
-    workspacePath: mission.workspacePath,
+    mission,
   });
-  updateMissionExecutionContext(missionId, {
-    workspacePath: executionWorkspace.workspacePath,
-    workspaceStatus: executionWorkspace.workspaceStatus,
-  });
+  if (executionRoot.workspacePath && executionRoot.workspaceStatus) {
+    updateMissionExecutionContext(missionId, {
+      workspacePath: executionRoot.workspacePath,
+      workspaceStatus: executionRoot.workspaceStatus,
+    });
+  }
 
-  if (executionWorkspace.recreated) {
+  if (executionRoot.recreated) {
     clearMissionSessions(missionId);
   }
 
-  return executionWorkspace.workspacePath;
+  return executionRoot.executionRoot;
 }
 
 export async function dispatchCurrentOperationStepToWorker(input: {

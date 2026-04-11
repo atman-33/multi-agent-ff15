@@ -6,6 +6,7 @@ import {
   readRegisteredProjectDefinition,
   type RegisteredProjectDefinition,
 } from "./project-config.server";
+import type { Mission } from "./types/mission";
 
 function slugifyMissionTitle(title: string): string {
   const slug = title
@@ -179,6 +180,62 @@ export function resolveExecutionProject(
   }
 
   return project;
+}
+
+export function resolveMissionExecutionRoot(options: {
+  appRoot: string;
+  mission: Pick<Mission, "executionProjectId" | "executionTargetMode" | "branch" | "workspacePath">;
+}): {
+  executionProject: RegisteredProjectDefinition;
+  executionRoot: string;
+  executionTargetMode: "mission_workspace" | "execution_project";
+  recreated: boolean;
+  workspacePath?: string;
+  workspaceStatus?: "ready";
+} {
+  const executionProjectId = options.mission.executionProjectId;
+  if (!executionProjectId) {
+    throw new Error("Mission requires an execution project before it can be resumed.");
+  }
+
+  const executionTargetMode =
+    options.mission.executionTargetMode === "execution_project"
+      ? "execution_project"
+      : "mission_workspace";
+
+  if (executionTargetMode === "execution_project") {
+    const executionProject = readRegisteredProjectDefinition(options.appRoot, executionProjectId);
+    if (!executionProject) {
+      throw new Error("Execution project is not registered.");
+    }
+
+    return {
+      executionProject,
+      executionRoot: executionProject.rootPath,
+      executionTargetMode,
+      recreated: false,
+    };
+  }
+
+  if (!options.mission.branch || !options.mission.workspacePath) {
+    throw new Error("Mission is missing execution workspace metadata.");
+  }
+
+  const executionWorkspace = ensureMissionExecutionWorkspace({
+    appRoot: options.appRoot,
+    executionProjectId,
+    branch: options.mission.branch,
+    workspacePath: options.mission.workspacePath,
+  });
+
+  return {
+    executionProject: executionWorkspace.executionProject,
+    executionRoot: executionWorkspace.workspacePath,
+    executionTargetMode,
+    recreated: executionWorkspace.recreated,
+    workspacePath: executionWorkspace.workspacePath,
+    workspaceStatus: executionWorkspace.workspaceStatus,
+  };
 }
 
 export function provisionMissionExecutionWorkspace(options: {
