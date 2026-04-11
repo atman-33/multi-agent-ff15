@@ -19,6 +19,10 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
 }));
 
+vi.mock("@/components/ui/badge", () => ({
+  Badge: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+}));
+
 vi.mock("@/components/ui/command", () => ({
   Command: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   CommandEmpty: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -108,6 +112,7 @@ describe("opencode message composer", () => {
     expect(markup).toContain("Alpha Project");
     expect(markup).toContain("Context Projects");
     expect(markup).toContain("Beta Project");
+    expect(markup).toContain('aria-pressed="false"');
     expect(markup).not.toContain("Choose execution project");
   });
 

@@ -2,6 +2,7 @@ import { Bot, Check, ChevronsUpDown } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -263,6 +264,8 @@ const MessageComposer = ({
       ),
     [contextProjectOptions, selectedContextProjectIds],
   );
+  const lockedContextProjectLabels =
+    selectedContextProjectLabels.length > 0 ? selectedContextProjectLabels : ["None"];
 
   const getSendOptions = useCallback(() => {
     return { agent: lockedAgent ?? selectedAgent };
@@ -303,30 +306,42 @@ const MessageComposer = ({
             Context Projects
           </p>
           {contextProjectsLocked ? (
-            <div className="rounded-md border border-border/50 bg-background/60 px-3 py-2 text-sm text-foreground">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>
-                  {selectedContextProjectLabels.length > 0
-                    ? selectedContextProjectLabels.join(", ")
-                    : "None"}
-                </span>
-                {contextProjectsStatusLabel ? (
-                  <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-primary">
-                    {contextProjectsStatusLabel}
-                  </span>
-                ) : null}
-              </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {lockedContextProjectLabels.map((projectLabel) => (
+                <Badge
+                  key={projectLabel}
+                  className="max-w-full rounded-full border-border/60 bg-background/70 px-4 py-1 text-xs font-normal text-foreground shadow-none"
+                  variant="outline"
+                >
+                  <span className="truncate">{projectLabel}</span>
+                </Badge>
+              ))}
+              {contextProjectsStatusLabel ? (
+                <Badge
+                  className="rounded-full border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-primary shadow-none"
+                  variant="outline"
+                >
+                  {contextProjectsStatusLabel}
+                </Badge>
+              ) : null}
             </div>
           ) : contextProjectOptions.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2.5">
               {contextProjectOptions.map((project) => {
                 const selected = selectedContextProjectIds.includes(project.value);
                 return (
                   <Button
                     key={project.value}
                     type="button"
+                    aria-pressed={selected}
                     variant={selected ? "default" : "outline"}
                     size="sm"
+                    className={cn(
+                      "rounded-full px-4",
+                      selected
+                        ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                        : "bg-background/70 text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                    )}
                     onClick={() => onToggleContextProjectId?.(project.value)}
                   >
                     {project.label}
