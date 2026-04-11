@@ -3,6 +3,7 @@
 # Keep facet paths relative to the operation file so `../facets/...` works in either source tree.
 # Use exactly one of file or inline for each content source.
 # initial_step must point to a noctis-owned step and that step must not route directly to COMPLETE or ABORT.
+# If the initial step needs a failure or blocked branch, route it to a named non-initial step and let that later step choose COMPLETE or ABORT.
 # Prefer the fewest steps that preserve ownership, required artifact boundaries, and explicit approvals or input waits.
 # Do not add Noctis relay steps or User-facing progress-update steps unless checkpoints or approvals were explicitly requested.
 # If another workflow already uses the same visible name, keep that duplication only when you intentionally want separate source-aware candidates and use description text to disambiguate.
@@ -38,8 +39,7 @@ steps:
     rules:
       - condition: <Planning complete>
         next: implement
-      - condition: <Cannot proceed>
-        next: ABORT
+    # If this initial step needs a failure path, route to a named non-initial step such as blocked instead of ABORT or COMPLETE.
 
   - name: implement
     agent: gladiolus
@@ -61,6 +61,15 @@ steps:
         next: ABORT
 
 # Duplicate and adapt step blocks as needed.
+# Optional non-initial blocker example for an initial-step failure path:
+#  - name: blocked
+#    agent: noctis
+#    instruction:
+#      inline: |
+#        <Explain the blocker or failed precondition.>
+#    rules:
+#      - condition: <Abort confirmed>
+#        next: ABORT
 # This generic template assumes normal rule-driven step transitions.
 # Keep User-facing messaging at the end unless the workflow explicitly needs checkpoints or is blocked on User input.
 # Valid agent values in this repository are noctis, ignis, gladiolus, and prompto.
