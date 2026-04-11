@@ -388,6 +388,7 @@ export interface UseAgentSessionReturn {
   latestBanterEntryId: string | null;
   speakingAgentId: string | null;
   partyMembers: PartyMember[];
+  isStartingMission: boolean;
   isSessionActive: boolean;
   isStreaming: boolean;
   isLoadingHistory: boolean;
@@ -398,6 +399,19 @@ export interface UseAgentSessionReturn {
   setSelectedOperation: (operationRef: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
+}
+
+export async function withMissionStartPending<T>(
+  setPending: (next: boolean) => void,
+  action: () => Promise<T>
+): Promise<T> {
+  setPending(true);
+
+  try {
+    return await action();
+  } finally {
+    setPending(false);
+  }
 }
 
 export function useAgentSession({
@@ -434,6 +448,7 @@ export function useAgentSession({
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [workerSessionIds, setWorkerSessionIds] =
     useState<WorkerSessionIds>(initialWorkerSessionIds);
+  const [isStartingMission, setIsStartingMission] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -515,6 +530,14 @@ export function useAgentSession({
 
     setSelectedOperation(null);
   }, [activeMissionId, availableOperations, selectedOperation]);
+
+  useEffect(() => {
+    if (!activeMissionId) {
+      return;
+    }
+
+    setIsStartingMission(false);
+  }, [activeMissionId]);
 
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
   const isSessionActive = isSessionStatusActive(sessionStatus);
@@ -1399,50 +1422,52 @@ export function useAgentSession({
             throw new Error("Choose an execution project before starting a mission.");
           }
 
-          const res = await fetch("/api/noctis/mission/start", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              parts,
-              title: text.slice(0, 80),
-              objective: text,
-              executionProjectId: selectedExecutionProjectId,
-              contextProjectIds: selectedContextProjectIds,
-              selectedOperation,
-              noctisModel: agentModels.noctis ?? null,
-              allowedWorkers,
-              workerModels: {
-                ignis: agentModels.ignis ?? null,
-                gladiolus: agentModels.gladiolus ?? null,
-                prompto: agentModels.prompto ?? null,
-              },
-            }),
+          return await withMissionStartPending(setIsStartingMission, async () => {
+            const res = await fetch("/api/noctis/mission/start", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                parts,
+                title: text.slice(0, 80),
+                objective: text,
+                executionProjectId: selectedExecutionProjectId,
+                contextProjectIds: selectedContextProjectIds,
+                selectedOperation,
+                noctisModel: agentModels.noctis ?? null,
+                allowedWorkers,
+                workerModels: {
+                  ignis: agentModels.ignis ?? null,
+                  gladiolus: agentModels.gladiolus ?? null,
+                  prompto: agentModels.prompto ?? null,
+                },
+              }),
+            });
+
+            if (!res.ok) {
+              throw new Error(`mission/start failed: ${res.status}`);
+            }
+
+            const data = (await res.json()) as {
+              missionId: string;
+              noctisSessionId: string;
+              operationState?: OperationState | null;
+            };
+            missionIdRef.current = data.missionId;
+            noctisSessionIdRef.current = data.noctisSessionId;
+            setActiveOperationState(data.operationState ?? null);
+            setSelectedOperation(data.operationState?.operationRef ?? null);
+            setNoctisSessionId(data.noctisSessionId);
+            setOptimisticSessionState(data.noctisSessionId, "busy");
+            setPendingMissionSession(data.missionId, data.noctisSessionId);
+
+            handleAgentEvent({ type: "session.created" });
+            subscribeToSession(data.noctisSessionId);
+            await waitForActiveStatus(data.noctisSessionId);
+            void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
+              () => undefined
+            );
+            return data.missionId;
           });
-
-          if (!res.ok) {
-            throw new Error(`mission/start failed: ${res.status}`);
-          }
-
-          const data = (await res.json()) as {
-            missionId: string;
-            noctisSessionId: string;
-            operationState?: OperationState | null;
-          };
-          missionIdRef.current = data.missionId;
-          noctisSessionIdRef.current = data.noctisSessionId;
-          setActiveOperationState(data.operationState ?? null);
-          setSelectedOperation(data.operationState?.operationRef ?? null);
-          setNoctisSessionId(data.noctisSessionId);
-          setOptimisticSessionState(data.noctisSessionId, "busy");
-          setPendingMissionSession(data.missionId, data.noctisSessionId);
-
-          handleAgentEvent({ type: "session.created" });
-          subscribeToSession(data.noctisSessionId);
-          await waitForActiveStatus(data.noctisSessionId);
-          void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
-            () => undefined
-          );
-          return data.missionId;
         } else {
           if (noctisSessionIdRef.current) {
             setOptimisticSessionState(noctisSessionIdRef.current, "busy");
@@ -1565,6 +1590,7 @@ export function useAgentSession({
     latestBanterEntryId,
     speakingAgentId,
     partyMembers,
+    isStartingMission,
     isSessionActive,
     isStreaming,
     isLoadingHistory,

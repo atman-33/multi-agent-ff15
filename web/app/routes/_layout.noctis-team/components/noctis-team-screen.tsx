@@ -322,6 +322,7 @@ export function NoctisTeamScreen({
     latestBanterEntryId,
     partyMembers,
     speakingAgentId,
+    isStartingMission,
     isSessionActive,
     isStreaming,
     isLoadingHistory,
@@ -340,6 +341,7 @@ export function NoctisTeamScreen({
     selectedExecutionProjectId: effectiveExecutionProjectId,
     selectedContextProjectIds: effectiveContextProjectIds,
   });
+  const isMissionStartPending = !effectiveMissionId && isStartingMission;
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
   const selectedExecutionProject = availableProjects.find(
@@ -1032,7 +1034,8 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
-              isResponding={isSessionActive || isLoadingHistory}
+              isResponding={isMissionStartPending || isSessionActive || isLoadingHistory}
+              isStartingMission={isMissionStartPending}
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
@@ -1062,7 +1065,7 @@ export function NoctisTeamScreen({
               onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}
               onSend={handleSend}
-              showAbortAction={isSessionActive && !isLoadingHistory}
+              showAbortAction={isSessionActive && !isLoadingHistory && !isMissionStartPending}
               outputCount={missionOutputs.length}
               onOpenOutputs={handleOpenOutputs}
             />

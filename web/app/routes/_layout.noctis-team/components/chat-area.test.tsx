@@ -3,7 +3,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/chat/prompt-composer", () => ({
-  PromptComposer: ({ topSlot }: { topSlot?: ReactNode }) => <div>{topSlot}</div>,
+  PromptComposer: ({
+    topSlot,
+    disableSendAction,
+  }: {
+    topSlot?: ReactNode;
+    disableSendAction?: boolean;
+  }) => (
+    <div>
+      <div>{disableSendAction ? "send-disabled" : "send-enabled"}</div>
+      {topSlot}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/chat/thread-frame", () => ({
@@ -110,6 +121,38 @@ describe("chat-area", () => {
     expect(markup).not.toContain("Mission Setup");
   });
 
+  it("shows mission-start feedback and disables sending while a new mission is starting", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={true}
+        isStartingMission={true}
+        showExecutionProjectSelector={true}
+        executionProjectOptions={[
+          { value: "core-repo", label: "Core Repo" },
+          { value: "docs-repo", label: "Reference Docs" },
+        ]}
+        selectedExecutionProjectId="core-repo"
+        executionProjectHint="Secondary context starts with Projects page presets."
+        contextProjects={[]}
+        contextActionLabel="Mission Context"
+        onContextAction={() => undefined}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedExecutionProjectChange={() => undefined}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Starting Mission");
+    expect(markup).toContain("Preparing workspace and briefing Noctis.");
+    expect(markup).toContain("/images/chocobo.png");
+    expect(markup).toContain("send-disabled");
+  });
+
   it("shows execution and context summary instead of workflow help text after mission start", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
@@ -155,5 +198,6 @@ describe("chat-area", () => {
     expect(markup).not.toContain("Workflow: Workflow unavailable");
     expect(markup).not.toContain("This mission is already running with its current workflow setting.");
     expect(markup).not.toContain("Mission Workflow");
+    expect(markup).not.toContain("Starting Mission");
   });
 });

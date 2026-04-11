@@ -106,6 +106,8 @@ vi.mock("./chat-area", () => ({
     contextActionLabel,
     missionExecutionLabel,
     missionActionLabel,
+    isStartingMission,
+    showAbortAction,
   }: {
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
@@ -115,9 +117,13 @@ vi.mock("./chat-area", () => ({
     contextActionLabel?: string | null;
     missionExecutionLabel?: string | null;
     missionActionLabel?: string | null;
+    isStartingMission?: boolean;
+    showAbortAction?: boolean;
   }) => (
     <div>
       <div>chat-area</div>
+      <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
+      <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
       {showExecutionProjectSelector ? (
         <div>{`execution-selector:${selectedExecutionProjectId ?? "none"}`}</div>
       ) : null}
@@ -201,6 +207,7 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      isStartingMission: false,
       isSessionActive: false,
       isStreaming: false,
       isLoadingHistory: false,
@@ -267,6 +274,34 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("context:Reference Docs");
     expect(markup).toContain("mission-action:Mission Details");
     expect(markup).not.toContain("Workspace: Ready");
+  });
+
+  it("passes mission-start pending state to chat area and suppresses abort during startup", () => {
+    agentSessionStateMock.mockReturnValue({
+      messages: [],
+      banterEntries: [],
+      latestBanterEntryId: null,
+      partyMembers: [],
+      speakingAgentId: null,
+      isStartingMission: true,
+      isSessionActive: true,
+      isStreaming: false,
+      isLoadingHistory: false,
+      availableOperations: [],
+      selectedOperation: null,
+      activeOperationState: null,
+      isOperationSelectionLocked: false,
+      setSelectedOperation: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(),
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen activeMissionId={null} initialMissionData={null} language="other" />,
+    );
+
+    expect(markup).toContain("mission-start:yes");
+    expect(markup).toContain("abort-action:no");
   });
 
   it("shows a workspace alert only for non-ready mission states", () => {

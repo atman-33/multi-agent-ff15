@@ -59,6 +59,7 @@ export interface ChatMessage {
 interface ChatAreaProps {
   messages: ChatMessage[];
   isResponding: boolean;
+  isStartingMission?: boolean;
   isSessionActive?: boolean;
   isStreaming?: boolean;
   showExecutionProjectSelector?: boolean;
@@ -345,6 +346,7 @@ MessageBubble.displayName = "MessageBubble";
 
 export const ChatArea = ({
   messages,
+  isStartingMission = false,
   isSessionActive = false,
   isStreaming = false,
   showExecutionProjectSelector = false,
@@ -370,6 +372,7 @@ export const ChatArea = ({
   outputCount = 0,
   onOpenOutputs,
 }: ChatAreaProps) => {
+  const isMissionStartPending = isStartingMission && showExecutionProjectSelector;
   const presentationMessages = useMemo(
     () => messages.map(toSessionPresentationMessage),
     [messages],
@@ -432,12 +435,49 @@ export const ChatArea = ({
     : defaultOperation.label;
   const startedMissionChipClass =
     "inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm";
+  const missionStartPendingCallout = isMissionStartPending ? (
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      className="overflow-hidden rounded-xl border border-amber-400/20 bg-amber-400/8"
+      role="status"
+    >
+      <div className="mission-start-loading-progress h-px bg-amber-300/10" />
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <div className="relative h-12 w-20 shrink-0" aria-hidden="true">
+          <div className="mission-start-loading-glow absolute left-1/2 top-1/2 h-10 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+          <div className="mission-start-loading-ground absolute inset-x-1 bottom-1 h-px" />
+          <div className="mission-start-loading-track absolute inset-x-2 bottom-1 h-10">
+            <span className="mission-start-loading-dust mission-start-loading-dust-1" />
+            <span className="mission-start-loading-dust mission-start-loading-dust-2" />
+            <span className="mission-start-loading-dust mission-start-loading-dust-3" />
+            <div className="mission-start-loading-chocobo">
+              <img
+                alt=""
+                className="mission-start-loading-chocobo-sprite h-10 w-10"
+                src="/images/chocobo.png"
+                style={{ imageRendering: "pixelated" }}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="min-w-0 space-y-1">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-100/75">
+            Starting Mission
+          </p>
+          <p className="text-xs leading-relaxed text-foreground/85">
+            Preparing workspace and briefing Noctis.
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : null;
   const workflowSelector = (
     <Tooltip>
       <TooltipTrigger asChild>
         <div>
           <Select
-            disabled={isOperationSelectionLocked}
+            disabled={isOperationSelectionLocked || isMissionStartPending}
             value={operationSelectValue}
             onValueChange={onSelectedOperationChange}
           >
@@ -517,10 +557,12 @@ export const ChatArea = ({
         <PromptComposer
           onSend={onSend}
           onAbort={onAbort}
+          disableSendAction={isMissionStartPending}
           showAbortAction={showAbortAction}
           topSlot={
             showExecutionProjectSelector ? (
               <div className="space-y-3">
+                {missionStartPendingCallout}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
@@ -547,6 +589,7 @@ export const ChatArea = ({
                       ) : null}
                     </div>
                     <Select
+                      disabled={isMissionStartPending}
                       value={selectedExecutionProjectId ?? undefined}
                       onValueChange={onSelectedExecutionProjectChange}
                     >

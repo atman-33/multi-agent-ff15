@@ -117,6 +117,14 @@
       transform: translateY(1px) scale(0.99);
     }
   }
+  @keyframes mission-start-loading-chocobo-path {
+    0% {
+      left: calc(100% - 2.5rem);
+    }
+    100% {
+      left: 0;
+    }
+  }
   @keyframes route-loading-glow {
     0%,
     100% {
@@ -434,6 +442,96 @@
     background: rgba(255, 255, 255, 0.35);
     animation: route-loading-dust 0.55s ease-out 0.38s infinite;
   }
+
+  .mission-start-loading-progress::before {
+    content: "";
+    display: block;
+    height: 100%;
+    width: 32%;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(253, 230, 138, 0.35) 18%,
+      rgba(252, 211, 77, 0.9) 52%,
+      transparent 100%
+    );
+    animation: route-loading-progress 1.25s linear infinite;
+  }
+
+  .mission-start-loading-glow {
+    background: radial-gradient(
+      ellipse,
+      rgba(251, 191, 36, 0.22) 0%,
+      rgba(251, 191, 36, 0.06) 58%,
+      transparent 80%
+    );
+    animation: route-loading-glow 2.2s ease-in-out infinite;
+  }
+
+  .mission-start-loading-ground {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(253, 224, 71, 0.18) 24%,
+      rgba(253, 224, 71, 0.45) 50%,
+      rgba(253, 224, 71, 0.18) 76%,
+      transparent 100%
+    );
+  }
+
+  .mission-start-loading-track {
+    position: relative;
+  }
+
+  .mission-start-loading-chocobo {
+    position: absolute;
+    bottom: 0.1rem;
+    left: 0;
+    width: 2.5rem;
+    animation: mission-start-loading-chocobo-path 1.45s linear infinite;
+    will-change: left;
+  }
+
+  .mission-start-loading-chocobo-sprite {
+    display: block;
+    filter: drop-shadow(0 4px 10px rgba(251, 191, 36, 0.45));
+    animation: route-loading-chocobo-bob 0.38s ease-in-out infinite;
+  }
+
+  .mission-start-loading-dust {
+    position: absolute;
+    bottom: 0.2rem;
+    left: 2rem;
+    display: block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(253, 224, 71, 0.58);
+  }
+
+  .mission-start-loading-dust-1 {
+    left: 2.05rem;
+    bottom: 0.1rem;
+    animation: route-loading-dust 0.6s ease-out 0s infinite;
+  }
+
+  .mission-start-loading-dust-2 {
+    left: 2.35rem;
+    bottom: 0.38rem;
+    width: 2px;
+    height: 2px;
+    animation: route-loading-dust 0.6s ease-out 0.12s infinite;
+  }
+
+  .mission-start-loading-dust-3 {
+    left: 1.85rem;
+    bottom: 0.48rem;
+    width: 2px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.32);
+    animation: route-loading-dust 0.6s ease-out 0.24s infinite;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -450,6 +548,22 @@
   }
 
   .route-loading-dust {
+    display: none;
+  }
+
+  .mission-start-loading-progress::before,
+  .mission-start-loading-glow,
+  .mission-start-loading-chocobo,
+  .mission-start-loading-chocobo-sprite,
+  .mission-start-loading-dust {
+    animation: none;
+  }
+
+  .mission-start-loading-chocobo {
+    left: calc(50% - 1.25rem);
+  }
+
+  .mission-start-loading-dust {
     display: none;
   }
 }

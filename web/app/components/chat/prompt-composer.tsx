@@ -41,6 +41,7 @@ type PromptComposerProps = {
   getSendOptions?: () => { agent?: string | null } | undefined;
   onAbort?: () => void;
   disabled?: boolean;
+  disableSendAction?: boolean;
   showAbortAction?: boolean;
   showAbortActionWhenComposing?: boolean;
   isAborting?: boolean;
@@ -101,6 +102,7 @@ export function PromptComposer({
   getSendOptions,
   onAbort,
   disabled = false,
+  disableSendAction = false,
   showAbortAction = false,
   showAbortActionWhenComposing = true,
   isAborting = false,
@@ -326,7 +328,7 @@ export function PromptComposer({
   const effectiveShowAbortAction = showAbortAction && (showAbortActionWhenComposing || !canSubmit);
 
   const handleSubmit = useCallback(() => {
-    if (!canSubmit || disabled) {
+    if (!canSubmit || disabled || disableSendAction) {
       return;
     }
 
@@ -353,7 +355,7 @@ export function PromptComposer({
     } catch {
       toast.error("Unable to prepare message");
     }
-  }, [canSubmit, clearSessionDraft, disabled, draftKey, getSendOptions, onSend, parseParts]);
+  }, [canSubmit, clearSessionDraft, disableSendAction, disabled, draftKey, getSendOptions, onSend, parseParts]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -589,7 +591,9 @@ export function PromptComposer({
             type="button"
             onClick={effectiveShowAbortAction ? onAbort : handleSubmit}
             disabled={
-              effectiveShowAbortAction ? !onAbort || disabled || isAborting : !canSubmit || disabled
+              effectiveShowAbortAction
+                ? !onAbort || disabled || isAborting
+                : !canSubmit || disabled || disableSendAction
             }
             title={effectiveShowAbortAction ? "Stop" : "Send"}
             className={cn(
