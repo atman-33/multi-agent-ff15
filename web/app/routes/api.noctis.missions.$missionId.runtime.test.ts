@@ -140,6 +140,58 @@ describe("api.noctis.missions.$missionId.runtime", () => {
     ]);
   });
 
+  it("returns persisted chronology even when an older ambient entry was appended later", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-banter-refresh-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Banter refresh order",
+      objective: "Verify persisted chronology on reload",
+    });
+
+    appendConversationLogEntry(missionId, {
+      id: "report-1",
+      missionId,
+      kind: "directed",
+      fromAgent: "prompto",
+      toAgent: "noctis",
+      speakerAgent: "prompto",
+      orchestratedBy: "noctis",
+      cue: "report-completed",
+      renderedMessage: "Report delivered.",
+      createdAt: "2026-04-11T10:00:02.000Z",
+    });
+
+    appendAmbientBanter(missionId, {
+      id: "settled-older",
+      missionId,
+      kind: "ambient",
+      speakerAgent: "noctis",
+      cue: "session-settled",
+      renderedMessage: "Settled.",
+      createdAt: "2026-04-11T09:59:59.000Z",
+      payload: {
+        sourceEvent: "session.settled",
+      },
+    });
+
+    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle" } });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      banterTimeline: Array<{
+        id: string;
+      }>;
+    }>(response);
+
+    expect(data.banterTimeline.map((entry) => entry.id)).toEqual(["settled-older", "report-1"]);
+  });
+
   it("returns normalized context usage for new and legacy snapshots", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

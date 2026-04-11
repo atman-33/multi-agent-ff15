@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMission, deleteMission, getMission } from "@/lib/mission-store";
 import { action } from "./api.noctis.missions.$missionId.banter";
@@ -23,6 +23,8 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
+
   for (const missionId of missionIds.splice(0)) {
     deleteMission(missionId);
   }
@@ -124,5 +126,40 @@ describe("api.noctis.missions.$missionId.banter", () => {
       readJson<{ recorded: boolean; entry: unknown }>(second)
     ).resolves.toEqual({ recorded: false, entry: null });
     expect(getMission(missionId)?.ambientBanterLog).toHaveLength(1);
+  });
+
+  it("assigns canonical createdAt at record time for client-origin ambient banter", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-11T11:11:11.000Z"));
+
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-banter-client-created-at-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Ambient canonical timestamp",
+      objective: "Verify client timestamps are not canonical",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speakerAgent: "noctis",
+          cue: "session-settled",
+          renderedMessage: "Settled now.",
+          sourceEvent: "session.settled",
+          createdAt: "2026-04-11T09:00:00.000Z",
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(getMission(missionId)?.ambientBanterLog).toEqual([
+      expect.objectContaining({
+        createdAt: "2026-04-11T11:11:11.000Z",
+      }),
+    ]);
   });
 });

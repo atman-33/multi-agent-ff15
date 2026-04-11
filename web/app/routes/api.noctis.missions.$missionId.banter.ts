@@ -63,7 +63,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     cue: body.cue,
     renderedMessage: typeof body.renderedMessage === "string" ? body.renderedMessage : undefined,
     sourceEvent: typeof body.sourceEvent === "string" ? body.sourceEvent : undefined,
-    createdAt: typeof body.createdAt === "string" ? body.createdAt : undefined,
   });
 
   return Response.json({ recorded: Boolean(entry), entry });
