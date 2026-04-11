@@ -1,0 +1,69 @@
+name: shiritori-smoke-test
+description: >
+  低モデル agent のオペレーション遷移確認用。
+  Noctis が開始し、Ignis、Gladiolus、Prompto が固定語列のしりとりを 1 手ずつ返して完了する。
+initial_step: start
+
+steps:
+  - name: start
+    agent: noctis
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        返答は「りんご」のみ。
+        説明は書かない。
+        next は ignis-turn。
+    rules:
+      - condition: 「りんご」を返した
+        next: ignis-turn
+      - condition: 指示どおりに返せなかった
+        next: ABORT
+
+  - name: ignis-turn
+    agent: ignis
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        直前の単語は「りんご」。
+        返答は「ごま」のみ。
+        説明は書かない。
+        next は gladiolus-turn。
+    rules:
+      - condition: 「ごま」を返した
+        next: gladiolus-turn
+      - condition: 指示どおりに返せなかった
+        next: ABORT
+
+  - name: gladiolus-turn
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        直前の単語は「ごま」。
+        返答は「まくら」のみ。
+        説明は書かない。
+        next は prompto-turn。
+    rules:
+      - condition: 「まくら」を返した
+        next: prompto-turn
+      - condition: 指示どおりに返せなかった
+        next: ABORT
+
+  - name: prompto-turn
+    agent: prompto
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        直前の単語は「まくら」。
+        返答は「らくだ」のみ。
+        説明は書かない。
+        next は COMPLETE。
+    rules:
+      - condition: 「らくだ」を返した
+        next: COMPLETE
+      - condition: 指示どおりに返せなかった
+        next: ABORT
