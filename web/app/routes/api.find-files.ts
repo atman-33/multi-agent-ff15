@@ -1,8 +1,7 @@
 import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { basename, relative } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { getActiveProjectRootsForScope, readRegisteredProjects } from "@/lib/project-config.server";
-import { PROJECT_SCOPES } from "@/lib/project-scopes";
+import { readRegisteredProjects } from "@/lib/project-config.server";
 import type { Route } from "./+types/api.find-files";
 
 type FindEntry = {
@@ -23,21 +22,17 @@ const MAX_DIRS_EXPLORED = 1200;
 const MAX_DEPTH = 10;
 
 function getSearchRoots(appRoot: string): SearchRoot[] {
-  const projectNames = new Map(
-    readRegisteredProjects(appRoot)
-      .filter((project) => project.path)
-      .map((project) => [project.path, project.displayName] as const)
-  );
-
   const roots = new Map<string, SearchRoot>([[appRoot, { root: appRoot, projectName: null }]]);
 
-  for (const scope of PROJECT_SCOPES) {
-    for (const root of getActiveProjectRootsForScope(appRoot, scope)) {
-      roots.set(root, {
-        root,
-        projectName: projectNames.get(root) ?? basename(root),
-      });
+  for (const project of readRegisteredProjects(appRoot)) {
+    if (!project.path) {
+      continue;
     }
+
+    roots.set(project.path, {
+      root: project.path,
+      projectName: project.displayName || basename(project.path),
+    });
   }
 
   return Array.from(roots.values());

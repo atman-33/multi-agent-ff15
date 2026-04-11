@@ -33,8 +33,9 @@ import {
   type MissionSummary,
   useAgentSession,
 } from "@/hooks/use-agent-session";
-import { useActiveProjects } from "@/hooks/use-active-projects";
+import { useProjectRegistry } from "@/hooks/use-project-registry";
 import type { AppLanguage } from "@/lib/app-language.server";
+import { normalizeContextProjectIds } from "@/lib/execution-context";
 import type { MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
@@ -54,6 +55,25 @@ import {
 import { PartyStatusPanel } from "./party-status-panel";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
+
+function summarizeContextProjects(
+  projectIds: string[],
+  projects: Array<{ id: string; displayName: string }>,
+): string {
+  if (projectIds.length === 0) {
+    return "None";
+  }
+
+  const labels = projectIds.map(
+    (projectId) => projects.find((project) => project.id === projectId)?.displayName ?? projectId,
+  );
+
+  if (labels.length <= 2) {
+    return labels.join(", ");
+  }
+
+  return `${labels[0]}, ${labels[1]} +${labels.length - 2}`;
+}
 
 type BulkMissionAction = "archive" | "restore";
 
@@ -282,17 +302,31 @@ export function NoctisTeamScreen({
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const {
-    data: activeProjectsData,
-    error: activeProjectsError,
-  } = useActiveProjects();
-  const availableProjects = activeProjectsData?.projects ?? [];
-  const presetContextProjectIds = activeProjectsData?.projectScopes.noctis_team.activeProjectIds ?? [];
-  const defaultExecutionProjectId =
-    presetContextProjectIds[0] ?? availableProjects[0]?.id ?? null;
+    data: projectRegistryData,
+    error: projectRegistryError,
+  } = useProjectRegistry();
+  const availableProjects = projectRegistryData?.projects ?? [];
+  const defaultExecutionProjectId = availableProjects[0]?.id ?? null;
   const effectiveExecutionProjectId =
     missionDetail?.executionProjectId ??
     draftExecutionProjectId ??
     (effectiveMissionId ? null : defaultExecutionProjectId);
+  const effectiveContextProjectIds = useMemo(() => {
+    const executionProjectId =
+      missionDetail?.executionProjectId ?? effectiveExecutionProjectId ?? undefined;
+    const sourceProjectIds = missionDetail?.contextProjectIds ?? draftContextProjectIds;
+
+    return normalizeContextProjectIds(executionProjectId, sourceProjectIds);
+  }, [
+    draftContextProjectIds,
+    effectiveExecutionProjectId,
+    missionDetail?.contextProjectIds,
+    missionDetail?.executionProjectId,
+  ]);
+  const missionContextLabel = useMemo(
+    () => summarizeContextProjects(effectiveContextProjectIds, availableProjects),
+    [availableProjects, effectiveContextProjectIds],
+  );
   const {
     messages,
     banterEntries,
@@ -315,20 +349,15 @@ export function NoctisTeamScreen({
     initialMissionData,
     initialMessageInfos,
     selectedExecutionProjectId: effectiveExecutionProjectId,
+    selectedContextProjectIds: effectiveContextProjectIds,
   });
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
   const selectedExecutionProject = availableProjects.find(
     (project) => project.id === effectiveExecutionProjectId,
   ) ?? null;
-  const visiblePresetContextProjects = availableProjects.filter(
-    (project) =>
-      presetContextProjectIds.includes(project.id) && project.id !== effectiveExecutionProjectId,
-  );
   const newMissionContextHint =
-    visiblePresetContextProjects.length > 0
-      ? `Preset context: ${visiblePresetContextProjects.map((project) => project.displayName).join(", ")}`
-      : "No preset context projects. Use the Projects page to seed future missions.";
+    "Context projects start empty for new missions.";
   const isLegacyMissionBlocked =
     Boolean(effectiveMissionId) && Boolean(missionDetail) && !missionDetail?.executionProjectId;
   const workspaceStatusLabel =
@@ -754,9 +783,19 @@ export function NoctisTeamScreen({
   );
 
   const openContextDialog = useCallback(() => {
-    setDraftContextProjectIds(missionDetail?.contextProjectIds ?? []);
+    if (effectiveMissionId) {
+      setDraftContextProjectIds(missionDetail?.contextProjectIds ?? []);
+    } else if (!draftExecutionProjectId && defaultExecutionProjectId) {
+      setDraftExecutionProjectId(defaultExecutionProjectId);
+    }
+
     setIsContextDialogOpen(true);
-  }, [missionDetail?.contextProjectIds]);
+  }, [
+    defaultExecutionProjectId,
+    draftExecutionProjectId,
+    effectiveMissionId,
+    missionDetail?.contextProjectIds,
+  ]);
 
   const toggleDraftContextProjectId = useCallback((projectId: string) => {
     setDraftContextProjectIds((current) =>
@@ -767,13 +806,22 @@ export function NoctisTeamScreen({
   }, []);
 
   const saveMissionContext = useCallback(async () => {
-    if (!effectiveMissionId) {
-      return;
-    }
-
     const executionProjectId = missionDetail?.executionProjectId ?? draftExecutionProjectId;
     if (!executionProjectId) {
       toast.error("Select an execution project before saving mission context");
+      return;
+    }
+
+    const normalizedContextProjectIds = normalizeContextProjectIds(
+      executionProjectId,
+      draftContextProjectIds,
+    );
+
+    if (!effectiveMissionId) {
+      setDraftExecutionProjectId(executionProjectId);
+      setDraftContextProjectIds(normalizedContextProjectIds);
+      setIsContextDialogOpen(false);
+      toast.success("Mission context updated");
       return;
     }
 
@@ -784,7 +832,7 @@ export function NoctisTeamScreen({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           executionProjectId,
-          contextProjectIds: draftContextProjectIds,
+          contextProjectIds: normalizedContextProjectIds,
         }),
       });
       const result = (await response.json().catch(() => ({}))) as { error?: string };
@@ -841,6 +889,57 @@ export function NoctisTeamScreen({
       setIsDeletingWorkspace(false);
     }
   }, [effectiveMissionId, loadMissionDetail]);
+
+  const openWorkspaceFolder = useCallback(async () => {
+    const workspacePath = missionDetail?.workspacePath;
+    if (!workspacePath) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/open-folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: workspacePath }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(result?.error ?? `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      toast.error("Unable to open workspace folder", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [missionDetail?.workspacePath]);
+
+  const openWorkspaceInVSCode = useCallback(async () => {
+    const workspacePath = missionDetail?.workspacePath;
+    if (!workspacePath) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/open-vscode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: workspacePath,
+          preference: "auto",
+        }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(result?.error ?? `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      toast.error("Unable to open workspace in VS Code", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [missionDetail?.workspacePath]);
 
   const handleOpenOutputs = useCallback(() => {
     setInspectorTab("outputs");
@@ -1004,13 +1103,16 @@ export function NoctisTeamScreen({
               }))}
               selectedExecutionProjectId={effectiveExecutionProjectId}
               executionProjectHint={newMissionContextHint}
-              executionProjectError={activeProjectsError}
+              executionProjectError={projectRegistryError}
               onSelectedExecutionProjectChange={(projectId) => setDraftExecutionProjectId(projectId)}
               missionExecutionLabel={
                 effectiveMissionId
                   ? selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"
                   : null
               }
+              missionContextLabel={missionContextLabel}
+              contextActionLabel={!effectiveMissionId ? "Mission Context" : null}
+              onContextAction={!effectiveMissionId ? openContextDialog : undefined}
               missionActionLabel={effectiveMissionId ? missionActionLabel : null}
               onMissionAction={effectiveMissionId ? openContextDialog : undefined}
               availableOperations={availableOperations}
@@ -1164,6 +1266,26 @@ export function NoctisTeamScreen({
                 <p className="break-all font-mono text-[11px] text-muted-foreground/75">
                   {missionDetail?.workspacePath ?? "No workspace provisioned yet."}
                 </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void openWorkspaceFolder()}
+                    disabled={!missionDetail?.workspacePath || missionDetail.workspaceStatus !== "ready"}
+                  >
+                    Open Folder
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void openWorkspaceInVSCode()}
+                    disabled={!missionDetail?.workspacePath || missionDetail.workspaceStatus !== "ready"}
+                  >
+                    Open VS Code
+                  </Button>
+                </div>
               </div>
             ) : null}
 

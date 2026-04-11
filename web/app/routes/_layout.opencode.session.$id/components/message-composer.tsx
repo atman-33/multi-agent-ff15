@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   flattenProviderModels,
   type ModelCatalogItem,
   type OpencodeProvider,
@@ -28,6 +35,11 @@ type Agent = {
   description?: string;
 };
 
+type ProjectOption = {
+  value: string;
+  label: string;
+};
+
 type Props = {
   sessionId?: string;
   onSend: (
@@ -40,6 +52,15 @@ type Props = {
   isAborting?: boolean;
   lockedAgent?: string;
   placeholder?: string;
+  executionProjectOptions?: ProjectOption[];
+  selectedExecutionProjectId?: string | null;
+  onSelectedExecutionProjectChange?: (projectId: string) => void;
+  executionProjectLocked?: boolean;
+  contextProjectOptions?: ProjectOption[];
+  selectedContextProjectIds?: string[];
+  contextProjectsLocked?: boolean;
+  contextProjectsStatusLabel?: string;
+  onToggleContextProjectId?: (projectId: string) => void;
 };
 
 type ComposerSelectionControlsProps = {
@@ -159,6 +180,15 @@ const MessageComposer = ({
   isAborting = false,
   lockedAgent,
   placeholder,
+  executionProjectOptions = [],
+  selectedExecutionProjectId = null,
+  onSelectedExecutionProjectChange,
+  executionProjectLocked = false,
+  contextProjectOptions = [],
+  selectedContextProjectIds = [],
+  contextProjectsLocked = false,
+  contextProjectsStatusLabel,
+  onToggleContextProjectId,
 }: Props) => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
@@ -219,10 +249,97 @@ const MessageComposer = ({
   }, [lockedAgent]);
 
   const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
+  const selectedExecutionProjectLabel = useMemo(
+    () =>
+      executionProjectOptions.find((project) => project.value === selectedExecutionProjectId)?.label ??
+      null,
+    [executionProjectOptions, selectedExecutionProjectId],
+  );
+  const selectedContextProjectLabels = useMemo(
+    () =>
+      selectedContextProjectIds.map(
+        (projectId) =>
+          contextProjectOptions.find((project) => project.value === projectId)?.label ?? projectId,
+      ),
+    [contextProjectOptions, selectedContextProjectIds],
+  );
 
   const getSendOptions = useCallback(() => {
     return { agent: lockedAgent ?? selectedAgent };
   }, [lockedAgent, selectedAgent]);
+
+  const topSlot =
+    executionProjectOptions.length > 0 || contextProjectOptions.length > 0 ? (
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+            Execution Project
+          </p>
+          {executionProjectLocked ? (
+            <div className="flex h-9 items-center rounded-md border border-border/50 bg-background/60 px-3 text-sm text-foreground">
+              {selectedExecutionProjectLabel ?? "Unknown execution project"}
+            </div>
+          ) : (
+            <Select
+              value={selectedExecutionProjectId ?? undefined}
+              onValueChange={onSelectedExecutionProjectChange}
+            >
+              <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                <SelectValue placeholder="Choose execution project" />
+              </SelectTrigger>
+              <SelectContent>
+                {executionProjectOptions.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+            Context Projects
+          </p>
+          {contextProjectsLocked ? (
+            <div className="rounded-md border border-border/50 bg-background/60 px-3 py-2 text-sm text-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {selectedContextProjectLabels.length > 0
+                    ? selectedContextProjectLabels.join(", ")
+                    : "None"}
+                </span>
+                {contextProjectsStatusLabel ? (
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-primary">
+                    {contextProjectsStatusLabel}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : contextProjectOptions.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {contextProjectOptions.map((project) => {
+                const selected = selectedContextProjectIds.includes(project.value);
+                return (
+                  <Button
+                    key={project.value}
+                    type="button"
+                    variant={selected ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => onToggleContextProjectId?.(project.value)}
+                  >
+                    {project.label}
+                  </Button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No additional registered projects available.</p>
+          )}
+        </div>
+      </div>
+    ) : undefined;
 
   return (
     <PromptComposer
@@ -235,6 +352,7 @@ const MessageComposer = ({
       showAbortActionWhenComposing={false}
       isAborting={isAborting}
       placeholder={placeholder}
+      topSlot={topSlot}
       footerStart={
         <ComposerSelectionControls
           agents={agents}

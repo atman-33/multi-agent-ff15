@@ -9,8 +9,18 @@ const MAX_DEPTH = 6;
 type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]: JsonLike };
 
 export type SessionPromptDebugEvent = {
-  route: "api.opencode.session.start" | "api.session.$id.prompt";
-  stage: "request-received" | "prompt-dispatched" | "prompt-result" | "prompt-error";
+  route:
+    | "api.opencode.session.start"
+    | "api.session.$id.prompt"
+    | "api.session.$id.abort";
+  stage:
+    | "request-received"
+    | "prompt-dispatched"
+    | "prompt-result"
+    | "prompt-error"
+    | "abort-requested"
+    | "abort-result"
+    | "abort-error";
   requestId: string;
   sessionId?: string;
   payload: unknown;

@@ -18,21 +18,6 @@ function createTempRoot(): string {
   mkdirSync(join(root, "config"), { recursive: true });
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
   writeFileSync(join(root, "config", "settings.yaml"), "language: ja\n", "utf-8");
-  writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      "    active_project_ids:",
-      '      - "alpha"',
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-05T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
   return root;
 }
 
@@ -116,7 +101,7 @@ afterEach(() => {
 });
 
 describe("operation catalog", () => {
-  it("includes active project workflows alongside builtin workflows without collapsing same-name entries", () => {
+  it("includes registered project workflows alongside builtin workflows without collapsing same-name entries", () => {
     const root = createTempRoot();
     writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
     writeBuiltinOperation(root, "ja", "openspec-dev.yaml", "openspec-dev");
@@ -153,30 +138,13 @@ describe("operation catalog", () => {
     expect(operation.sourcePath).toBe(operationPath);
   });
 
-  it("filters project-authored workflows to the selected execution project", () => {
+  it("filters project-authored workflows to the selected registered project", () => {
     const root = createTempRoot();
     writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
     writeProjectManifest(root, "alpha");
     writeProjectManifest(root, "beta");
     writeProjectOperation(root, "repo-review.yaml", "repo-review", "alpha");
     writeProjectOperation(root, "repo-debug.yaml", "repo-debug", "beta");
-    writeFileSync(
-      join(root, "config", "current_projects.yaml"),
-      [
-        "project_scopes:",
-        "  noctis_team:",
-        "    active_project_ids:",
-        '      - "alpha"',
-        '      - "beta"',
-        "  lunafreya:",
-        "    active_project_ids: []",
-        'updated_at: "2026-04-05T00:00:00.000Z"',
-        'updated_by: "test"',
-        "",
-      ].join("\n"),
-      "utf-8",
-    );
-
     const entries = listOperationCatalogEntriesForScope({
       root,
       scope: "noctis_team",

@@ -15,7 +15,7 @@ import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import { readScopedProjectsConfig } from "@/lib/project-config.server";
+import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
 
@@ -32,6 +32,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     allowedWorkers?: unknown;
     selectedOperation?: unknown;
     executionProjectId?: unknown;
+    contextProjectIds?: unknown;
     title?: unknown;
     objective?: unknown;
   } | null;
@@ -71,6 +72,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const missionTitle = title || message.slice(0, 80);
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
+  const contextProjectIds = Array.isArray(body?.contextProjectIds)
+    ? body.contextProjectIds.filter(
+        (projectId): projectId is string => typeof projectId === "string" && projectId.trim().length > 0,
+      )
+    : [];
   const selectedOperationInput =
     typeof body.selectedOperation === "string" && body.selectedOperation.trim().length > 0
       ? body.selectedOperation.trim()
@@ -94,6 +100,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const registeredContextProjectIds = contextProjectIds.filter(
+      (projectId) =>
+        projectId !== executionProjectId && !!readRegisteredProjectDefinition(projectRoot, projectId),
+    );
     const language = readOperationLanguage();
     const availableOperationEntries = listOperationCatalogEntriesForScope({
       root: projectRoot,
@@ -147,8 +157,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       objective,
       allowedWorkers,
       executionProjectId,
-      contextProjectIds:
-        readScopedProjectsConfig(projectRoot).projectScopes.noctis_team.activeProjectIds,
+      contextProjectIds: registeredContextProjectIds,
       baseBranch: executionWorkspace.baseBranch,
       branch: executionWorkspace.branch,
       workspacePath: executionWorkspace.workspacePath,

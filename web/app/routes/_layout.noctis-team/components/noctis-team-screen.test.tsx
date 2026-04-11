@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MissionResumePayload } from "@/hooks/use-agent-session";
 
 const {
-  activeProjectsStateMock,
+  projectRegistryStateMock,
   agentSessionStateMock,
   matchMock,
   navigateMock,
@@ -12,7 +12,7 @@ const {
   toastErrorMock,
   toastSuccessMock,
 } = vi.hoisted(() => ({
-  activeProjectsStateMock: vi.fn(),
+  projectRegistryStateMock: vi.fn(),
   agentSessionStateMock: vi.fn(),
   matchMock: vi.fn(),
   navigateMock: vi.fn(),
@@ -39,8 +39,8 @@ vi.mock("@/hooks/use-agent-session", () => ({
   useAgentSession: () => agentSessionStateMock(),
 }));
 
-vi.mock("@/hooks/use-active-projects", () => ({
-  useActiveProjects: () => activeProjectsStateMock(),
+vi.mock("@/hooks/use-project-registry", () => ({
+  useProjectRegistry: () => projectRegistryStateMock(),
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -102,6 +102,8 @@ vi.mock("./chat-area", () => ({
     selectedExecutionProjectId,
     executionProjectHint,
     executionProjectOptions,
+    missionContextLabel,
+    contextActionLabel,
     missionExecutionLabel,
     missionActionLabel,
   }: {
@@ -109,6 +111,8 @@ vi.mock("./chat-area", () => ({
     selectedExecutionProjectId?: string | null;
     executionProjectHint?: string | null;
     executionProjectOptions?: Array<{ value: string; label: string }>;
+    missionContextLabel?: string | null;
+    contextActionLabel?: string | null;
     missionExecutionLabel?: string | null;
     missionActionLabel?: string | null;
   }) => (
@@ -121,6 +125,8 @@ vi.mock("./chat-area", () => ({
         <div>{`execution-options:${executionProjectOptions.map((project) => project.label).join(",")}`}</div>
       ) : null}
       {executionProjectHint ? <div>{executionProjectHint}</div> : null}
+      {missionContextLabel ? <div>{`context:${missionContextLabel}`}</div> : null}
+      {contextActionLabel ? <div>{`context-action:${contextActionLabel}`}</div> : null}
       {missionExecutionLabel ? <div>{`started-execution:${missionExecutionLabel}`}</div> : null}
       {missionActionLabel ? <div>{`mission-action:${missionActionLabel}`}</div> : null}
     </div>
@@ -169,7 +175,7 @@ describe("noctis-team-screen", () => {
     navigateMock.mockReset();
     toastErrorMock.mockReset();
     toastSuccessMock.mockReset();
-    activeProjectsStateMock.mockReturnValue({
+    projectRegistryStateMock.mockReturnValue({
       data: {
         projects: [
           {
@@ -183,11 +189,6 @@ describe("noctis-team-screen", () => {
             path: "/repos/docs",
           },
         ],
-        projectScopes: {
-          noctis_team: {
-            activeProjectIds: ["core-repo", "docs-repo"],
-          },
-        },
       },
       error: null,
       loading: false,
@@ -211,15 +212,17 @@ describe("noctis-team-screen", () => {
     });
   });
 
-  it("shows execution project selection and preset context hints for a new mission", () => {
+  it("shows execution project selection with an empty new-mission context hint", () => {
     const markup = renderToStaticMarkup(
       <NoctisTeamScreen activeMissionId={null} initialMissionData={null} language="other" />,
     );
 
     expect(markup).toContain("execution-selector:core-repo");
     expect(markup).toContain("execution-options:Core Repo,Reference Docs");
-    expect(markup).toContain("Preset context: Reference Docs");
-    expect(markup).not.toContain("Mission Context");
+    expect(markup).toContain("Context projects start empty for new missions.");
+    expect(markup).toContain("context:None");
+    expect(markup).toContain("context-action:Mission Context");
+    expect(markup).not.toContain("Mission Setup");
   });
 
   it("shows a legacy mission resume block until an execution project is assigned", () => {
@@ -259,6 +262,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("started-execution:Core Repo");
+    expect(markup).toContain("context:Reference Docs");
     expect(markup).toContain("mission-action:Mission Details");
     expect(markup).not.toContain("Workspace: Ready");
   });

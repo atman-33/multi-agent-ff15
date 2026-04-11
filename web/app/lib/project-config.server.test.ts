@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  getActiveProjectRootsForScope,
   readRegisteredProjectDefinition,
   readRegisteredProjects,
 } from "./project-config.server";
@@ -69,25 +68,8 @@ describe("project-config.server", () => {
     ]);
   });
 
-  it("reads enabled instruction files and active roots from nested manifests", () => {
+  it("reads enabled instruction files from nested manifests", () => {
     const root = createTempRoot();
-    mkdirSync(join(root, "config"), { recursive: true });
-    writeFileSync(
-      join(root, "config", "current_projects.yaml"),
-      [
-        "project_scopes:",
-        "  noctis_team:",
-        "    active_project_ids:",
-        '      - "alpha"',
-        "  lunafreya:",
-        "    active_project_ids: []",
-        'updated_at: "2026-03-25T00:00:00.000Z"',
-        'updated_by: "test"',
-        "",
-      ].join("\n"),
-      "utf-8"
-    );
-
     const projectRoot = join(root, "external-alpha");
     mkdirSync(projectRoot, { recursive: true });
 
@@ -120,8 +102,6 @@ describe("project-config.server", () => {
         { path: `${projectRoot}/CLAUDE.md`, enabled: false },
       ],
     });
-
-    expect(getActiveProjectRootsForScope(root, "noctis_team")).toEqual([projectRoot]);
   });
 
   it("keeps supporting absolute paths in project manifests", () => {

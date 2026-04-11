@@ -122,11 +122,11 @@ The primary command screen. Send missions to Noctis and watch the agent team res
 
 ### OpenCode Sessions
 
-Inspect any OpenCode session directly in the browser — full message history, tool calls, and model activity.
+Inspect any OpenCode session directly in the browser — full message history, tool calls, model activity, and explicit session-local execution/context selection.
 
 ### Projects
 
-Switch the active project context. The selected project is injected as instructions into each agent session automatically.
+Browse the registered project registry and launch workspaces. Execution and context selection now happens per mission or session.
 
 ### Reports
 

@@ -48,22 +48,8 @@ function writeOperation(root: string, language: string, name: string, descriptio
 }
 
 function writeActiveProjectConfig(root: string, projectIds: string[]): void {
-  writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      projectIds.length > 0
-        ? ["    active_project_ids:", ...projectIds.map((projectId) => `      - "${projectId}"`)].join("\n")
-        : "    active_project_ids: []",
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-05T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
+  void root;
+  void projectIds;
 }
 
 function writeProjectManifest(root: string, id: string, name: string): void {
@@ -164,7 +150,7 @@ describe("operation-debug operation options", () => {
     ]);
   });
 
-  it("includes active-project workflows in the union catalog and exposes project filters", () => {
+  it("includes registered-project workflows in the union catalog and exposes project filters", () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
@@ -175,7 +161,7 @@ describe("operation-debug operation options", () => {
     writeProjectOperation(root, "alpha", "openspec-dev", "Alpha project workflow.");
 
     expect(listOperationDebugProjectFilterOptions()).toEqual([
-      { value: "all", label: "All Active Projects" },
+      { value: "all", label: "All Registered Projects" },
       { value: "alpha", label: "Alpha Project" },
     ]);
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
@@ -185,7 +171,7 @@ describe("operation-debug operation options", () => {
     ]);
   });
 
-  it("keeps builtin workflows visible while filtering project workflows to one active project", () => {
+  it("keeps builtin workflows visible while filtering project workflows to one registered project", () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 

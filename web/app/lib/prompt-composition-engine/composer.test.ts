@@ -13,6 +13,7 @@ import { createOperationInstantiator } from "@/lib/operation-runtime/operation-i
 import { ensureActiveStepTaskId } from "@/lib/operation-runtime/state";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import { registerDelegatedTask } from "@/lib/operation-runtime/state";
+import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 import {
   composeGenericSessionPrompt,
   composeTeamMessagePrompt,
@@ -48,21 +49,6 @@ function seedProjectConfig(root: string) {
   mkdirSync(projectRoot, { recursive: true });
 
   writeFileSync(join(projectRoot, "AGENTS.md"), "# Agents\n", "utf-8");
-  writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      "    active_project_ids:",
-      '      - "alpha"',
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-03-25T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
   writeFileSync(
     join(root, "projects", "alpha", "project.yaml"),
     [
@@ -404,6 +390,10 @@ describe("prompt composition engine", () => {
   it("builds generic session prompts with shared context only", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
+    saveSessionExecutionContext("session-1", {
+      executionProjectId: "alpha",
+      contextProjectIds: [],
+    });
 
     const composed = composeGenericSessionPrompt({
       context: {

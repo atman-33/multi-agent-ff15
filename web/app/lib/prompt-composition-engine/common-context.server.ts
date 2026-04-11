@@ -1,71 +1,18 @@
 import { existsSync } from "node:fs";
+import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
+import { readExecutionContextProjectDefinition } from "@/lib/execution-context.server";
 import { getMission } from "@/lib/mission-store";
 import {
   type RegisteredProjectDefinition,
   readRegisteredProjectDefinition,
-  readScopedProjectsConfig,
 } from "@/lib/project-config.server";
-import {
-  getProjectScopeForAgent,
-  PROJECT_SCOPES,
-  type ProjectScopedAgentId,
-} from "@/lib/project-scopes";
+import { readSessionExecutionContext } from "@/lib/session-execution-context.server";
 import { buildYamlSection, joinXmlSections } from "./prompt-xml";
 
 type PromptProjectContext = RegisteredProjectDefinition & {
   activationTarget?: string;
   openspecRoot?: string;
 };
-
-function parseScopedAgent(agent: string | undefined): ProjectScopedAgentId | null {
-  if (
-    agent === "noctis" ||
-    agent === "lunafreya" ||
-    agent === "ignis" ||
-    agent === "gladiolus" ||
-    agent === "prompto" ||
-    agent === "iris"
-  ) {
-    return agent;
-  }
-
-  return null;
-}
-
-function collectActiveProjects(
-  appRoot: string,
-  agent: string | undefined,
-): { projects: PromptProjectContext[]; scopeLabel: string } {
-  const { projectScopes } = readScopedProjectsConfig(appRoot);
-  const scopedAgent = parseScopedAgent(agent);
-
-  let targetScopes: string[];
-  let scopeLabel: string;
-
-  if (scopedAgent) {
-    const scope = getProjectScopeForAgent(scopedAgent);
-    targetScopes = scope ? [scope] : [...PROJECT_SCOPES];
-    scopeLabel = scope || "all";
-  } else {
-    targetScopes = [...PROJECT_SCOPES];
-    scopeLabel = "all";
-  }
-
-  const seen = new Set<string>();
-  const projects: PromptProjectContext[] = [];
-
-  for (const scope of targetScopes) {
-    const ids = projectScopes[scope as keyof typeof projectScopes]?.activeProjectIds ?? [];
-    for (const id of ids) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const def = readRegisteredProjectDefinition(appRoot, id);
-      if (def) projects.push(def);
-    }
-  }
-
-  return { projects, scopeLabel };
-}
 
 function remapInstructionFiles(
   project: RegisteredProjectDefinition,
@@ -131,6 +78,44 @@ function collectMissionProjects(
   }
 
   return { projects, scopeLabel: "mission" };
+}
+
+function collectSessionProjects(
+  appRoot: string,
+  sessionId: string,
+): { projects: PromptProjectContext[]; scopeLabel: string } {
+  const sessionContext = readSessionExecutionContext(sessionId);
+  const executionProject = readExecutionContextProjectDefinition(
+    appRoot,
+    sessionContext.executionProjectId,
+    { includeAppRoot: true },
+  );
+
+  if (!executionProject) {
+    return { projects: [], scopeLabel: "session" };
+  }
+
+  const projects: PromptProjectContext[] = [
+    {
+      ...executionProject,
+      activationTarget:
+        executionProject.id === APP_ROOT_EXECUTION_PROJECT_ID ? executionProject.rootPath : undefined,
+      openspecRoot: executionProject.rootPath,
+    },
+  ];
+
+  for (const projectId of sessionContext.contextProjectIds) {
+    const contextProject = readExecutionContextProjectDefinition(appRoot, projectId, {
+      includeAppRoot: true,
+    });
+    if (!contextProject || contextProject.id === executionProject.id) {
+      continue;
+    }
+
+    projects.push(contextProject);
+  }
+
+  return { projects, scopeLabel: "session" };
 }
 
 export type BuildSharedPromptContextOptions = {
@@ -236,27 +221,32 @@ function buildSuppressedPromptContext(input: {
     lines.push(`execution_mode: ${executionMode}`);
   }
 
-  lines.push(`project_scope: ${scopeLabel}`);
+  lines.push(`execution_context_scope: ${scopeLabel}`);
 
-  if (projects.length > 0) {
-    lines.push("active_projects:");
-    for (const project of projects) {
+  const [executionProject, ...contextProjects] = projects;
+  if (executionProject) {
+    lines.push("execution_project:");
+    lines.push(`  id: ${executionProject.id}`);
+    lines.push(`  root_path: ${executionProject.rootPath}`);
+  } else {
+    lines.push("execution_project: null");
+  }
+
+  if (contextProjects.length === 0) {
+    lines.push("context_projects: []");
+  } else {
+    lines.push("context_projects:");
+    for (const project of contextProjects) {
       lines.push(`  - id: ${project.id}`);
       lines.push(`    root_path: ${project.rootPath}`);
     }
-
-    const firstProject = projects[0];
-    lines.push(`serena_on_success: write successful value back to projects/${firstProject.id}/project.yaml as serena_project`);
-    lines.push(
-      `openspec_cli_hint: cd ${firstProject.rootPath || "<root_path>"} && openspec ...`,
-    );
   }
 
   return buildYamlSection("suppressed-metadata", lines.join("\n"));
 }
 
 export function buildSharedPromptContextBundle({
-  agent,
+  agent: _agent,
   allowedWorkers,
   appRoot,
   executionMode,
@@ -265,7 +255,7 @@ export function buildSharedPromptContextBundle({
 }: BuildSharedPromptContextOptions): SharedPromptContextBundle {
   const { projects, scopeLabel } = missionId
     ? collectMissionProjects(appRoot, missionId)
-    : collectActiveProjects(appRoot, agent);
+    : collectSessionProjects(appRoot, sessionId);
 
   return {
     agentContext: joinXmlSections([

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createMission, deleteMission } from "@/lib/mission-store";
+import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 
 import { buildSharedPromptContext } from "./index";
 
@@ -63,6 +64,47 @@ afterEach(() => {
 });
 
 describe("common-context.server", () => {
+  it("uses app-root execution context for generic sessions without sidecar state", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(join(root, "AGENTS.md"), "# Root Agents\n", "utf-8");
+
+    const context = buildSharedPromptContext({
+      appRoot: root,
+      agent: "noctis",
+      sessionId: "session-legacy",
+    });
+
+    expect(context).toContain(`project_root: ${root}`);
+    expect(context).toContain(`instruction_files:\n  - ${root}/AGENTS.md`);
+    expect(context).toContain(`activate_project: ${root}`);
+    expect(context).toContain(`openspec_root: ${root}`);
+  });
+
+  it("uses session-local execution-context sidecar for generic sessions", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const alphaRoot = writeProject(root, "alpha");
+    const betaRoot = writeProject(root, "beta");
+    saveSessionExecutionContext("session-generic", {
+      executionProjectId: "alpha",
+      contextProjectIds: ["beta", "alpha", "beta"],
+    });
+
+    const context = buildSharedPromptContext({
+      appRoot: root,
+      agent: "noctis",
+      sessionId: "session-generic",
+    });
+
+    expect(context).toContain(`project_root: ${alphaRoot}`);
+    expect(context).toContain(`    project_root: ${betaRoot}`);
+    expect(context.indexOf(`project_root: ${alphaRoot}`)).toBeLessThan(
+      context.indexOf(`    project_root: ${betaRoot}`),
+    );
+    expect(context).toContain(`serena_project: alpha`);
+  });
+
   it("uses mission-scoped execution and context projects instead of live presets", () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

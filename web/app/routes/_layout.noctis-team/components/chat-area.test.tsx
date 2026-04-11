@@ -80,6 +80,9 @@ describe("chat-area", () => {
         ]}
         selectedExecutionProjectId="core-repo"
         executionProjectHint="Secondary context starts with Projects page presets."
+        missionContextLabel="Reference Docs"
+        contextActionLabel="Mission Context"
+        onContextAction={() => undefined}
         availableOperations={[]}
         selectedOperation={null}
         activeOperationState={null}
@@ -92,17 +95,21 @@ describe("chat-area", () => {
 
     expect(markup).toContain("Execution Project");
     expect(markup).toContain("Workflow");
+    expect(markup).toContain("Context");
+    expect(markup).toContain("Reference Docs");
+    expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
     expect(markup).not.toContain("Mission Setup");
   });
 
-  it("shows execution summary instead of workflow help text after mission start", () => {
+  it("shows execution and context summary instead of workflow help text after mission start", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
         isResponding={false}
         missionExecutionLabel="Core Repo"
+        missionContextLabel="Reference Docs"
         missionActionLabel="Mission Details"
         onMissionAction={() => undefined}
         availableOperations={[
@@ -126,6 +133,8 @@ describe("chat-area", () => {
 
     expect(markup).toContain(">Execution<");
     expect(markup).toContain(">Core Repo<");
+  expect(markup).toContain(">Context<");
+  expect(markup).toContain(">Reference Docs<");
     expect(markup).toContain(">Workflow<");
     expect(markup).toContain(">Autonomous<");
     expect(markup).toContain("Mission Details");

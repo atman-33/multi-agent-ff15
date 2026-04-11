@@ -1,5 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  normalizeContextProjectIds,
+  normalizeExecutionProjectId,
+} from "@/lib/execution-context";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
   ActivityActorId,
@@ -21,43 +25,6 @@ import type {
 
 const store = new Map<string, Mission>();
 const MISSION_WORKSPACE_STATUSES = new Set(["ready", "missing", "deleted"]);
-
-function normalizeExecutionProjectId(executionProjectId: unknown): string | undefined {
-  if (typeof executionProjectId !== "string") {
-    return undefined;
-  }
-
-  const normalized = executionProjectId.trim();
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function normalizeContextProjectIds(
-  executionProjectId: string | undefined,
-  contextProjectIds: unknown,
-): string[] {
-  if (!Array.isArray(contextProjectIds)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-
-  for (const projectId of contextProjectIds) {
-    if (typeof projectId !== "string") {
-      continue;
-    }
-
-    const trimmed = projectId.trim();
-    if (trimmed.length === 0 || trimmed === executionProjectId || seen.has(trimmed)) {
-      continue;
-    }
-
-    seen.add(trimmed);
-    normalized.push(trimmed);
-  }
-
-  return normalized;
-}
 
 function normalizeOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {

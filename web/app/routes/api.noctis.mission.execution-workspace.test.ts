@@ -64,22 +64,6 @@ function createTempRoot(options?: { gitBacked?: boolean }): string {
     "utf-8",
   );
   writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      "    active_project_ids:",
-      '      - "alpha"',
-      '      - "beta"',
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-04T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
-  writeFileSync(
     join(root, "projects", "alpha", "project.yaml"),
     [
       'id: "alpha"',
@@ -158,7 +142,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
 
     const mission = getMission(data.missionId);
     expect(mission?.executionProjectId).toBe("alpha");
-    expect(mission?.contextProjectIds).toEqual(["beta"]);
+  expect(mission?.contextProjectIds).toEqual([]);
     expect(mission?.baseBranch).toBe("main");
     expect(mission?.branch).toMatch(/^mission\//);
     expect(mission?.workspaceStatus).toBe("ready");
@@ -192,6 +176,31 @@ describe("Noctis mission execution workspace lifecycle", () => {
       error: "Execution project must point to a git repository.",
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("persists explicit context projects selected before mission start", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-context" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-context" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Start with explicit context.",
+          executionProjectId: "alpha",
+          contextProjectIds: ["beta", "alpha", "beta"],
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    expect(getMission(data.missionId)?.contextProjectIds).toEqual(["beta"]);
   });
 
   it("recreates a missing workspace and fresh Noctis session on continue", async () => {

@@ -125,25 +125,6 @@ function writeOperation(root: string, language: string, name: string, descriptio
   );
 }
 
-function writeActiveProjectConfig(root: string, projectIds: string[]): void {
-  writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      projectIds.length > 0
-        ? ["    active_project_ids:", ...projectIds.map((projectId) => `      - "${projectId}"`)].join("\n")
-        : "    active_project_ids: []",
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-05T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
-}
-
 function writeProjectManifest(root: string, id: string, name: string): void {
   const projectDir = join(root, "projects", id);
   mkdirSync(projectDir, { recursive: true });
@@ -294,7 +275,6 @@ describe("operation-debug route", () => {
     writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
     writeProjectManifest(root, "alpha", "Alpha Project");
     writeProjectManifest(root, "beta", "Beta Project");
-    writeActiveProjectConfig(root, ["alpha", "beta"]);
     writeProjectOperation(root, "alpha", "repo-review", "Alpha review flow.");
     writeProjectOperation(root, "beta", "repo-review", "Beta review flow.");
 

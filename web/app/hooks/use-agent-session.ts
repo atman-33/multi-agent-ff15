@@ -379,6 +379,7 @@ export interface UseAgentSessionOptions {
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
   selectedExecutionProjectId?: string | null;
+  selectedContextProjectIds?: string[];
 }
 
 export interface UseAgentSessionReturn {
@@ -405,6 +406,7 @@ export function useAgentSession({
   initialMissionData,
   initialMessageInfos,
   selectedExecutionProjectId,
+  selectedContextProjectIds = [],
 }: UseAgentSessionOptions): UseAgentSessionReturn {
   const pendingMissionSessionId = useChatStore((state) =>
     activeMissionId ? (state.pendingMissionSessions[activeMissionId] ?? null) : null
@@ -1405,6 +1407,7 @@ export function useAgentSession({
               title: text.slice(0, 80),
               objective: text,
               executionProjectId: selectedExecutionProjectId,
+              contextProjectIds: selectedContextProjectIds,
               selectedOperation,
               noctisModel: agentModels.noctis ?? null,
               allowedWorkers,
@@ -1503,6 +1506,7 @@ export function useAgentSession({
       subscribeToSession,
       syncSessionMessages,
       waitForActiveStatus,
+      selectedContextProjectIds,
       selectedExecutionProjectId,
     ]
   );

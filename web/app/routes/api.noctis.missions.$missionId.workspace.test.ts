@@ -59,21 +59,6 @@ function createTempRoot(): string {
     "utf-8",
   );
   writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      "    active_project_ids:",
-      '      - "alpha"',
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-10T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
-  writeFileSync(
     join(root, "projects", "alpha", "project.yaml"),
     [
       'id: "alpha"',

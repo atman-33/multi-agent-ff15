@@ -69,6 +69,9 @@ interface ChatAreaProps {
   executionProjectError?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
   missionExecutionLabel?: string | null;
+  missionContextLabel?: string | null;
+  contextActionLabel?: string | null;
+  onContextAction?: () => void;
   missionActionLabel?: string | null;
   onMissionAction?: () => void;
   availableOperations: OperationOption[];
@@ -267,6 +270,9 @@ export const ChatArea = ({
   executionProjectError = null,
   onSelectedExecutionProjectChange,
   missionExecutionLabel = null,
+  missionContextLabel = null,
+  contextActionLabel = null,
+  onContextAction,
   missionActionLabel = null,
   onMissionAction,
   availableOperations,
@@ -430,57 +436,84 @@ export const ChatArea = ({
           showAbortAction={showAbortAction}
           topSlot={
             showExecutionProjectSelector ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                      Execution Project
-                    </p>
-                    {executionProjectHint ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            aria-label="Execution project help"
-                            className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
-                            size="icon"
-                            type="button"
-                            variant="ghost"
-                          >
-                            <Info className="h-3 w-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
-                          {executionProjectHint}
-                        </TooltipContent>
-                      </Tooltip>
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                        Execution Project
+                      </p>
+                      {executionProjectHint ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              aria-label="Execution project help"
+                              className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
+                              size="icon"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <Info className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+                            {executionProjectHint}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : null}
+                    </div>
+                    <Select
+                      value={selectedExecutionProjectId ?? undefined}
+                      onValueChange={onSelectedExecutionProjectChange}
+                    >
+                      <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                        <SelectValue placeholder="Choose a project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {executionProjectOptions.map((project) => (
+                          <SelectItem key={project.value} value={project.value}>
+                            {project.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {executionProjectError ? (
+                      <p className="text-[11px] text-destructive">{executionProjectError}</p>
                     ) : null}
                   </div>
-                  <Select
-                    value={selectedExecutionProjectId ?? undefined}
-                    onValueChange={onSelectedExecutionProjectChange}
-                  >
-                    <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-                      <SelectValue placeholder="Choose a project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {executionProjectOptions.map((project) => (
-                        <SelectItem key={project.value} value={project.value}>
-                          {project.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {executionProjectError ? (
-                    <p className="text-[11px] text-destructive">{executionProjectError}</p>
-                  ) : null}
+
+                  <div className="space-y-1">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                      Workflow
+                    </p>
+                    {workflowSelector}
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                    Workflow
-                  </p>
-                  {workflowSelector}
-                </div>
+                {missionContextLabel || (contextActionLabel && onContextAction) ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background/40 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                        Context
+                      </p>
+                      <p className="truncate text-sm text-foreground">
+                        {missionContextLabel ?? "None"}
+                      </p>
+                    </div>
+
+                    {contextActionLabel && onContextAction ? (
+                      <Button
+                        className="h-8 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+                        onClick={onContextAction}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {contextActionLabel}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : isOperationSelectionLocked ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -491,6 +524,14 @@ export const ChatArea = ({
                         Execution
                       </span>
                       <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
+                    </span>
+                  ) : null}
+                  {missionContextLabel ? (
+                    <span className={startedMissionChipClass}>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                        Context
+                      </span>
+                      <span className="truncate font-semibold text-foreground">{missionContextLabel}</span>
                     </span>
                   ) : null}
                   <span className={startedMissionChipClass}>

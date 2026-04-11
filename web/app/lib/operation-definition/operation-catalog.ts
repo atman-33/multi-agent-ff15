@@ -2,8 +2,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import {
-  getActiveProjectDefinitionsForScope,
   getProjectAuthoringDirectory,
+  readRegisteredProjects,
   readRegisteredProjectDefinition,
   type RegisteredProjectDefinition,
 } from "@/lib/project-config.server";
@@ -106,13 +106,18 @@ function listBuiltinCatalogEntries(root: string, languages: string[]): Operation
 
 function listProjectCatalogEntries(
   root: string,
-  scope: ProjectScope,
+  _scope: ProjectScope,
   projectFilterId?: string,
 ): OperationCatalogEntry[] {
   const entries: OperationCatalogEntry[] = [];
 
-  for (const project of getActiveProjectDefinitionsForScope(root, scope)) {
-    if (projectFilterId && project.id !== projectFilterId) {
+  for (const projectEntry of readRegisteredProjects(root)) {
+    if (projectFilterId && projectEntry.id !== projectFilterId) {
+      continue;
+    }
+
+    const project = readRegisteredProjectDefinition(root, projectEntry.id);
+    if (!project) {
       continue;
     }
 
