@@ -1,5 +1,5 @@
-import { coerceSessionStatus } from "@/lib/session-status";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { saveOperationState } from "@/lib/operation-runtime/state";
 import {
   deleteMissionExecutionWorkspace,
 } from "@/lib/mission-execution-workspace.server";
@@ -28,31 +28,44 @@ export const action = async ({ params, request }: Route.ActionArgs) => {
     return Response.json({ error: "Mission has no execution workspace." }, { status: 409 });
   }
 
+  const relevantSessionIds = [
+    mission.noctisSessionId,
+    mission.workerSessions.ignis,
+    mission.workerSessions.gladiolus,
+    mission.workerSessions.prompto,
+  ].filter((sessionId): sessionId is string => typeof sessionId === "string" && sessionId.length > 0);
+
   try {
-    const statusResult = await getOpencodeClient().session.status();
-    if (statusResult.error) {
-      return Response.json({ error: statusResult.error }, { status: 502 });
+    if (relevantSessionIds.length > 0) {
+      try {
+        const client = getOpencodeClient();
+        await Promise.allSettled(
+          relevantSessionIds.map(async (sessionId) => {
+            const result = await client.session.abort({ sessionID: sessionId });
+            if (result.error) {
+              throw new Error(String(result.error));
+            }
+          }),
+        );
+      } catch {
+        // Best effort only. User-confirmed workspace deletion must still proceed.
+      }
     }
 
-    const relevantSessionIds = [
-      mission.noctisSessionId,
-      mission.workerSessions.ignis,
-      mission.workerSessions.gladiolus,
-      mission.workerSessions.prompto,
-    ].filter((sessionId): sessionId is string => typeof sessionId === "string" && sessionId.length > 0);
-
-    const rawStatuses = statusResult.data ?? {};
-    const hasActiveSession = relevantSessionIds.some((sessionId) => {
-      const status = coerceSessionStatus(rawStatuses[sessionId]);
-      return status === "busy" || status === "retry";
-    });
-    const hasRunningOperation =
-      mission.operationState?.status === "running" ||
-      mission.operationState?.status === "waiting_for_report";
+    if (
+      mission.operationState &&
+      (mission.operationState.status === "running" ||
+        mission.operationState.status === "waiting_for_report")
+    ) {
+      saveOperationState(missionId, {
+        ...mission.operationState,
+        status: "aborted",
+      });
+    }
 
     deleteMissionExecutionWorkspace({
-      isRunning: hasActiveSession || hasRunningOperation,
       workspacePath: mission.workspacePath,
+      force: true,
     });
 
     clearMissionSessions(missionId);

@@ -282,6 +282,7 @@ export function NoctisTeamScreen({
     initialMissionData?.contextProjectIds ?? [],
   );
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
+  const [isDeleteWorkspaceDialogOpen, setIsDeleteWorkspaceDialogOpen] = useState(false);
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const {
@@ -386,12 +387,7 @@ export function NoctisTeamScreen({
     !effectiveMissionId ||
     !missionDetail?.workspacePath ||
     missionDetail.workspaceStatus !== "ready" ||
-    isDeletingWorkspace ||
-    isSessionActive ||
-    isStreaming ||
-    isLoadingHistory ||
-    activeOperationState?.status === "running" ||
-    activeOperationState?.status === "waiting_for_report";
+    isDeletingWorkspace;
   const selectedOutputKey =
     outputDetailActive && routeOutputStep && routeOutputTaskId && routeOutputFilename
       ? getMissionOutputKey({
@@ -873,6 +869,8 @@ export function NoctisTeamScreen({
       }
 
       await loadMissionDetail();
+      await loadMissions();
+      setIsDeleteWorkspaceDialogOpen(false);
       toast.success("Workspace deleted");
     } catch (error) {
       toast.error("Unable to delete workspace", {
@@ -881,7 +879,7 @@ export function NoctisTeamScreen({
     } finally {
       setIsDeletingWorkspace(false);
     }
-  }, [effectiveMissionId, loadMissionDetail]);
+  }, [effectiveMissionId, loadMissionDetail, loadMissions]);
 
   const handleOpenOutputs = useCallback(() => {
     setInspectorTab("outputs");
@@ -1261,7 +1259,10 @@ export function NoctisTeamScreen({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void deleteWorkspace()}
+                onClick={() => {
+                  setIsContextDialogOpen(false);
+                  setIsDeleteWorkspaceDialogOpen(true);
+                }}
                 disabled={isWorkspaceDeleteDisabled}
               >
                 Delete Workspace
@@ -1272,6 +1273,44 @@ export function NoctisTeamScreen({
             </Button>
             <Button type="button" onClick={() => void saveMissionContext()} disabled={isSavingContext}>
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isDeleteWorkspaceDialogOpen}
+        onOpenChange={(open) => {
+          if (!isDeletingWorkspace) {
+            setIsDeleteWorkspaceDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Workspace?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the execution workspace for this mission. Any uncommitted
+              changes in the workspace will be discarded, and active mission sessions will be
+              aborted when possible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 border-border/50 border-t pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteWorkspaceDialogOpen(false)}
+              disabled={isDeletingWorkspace}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void deleteWorkspace()}
+              disabled={isDeletingWorkspace}
+            >
+              {isDeletingWorkspace ? "Deleting..." : "Delete Workspace"}
             </Button>
           </DialogFooter>
         </DialogContent>

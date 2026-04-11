@@ -282,14 +282,10 @@ export function isExecutionWorkspaceDirty(workspacePath: string): boolean {
 }
 
 export function deleteMissionExecutionWorkspace(options: {
-  isRunning: boolean;
   workspacePath: string;
+  force?: boolean;
 }): void {
-  if (options.isRunning) {
-    throw new Error("Cannot delete a workspace while the mission is running.");
-  }
-
-  if (isExecutionWorkspaceDirty(options.workspacePath)) {
+  if (!options.force && isExecutionWorkspaceDirty(options.workspacePath)) {
     throw new Error("Execution workspace contains uncommitted changes. Clean the workspace and try again.");
   }
 

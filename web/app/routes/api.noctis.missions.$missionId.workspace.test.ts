@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
+import { createOperationState, saveOperationState } from "@/lib/operation-runtime/state";
 import {
   createMission,
   deleteMission,
@@ -13,14 +14,14 @@ import {
   setWorkerSession,
 } from "@/lib/mission-store";
 
-const { sessionStatusMock } = vi.hoisted(() => ({
-  sessionStatusMock: vi.fn(),
+const { sessionAbortMock } = vi.hoisted(() => ({
+  sessionAbortMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
   getOpencodeClient: () => ({
     session: {
-      status: sessionStatusMock,
+      abort: sessionAbortMock,
     },
   }),
 }));
@@ -122,12 +123,12 @@ afterEach(() => {
 });
 
 describe("workspace delete route", () => {
-  it("deletes a clean idle execution workspace and clears stored sessions", async () => {
+  it("deletes a clean execution workspace and clears stored sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
     const workspacePath = createExecutionMission(root);
     const missionId = missionIds[missionIds.length - 1];
-    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle", "session-ignis": "idle" } });
+    sessionAbortMock.mockResolvedValue({ data: { ok: true } });
 
     const response = await workspaceAction({
       params: { missionId },
@@ -142,14 +143,17 @@ describe("workspace delete route", () => {
     expect(getMission(missionId)?.noctisSessionId).toBe("");
     expect(getMission(missionId)?.workerSessions).toEqual({});
     expect(getMission(missionId)?.workspaceStatus).toBe("deleted");
+    expect(sessionAbortMock).toHaveBeenCalledTimes(2);
   });
 
-  it("blocks workspace deletion while the mission has an active session", async () => {
+  it("aborts active mission sessions and deletes a running workspace", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
     const workspacePath = createExecutionMission(root);
     const missionId = missionIds[missionIds.length - 1];
-    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "busy" } });
+    const operationState = createOperationState("implement", "plan", "op://implement");
+    saveOperationState(missionId, operationState);
+    sessionAbortMock.mockResolvedValue({ data: { ok: true } });
 
     const response = await workspaceAction({
       params: { missionId },
@@ -158,19 +162,19 @@ describe("workspace delete route", () => {
       }),
     } as never);
 
-    expect(response.status).toBe(409);
-    expect(await readJson<{ error: string }>(response)).toEqual({
-      error: "Cannot delete a workspace while the mission is running.",
-    });
-    expect(existsSync(workspacePath)).toBe(true);
+    expect(response.status).toBe(200);
+    expect(await readJson<{ deleted: boolean }>(response)).toEqual({ deleted: true });
+    expect(existsSync(workspacePath)).toBe(false);
+    expect(getMission(missionId)?.operationState?.status).toBe("aborted");
+    expect(sessionAbortMock).toHaveBeenCalledTimes(2);
   });
 
-  it("blocks workspace deletion for dirty worktrees", async () => {
+  it("deletes dirty worktrees after confirmation flow reaches the route", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
     const workspacePath = createExecutionMission(root);
     const missionId = missionIds[missionIds.length - 1];
-    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle", "session-ignis": "idle" } });
+    sessionAbortMock.mockResolvedValue({ data: { ok: true } });
     writeFileSync(join(workspacePath, "notes.txt"), "untracked change\n", "utf-8");
 
     const response = await workspaceAction({
@@ -180,10 +184,8 @@ describe("workspace delete route", () => {
       }),
     } as never);
 
-    expect(response.status).toBe(409);
-    expect(await readJson<{ error: string }>(response)).toEqual({
-      error: "Execution workspace contains uncommitted changes. Clean the workspace and try again.",
-    });
-    expect(existsSync(workspacePath)).toBe(true);
+    expect(response.status).toBe(200);
+    expect(await readJson<{ deleted: boolean }>(response)).toEqual({ deleted: true });
+    expect(existsSync(workspacePath)).toBe(false);
   });
 });
