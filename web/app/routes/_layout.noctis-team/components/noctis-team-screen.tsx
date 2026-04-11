@@ -2,6 +2,7 @@ import { Archive, Check, Ellipsis, History, Pencil, Plus, RotateCcw, X } from "l
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useMatch, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
+import { WorkspaceLaunchActions } from "@/components/workspace-launch-actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +35,7 @@ import {
   useAgentSession,
 } from "@/hooks/use-agent-session";
 import { useProjectRegistry } from "@/hooks/use-project-registry";
+import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
 import type { AppLanguage } from "@/lib/app-language.server";
 import { normalizeContextProjectIds } from "@/lib/execution-context";
 import type { MissionOutputSummary } from "@/lib/types/mission";
@@ -286,6 +288,7 @@ export function NoctisTeamScreen({
     data: projectRegistryData,
     error: projectRegistryError,
   } = useProjectRegistry();
+  const { vscodePreferences, updateVSCodePreference } = useVSCodePreferences();
   const availableProjects = projectRegistryData?.projects ?? [];
   const defaultExecutionProjectId = availableProjects[0]?.id ?? null;
   const effectiveExecutionProjectId =
@@ -341,6 +344,11 @@ export function NoctisTeamScreen({
   const selectedExecutionProject = availableProjects.find(
     (project) => project.id === effectiveExecutionProjectId,
   ) ?? null;
+  const workspaceLaunchPreferenceKey =
+    missionDetail?.executionProjectId ?? effectiveExecutionProjectId ?? missionDetail?.workspacePath ?? null;
+  const workspaceVSCodePreference = workspaceLaunchPreferenceKey
+    ? (vscodePreferences[workspaceLaunchPreferenceKey] ?? "auto")
+    : "auto";
   const newMissionContextHint =
     "Context projects start empty for new missions.";
   const isLegacyMissionBlocked =
@@ -875,57 +883,6 @@ export function NoctisTeamScreen({
     }
   }, [effectiveMissionId, loadMissionDetail]);
 
-  const openWorkspaceFolder = useCallback(async () => {
-    const workspacePath = missionDetail?.workspacePath;
-    if (!workspacePath) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/open-folder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: workspacePath }),
-      });
-
-      if (!response.ok) {
-        const result = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(result?.error ?? `HTTP ${response.status}`);
-      }
-    } catch (error) {
-      toast.error("Unable to open workspace folder", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [missionDetail?.workspacePath]);
-
-  const openWorkspaceInVSCode = useCallback(async () => {
-    const workspacePath = missionDetail?.workspacePath;
-    if (!workspacePath) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/open-vscode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: workspacePath,
-          preference: "auto",
-        }),
-      });
-
-      if (!response.ok) {
-        const result = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(result?.error ?? `HTTP ${response.status}`);
-      }
-    } catch (error) {
-      toast.error("Unable to open workspace in VS Code", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [missionDetail?.workspacePath]);
-
   const handleOpenOutputs = useCallback(() => {
     setInspectorTab("outputs");
   }, []);
@@ -1251,26 +1208,21 @@ export function NoctisTeamScreen({
                 <p className="break-all font-mono text-[11px] text-muted-foreground/75">
                   {missionDetail?.workspacePath ?? "No workspace provisioned yet."}
                 </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void openWorkspaceFolder()}
-                    disabled={!missionDetail?.workspacePath || missionDetail.workspaceStatus !== "ready"}
-                  >
-                    Open Folder
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void openWorkspaceInVSCode()}
-                    disabled={!missionDetail?.workspacePath || missionDetail.workspaceStatus !== "ready"}
-                  >
-                    Open VS Code
-                  </Button>
-                </div>
+                {missionDetail?.workspacePath ? (
+                  <WorkspaceLaunchActions
+                    className="pt-1"
+                    disabled={missionDetail.workspaceStatus !== "ready"}
+                    path={missionDetail.workspacePath}
+                    vscodePreference={workspaceVSCodePreference}
+                    onVSCodePreferenceChange={(preference) => {
+                      if (!workspaceLaunchPreferenceKey) {
+                        return;
+                      }
+
+                      updateVSCodePreference(workspaceLaunchPreferenceKey, preference);
+                    }}
+                  />
+                ) : null}
               </div>
             ) : null}
 
