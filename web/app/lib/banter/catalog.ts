@@ -66,6 +66,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "指示は把握した。前提から確認する。",
         "承知した。まずは論点を揃えよう。",
       ],
+      "task-delegated": [
+        "この線は君に任せる。進展があればすぐ共有してくれ。",
+        "こちらで整理した。次は君が詰めてくれ。",
+        "論点は渡した。確認できたら報告を頼む。",
+        "次の切り分けは任せよう。変化があればすぐ知らせてくれ。",
+      ],
       "task-assigned": [
         "分析を開始する。少し時間をくれ。",
         "了解。まずは差分を整理する。",
@@ -128,6 +134,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "話は分かった。正面から行くぞ。",
         "任せろ。まずはぶつかってみる。",
       ],
+      "task-delegated": [
+        "こっちは見た。次はお前が押してくれ。",
+        "この先は任せた。動いたらすぐ上げろ。",
+        "筋は通した。あとはお前が抜いてくれ。",
+        "次の当たりはそっちだ。結果が出たら知らせろ。",
+      ],
       "task-assigned": [
         "任務を実行する。邪魔はするな。",
         "了解だ。正面から片付ける。",
@@ -189,6 +201,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "受け取ったよ！ まずは当たりを探す！",
         "オッケー、内容は把握した！",
         "任せて！ こっちで追ってみる！",
+      ],
+      "task-delegated": [
+        "ここからはお願い！ 何か掴んだらすぐ教えて！",
+        "次はそっちにパスするね。動いたら共有よろしく！",
+        "当たりはつけたよ。続き、お願いしていい？",
+        "この線いい感じかも。追えたらすぐ返して！",
       ],
       "task-assigned": [
         "了解！ 今すぐ情報を集めるよ。",
@@ -309,6 +327,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Got it. Starting from the assumptions.",
         "Acknowledged. I'll structure the problem first.",
       ],
+      "task-delegated": [
+        "I'm handing this line to you. Send updates the moment it moves.",
+        "I've done the initial sort. You take the next pass.",
+        "The outline is ready. Close the gap and report back.",
+        "Take the next cut. I want the result as soon as it shifts.",
+      ],
       "task-assigned": [
         "Running analysis... this may take a moment.",
         "Understood. I'll break the problem down first.",
@@ -371,6 +395,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Yeah, I heard you. I'll hit it head-on.",
         "Leave it with me. I'll push through it.",
       ],
+      "task-delegated": [
+        "I've broken the line open. You finish the push.",
+        "Your turn. Move on it and report back fast.",
+        "I got it this far. You take the next hit.",
+        "The next angle is yours. Let me know the second it moves.",
+      ],
       "task-assigned": [
         "Executing task. Don't get in my way.",
         "Got it. I'll force it through.",
@@ -432,6 +462,12 @@ export const BANTER_CATALOG: BanterCatalog = {
         "Received! Let me chase the good leads!",
         "Okay, I'm on it!",
         "Leave it to me! I'll track it down!",
+      ],
+      "task-delegated": [
+        "Passing this to you! Tell me right away if you catch something!",
+        "Your turn! Send anything useful back as soon as it lands!",
+        "I've got the lead started. Can you take it the rest of the way?",
+        "This one looks promising. Run with it and ping me fast!",
       ],
       "task-assigned": [
         "On it! Gathering data as we speak.",

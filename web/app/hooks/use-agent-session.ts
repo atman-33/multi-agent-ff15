@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppLanguage } from "@/lib/app-language.server";
-import { createBanterTemplate, normalizeBanterAgentId } from "@/lib/banter/runtime";
-import type { BanterCue, BanterTemplate, RecentBanterEntry } from "@/lib/banter/types";
+import {
+  createBanterFeedPresenter,
+  type BanterFeedPresenter,
+} from "@/lib/banter/feed-presenter";
+import { normalizeBanterAgentId } from "@/lib/banter/runtime";
 import {
   type AgentEvent,
   applyPartyRuntimeUpdate,
@@ -20,10 +23,11 @@ import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { OperationOption } from "@/lib/operation-presentation";
 import type {
   AgentContextUsage,
+  BanterTimelineEntry,
   DelegationLedger,
-  MissionMessageLogEntry,
+  MissionWorkflowProgress,
+  MissionExecutionTargetMode,
   OperationState,
-  ReportStatus,
 } from "@/lib/types/mission";
 import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
 import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
@@ -43,13 +47,6 @@ const PROGRESS_BANTER_DELAYS = {
 
 const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
 const SPEAKING_INDICATOR_MS = 980;
-
-const REPORT_BANTER_CUE: Record<ReportStatus, BanterCue> = {
-  running: "report-running",
-  blocked: "report-blocked",
-  completed: "report-completed",
-  failed: "report-failed",
-};
 
 type WorkerSessionKey = "ignis" | "gladiolus" | "prompto";
 
@@ -159,13 +156,22 @@ export type MissionResumePayload = {
   updatedAt: string;
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
+  executionProjectId?: string | null;
+  executionTargetMode?: MissionExecutionTargetMode | null;
+  contextProjectIds?: string[];
+  baseBranch?: string | null;
+  branch?: string | null;
+  workspacePath?: string | null;
+  workspaceStatus?: "ready" | "missing" | "deleted" | null;
+  resumeBlockedReason?: string | null;
   sessions: {
-    noctis: string;
+    noctis: string | null;
     ignis: string | null;
     gladiolus: string | null;
     prompto: string | null;
   };
   operationState?: OperationState | null;
+  workflowProgress?: MissionWorkflowProgress | null;
 };
 
 type MissionRuntimeSnapshot = MissionResumePayload & {
@@ -173,38 +179,11 @@ type MissionRuntimeSnapshot = MissionResumePayload & {
     "noctis" | "ignis" | "gladiolus" | "prompto",
     AgentContextUsage | null
   >;
+  banterTimeline: BanterTimelineEntry[];
   delegationLedger: DelegationLedger;
-  messageLog: MissionMessageLogEntry[];
   sessionStatuses: Record<string, SessionStatus>;
   noctisMessages: MessageInfo[];
 };
-
-function buildMissionMessageBanterTemplates(
-  entry: MissionMessageLogEntry,
-  options: { language: AppLanguage; recentEntries: RecentBanterEntry[] }
-): BanterTemplate[] {
-  if (entry.deliveryStatus !== "sent") {
-    return [];
-  }
-
-  if (entry.fromAgent === "noctis" && entry.toAgent !== "noctis") {
-    return [
-      createBanterTemplate("noctis", "task-delegated", options),
-      createBanterTemplate(entry.toAgent, "message-received", options),
-    ].filter((template): template is BanterTemplate => template !== null);
-  }
-
-  if (entry.type === "report" && entry.toAgent === "noctis" && entry.reportStatus) {
-    return [
-      createBanterTemplate(entry.fromAgent, REPORT_BANTER_CUE[entry.reportStatus], options),
-      ...(entry.reportStatus === "completed"
-        ? [createBanterTemplate("noctis", "report-acknowledged", options)]
-        : []),
-    ].filter((template): template is BanterTemplate => template !== null);
-  }
-
-  return [];
-}
 
 function computeBanterRevealDelay(queueLength: number): number {
   if (queueLength >= 4) {
@@ -371,6 +350,9 @@ export interface UseAgentSessionOptions {
   language?: AppLanguage;
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
+  selectedExecutionProjectId?: string | null;
+  selectedExecutionTargetMode?: MissionExecutionTargetMode;
+  selectedContextProjectIds?: string[];
 }
 
 export interface UseAgentSessionReturn {
@@ -379,23 +361,41 @@ export interface UseAgentSessionReturn {
   latestBanterEntryId: string | null;
   speakingAgentId: string | null;
   partyMembers: PartyMember[];
+  isStartingMission: boolean;
   isSessionActive: boolean;
   isStreaming: boolean;
   isLoadingHistory: boolean;
   availableOperations: OperationOption[];
   selectedOperation: string | null;
   activeOperationState: OperationState | null;
+  workflowProgress: MissionWorkflowProgress | null;
   isOperationSelectionLocked: boolean;
   setSelectedOperation: (operationRef: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
 }
 
+export async function withMissionStartPending<T>(
+  setPending: (next: boolean) => void,
+  action: () => Promise<T>
+): Promise<T> {
+  setPending(true);
+
+  try {
+    return await action();
+  } finally {
+    setPending(false);
+  }
+}
+
 export function useAgentSession({
   activeMissionId,
-  language = "other",
+  language: _language = "other",
   initialMissionData,
   initialMessageInfos,
+  selectedExecutionProjectId,
+  selectedExecutionTargetMode = "mission_workspace",
+  selectedContextProjectIds = [],
 }: UseAgentSessionOptions): UseAgentSessionReturn {
   const pendingMissionSessionId = useChatStore((state) =>
     activeMissionId ? (state.pendingMissionSessions[activeMissionId] ?? null) : null
@@ -412,6 +412,11 @@ export function useAgentSession({
   const [availableOperations, setAvailableOperations] = useState<OperationOption[]>([]);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [activeOperationState, setActiveOperationState] = useState<OperationState | null>(null);
+  const [workflowProgress, setWorkflowProgress] = useState<MissionWorkflowProgress | null>(
+    activeMissionId && initialMissionData?.missionId === activeMissionId
+      ? (initialMissionData.workflowProgress ?? null)
+      : null,
+  );
   const [banterEntries, setBanterEntries] = useState<BanterEntry[]>([]);
   const [latestBanterEntryId, setLatestBanterEntryId] = useState<string | null>(null);
   const [speakingAgentId, setSpeakingAgentId] = useState<string | null>(null);
@@ -423,6 +428,7 @@ export function useAgentSession({
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [workerSessionIds, setWorkerSessionIds] =
     useState<WorkerSessionIds>(initialWorkerSessionIds);
+  const [isStartingMission, setIsStartingMission] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -432,16 +438,11 @@ export function useAgentSession({
   const streamingMessageIdRef = useRef<string | null>(null);
   const lastIncomingNoctisMessageIdRef = useRef<string | null>(null);
   const hasHydratedRuntimeRef = useRef(false);
-  const hasHydratedMissionMessageLogRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
   const idleTimerRef = useRef<number | null>(null);
-  const banterRevealTimerRef = useRef<number | null>(null);
-  const speakingResetTimerRef = useRef<number | null>(null);
-  const banterEntriesRef = useRef<RecentBanterEntry[]>([]);
-  const banterMissionIdRef = useRef<string | null>(null);
-  const pendingBanterTemplatesRef = useRef<BanterTemplate[]>([]);
-  const seenMissionMessageIdsRef = useRef<Set<string>>(new Set());
+  const banterTimelineMissionIdRef = useRef<string | null>(null);
+  const banterFeedPresenterRef = useRef<BanterFeedPresenter | null>(null);
   const hasHydratedNoctisSettledRef = useRef(false);
   const lastNoctisSettledRef = useRef(false);
   const lastSessionStateRef = useRef<SessionStatus | null>(null);
@@ -462,12 +463,28 @@ export function useAgentSession({
   const setPendingMissionSession = useChatStore((state) => state.setPendingMissionSession);
   const clearPendingMissionSession = useChatStore((state) => state.clearPendingMissionSession);
 
+  if (!banterFeedPresenterRef.current) {
+    banterFeedPresenterRef.current = createBanterFeedPresenter({
+      initialRevealDelayMs: INITIAL_BANTER_REVEAL_DELAY_MS,
+      computeRevealDelay: computeBanterRevealDelay,
+      speakingIndicatorMs: SPEAKING_INDICATOR_MS,
+      onChange: (state) => {
+        setBanterEntries(state.entries);
+        setLatestBanterEntryId(state.latestBanterEntryId);
+        setSpeakingAgentId(state.speakingAgentId);
+      },
+    });
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     const loadAvailableOperations = async () => {
       try {
-        const response = await fetch("/api/noctis/operations");
+        const query = selectedExecutionProjectId
+          ? `?executionProjectId=${encodeURIComponent(selectedExecutionProjectId)}`
+          : "";
+        const response = await fetch(`/api/noctis/operations${query}`);
         if (!response.ok) {
           return;
         }
@@ -488,7 +505,27 @@ export function useAgentSession({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedExecutionProjectId]);
+
+  useEffect(() => {
+    if (activeMissionId || !selectedOperation) {
+      return;
+    }
+
+    if (availableOperations.some((operation) => operation.value === selectedOperation)) {
+      return;
+    }
+
+    setSelectedOperation(null);
+  }, [activeMissionId, availableOperations, selectedOperation]);
+
+  useEffect(() => {
+    if (!activeMissionId) {
+      return;
+    }
+
+    setIsStartingMission(false);
+  }, [activeMissionId]);
 
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
   const isSessionActive = isSessionStatusActive(sessionStatus);
@@ -634,102 +671,55 @@ export function useAgentSession({
     });
   }, []);
 
-  const addBanter = useCallback((template: BanterTemplate) => {
-    pendingBanterTemplatesRef.current.push(template);
-
-    if (banterRevealTimerRef.current) {
-      return;
-    }
-
-    const revealNext = (delay: number) => {
-      banterRevealTimerRef.current = window.setTimeout(() => {
-        banterRevealTimerRef.current = null;
-        const nextTemplate = pendingBanterTemplatesRef.current.shift();
-        if (!nextTemplate) {
-          return;
-        }
-
-        const nextEntry = { ...nextTemplate, id: createId(), timestamp: new Date() };
-        setBanterEntries((prev) => {
-          const nextEntries = [...prev, nextEntry];
-          banterEntriesRef.current = nextEntries.map((entry) => ({
-            speakerId: entry.speakerId,
-            message: entry.message,
-          }));
-          return nextEntries;
-        });
-        setLatestBanterEntryId(nextEntry.id);
-        setSpeakingAgentId(nextEntry.speakerId);
-
-        if (speakingResetTimerRef.current) {
-          clearTimeout(speakingResetTimerRef.current);
-        }
-        speakingResetTimerRef.current = window.setTimeout(() => {
-          setSpeakingAgentId((current) => (current === nextEntry.speakerId ? null : current));
-          speakingResetTimerRef.current = null;
-        }, SPEAKING_INDICATOR_MS);
-
-        if (pendingBanterTemplatesRef.current.length > 0) {
-          revealNext(computeBanterRevealDelay(pendingBanterTemplatesRef.current.length));
-        }
-      }, delay);
-    };
-
-    revealNext(INITIAL_BANTER_REVEAL_DELAY_MS);
-  }, []);
-
   const clearBanterEntries = useCallback(() => {
-    if (banterRevealTimerRef.current) {
-      clearTimeout(banterRevealTimerRef.current);
-      banterRevealTimerRef.current = null;
-    }
-    if (speakingResetTimerRef.current) {
-      clearTimeout(speakingResetTimerRef.current);
-      speakingResetTimerRef.current = null;
-    }
-    pendingBanterTemplatesRef.current = [];
-    banterEntriesRef.current = [];
-    setLatestBanterEntryId(null);
-    setSpeakingAgentId(null);
-    setBanterEntries([]);
+    banterFeedPresenterRef.current?.clear();
   }, []);
 
-  const syncMissionMessageBanter = useCallback(
-    (messageLog: MissionMessageLogEntry[]) => {
-      const seenIds = seenMissionMessageIdsRef.current;
+  const syncPersistedBanterTimeline = useCallback(
+    (timeline: BanterTimelineEntry[]) => {
+      banterFeedPresenterRef.current?.applyTimelineSnapshot(timeline);
+    },
+    []
+  );
 
-      if (!hasHydratedMissionMessageLogRef.current) {
-        for (const entry of messageLog) {
-          seenIds.add(entry.id);
-        }
-        hasHydratedMissionMessageLogRef.current = true;
+  const persistAmbientBanter = useCallback(
+    async (input: {
+      speakerAgent: string;
+      cue: string;
+      renderedMessage?: string;
+      sourceEvent: string;
+    }) => {
+      const missionId = missionIdRef.current ?? activeMissionIdRef.current;
+      if (!missionId) {
         return;
       }
 
-      let recentEntries = banterEntriesRef.current;
-      const orderedEntries = messageLog
-        .filter((entry) => !seenIds.has(entry.id))
-        .sort(
-          (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-        );
+      const response = await fetch(`/api/noctis/missions/${missionId}/banter`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          speakerAgent: input.speakerAgent,
+          cue: input.cue,
+          renderedMessage: input.renderedMessage,
+          sourceEvent: input.sourceEvent,
+        }),
+      }).catch(() => null);
 
-      for (const entry of orderedEntries) {
-        seenIds.add(entry.id);
-        const templates = buildMissionMessageBanterTemplates(entry, {
-          language,
-          recentEntries,
-        });
+      if (!response?.ok) {
+        return;
+      }
 
-        for (const template of templates) {
-          addBanter(template);
-          recentEntries = [
-            ...recentEntries,
-            { speakerId: template.speakerId, message: template.message },
-          ];
-        }
+      const payload = (await response.json().catch(() => null)) as {
+        entry?: BanterTimelineEntry | null;
+      } | null;
+
+      if (payload?.entry) {
+        banterFeedPresenterRef.current?.enqueueLiveEntries([payload.entry]);
       }
     },
-    [addBanter, language]
+    []
   );
 
   const clearProgressBanter = useCallback((agentId?: string) => {
@@ -782,10 +772,8 @@ export function useAgentSession({
     streamingMessageIdRef.current = null;
     lastIncomingNoctisMessageIdRef.current = null;
     hasHydratedRuntimeRef.current = false;
-    hasHydratedMissionMessageLogRef.current = false;
     hasHydratedNoctisSettledRef.current = false;
     lastNoctisSettledRef.current = false;
-    seenMissionMessageIdsRef.current = new Set();
     setIsStreaming(false);
     lastSessionStateRef.current = null;
     lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
@@ -878,18 +866,24 @@ export function useAgentSession({
         scheduleIdleReset();
       }
 
-      const update = eventToPartyUpdate(event, {
-        language,
-        recentEntries: banterEntriesRef.current,
-      });
+      const update = eventToPartyUpdate(event);
       if (update) {
         setPartyRuntime((prev) => applyPartyRuntimeUpdate(prev, update));
-        if (update.banterTemplate) {
-          addBanter(update.banterTemplate);
+        if (update.cue && update.speakerAgent) {
+          void persistAmbientBanter({
+            speakerAgent: update.speakerAgent,
+            cue: update.cue,
+            sourceEvent: event.type,
+          });
         }
       }
     },
-    [addBanter, clearProgressBanter, language, scheduleIdleReset, setOptimisticSessionState]
+    [
+      clearProgressBanter,
+      persistAmbientBanter,
+      scheduleIdleReset,
+      setOptimisticSessionState,
+    ]
   );
 
   const _scheduleProgressBanter = useCallback(
@@ -1055,11 +1049,13 @@ export function useAgentSession({
     (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
       missionIdRef.current = runtime.missionId;
       setActiveOperationState(runtime.operationState ?? null);
+      setWorkflowProgress(runtime.workflowProgress ?? null);
       setSelectedOperation(runtime.operationState?.operationRef ?? null);
 
       const nextNoctisSessionId = runtime.sessions.noctis;
-      const optimisticNoctisStatus =
-        useChatStore.getState().optimisticSessionStates[nextNoctisSessionId] ?? null;
+      const optimisticNoctisStatus = nextNoctisSessionId
+        ? (useChatStore.getState().optimisticSessionStates[nextNoctisSessionId] ?? null)
+        : null;
       const shouldPreserveNoctisActive =
         isSessionStatusActive(optimisticNoctisStatus) ||
         pendingMissionSessionId === nextNoctisSessionId ||
@@ -1075,7 +1071,12 @@ export function useAgentSession({
         noctisSessionIdRef.current = nextNoctisSessionId;
         setNoctisSessionId(nextNoctisSessionId);
         streamingMessageIdRef.current = null;
-        subscribeToSession(nextNoctisSessionId);
+        if (nextNoctisSessionId) {
+          subscribeToSession(nextNoctisSessionId);
+        } else {
+          eventSourceRef.current?.close();
+          eventSourceRef.current = null;
+        }
       } else {
         setNoctisSessionId((current) => current ?? nextNoctisSessionId);
       }
@@ -1087,18 +1088,16 @@ export function useAgentSession({
           : nextWorkerSessionIds;
       });
       setDelegationLedger(runtime.delegationLedger);
-      syncMissionMessageBanter(runtime.messageLog ?? []);
+      syncPersistedBanterTimeline(runtime.banterTimeline ?? []);
       if (!hasHydratedNoctisSettledRef.current) {
         hasHydratedNoctisSettledRef.current = true;
         lastNoctisSettledRef.current = isNoctisSettled;
       } else if (isNoctisSettled && !lastNoctisSettledRef.current) {
-        const settledTemplate = createBanterTemplate("noctis", "session-settled", {
-          language,
-          recentEntries: banterEntriesRef.current,
+        void persistAmbientBanter({
+          speakerAgent: "noctis",
+          cue: "session-settled",
+          sourceEvent: "session.settled",
         });
-        if (settledTemplate) {
-          addBanter(settledTemplate);
-        }
         lastNoctisSettledRef.current = true;
       } else {
         lastNoctisSettledRef.current = isNoctisSettled;
@@ -1110,15 +1109,19 @@ export function useAgentSession({
         prompto: runtime.contextUsageByAgent?.prompto ?? null,
       });
 
-      const nextNoctisStatus = runtime.sessionStatuses[nextNoctisSessionId];
+      const nextNoctisStatus = nextNoctisSessionId
+        ? runtime.sessionStatuses[nextNoctisSessionId]
+        : null;
 
-      if (nextNoctisStatus) {
+      if (nextNoctisSessionId && nextNoctisStatus) {
         setServerSessionState(nextNoctisSessionId, nextNoctisStatus);
         sessionStatusRef.current = nextNoctisStatus;
       } else if (shouldPreserveNoctisActive) {
-      } else {
+      } else if (nextNoctisSessionId) {
         setServerSessionState(nextNoctisSessionId, "idle");
         sessionStatusRef.current = "idle";
+      } else {
+        sessionStatusRef.current = null;
       }
 
       const nextWorkerSessionIds = toWorkerSessionIds(runtime.sessions);
@@ -1142,7 +1145,8 @@ export function useAgentSession({
         hasHydratedRuntimeRef.current = true;
       } else if (
         latestIncomingMessage?.id &&
-        latestIncomingMessage.id !== lastIncomingNoctisMessageIdRef.current
+        latestIncomingMessage.id !== lastIncomingNoctisMessageIdRef.current &&
+        nextNoctisSessionId
       ) {
         lastIncomingNoctisMessageIdRef.current = latestIncomingMessage.id;
         setOptimisticSessionState(nextNoctisSessionId, "busy", 4000);
@@ -1162,12 +1166,11 @@ export function useAgentSession({
       clearPendingMissionSession,
       isStreaming,
       pendingMissionSessionId,
-      language,
-      addBanter,
+      persistAmbientBanter,
       setOptimisticSessionState,
       setServerSessionState,
       subscribeToSession,
-      syncMissionMessageBanter,
+      syncPersistedBanterTimeline,
     ]
   );
 
@@ -1178,12 +1181,7 @@ export function useAgentSession({
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
       }
-      if (banterRevealTimerRef.current) {
-        clearTimeout(banterRevealTimerRef.current);
-      }
-      if (speakingResetTimerRef.current) {
-        clearTimeout(speakingResetTimerRef.current);
-      }
+      banterFeedPresenterRef.current?.dispose();
       clearProgressBanter();
     };
   }, [clearProgressBanter, closeWorkerEventSources]);
@@ -1228,13 +1226,12 @@ export function useAgentSession({
         noctisSessionIdRef.current = null;
         lastIncomingNoctisMessageIdRef.current = null;
         hasHydratedRuntimeRef.current = false;
-        hasHydratedMissionMessageLogRef.current = false;
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
-        banterMissionIdRef.current = null;
-        seenMissionMessageIdsRef.current = new Set();
+        banterTimelineMissionIdRef.current = null;
         setNoctisSessionId(null);
         setActiveOperationState(null);
+        setWorkflowProgress(null);
         setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
@@ -1257,9 +1254,9 @@ export function useAgentSession({
 
       setIsLoadingHistory(true);
       try {
-        if (banterMissionIdRef.current !== activeMissionId) {
+        if (banterTimelineMissionIdRef.current !== activeMissionId) {
           clearBanterEntries();
-          banterMissionIdRef.current = activeMissionId;
+          banterTimelineMissionIdRef.current = activeMissionId;
         }
 
         const hasPreloadedMessages =
@@ -1273,6 +1270,7 @@ export function useAgentSession({
           noctisSessionIdRef.current = initialMissionData.sessions.noctis;
           setNoctisSessionId(initialMissionData.sessions.noctis);
           setActiveOperationState(initialMissionData.operationState ?? null);
+          setWorkflowProgress(initialMissionData.workflowProgress ?? null);
           setSelectedOperation(initialMissionData.operationState?.operationRef ?? null);
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
           setContextUsageByAgent(createInitialContextUsageByAgent());
@@ -1281,7 +1279,9 @@ export function useAgentSession({
             const preloadedMessages = toSessionChatMessages(initialMessageInfos ?? []);
             setSessionMessages(preloadedMessages.length > 0 ? preloadedMessages : INITIAL_MESSAGES);
           }
-          subscribeToSession(initialMissionData.sessions.noctis);
+          if (initialMissionData.sessions.noctis) {
+            subscribeToSession(initialMissionData.sessions.noctis);
+          }
         }
 
         setPartyRuntime(createInitialPartyRuntimeState());
@@ -1298,12 +1298,11 @@ export function useAgentSession({
         noctisSessionIdRef.current = null;
         lastIncomingNoctisMessageIdRef.current = null;
         hasHydratedRuntimeRef.current = false;
-        hasHydratedMissionMessageLogRef.current = false;
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
-        seenMissionMessageIdsRef.current = new Set();
         setNoctisSessionId(null);
         setActiveOperationState(null);
+        setWorkflowProgress(null);
         setSelectedOperation(null);
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
@@ -1356,48 +1355,58 @@ export function useAgentSession({
 
       try {
         if (!missionIdRef.current) {
-          const res = await fetch("/api/noctis/mission/start", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              parts,
-              title: text.slice(0, 80),
-              objective: text,
-              selectedOperation,
-              noctisModel: agentModels.noctis ?? null,
-              allowedWorkers,
-              workerModels: {
-                ignis: agentModels.ignis ?? null,
-                gladiolus: agentModels.gladiolus ?? null,
-                prompto: agentModels.prompto ?? null,
-              },
-            }),
-          });
-
-          if (!res.ok) {
-            throw new Error(`mission/start failed: ${res.status}`);
+          if (!selectedExecutionProjectId) {
+            throw new Error("Choose an execution project before starting a mission.");
           }
 
-          const data = (await res.json()) as {
-            missionId: string;
-            noctisSessionId: string;
-            operationState?: OperationState | null;
-          };
-          missionIdRef.current = data.missionId;
-          noctisSessionIdRef.current = data.noctisSessionId;
-          setActiveOperationState(data.operationState ?? null);
-          setSelectedOperation(data.operationState?.operationRef ?? null);
-          setNoctisSessionId(data.noctisSessionId);
-          setOptimisticSessionState(data.noctisSessionId, "busy");
-          setPendingMissionSession(data.missionId, data.noctisSessionId);
+          return await withMissionStartPending(setIsStartingMission, async () => {
+            const res = await fetch("/api/noctis/mission/start", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                parts,
+                title: text.slice(0, 80),
+                objective: text,
+                executionProjectId: selectedExecutionProjectId,
+                executionTargetMode: selectedExecutionTargetMode,
+                contextProjectIds: selectedContextProjectIds,
+                selectedOperation,
+                noctisModel: agentModels.noctis ?? null,
+                allowedWorkers,
+                workerModels: {
+                  ignis: agentModels.ignis ?? null,
+                  gladiolus: agentModels.gladiolus ?? null,
+                  prompto: agentModels.prompto ?? null,
+                },
+              }),
+            });
 
-          handleAgentEvent({ type: "session.created" });
-          subscribeToSession(data.noctisSessionId);
-          await waitForActiveStatus(data.noctisSessionId);
-          void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
-            () => undefined
-          );
-          return data.missionId;
+            if (!res.ok) {
+              throw new Error(`mission/start failed: ${res.status}`);
+            }
+
+            const data = (await res.json()) as {
+              missionId: string;
+              noctisSessionId: string;
+              operationState?: OperationState | null;
+            };
+            missionIdRef.current = data.missionId;
+            noctisSessionIdRef.current = data.noctisSessionId;
+            setActiveOperationState(data.operationState ?? null);
+            setWorkflowProgress(null);
+            setSelectedOperation(data.operationState?.operationRef ?? null);
+            setNoctisSessionId(data.noctisSessionId);
+            setOptimisticSessionState(data.noctisSessionId, "busy");
+            setPendingMissionSession(data.missionId, data.noctisSessionId);
+
+            handleAgentEvent({ type: "session.created" });
+            subscribeToSession(data.noctisSessionId);
+            await waitForActiveStatus(data.noctisSessionId);
+            void syncSessionMessages(data.noctisSessionId, { trackStreamingMessage: true }).catch(
+              () => undefined
+            );
+            return data.missionId;
+          });
         } else {
           if (noctisSessionIdRef.current) {
             setOptimisticSessionState(noctisSessionIdRef.current, "busy");
@@ -1461,6 +1470,9 @@ export function useAgentSession({
       subscribeToSession,
       syncSessionMessages,
       waitForActiveStatus,
+      selectedContextProjectIds,
+      selectedExecutionProjectId,
+      selectedExecutionTargetMode,
     ]
   );
 
@@ -1518,12 +1530,14 @@ export function useAgentSession({
     latestBanterEntryId,
     speakingAgentId,
     partyMembers,
+    isStartingMission,
     isSessionActive,
     isStreaming,
     isLoadingHistory,
     availableOperations,
     selectedOperation,
     activeOperationState,
+    workflowProgress,
     isOperationSelectionLocked: activeMissionId !== null,
     setSelectedOperation,
     send,

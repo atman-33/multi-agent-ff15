@@ -1,11 +1,18 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  normalizeContextProjectIds,
+  normalizeExecutionProjectId,
+} from "@/lib/execution-context";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
+  AmbientBanterEntry,
   ActivityActorId,
   AgentId,
+  ConversationLogEntry,
   DelegationLedger,
   Mission,
+  MissionExecutionTargetMode,
   MissionActivityKind,
   MissionActivityLogEntry,
   MissionMessageLogEntry,
@@ -20,6 +27,27 @@ import type {
 } from "./types/mission";
 
 const store = new Map<string, Mission>();
+const MISSION_WORKSPACE_STATUSES = new Set(["ready", "missing", "deleted"]);
+
+function normalizeExecutionTargetMode(
+  value: unknown,
+  executionProjectId?: string,
+): MissionExecutionTargetMode | undefined {
+  if (value === "mission_workspace" || value === "execution_project") {
+    return value;
+  }
+
+  return executionProjectId ? "mission_workspace" : undefined;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
 
 export function getMissionStoreDir(): string {
   return join(getProjectRoot(), "runtime", "noctis-missions");
@@ -76,6 +104,23 @@ function readMissionFromDisk(id: string): Mission | null {
 
   try {
     const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Mission;
+    parsed.executionProjectId = normalizeExecutionProjectId(parsed.executionProjectId);
+    parsed.executionTargetMode = normalizeExecutionTargetMode(
+      parsed.executionTargetMode,
+      parsed.executionProjectId,
+    );
+    parsed.contextProjectIds = normalizeContextProjectIds(
+      parsed.executionProjectId,
+      parsed.contextProjectIds,
+    );
+    parsed.baseBranch = normalizeOptionalString(parsed.baseBranch);
+    parsed.branch = normalizeOptionalString(parsed.branch);
+    parsed.workspacePath = normalizeOptionalString(parsed.workspacePath);
+    parsed.workspaceStatus = MISSION_WORKSPACE_STATUSES.has(String(parsed.workspaceStatus))
+      ? parsed.workspaceStatus
+      : undefined;
+    parsed.conversationLog = Array.isArray(parsed.conversationLog) ? parsed.conversationLog : [];
+    parsed.ambientBanterLog = Array.isArray(parsed.ambientBanterLog) ? parsed.ambientBanterLog : [];
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
     parsed.allowedWorkers = Array.isArray(parsed.allowedWorkers)
@@ -149,13 +194,36 @@ function touchMission(mission: Mission, status?: MissionStatus): void {
 export function createMission(
   id: string,
   noctisSessionId: string,
-  options?: { title?: string; objective?: string; allowedWorkers?: WorkerAgentId[] }
+  options?: {
+    title?: string;
+    objective?: string;
+    allowedWorkers?: WorkerAgentId[];
+    executionProjectId?: string;
+    executionTargetMode?: MissionExecutionTargetMode;
+    contextProjectIds?: string[];
+    baseBranch?: string;
+    branch?: string;
+    workspacePath?: string;
+    workspaceStatus?: Mission["workspaceStatus"];
+  }
 ): Mission {
   const now = new Date().toISOString();
+  const executionProjectId = normalizeExecutionProjectId(options?.executionProjectId);
+  const executionTargetMode = normalizeExecutionTargetMode(
+    options?.executionTargetMode,
+    executionProjectId,
+  );
   const mission: Mission = {
     id,
     noctisSessionId,
     workerSessions: {},
+    executionProjectId,
+    ...(executionTargetMode ? { executionTargetMode } : {}),
+    contextProjectIds: normalizeContextProjectIds(executionProjectId, options?.contextProjectIds),
+    ...(options?.baseBranch ? { baseBranch: options.baseBranch.trim() } : {}),
+    ...(options?.branch ? { branch: options.branch.trim() } : {}),
+    ...(options?.workspacePath ? { workspacePath: options.workspacePath.trim() } : {}),
+    ...(options?.workspaceStatus ? { workspaceStatus: options.workspaceStatus } : {}),
     allowedWorkers: options?.allowedWorkers ?? [],
     taskGraph: [],
     delegationLedger: {
@@ -169,6 +237,8 @@ export function createMission(
     title: options?.title?.trim() || `Mission ${now}`,
     objective: options?.objective?.trim() || undefined,
     status: "active",
+    conversationLog: [],
+    ambientBanterLog: [],
     messageLog: [],
     activityLog: [],
   };
@@ -250,6 +320,98 @@ export function setWorkerSession(
   const mission = getMission(missionId);
   if (!mission) return;
   mission.workerSessions[agentId] = sessionId;
+  touchMission(mission);
+}
+
+export function setNoctisSession(missionId: string, sessionId: string): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.noctisSessionId = sessionId.trim();
+  touchMission(mission);
+}
+
+export function clearMissionSessions(missionId: string): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.noctisSessionId = "";
+  mission.workerSessions = {};
+  touchMission(mission);
+}
+
+export function updateMissionExecutionContext(
+  missionId: string,
+  patch: Partial<
+    Pick<
+      Mission,
+      | "executionProjectId"
+      | "executionTargetMode"
+      | "contextProjectIds"
+      | "baseBranch"
+      | "branch"
+      | "workspacePath"
+      | "workspaceStatus"
+    >
+  >,
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+
+  if ("executionProjectId" in patch) {
+    const nextExecutionProjectId = normalizeExecutionProjectId(patch.executionProjectId);
+    if (
+      mission.executionProjectId &&
+      nextExecutionProjectId &&
+      mission.executionProjectId !== nextExecutionProjectId
+    ) {
+      throw new Error("Execution project cannot be changed after mission creation.");
+    }
+    mission.executionProjectId = nextExecutionProjectId;
+    mission.executionTargetMode = normalizeExecutionTargetMode(
+      mission.executionTargetMode,
+      mission.executionProjectId,
+    );
+  }
+
+  if ("executionTargetMode" in patch) {
+    const nextExecutionTargetMode = normalizeExecutionTargetMode(
+      patch.executionTargetMode,
+      mission.executionProjectId,
+    );
+    if (
+      mission.executionTargetMode &&
+      nextExecutionTargetMode &&
+      mission.executionTargetMode !== nextExecutionTargetMode
+    ) {
+      throw new Error("Execution target mode cannot be changed after mission creation.");
+    }
+    mission.executionTargetMode = nextExecutionTargetMode;
+  }
+
+  if ("contextProjectIds" in patch) {
+    mission.contextProjectIds = normalizeContextProjectIds(
+      mission.executionProjectId,
+      patch.contextProjectIds,
+    );
+  }
+
+  if ("baseBranch" in patch) {
+    mission.baseBranch = normalizeOptionalString(patch.baseBranch);
+  }
+
+  if ("branch" in patch) {
+    mission.branch = normalizeOptionalString(patch.branch);
+  }
+
+  if ("workspacePath" in patch) {
+    mission.workspacePath = normalizeOptionalString(patch.workspacePath);
+  }
+
+  if ("workspaceStatus" in patch) {
+    mission.workspaceStatus = MISSION_WORKSPACE_STATUSES.has(String(patch.workspaceStatus))
+      ? patch.workspaceStatus
+      : undefined;
+  }
+
   touchMission(mission);
 }
 
@@ -358,6 +520,20 @@ export function appendMissionMessage(missionId: string, message: MissionMessageL
   const mission = getMission(missionId);
   if (!mission) return;
   mission.messageLog.push(message);
+  touchMission(mission);
+}
+
+export function appendConversationLogEntry(missionId: string, entry: ConversationLogEntry): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.conversationLog.push(entry);
+  touchMission(mission);
+}
+
+export function appendAmbientBanter(missionId: string, entry: AmbientBanterEntry): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.ambientBanterLog.push(entry);
   touchMission(mission);
 }
 

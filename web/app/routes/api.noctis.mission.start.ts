@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
@@ -6,11 +7,15 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { resolveDefaultOperationRef } from "@/lib/operation-definition/operation-catalog";
+import {
+  listOperationCatalogEntriesForScope,
+  resolveDefaultOperationRef,
+} from "@/lib/operation-definition/operation-catalog";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
+import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
 
@@ -26,6 +31,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
     workerModels?: unknown;
     allowedWorkers?: unknown;
     selectedOperation?: unknown;
+    executionProjectId?: unknown;
+    executionTargetMode?: unknown;
+    contextProjectIds?: unknown;
     title?: unknown;
     objective?: unknown;
   } | null;
@@ -55,8 +63,24 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   const message = stringifyPromptParts(promptParts);
+  const executionProjectId =
+    typeof body.executionProjectId === "string" && body.executionProjectId.trim().length > 0
+      ? body.executionProjectId.trim()
+      : "";
+  const executionTargetMode = body?.executionTargetMode === "execution_project"
+    ? "execution_project"
+    : "mission_workspace";
+  if (!executionProjectId) {
+    return Response.json({ error: "Missing executionProjectId" }, { status: 400 });
+  }
   const title = typeof body.title === "string" ? body.title.trim() : "";
+  const missionTitle = title || message.slice(0, 80);
   const objective = typeof body.objective === "string" ? body.objective.trim() : message;
+  const contextProjectIds = Array.isArray(body?.contextProjectIds)
+    ? body.contextProjectIds.filter(
+        (projectId): projectId is string => typeof projectId === "string" && projectId.trim().length > 0,
+      )
+    : [];
   const selectedOperationInput =
     typeof body.selectedOperation === "string" && body.selectedOperation.trim().length > 0
       ? body.selectedOperation.trim()
@@ -80,22 +104,54 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
+    if (!executionProject) {
+      return Response.json({ error: "Execution project is not registered." }, { status: 409 });
+    }
+    const registeredContextProjectIds = contextProjectIds.filter(
+      (projectId) =>
+        projectId !== executionProjectId && !!readRegisteredProjectDefinition(projectRoot, projectId),
+    );
     const language = readOperationLanguage();
+    const availableOperationEntries = listOperationCatalogEntriesForScope({
+      root: projectRoot,
+      scope: "noctis_team",
+      projectFilterId: executionProjectId,
+      builtinLanguages: language === "en" ? ["en"] : [language, "en"],
+    });
+    if (
+      selectedOperationInput &&
+      !availableOperationEntries.some((entry) => entry.ref === selectedOperationInput)
+    ) {
+      return Response.json({ error: "Selected workflow is not available for this execution project" }, { status: 409 });
+    }
     const selectedOperation =
       selectedOperationInput ??
       resolveDefaultOperationRef({
         root: projectRoot,
         scope: "noctis_team",
+        projectFilterId: executionProjectId,
         builtinLanguages: language === "en" ? ["en"] : [language, "en"],
       });
     if (!selectedOperation) {
       return Response.json({ error: "No workflow is available" }, { status: 409 });
     }
     const missionId = crypto.randomUUID();
+    const missionCreatedAt = new Date().toISOString();
+    const executionWorkspace =
+      executionTargetMode === "mission_workspace"
+        ? provisionMissionExecutionWorkspace({
+            appRoot: projectRoot,
+            createdAt: missionCreatedAt,
+            executionProjectId,
+            title: missionTitle,
+          })
+        : null;
     const { model, variant } = splitModelSelection(noctisModel);
+    const executionRoot = executionWorkspace?.workspacePath ?? executionProject.rootPath;
 
     const sessionResult = await client.session.create({
-      directory: projectRoot,
+      directory: executionRoot,
       title: `mission:${missionId}`,
     });
 
@@ -109,9 +165,20 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     const mission = createMission(missionId, sessionId, {
-      title: title || message.slice(0, 80),
+      title: missionTitle,
       objective,
       allowedWorkers,
+      executionProjectId,
+      executionTargetMode,
+      contextProjectIds: registeredContextProjectIds,
+      ...(executionWorkspace
+        ? {
+            baseBranch: executionWorkspace.baseBranch,
+            branch: executionWorkspace.branch,
+            workspacePath: executionWorkspace.workspacePath,
+            workspaceStatus: executionWorkspace.workspaceStatus,
+          }
+        : {}),
     });
     setAgentModels(missionId, agentModels);
     const ledger = buildDelegationLedger(mission);
@@ -150,7 +217,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
       noctisSessionId: sessionId,
       operationState: getOperationState(missionId) ?? null,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.length > 0) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }
 };

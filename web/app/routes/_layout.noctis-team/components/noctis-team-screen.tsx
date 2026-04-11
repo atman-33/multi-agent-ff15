@@ -2,6 +2,7 @@ import { Archive, Check, Ellipsis, History, Pencil, Plus, RotateCcw, X } from "l
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useMatch, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
+import { WorkspaceLaunchActions } from "@/components/workspace-launch-actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -26,8 +34,20 @@ import {
   type MissionSummary,
   useAgentSession,
 } from "@/hooks/use-agent-session";
+import { useProjectRegistry } from "@/hooks/use-project-registry";
+import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
 import type { AppLanguage } from "@/lib/app-language.server";
-import type { MissionOutputSummary } from "@/lib/types/mission";
+import { normalizeContextProjectIds } from "@/lib/execution-context";
+import {
+  getMissionExecutionTargetModeLabel,
+  normalizeMissionExecutionTargetMode,
+} from "@/lib/mission-execution-target-mode";
+import {
+  clearNoctisTeamNewMissionDraft,
+  readNoctisTeamNewMissionDraft,
+  writeNoctisTeamNewMissionDraft,
+} from "@/lib/noctis-team-new-mission-draft";
+import type { MissionExecutionTargetMode, MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
@@ -263,18 +283,74 @@ export function NoctisTeamScreen({
   const [missionOutputs, setMissionOutputs] = useState<MissionOutputSummary[]>([]);
   const [isLoadingMissionOutputs, setIsLoadingMissionOutputs] = useState(false);
   const [missionOutputsError, setMissionOutputsError] = useState<string | null>(null);
+  const [missionDetail, setMissionDetail] = useState<MissionResumePayload | null>(initialMissionData ?? null);
+  const [draftExecutionProjectId, setDraftExecutionProjectId] = useState<string | null>(
+    initialMissionData?.executionProjectId ?? null,
+  );
+  const [draftExecutionTargetMode, setDraftExecutionTargetMode] = useState<MissionExecutionTargetMode>(
+    normalizeMissionExecutionTargetMode(
+      initialMissionData?.executionTargetMode ?? undefined,
+      initialMissionData?.executionProjectId ?? undefined,
+    ) ?? "mission_workspace",
+  );
+  const [draftContextProjectIds, setDraftContextProjectIds] = useState<string[]>(
+    initialMissionData?.contextProjectIds ?? [],
+  );
+  const [hasLoadedDraftState, setHasLoadedDraftState] = useState(false);
+  const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
+  const [isDeleteWorkspaceDialogOpen, setIsDeleteWorkspaceDialogOpen] = useState(false);
+  const [isSavingContext, setIsSavingContext] = useState(false);
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const {
+    data: projectRegistryData,
+    error: projectRegistryError,
+  } = useProjectRegistry();
+  const { vscodePreferences, updateVSCodePreference } = useVSCodePreferences();
+  const availableProjects = projectRegistryData?.projects ?? [];
+  const defaultExecutionProjectId = availableProjects[0]?.id ?? null;
+  const effectiveExecutionTargetMode =
+    normalizeMissionExecutionTargetMode(
+      missionDetail?.executionTargetMode ?? undefined,
+      missionDetail?.executionProjectId ?? undefined,
+    ) ?? draftExecutionTargetMode;
+  const effectiveExecutionProjectId =
+    missionDetail?.executionProjectId ??
+    draftExecutionProjectId ??
+    (effectiveMissionId ? null : defaultExecutionProjectId);
+  const effectiveContextProjectIds = useMemo(() => {
+    const executionProjectId =
+      missionDetail?.executionProjectId ?? effectiveExecutionProjectId ?? undefined;
+    const sourceProjectIds = missionDetail?.contextProjectIds ?? draftContextProjectIds;
+
+    return normalizeContextProjectIds(executionProjectId, sourceProjectIds);
+  }, [
+    draftContextProjectIds,
+    effectiveExecutionProjectId,
+    missionDetail?.contextProjectIds,
+    missionDetail?.executionProjectId,
+  ]);
+  const contextProjects = useMemo(
+    () =>
+      effectiveContextProjectIds.map((projectId) => ({
+        id: projectId,
+        label: availableProjects.find((project) => project.id === projectId)?.displayName ?? projectId,
+      })),
+    [availableProjects, effectiveContextProjectIds],
+  );
   const {
     messages,
     banterEntries,
     latestBanterEntryId,
     partyMembers,
     speakingAgentId,
+    isStartingMission,
     isSessionActive,
     isStreaming,
     isLoadingHistory,
     availableOperations,
     selectedOperation,
     activeOperationState,
+    workflowProgress,
     isOperationSelectionLocked,
     setSelectedOperation,
     send,
@@ -284,9 +360,72 @@ export function NoctisTeamScreen({
     language,
     initialMissionData,
     initialMessageInfos,
+    selectedExecutionProjectId: effectiveExecutionProjectId,
+    selectedExecutionTargetMode: effectiveExecutionTargetMode,
+    selectedContextProjectIds: effectiveContextProjectIds,
   });
+  const isMissionStartPending = !effectiveMissionId && isStartingMission;
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
+  const effectiveWorkflowProgress =
+    workflowProgress ?? missionDetail?.workflowProgress ?? initialMissionData?.workflowProgress ?? null;
+  const selectedExecutionProject = availableProjects.find(
+    (project) => project.id === effectiveExecutionProjectId,
+  ) ?? null;
+  const missionExecutionTargetMode = normalizeMissionExecutionTargetMode(
+    missionDetail?.executionTargetMode ?? undefined,
+    missionDetail?.executionProjectId ?? undefined,
+  );
+  const isDirectExecutionMission = missionExecutionTargetMode === "execution_project";
+  const workspaceLaunchPreferenceKey =
+    missionDetail?.executionProjectId ?? effectiveExecutionProjectId ?? missionDetail?.workspacePath ?? null;
+  const workspaceVSCodePreference = workspaceLaunchPreferenceKey
+    ? (vscodePreferences[workspaceLaunchPreferenceKey] ?? "auto")
+    : "auto";
+  const newMissionContextHint =
+    "Context projects start empty for new missions.";
+  const isLegacyMissionBlocked =
+    Boolean(effectiveMissionId) && Boolean(missionDetail) && !missionDetail?.executionProjectId;
+  const workspaceStatusLabel =
+    isDirectExecutionMission
+      ? "Direct execution"
+      : missionDetail?.workspaceStatus === "ready"
+        ? "Ready"
+        : missionDetail?.workspaceStatus === "deleted"
+          ? "Deleted"
+          : missionDetail?.workspaceStatus === "missing"
+            ? "Missing"
+            : "Not provisioned";
+  const displayedWorkspacePath = isDirectExecutionMission
+    ? selectedExecutionProject?.path ?? null
+    : missionDetail?.workspacePath ?? null;
+  const missionActionLabel = isLegacyMissionBlocked ? "Assign Execution Project" : "Mission Details";
+  const missionStatusAlert = isLegacyMissionBlocked
+    ? {
+        toneClassName: "border-amber-500/30 bg-amber-500/10 text-amber-100",
+        message:
+          "This legacy mission can be viewed, but it cannot resume until an execution project is assigned.",
+        actionLabel: "Assign Execution Project",
+      }
+    : !isDirectExecutionMission && missionDetail?.workspaceStatus === "deleted"
+      ? {
+          toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
+          message: "Workspace deleted. Resume will recreate a fresh workspace and sessions.",
+          actionLabel: "Mission Details",
+        }
+      : !isDirectExecutionMission && missionDetail?.workspaceStatus === "missing"
+        ? {
+            toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
+            message: "Workspace missing. Resume will recreate it from the persisted mission branch.",
+            actionLabel: "Mission Details",
+          }
+        : null;
+  const isWorkspaceDeleteDisabled =
+    isDirectExecutionMission ||
+    !effectiveMissionId ||
+    !missionDetail?.workspacePath ||
+    missionDetail.workspaceStatus !== "ready" ||
+    isDeletingWorkspace;
   const selectedOutputKey =
     outputDetailActive && routeOutputStep && routeOutputTaskId && routeOutputFilename
       ? getMissionOutputKey({
@@ -301,6 +440,92 @@ export function NoctisTeamScreen({
       setInspectorTab("outputs");
     }
   }, [outputDetailActive]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setHasLoadedDraftState(true);
+      return;
+    }
+
+    if (effectiveMissionId) {
+      setHasLoadedDraftState(true);
+      return;
+    }
+
+    try {
+      const draft = readNoctisTeamNewMissionDraft(window.localStorage);
+      if (!draft) {
+        return;
+      }
+
+      setDraftExecutionProjectId(draft.executionProjectId);
+      setDraftExecutionTargetMode(draft.executionTargetMode);
+      setDraftContextProjectIds(draft.contextProjectIds);
+    } catch {
+      clearNoctisTeamNewMissionDraft(window.localStorage);
+    } finally {
+      setHasLoadedDraftState(true);
+    }
+  }, [effectiveMissionId]);
+
+  useEffect(() => {
+    if (initialMissionData?.missionId === effectiveMissionId) {
+      setMissionDetail(initialMissionData);
+      return;
+    }
+
+    if (!effectiveMissionId) {
+      setMissionDetail(null);
+    }
+  }, [effectiveMissionId, initialMissionData]);
+
+  useEffect(() => {
+    if (missionDetail?.executionProjectId) {
+      setDraftExecutionProjectId(missionDetail.executionProjectId);
+      setDraftExecutionTargetMode(
+        normalizeMissionExecutionTargetMode(
+          missionDetail.executionTargetMode ?? undefined,
+          missionDetail.executionProjectId,
+        ) ?? "mission_workspace",
+      );
+      return;
+    }
+
+    if (!hasLoadedDraftState) {
+      return;
+    }
+
+    if (effectiveMissionId || draftExecutionProjectId || !defaultExecutionProjectId) {
+      return;
+    }
+
+    setDraftExecutionProjectId(defaultExecutionProjectId);
+  }, [
+    defaultExecutionProjectId,
+    draftExecutionProjectId,
+    effectiveMissionId,
+    hasLoadedDraftState,
+    missionDetail?.executionTargetMode,
+    missionDetail?.executionProjectId,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || effectiveMissionId || !hasLoadedDraftState) {
+      return;
+    }
+
+    writeNoctisTeamNewMissionDraft(window.localStorage, {
+      executionProjectId: draftExecutionProjectId,
+      executionTargetMode: draftExecutionTargetMode,
+      contextProjectIds: draftContextProjectIds,
+    });
+  }, [
+    draftContextProjectIds,
+    draftExecutionProjectId,
+    draftExecutionTargetMode,
+    effectiveMissionId,
+    hasLoadedDraftState,
+  ]);
 
   const resetMissionOutputsState = useCallback(() => {
     setMissionOutputs([]);
@@ -352,6 +577,25 @@ export function NoctisTeamScreen({
     }
   }, [effectiveMissionId, resetMissionOutputsState]);
 
+  const loadMissionDetail = useCallback(async () => {
+    if (!effectiveMissionId) {
+      setMissionDetail(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/noctis/missions/${effectiveMissionId}`);
+      if (!response.ok) {
+        throw new Error(`mission failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as MissionResumePayload;
+      setMissionDetail(data);
+    } catch {
+      setMissionDetail(null);
+    }
+  }, [effectiveMissionId]);
+
   useEffect(() => {
     void loadMissions();
   }, [loadMissions]);
@@ -359,6 +603,10 @@ export function NoctisTeamScreen({
   useEffect(() => {
     void loadMissionOutputs();
   }, [loadMissionOutputs]);
+
+  useEffect(() => {
+    void loadMissionDetail();
+  }, [loadMissionDetail]);
 
   const selectedOutput = useMemo(
     () =>
@@ -598,14 +846,138 @@ export function NoctisTeamScreen({
 
   const handleSend = useCallback(
     async (parts: PromptPart[]) => {
+      if (!effectiveMissionId && !draftExecutionProjectId) {
+        toast.error("Select an execution project before starting a mission");
+        return;
+      }
+
+      if (isLegacyMissionBlocked) {
+        toast.error("Assign an execution project before resuming this legacy mission");
+        setIsContextDialogOpen(true);
+        return;
+      }
+
       const missionId = await send(parts);
       if (!effectiveMissionId && missionId) {
+        if (typeof window !== "undefined") {
+          clearNoctisTeamNewMissionDraft(window.localStorage);
+        }
         await loadMissions();
         navigate(`/noctis-team/mission/${missionId}`, { replace: true });
       }
     },
-    [effectiveMissionId, loadMissions, navigate, send]
+    [draftExecutionProjectId, effectiveMissionId, isLegacyMissionBlocked, loadMissions, navigate, send]
   );
+
+  const openContextDialog = useCallback(() => {
+    if (effectiveMissionId) {
+      setDraftContextProjectIds(missionDetail?.contextProjectIds ?? []);
+    } else if (!draftExecutionProjectId && defaultExecutionProjectId) {
+      setDraftExecutionProjectId(defaultExecutionProjectId);
+    }
+
+    setIsContextDialogOpen(true);
+  }, [
+    defaultExecutionProjectId,
+    draftExecutionProjectId,
+    effectiveMissionId,
+    missionDetail?.contextProjectIds,
+  ]);
+
+  const toggleDraftContextProjectId = useCallback((projectId: string) => {
+    setDraftContextProjectIds((current) =>
+      current.includes(projectId)
+        ? current.filter((entry) => entry !== projectId)
+        : [...current, projectId],
+    );
+  }, []);
+
+  const saveMissionContext = useCallback(async () => {
+    const executionProjectId = missionDetail?.executionProjectId ?? draftExecutionProjectId;
+    if (!executionProjectId) {
+      toast.error("Select an execution project before saving mission context");
+      return;
+    }
+
+    const normalizedContextProjectIds = normalizeContextProjectIds(
+      executionProjectId,
+      draftContextProjectIds,
+    );
+
+    if (!effectiveMissionId) {
+      setDraftExecutionProjectId(executionProjectId);
+      setDraftContextProjectIds(normalizedContextProjectIds);
+      setIsContextDialogOpen(false);
+      toast.success("Mission context updated");
+      return;
+    }
+
+    setIsSavingContext(true);
+    try {
+      const response = await fetch(`/api/noctis/missions/${effectiveMissionId}/context`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          executionProjectId,
+          contextProjectIds: normalizedContextProjectIds,
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? `context failed: ${response.status}`);
+      }
+
+      setDraftExecutionProjectId(executionProjectId);
+      setIsContextDialogOpen(false);
+      await Promise.all([loadMissionDetail(), loadMissions()]);
+      toast.success(
+        missionDetail?.executionProjectId ? "Mission context updated" : "Execution project assigned",
+      );
+    } catch (error) {
+      toast.error("Unable to save mission context", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsSavingContext(false);
+    }
+  }, [
+    draftContextProjectIds,
+    draftExecutionProjectId,
+    effectiveMissionId,
+    loadMissionDetail,
+    loadMissions,
+    missionDetail?.executionProjectId,
+  ]);
+
+  const deleteWorkspace = useCallback(async () => {
+    if (!effectiveMissionId) {
+      return;
+    }
+
+    setIsDeletingWorkspace(true);
+    try {
+      const response = await fetch(`/api/noctis/missions/${effectiveMissionId}/workspace`, {
+        method: "DELETE",
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? `workspace failed: ${response.status}`);
+      }
+
+      await loadMissionDetail();
+      await loadMissions();
+      setIsDeleteWorkspaceDialogOpen(false);
+      toast.success("Workspace deleted");
+    } catch (error) {
+      toast.error("Unable to delete workspace", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsDeletingWorkspace(false);
+    }
+  }, [effectiveMissionId, loadMissionDetail, loadMissions]);
 
   const handleOpenOutputs = useCallback(() => {
     setInspectorTab("outputs");
@@ -758,18 +1130,43 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
-              isResponding={isSessionActive || isLoadingHistory}
+              isResponding={isMissionStartPending || isSessionActive || isLoadingHistory}
+              isStartingMission={isMissionStartPending}
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
+              showExecutionProjectSelector={!effectiveMissionId}
+              executionProjectOptions={availableProjects.map((project) => ({
+                value: project.id,
+                label: project.displayName,
+              }))}
+              selectedExecutionProjectId={effectiveExecutionProjectId}
+              selectedExecutionTargetMode={effectiveExecutionTargetMode}
+              executionProjectHint={newMissionContextHint}
+              executionProjectError={projectRegistryError}
+              onSelectedExecutionProjectChange={(projectId) => setDraftExecutionProjectId(projectId)}
+              onSelectedExecutionTargetModeChange={
+                !effectiveMissionId ? setDraftExecutionTargetMode : undefined
+              }
+              missionExecutionLabel={
+                effectiveMissionId
+                  ? selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"
+                  : null
+              }
+              contextProjects={contextProjects}
+              contextActionLabel={!effectiveMissionId ? "Mission Context" : null}
+              onContextAction={!effectiveMissionId ? openContextDialog : undefined}
+              missionActionLabel={effectiveMissionId ? missionActionLabel : null}
+              onMissionAction={effectiveMissionId ? openContextDialog : undefined}
               availableOperations={availableOperations}
               selectedOperation={selectedOperation}
               activeOperationState={activeOperationState}
+              workflowProgress={effectiveWorkflowProgress}
               isOperationSelectionLocked={isOperationSelectionLocked}
               onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}
               onSend={handleSend}
-              showAbortAction={isSessionActive && !isLoadingHistory}
+              showAbortAction={isSessionActive && !isLoadingHistory && !isMissionStartPending}
               outputCount={missionOutputs.length}
               onOpenOutputs={handleOpenOutputs}
             />
@@ -779,6 +1176,17 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={30}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 border-border/50 border-b p-3">
+              {missionStatusAlert ? (
+                <div className={cn("mb-3 rounded-lg border p-2.5", missionStatusAlert.toneClassName)}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs">{missionStatusAlert.message}</p>
+                    <Button type="button" variant="outline" size="sm" onClick={openContextDialog}>
+                      {missionStatusAlert.actionLabel}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               <PartyStatusPanel members={partyMembers} speakingAgentId={speakingAgentId} />
             </div>
 
@@ -845,6 +1253,182 @@ export function NoctisTeamScreen({
             </Button>
             <Button type="button" onClick={() => void confirmBulkMissionAction()}>
               {bulkMissionDialog?.action === "archive" ? "Archive visible" : "Restore visible"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isContextDialogOpen} onOpenChange={setIsContextDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {effectiveMissionId
+                ? missionDetail?.executionProjectId
+                  ? "Mission details"
+                  : "Assign execution project"
+                : "Mission context"}
+            </DialogTitle>
+            <DialogDescription>
+              {effectiveMissionId
+                ? "Review execution workspace details and manage mission-specific context."
+                : "Choose the writable execution project once, then manage secondary context projects for future prompts."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {!missionDetail?.executionProjectId ? (
+              <div className="space-y-2">
+                <p className="font-medium text-sm">Execution project</p>
+                <Select
+                  value={draftExecutionProjectId ?? undefined}
+                  onValueChange={(value) => setDraftExecutionProjectId(value || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="font-medium text-sm">Execution project</p>
+                <p className="text-muted-foreground text-sm">
+                  {selectedExecutionProject?.displayName ?? missionDetail.executionProjectId}
+                </p>
+              </div>
+            )}
+
+            {effectiveMissionId ? (
+              <div className="space-y-1">
+                <p className="font-medium text-sm">Execution mode</p>
+                <p className="text-muted-foreground text-sm">
+                  {getMissionExecutionTargetModeLabel(missionExecutionTargetMode)}
+                </p>
+              </div>
+            ) : null}
+
+            {effectiveMissionId ? (
+              <div className="space-y-1.5">
+                <p className="font-medium text-sm">Workspace</p>
+                <p className="text-muted-foreground text-sm">{workspaceStatusLabel}</p>
+                <p className="break-all font-mono text-[11px] text-muted-foreground/75">
+                  {displayedWorkspacePath ?? "No workspace provisioned yet."}
+                </p>
+                {isDirectExecutionMission ? (
+                  <p className="text-xs text-muted-foreground/75">
+                    This mission is using the execution project directly without a dedicated workspace.
+                  </p>
+                ) : null}
+                {displayedWorkspacePath ? (
+                  <WorkspaceLaunchActions
+                    className="pt-1"
+                    disabled={!isDirectExecutionMission && missionDetail?.workspaceStatus !== "ready"}
+                    path={displayedWorkspacePath}
+                    vscodePreference={workspaceVSCodePreference}
+                    onVSCodePreferenceChange={(preference) => {
+                      if (!workspaceLaunchPreferenceKey) {
+                        return;
+                      }
+
+                      updateVSCodePreference(workspaceLaunchPreferenceKey, preference);
+                    }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="space-y-2">
+              <p className="font-medium text-sm">Context projects</p>
+              <div className="flex flex-wrap gap-2.5">
+                {availableProjects
+                  .filter((project) => project.id !== (missionDetail?.executionProjectId ?? draftExecutionProjectId))
+                  .map((project) => {
+                    const selected = draftContextProjectIds.includes(project.id);
+                    return (
+                      <Button
+                        key={project.id}
+                        type="button"
+                        aria-pressed={selected}
+                        className={cn(
+                          "rounded-full px-4",
+                          selected
+                            ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                            : "bg-background/70 text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                        )}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleDraftContextProjectId(project.id)}
+                      >
+                        {project.displayName}
+                      </Button>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 border-border/50 border-t pt-4">
+            {effectiveMissionId && !isDirectExecutionMission ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsContextDialogOpen(false);
+                  setIsDeleteWorkspaceDialogOpen(true);
+                }}
+                disabled={isWorkspaceDeleteDisabled}
+              >
+                Delete Workspace
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" onClick={() => setIsContextDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void saveMissionContext()} disabled={isSavingContext}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isDeleteWorkspaceDialogOpen}
+        onOpenChange={(open) => {
+          if (!isDeletingWorkspace) {
+            setIsDeleteWorkspaceDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Workspace?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the execution workspace for this mission. Any uncommitted
+              changes in the workspace will be discarded, and active mission sessions will be
+              aborted when possible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 border-border/50 border-t pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteWorkspaceDialogOpen(false)}
+              disabled={isDeletingWorkspace}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void deleteWorkspace()}
+              disabled={isDeletingWorkspace}
+            >
+              {isDeletingWorkspace ? "Deleting..." : "Delete Workspace"}
             </Button>
           </DialogFooter>
         </DialogContent>

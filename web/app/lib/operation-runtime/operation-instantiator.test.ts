@@ -322,7 +322,7 @@ describe("OperationInstantiator", () => {
     expect(result.currentStep?.name).toBe("autonomous");
     expect(result.nextStep?.name).toBe("autonomous");
     expect(result.noctisGuidance).toContain('active "autonomous" step');
-    expect(result.noctisGuidance).toContain("scripts/send_task.sh mission-delegated ignis");
+    expect(result.noctisGuidance).toContain(`${root}/scripts/send_task.sh mission-delegated ignis`);
     expect(result.promptArtifact?.mode).toBe("activation");
 
     const savedState = getOperationState("mission-delegated");

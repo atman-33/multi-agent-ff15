@@ -18,21 +18,6 @@ function createTempRoot(): string {
   mkdirSync(join(root, "config"), { recursive: true });
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
   writeFileSync(join(root, "config", "settings.yaml"), "language: ja\n", "utf-8");
-  writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      "    active_project_ids:",
-      '      - "alpha"',
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-05T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
   return root;
 }
 
@@ -59,24 +44,24 @@ function writeBuiltinOperation(root: string, language: string, fileName: string,
   );
 }
 
-function writeProjectManifest(root: string): void {
-  const projectDir = join(root, "projects", "alpha");
+function writeProjectManifest(root: string, projectId = "alpha"): void {
+  const projectDir = join(root, "projects", projectId);
   mkdirSync(projectDir, { recursive: true });
   writeFileSync(
     join(projectDir, "project.yaml"),
     [
-      'id: "alpha"',
-      'name: "Alpha Project"',
-      'root_path: "../../external-alpha"',
-      'serena_project: "alpha"',
+      `id: "${projectId}"`,
+      `name: "${projectId[0]?.toUpperCase() ?? "P"}${projectId.slice(1)} Project"`,
+      `root_path: "../../external-${projectId}"`,
+      `serena_project: "${projectId}"`,
       "",
     ].join("\n"),
     "utf-8",
   );
 }
 
-function writeProjectOperation(root: string, fileName: string, name: string): string {
-  const operationsDirectory = join(root, "projects", "alpha", "operations");
+function writeProjectOperation(root: string, fileName: string, name: string, projectId = "alpha"): string {
+  const operationsDirectory = join(root, "projects", projectId, "operations");
   mkdirSync(operationsDirectory, { recursive: true });
   const operationPath = join(operationsDirectory, fileName);
   writeFileSync(
@@ -97,9 +82,9 @@ function writeProjectOperation(root: string, fileName: string, name: string): st
     ].join("\n"),
     "utf-8",
   );
-  mkdirSync(join(root, "projects", "alpha", "facets", "instructions"), { recursive: true });
+  mkdirSync(join(root, "projects", projectId, "facets", "instructions"), { recursive: true });
   writeFileSync(
-    join(root, "projects", "alpha", "facets", "instructions", "plan.md"),
+    join(root, "projects", projectId, "facets", "instructions", "plan.md"),
     "Project-local instruction\n",
     "utf-8",
   );
@@ -116,7 +101,7 @@ afterEach(() => {
 });
 
 describe("operation catalog", () => {
-  it("includes active project workflows alongside builtin workflows without collapsing same-name entries", () => {
+  it("includes registered project workflows alongside builtin workflows without collapsing same-name entries", () => {
     const root = createTempRoot();
     writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
     writeBuiltinOperation(root, "ja", "openspec-dev.yaml", "openspec-dev");
@@ -151,5 +136,25 @@ describe("operation catalog", () => {
 
     expect(operation.name).toBe("repo-review");
     expect(operation.sourcePath).toBe(operationPath);
+  });
+
+  it("filters project-authored workflows to the selected registered project", () => {
+    const root = createTempRoot();
+    writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
+    writeProjectManifest(root, "alpha");
+    writeProjectManifest(root, "beta");
+    writeProjectOperation(root, "repo-review.yaml", "repo-review", "alpha");
+    writeProjectOperation(root, "repo-debug.yaml", "repo-debug", "beta");
+    const entries = listOperationCatalogEntriesForScope({
+      root,
+      scope: "noctis_team",
+      projectFilterId: "alpha",
+      builtinLanguages: ["ja", "en"],
+    });
+
+    expect(entries.map((entry) => entry.ref)).toEqual([
+      "builtin:ja:noctis-autonomous.yaml",
+      "project:alpha:repo-review.yaml",
+    ]);
   });
 });

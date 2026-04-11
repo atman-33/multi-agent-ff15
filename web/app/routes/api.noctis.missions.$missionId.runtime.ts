@@ -1,4 +1,6 @@
+import { buildMissionBanterTimeline } from "@/lib/banter/timeline";
 import { getMission } from "@/lib/mission-store";
+import { buildMissionWorkflowProgress } from "@/lib/mission-workflow-progress.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readSessionContextUsage } from "@/lib/session-context.server";
 import { coerceSessionStatus } from "@/lib/session-status";
@@ -15,11 +17,15 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
 
+  const noctisSessionId = mission.noctisSessionId || null;
+
   try {
     const client = getOpencodeClient();
     const [statusResult, messagesResult] = await Promise.all([
       client.session.status(),
-      client.session.messages({ sessionID: mission.noctisSessionId }),
+      noctisSessionId
+        ? client.session.messages({ sessionID: noctisSessionId })
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (statusResult.error) {
@@ -31,7 +37,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     }
 
     const relevantSessionIds = [
-      mission.noctisSessionId,
+      noctisSessionId,
       mission.workerSessions.ignis,
       mission.workerSessions.gladiolus,
       mission.workerSessions.prompto,
@@ -49,7 +55,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     }
 
     const contextUsageByAgent = {
-      noctis: readSessionContextUsage(mission.noctisSessionId),
+      noctis: noctisSessionId ? readSessionContextUsage(noctisSessionId) : null,
       ignis: mission.workerSessions.ignis
         ? readSessionContextUsage(mission.workerSessions.ignis)
         : null,
@@ -68,15 +74,26 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       createdAt: mission.createdAt,
       updatedAt: mission.updatedAt,
       status: mission.status,
+      executionProjectId: mission.executionProjectId ?? null,
+      executionTargetMode: mission.executionTargetMode ?? null,
+      contextProjectIds: mission.contextProjectIds,
+      baseBranch: mission.baseBranch ?? null,
+      branch: mission.branch ?? null,
+      workspacePath: mission.workspacePath ?? null,
+      workspaceStatus: mission.workspaceStatus ?? null,
+      resumeBlockedReason: mission.executionProjectId
+        ? null
+        : "Assign an execution project before resuming this legacy mission.",
       sessions: {
-        noctis: mission.noctisSessionId,
+        noctis: noctisSessionId,
         ignis: mission.workerSessions.ignis ?? null,
         gladiolus: mission.workerSessions.gladiolus ?? null,
         prompto: mission.workerSessions.prompto ?? null,
       },
       delegationLedger: mission.delegationLedger,
-      messageLog: mission.messageLog,
+      banterTimeline: buildMissionBanterTimeline(mission),
       operationState: mission.operationState ?? null,
+      workflowProgress: buildMissionWorkflowProgress(mission.operationState),
       contextUsageByAgent,
       sessionStatuses,
       noctisMessages: messagesResult.data ?? [],

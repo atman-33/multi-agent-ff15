@@ -15,10 +15,13 @@ vi.mock("@/lib/opencode-client", () => ({
   }),
 }));
 
+import { createMission, deleteMission, setWorkerSession } from "@/lib/mission-store";
 import { saveSessionRequestAnchor } from "@/lib/session-request-anchors.server";
+import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 import { loader } from "./api.session.$id";
 
 const tempRoots: string[] = [];
+const missionIds: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 
 function createTempRoot(): string {
@@ -36,6 +39,10 @@ async function readJson<T>(response: Response): Promise<T> {
 afterEach(() => {
   sessionMessagesMock.mockReset();
 
+  for (const missionId of missionIds.splice(0)) {
+    deleteMission(missionId);
+  }
+
   if (originalRootEnv === undefined) {
     delete process.env.MULTI_AGENT_FF15_ROOT;
   } else {
@@ -51,6 +58,61 @@ afterEach(() => {
 });
 
 describe("api.session.$id", () => {
+  it("returns mission-owned execution context for managed sessions", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      executionProjectId: "alpha",
+      contextProjectIds: ["beta"],
+    });
+    setWorkerSession(missionId, "ignis", "session-ignis");
+    sessionMessagesMock.mockResolvedValue({ data: [] });
+
+    const response = await loader({ params: { id: "session-ignis" } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      executionContext: {
+        executionProjectId: string;
+        contextProjectIds: string[];
+        updatedAt: string | null;
+      };
+    }>(response);
+    expect(data.executionContext).toEqual({
+      executionProjectId: "alpha",
+      contextProjectIds: ["beta"],
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("returns persisted session execution context metadata alongside messages", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    saveSessionExecutionContext("session-context", {
+      executionProjectId: "alpha",
+      contextProjectIds: ["beta", "alpha", "beta"],
+    });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
+
+    const response = await loader({ params: { id: "session-context" } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      executionContext: {
+        executionProjectId: string;
+        contextProjectIds: string[];
+        updatedAt: string | null;
+      };
+      messages: unknown[];
+    }>(response);
+    expect(data.executionContext).toEqual({
+      executionProjectId: "alpha",
+      contextProjectIds: ["beta"],
+      updatedAt: expect.any(String),
+    });
+    expect(data.messages).toEqual([]);
+  });
+
   it("adds selection adjustment metadata when a tracked assistant reply differs from the requested selection", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     saveSessionRequestAnchor({

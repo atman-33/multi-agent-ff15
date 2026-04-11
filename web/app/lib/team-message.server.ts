@@ -1,9 +1,17 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import {
+  recordDirectedReportReturn,
+  recordDirectedTaskDelegation,
+} from "@/lib/banter/conversation-service";
+import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
+import {
   appendMissionActivity,
   appendMissionMessage,
+  clearMissionSessions,
   getMission,
+  setNoctisSession,
   setWorkerSession,
+  updateMissionExecutionContext,
 } from "@/lib/mission-store";
 import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
@@ -99,8 +107,44 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     throw new Error("Mission not found");
   }
 
+  if (!mission.executionProjectId) {
+    throw new Error("Mission requires an execution workspace before team messages can be delivered.");
+  }
+
+  const executionRoot = resolveMissionExecutionRoot({
+    appRoot: getProjectRoot(),
+    mission,
+  });
+  if (executionRoot.workspacePath && executionRoot.workspaceStatus) {
+    updateMissionExecutionContext(missionId, {
+      workspacePath: executionRoot.workspacePath,
+      workspaceStatus: executionRoot.workspaceStatus,
+    });
+  }
+
+  if (executionRoot.recreated) {
+    clearMissionSessions(missionId);
+  }
+
+  const client = getOpencodeClient();
+
   if (toAgent === "noctis") {
-    return mission.noctisSessionId;
+    if (mission.noctisSessionId) {
+      return mission.noctisSessionId;
+    }
+
+    const sessionResult = await client.session.create({
+      directory: executionRoot.executionRoot,
+      title: `mission:${missionId}`,
+    });
+
+    const sessionId = sessionResult.data?.id;
+    if (!sessionId) {
+      throw new Error("Session creation returned no ID");
+    }
+
+    setNoctisSession(missionId, sessionId);
+    return sessionId;
   }
 
   const existing = mission.workerSessions[toAgent];
@@ -108,10 +152,8 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     return existing;
   }
 
-  const client = getOpencodeClient();
-  const projectRoot = getProjectRoot();
   const sessionResult = await client.session.create({
-    directory: projectRoot,
+    directory: executionRoot.executionRoot,
     title: `mission:${missionId}:${toAgent}`,
   });
 
@@ -126,7 +168,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
 
 async function deliverMissionMessage(
   input: SendTeamMessageInput
-): Promise<{ sessionId: string; messageId: string }> {
+): Promise<{ sessionId: string; messageId: string; createdAt: string }> {
   assertHubSafe(input.fromAgent, input.toAgent);
   assertIntentContract(input);
 
@@ -210,7 +252,7 @@ async function deliverMissionMessage(
         deliveryStatus: "sent",
       },
     });
-    return { sessionId, messageId: message.id };
+    return { sessionId, messageId: message.id, createdAt: message.createdAt };
   } catch (error) {
     const failedEntry: MissionMessageLogEntry = {
       ...message,
@@ -229,7 +271,7 @@ export async function sendSimpleMessage(input: {
   body: string;
   fromActor: ActivityActorId;
 }): Promise<{ sessionId: string; messageId: string }> {
-  return deliverMissionMessage({
+  const delivery = await deliverMissionMessage({
     missionId: input.missionId,
     fromAgent: "noctis",
     toAgent: input.toAgent,
@@ -239,6 +281,22 @@ export async function sendSimpleMessage(input: {
     activitySpeaker: input.fromActor,
     activityKind: "team_message",
   });
+
+  recordDirectedTaskDelegation({
+    missionId: input.missionId,
+    fromAgent: "noctis",
+    toAgent: input.toAgent,
+    orchestratedBy: "noctis",
+    canonicalMessage: input.body,
+    createdAt: delivery.createdAt,
+    transport: {
+      deliveredToSessionId: delivery.sessionId,
+      deliveryStatus: "sent",
+      sessionId: delivery.sessionId,
+    },
+  });
+
+  return delivery;
 }
 
 export async function sendWorkerReport(input: {
@@ -251,7 +309,7 @@ export async function sendWorkerReport(input: {
   artifacts?: string[];
   workflowGuidance?: string;
 }): Promise<{ sessionId: string; messageId: string }> {
-  return deliverMissionMessage({
+  const delivery = await deliverMissionMessage({
     missionId: input.missionId,
     fromAgent: input.fromAgent,
     toAgent: "noctis",
@@ -266,4 +324,23 @@ export async function sendWorkerReport(input: {
     activityKind: "team_message",
     workflowGuidance: input.workflowGuidance,
   });
+
+  recordDirectedReportReturn({
+    missionId: input.missionId,
+    fromAgent: input.fromAgent,
+    toAgent: "noctis",
+    orchestratedBy: "noctis",
+    taskId: input.taskId,
+    next: input.next,
+    reportStatus: input.reportStatus ?? "completed",
+    reportBody: input.message,
+    createdAt: delivery.createdAt,
+    transport: {
+      deliveredToSessionId: delivery.sessionId,
+      deliveryStatus: "sent",
+      sessionId: delivery.sessionId,
+    },
+  });
+
+  return delivery;
 }

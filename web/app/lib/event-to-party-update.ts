@@ -1,11 +1,8 @@
-import type { AppLanguage } from "@/lib/app-language.server";
 import {
-  createBanterTemplate,
-  createLiteralBanterTemplate,
   normalizeBanterAgentId,
   toPartyMemberId,
 } from "@/lib/banter/runtime";
-import type { BanterTemplate, RecentBanterEntry } from "@/lib/banter/types";
+import type { BanterCue } from "@/lib/banter/types";
 import type { AgentStatus } from "@/routes/_layout.noctis-team/components/character-card";
 
 export type AgentEvent =
@@ -29,12 +26,8 @@ export type PartyRuntimeState = Record<string, PartyRuntimeEntry>;
 
 export interface PartyRuntimeUpdate extends PartyRuntimeEntry {
   memberId: string;
-  banterTemplate: BanterTemplate | null;
-}
-
-interface EventToPartyUpdateOptions {
-  language?: AppLanguage;
-  recentEntries?: RecentBanterEntry[];
+  speakerAgent?: string;
+  cue?: BanterCue;
 }
 
 const _TASK_ASSIGNED_LABEL: Record<string, string> = {
@@ -46,76 +39,70 @@ const _TASK_ASSIGNED_LABEL: Record<string, string> = {
 
 export function eventToPartyUpdate(
   event: AgentEvent,
-  options: EventToPartyUpdateOptions = {}
 ): PartyRuntimeUpdate | null {
-  const language = options.language ?? "other";
-  const recentEntries = options.recentEntries ?? [];
-
   switch (event.type) {
     case "session.created": {
       return {
         memberId: "noctis",
         status: "working",
-        banterTemplate: createBanterTemplate("noctis", "session-start", {
-          language,
-          recentEntries,
-        }),
+        speakerAgent: "noctis",
+        cue: "session-start",
       };
     }
 
     case "task.assigned": {
       const { agentId } = event;
-      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
         detail: event.task,
-        banterTemplate: createBanterTemplate(agentId, "task-assigned", { language, recentEntries }),
+        speakerAgent: normalizedAgentId,
+        cue: "task-assigned",
       };
     }
 
     case "task.progress": {
       const { agentId, stage } = event;
-      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        banterTemplate: createBanterTemplate(
-          agentId,
-          stage === "early" ? "task-progress-early" : "task-progress-late",
-          { language, recentEntries }
-        ),
+        speakerAgent: normalizedAgentId,
+        cue: stage === "early" ? "task-progress-early" : "task-progress-late",
       };
     }
 
     case "task.completed": {
       const { agentId } = event;
+      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "success",
-        banterTemplate: createBanterTemplate(agentId, "task-completed", {
-          language,
-          recentEntries,
-        }),
+        speakerAgent: normalizedAgentId,
+        cue: "task-completed",
       };
     }
 
     case "task.failed": {
       const { agentId } = event;
+      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "blocked",
-        banterTemplate: createBanterTemplate(agentId, "task-failed", { language, recentEntries }),
+        speakerAgent: normalizedAgentId,
+        cue: "task-failed",
       };
     }
 
     case "task.retrying": {
       const { agentId } = event;
-      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        banterTemplate: createBanterTemplate(agentId, "task-retrying", { language, recentEntries }),
+        speakerAgent: normalizedAgentId,
+        cue: "task-retrying",
       };
     }
 
@@ -123,20 +110,17 @@ export function eventToPartyUpdate(
       return {
         memberId: "noctis",
         status: "success",
-        banterTemplate: createLiteralBanterTemplate("noctis", event.message),
       };
     }
 
     case "runtime.recovered": {
       const { agentId } = event;
-      const _normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
+      const normalizedAgentId = normalizeBanterAgentId(agentId) ?? agentId;
       return {
         memberId: toPartyMemberId(agentId),
         status: "working",
-        banterTemplate: createBanterTemplate(agentId, "runtime-recovered", {
-          language,
-          recentEntries,
-        }),
+        speakerAgent: normalizedAgentId,
+        cue: "runtime-recovered",
       };
     }
 

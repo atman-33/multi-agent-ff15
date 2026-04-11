@@ -47,4 +47,41 @@ describe("app-config.server", () => {
     expect(readFileSync(settingsPath, "utf-8")).toContain("language: ja");
     expect(readFileSync(settingsPath, "utf-8")).toContain("theme: desert");
   });
+
+  it("reads and writes an execution workspace root override", () => {
+    const root = createTempRoot();
+    const configDir = join(root, "config");
+    const settingsPath = join(configDir, "settings.yaml");
+
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      settingsPath,
+      [
+        "language: en",
+        'execution_workspace_root: "../custom-workspaces"',
+        "theme: desert",
+        "",
+      ].join("\n"),
+      "utf-8"
+    );
+
+    expect(readAppConfig(root)).toEqual({
+      language: "en",
+      executionWorkspaceRoot: "../custom-workspaces",
+    });
+
+    const updated = writeAppConfig(root, {
+      language: "ja",
+      executionWorkspaceRoot: "../fresh-workspaces",
+    });
+
+    expect(updated).toEqual({
+      language: "ja",
+      executionWorkspaceRoot: "../fresh-workspaces",
+    });
+    expect(readFileSync(settingsPath, "utf-8")).toContain(
+      'execution_workspace_root: "../fresh-workspaces"',
+    );
+    expect(readFileSync(settingsPath, "utf-8")).toContain("theme: desert");
+  });
 });

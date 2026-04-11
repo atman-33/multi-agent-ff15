@@ -25,10 +25,17 @@ If runtime behavior may change, also inspect:
 - `web/app/lib/prompt-composition-engine/operation-prompt-builder.ts`
 - Relevant tests under `web/app/lib/operation-definition/` and `web/app/lib/prompt-composition-engine/`
 
+After editing a concrete workflow file, run:
+
+- `node .opencode/skills/operation-customization/scripts/validate-operation-yaml.mjs <path-to-operation.yaml>`
+
+Treat validator failures as blocking before you move on to higher-level runtime checks.
+
 ## Canonical Rules
 
 1. Use `initial_step` and `steps`. Do not use `initial_movement`, `movements`, `max_movements`, or `handoff_mode`.
 2. `initial_step` must reference an existing `noctis` step and must not route directly to `ABORT` or `COMPLETE`.
+   - If the initial step needs a failure or blocked branch, route to a named non-initial step and let that later step choose `ABORT` or `COMPLETE`.
 3. Workflow files live under either `builtins/<lang>/operations/*.yaml` or `projects/<project-id>/operations/*.yaml`. The matching reusable facet tree is the sibling `../facets/**` relative to that workflow file.
 4. Every content-bearing field must be a source object with exactly one of `file` or `inline`.
 5. Canonical source forms are:
@@ -74,6 +81,8 @@ If runtime behavior may change, also inspect:
 - Confirm whether the workflow belongs in the builtin tree or a project authoring tree before copying templates.
 - Confirm whether the workflow is a standard routed operation or an autonomous delegation flow before choosing a template.
 - Challenge every step. If it does not change owner, produce a required artifact, or wait for explicit User input or approval, merge or remove it.
+- Inspect `steps[initial_step].rules[].next` first. None of those transitions may be `ABORT` or `COMPLETE`.
+- Run the bundled validator on each concrete workflow file before you finish.
 - Resolve every facet path relative to the operation YAML file.
 - Keep reusable content in facet files and step-specific content inline.
 - Verify every `next` target exists or is one of `COMPLETE` or `ABORT`.

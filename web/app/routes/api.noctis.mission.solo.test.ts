@@ -1,10 +1,11 @@
+import { execSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { createMission, deleteMission, getMission } from "@/lib/mission-store";
+import { deleteMission, getMission } from "@/lib/mission-store";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
@@ -41,20 +42,21 @@ function createTempRoot(): string {
   mkdirSync(join(root, "projects", "alpha"), { recursive: true });
   mkdirSync(join(root, "external-alpha"), { recursive: true });
   writeFileSync(join(root, "external-alpha", "AGENTS.md"), "# Agents\n", "utf-8");
-  writeFileSync(join(root, "config", "settings.yaml"), "language: ja\n", "utf-8");
+  writeFileSync(join(root, "external-alpha", "README.md"), "# Alpha\n", "utf-8");
+  execSync("git init -b main", { cwd: join(root, "external-alpha"), stdio: "ignore" });
+  execSync('git config user.email "test@example.com"', {
+    cwd: join(root, "external-alpha"),
+    stdio: "ignore",
+  });
+  execSync('git config user.name "Test User"', {
+    cwd: join(root, "external-alpha"),
+    stdio: "ignore",
+  });
+  execSync("git add README.md AGENTS.md", { cwd: join(root, "external-alpha"), stdio: "ignore" });
+  execSync('git commit -m "init"', { cwd: join(root, "external-alpha"), stdio: "ignore" });
   writeFileSync(
-    join(root, "config", "current_projects.yaml"),
-    [
-      "project_scopes:",
-      "  noctis_team:",
-      "    active_project_ids:",
-      '      - "alpha"',
-      "  lunafreya:",
-      "    active_project_ids: []",
-      'updated_at: "2026-04-04T00:00:00.000Z"',
-      'updated_by: "test"',
-      "",
-    ].join("\n"),
+    join(root, "config", "settings.yaml"),
+    ['language: ja', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
     "utf-8",
   );
   writeFileSync(
@@ -63,6 +65,7 @@ function createTempRoot(): string {
       'id: "alpha"',
       'name: "Alpha Project"',
       'root_path: "../../external-alpha"',
+      'default_base_branch: "main"',
       'serena_project: "alpha"',
       "instruction_files:",
       '  - path: "../../external-alpha/AGENTS.md"',
@@ -111,6 +114,7 @@ describe("Noctis mission solo routing", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Handle this directly.",
+          executionProjectId: "alpha",
           allowedWorkers: [],
         }),
       }),
@@ -135,20 +139,39 @@ describe("Noctis mission solo routing", () => {
 
   it("keeps mission continue on the base noctis profile in solo mode", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
-    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-continue" } });
+    sessionCreateMock.mockResolvedValueOnce({ data: { id: "session-noctis-start" } });
+    promptAsyncMock.mockResolvedValueOnce({ data: { id: "prompt-start" } });
 
-    const missionId = `mission-solo-${crypto.randomUUID()}`;
+    const startResponse = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Create a solo mission first.",
+          executionProjectId: "alpha",
+          allowedWorkers: ["ignis", "gladiolus"],
+        }),
+      }),
+    } as never);
+
+    expect(startResponse.status).toBe(200);
+    const { missionId } = await readJson<{ missionId: string }>(startResponse);
     missionIds.push(missionId);
-    const mission = createMission(missionId, "session-noctis-continue", {
-      title: "Solo mission",
-      objective: "Keep using Noctis directly",
-      allowedWorkers: ["ignis", "gladiolus"],
-    });
+
+    const mission = getMission(missionId);
+    expect(mission).toBeDefined();
+    if (!mission) {
+      throw new Error("Mission should exist after start");
+    }
     mission.operationState = createOperationState(
       "noctis-autonomous",
       "autonomous",
       buildBuiltinOperationRef("ja", "noctis-autonomous.yaml"),
     );
+
+    sessionCreateMock.mockClear();
+    promptAsyncMock.mockClear();
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-continue" } });
 
     const response = await continueAction({
       request: new Request("http://localhost/api/noctis/mission/continue", {

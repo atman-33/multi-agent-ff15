@@ -4,16 +4,26 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildInjectedPromptContext } from "./prompt-context.server";
+import { saveSessionExecutionContext } from "./session-execution-context.server";
 
 const tempRoots: string[] = [];
+const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 
 function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-prompt-context-"));
   tempRoots.push(root);
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
   return root;
 }
 
 afterEach(() => {
+  if (originalRootEnv === undefined) {
+    delete process.env.MULTI_AGENT_FF15_ROOT;
+  } else {
+    process.env.MULTI_AGENT_FF15_ROOT = originalRootEnv;
+  }
+
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
     if (root) {
@@ -26,27 +36,12 @@ describe("buildInjectedPromptContext", () => {
   it("injects only enabled and existing instruction files", () => {
     const root = createTempRoot();
     const projectRoot = join(root, "external-alpha");
+    process.env.MULTI_AGENT_FF15_ROOT = root;
 
-    mkdirSync(join(root, "config"), { recursive: true });
     mkdirSync(join(root, "projects", "alpha"), { recursive: true });
     mkdirSync(projectRoot, { recursive: true });
 
     writeFileSync(join(projectRoot, "AGENTS.md"), "# Agents\n", "utf-8");
-    writeFileSync(
-      join(root, "config", "current_projects.yaml"),
-      [
-        "project_scopes:",
-        "  noctis_team:",
-        "    active_project_ids:",
-        '      - "alpha"',
-        "  lunafreya:",
-        "    active_project_ids: []",
-        'updated_at: "2026-03-25T00:00:00.000Z"',
-        'updated_by: "test"',
-        "",
-      ].join("\n"),
-      "utf-8"
-    );
     writeFileSync(
       join(root, "projects", "alpha", "project.yaml"),
       [
@@ -65,6 +60,7 @@ describe("buildInjectedPromptContext", () => {
       ].join("\n"),
       "utf-8"
     );
+    saveSessionExecutionContext("session-1", { executionProjectId: "alpha" });
 
     const promptContext = buildInjectedPromptContext({
       agent: "noctis",

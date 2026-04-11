@@ -1,5 +1,12 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { getMission, setAllowedWorkers } from "@/lib/mission-store";
+import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
+import {
+  clearMissionSessions,
+  getMission,
+  setAllowedWorkers,
+  setNoctisSession,
+  updateMissionExecutionContext,
+} from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
   coerceAllowedWorkers,
@@ -58,6 +65,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
+  if (!mission.executionProjectId) {
+    return Response.json(
+      { error: "Mission requires an execution project before it can be resumed." },
+      { status: 409 },
+    );
+  }
 
   const allowedWorkers =
     body.allowedWorkers === undefined
@@ -73,12 +86,45 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const appRoot = getProjectRoot();
+    const executionRoot = resolveMissionExecutionRoot({
+      appRoot,
+      mission,
+    });
+    if (executionRoot.workspacePath && executionRoot.workspaceStatus) {
+      updateMissionExecutionContext(missionId, {
+        workspacePath: executionRoot.workspacePath,
+        workspaceStatus: executionRoot.workspaceStatus,
+      });
+    }
+
+    if (executionRoot.recreated) {
+      clearMissionSessions(missionId);
+    }
+
+    let sessionId = mission.noctisSessionId;
+    if (!sessionId) {
+      const sessionResult = await client.session.create({
+        directory: executionRoot.executionRoot,
+        title: `mission:${missionId}`,
+      });
+
+      if (sessionResult.error) {
+        return Response.json({ error: sessionResult.error }, { status: 502 });
+      }
+
+      sessionId = sessionResult.data?.id;
+      if (!sessionId) {
+        return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
+      }
+
+      setNoctisSession(missionId, sessionId);
+    }
 
     const userMessage = stringifyPromptParts(promptParts);
     const composed = composeUserToNoctisPrompt({
       context: {
         missionId,
-        sessionId: mission.noctisSessionId,
+        sessionId,
         agent: noctisAgentProfile,
         allowedWorkers,
         appRoot,
@@ -86,12 +132,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
       },
       userMessage,
       missionId,
-      sessionId: mission.noctisSessionId,
+      sessionId,
       isNewMission: false,
     });
 
     const result = await client.session.promptAsync({
-      sessionID: mission.noctisSessionId,
+      sessionID: sessionId,
       parts: composed.payloadParts,
       agent: noctisAgentProfile,
       ...(model ? { model } : {}),
@@ -102,8 +148,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return Response.json({ error: result.error }, { status: 502 });
     }
 
-    return Response.json({ noctisSessionId: mission.noctisSessionId });
-  } catch {
+    return Response.json({ noctisSessionId: sessionId });
+  } catch (error) {
+    if (error instanceof Error && error.message.length > 0) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }
 };

@@ -12,17 +12,6 @@ const DEFAULT_SETTINGS_YAML = [
   "",
 ].join("\n");
 
-const DEFAULT_CURRENT_PROJECTS_YAML = [
-  "project_scopes:",
-  "  noctis_team:",
-  "    active_project_ids: []",
-  "  lunafreya:",
-  "    active_project_ids: []",
-  'updated_at: ""',
-  'updated_by: ""',
-  "",
-].join("\n");
-
 function ensureFile(filePath: string, content: string): void {
   if (existsSync(filePath)) {
     return;
@@ -41,5 +30,4 @@ function ensureFile(filePath: string, content: string): void {
 
 export function ensureRequiredWebConfigFiles(root: string): void {
   ensureFile(join(root, "config", "settings.yaml"), DEFAULT_SETTINGS_YAML);
-  ensureFile(join(root, "config", "current_projects.yaml"), DEFAULT_CURRENT_PROJECTS_YAML);
 }

@@ -1,5 +1,22 @@
+import { findManagedSession } from "@/lib/managed-session.server";
+import { appendMissionActivity } from "@/lib/mission-store";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import type { Route } from "./+types/api.session.$id.abort";
+
+async function resolveSessionTitle(sessionId: string): Promise<string | null> {
+  try {
+    const client = getOpencodeClient();
+    const result = await client.session.list();
+    if (result.error) {
+      return null;
+    }
+
+    return result.data?.find((session) => session.id === sessionId)?.title ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const action = async ({ params }: Route.ActionArgs) => {
   const sessionId = params.id;
@@ -7,16 +24,84 @@ export const action = async ({ params }: Route.ActionArgs) => {
     return Response.json({ error: "Missing session id" }, { status: 400 });
   }
 
+  const requestId = crypto.randomUUID();
+  const managedSession = findManagedSession(sessionId);
+
   try {
     const client = getOpencodeClient();
+    const rawSessionTitle = managedSession ? await resolveSessionTitle(sessionId) : null;
+
+    appendSessionPromptDebugLog({
+      route: "api.session.$id.abort",
+      stage: "abort-requested",
+      requestId,
+      sessionId,
+      payload: {
+        managedSession: managedSession
+          ? {
+              missionId: managedSession.missionId,
+              ownerAgent: managedSession.ownerAgent,
+              rawSessionTitle,
+            }
+          : null,
+      },
+    });
+
     const result = await client.session.abort({ sessionID: sessionId });
+
+    appendSessionPromptDebugLog({
+      route: "api.session.$id.abort",
+      stage: result.error ? "abort-error" : "abort-result",
+      requestId,
+      sessionId,
+      payload: {
+        error: result.error ?? null,
+        managedSession: managedSession
+          ? {
+              missionId: managedSession.missionId,
+              ownerAgent: managedSession.ownerAgent,
+              rawSessionTitle,
+            }
+          : null,
+      },
+    });
 
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });
     }
 
+    if (managedSession) {
+      appendMissionActivity(managedSession.missionId, {
+        id: `activity_${crypto.randomUUID()}`,
+        actor: "system",
+        speaker: "system",
+        kind: "system_event",
+        body: `OpenCode manually aborted the managed ${managedSession.ownerLabel} session.`,
+        createdAt: new Date().toISOString(),
+        source: {
+          type: "system",
+          sessionId,
+        },
+      });
+    }
+
     return Response.json({ ok: true });
-  } catch {
+  } catch (error) {
+    appendSessionPromptDebugLog({
+      route: "api.session.$id.abort",
+      stage: "abort-error",
+      requestId,
+      sessionId,
+      payload: {
+        error,
+        managedSession: managedSession
+          ? {
+              missionId: managedSession.missionId,
+              ownerAgent: managedSession.ownerAgent,
+            }
+          : null,
+      },
+    });
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }
 };

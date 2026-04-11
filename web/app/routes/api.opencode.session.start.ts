@@ -1,4 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
+import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
+import { readExecutionContextProjectDefinition } from "@/lib/execution-context.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { createOpencodeMessageId } from "@/lib/opencode-message-id";
@@ -6,6 +8,7 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { stringifyPromptParts } from "@/lib/prompt-parts";
+import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 import { saveSessionRequestAnchor } from "@/lib/session-request-anchors.server";
 import type { SessionSelection } from "@/lib/session-selection-adjustment";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
@@ -15,6 +18,8 @@ type StartSessionPayload = {
   parts?: unknown;
   model?: ModelSelection;
   agent?: string;
+  contextProjectIds?: unknown;
+  executionProjectId?: unknown;
   missionId?: string;
 };
 
@@ -65,6 +70,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const executionProjectId =
+      typeof body?.executionProjectId === "string" && body.executionProjectId.trim().length > 0
+        ? body.executionProjectId.trim()
+        : APP_ROOT_EXECUTION_PROJECT_ID;
+    const executionProject = readExecutionContextProjectDefinition(projectRoot, executionProjectId, {
+      includeAppRoot: true,
+    });
+
+    if (!executionProject) {
+      return Response.json({ error: "Unknown executionProjectId" }, { status: 400 });
+    }
+
     const title = stringifyPromptParts(parts).slice(0, 80).trim() || "Untitled";
     const selectedModel = isModelSelection(body?.model) ? body.model : undefined;
     const { model, variant } = splitModelSelection(selectedModel);
@@ -75,7 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
 
     const sessionResult = await client.session.create({
-      directory: projectRoot,
+      directory: executionProject.rootPath,
       title,
     });
 
@@ -87,6 +104,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!sessionId) {
       return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
     }
+
+    saveSessionExecutionContext(sessionId, {
+      executionProjectId,
+      contextProjectIds: body?.contextProjectIds,
+    });
 
     const composed = composeGenericSessionPrompt({
       context: {

@@ -1,10 +1,14 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { recordDirectedTaskDelegation } from "@/lib/banter/conversation-service";
+import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
   addTask,
   appendMissionMessage,
   buildDelegationLedger,
+  clearMissionSessions,
   getMission,
   setWorkerSession,
+  updateMissionExecutionContext,
   updateTask,
 } from "@/lib/mission-store";
 import { splitModelSelection } from "@/lib/model-variant-selection";
@@ -20,7 +24,8 @@ import {
   saveOperationState,
 } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
-import type { MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
+import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
+import type { AgentId, MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
   return `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -50,6 +55,7 @@ function buildCompactTaskPrompt(input: {
   missionId: string;
   agentId: WorkerAgentId;
 }): string {
+  const sendReportScript = getRuntimeScriptPath("send_report.sh");
   const lines = [`Task ID: ${input.taskId}`, `Task: ${input.instruction}`];
 
   if (input.missionObjective.trim()) {
@@ -65,23 +71,53 @@ function buildCompactTaskPrompt(input: {
 
   lines.push("");
   lines.push("Reply:");
-  lines.push("- Use the bash tool to run send_report.sh.");
+  lines.push(`- Use the bash tool to run ${sendReportScript}.`);
   lines.push("- Do not print the command in chat. Run it with the bash tool.");
-  lines.push("- send_report.sh returns the step result to runtime; runtime decides the next actor.");
+  lines.push(`- ${sendReportScript} returns the step result to runtime; runtime decides the next actor.`);
   lines.push("- If the workflow prompt includes <step-completion-contract>, follow its allowed next values exactly.");
   lines.push("- If no workflow-specific next values are provided, use COMPLETE for success and ABORT for failure.");
   lines.push(
-    `- Success example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} COMPLETE "<message>"`
+    `- Success example: ${sendReportScript} ${input.missionId} ${input.agentId} ${input.taskId} COMPLETE "<message>"`
   );
   lines.push(
-    `- Failure example: scripts/send_report.sh ${input.missionId} ${input.agentId} ${input.taskId} ABORT "<message>"`
+    `- Failure example: ${sendReportScript} ${input.missionId} ${input.agentId} ${input.taskId} ABORT "<message>"`
   );
 
   return lines.join("\n");
 }
 
+function resolveExecutionRootForWorkerDispatch(missionId: string): string {
+  const mission = getMission(missionId);
+  if (!mission) {
+    throw new Error("Mission not found");
+  }
+  if (!mission.executionProjectId) {
+    throw new Error("Mission requires an execution workspace before workers can be dispatched.");
+  }
+
+  const executionRoot = resolveMissionExecutionRoot({
+    appRoot: getProjectRoot(),
+    mission,
+  });
+  if (executionRoot.workspacePath && executionRoot.workspaceStatus) {
+    updateMissionExecutionContext(missionId, {
+      workspacePath: executionRoot.workspacePath,
+      workspaceStatus: executionRoot.workspaceStatus,
+    });
+  }
+
+  if (executionRoot.recreated) {
+    clearMissionSessions(missionId);
+  }
+
+  return executionRoot.executionRoot;
+}
+
 export async function dispatchCurrentOperationStepToWorker(input: {
   missionId: string;
+  fromAgent?: AgentId;
+  orchestratedBy?: AgentId;
+  canonicalMessage?: string;
 }): Promise<{ sessionId: string; taskId: string; stepName: string; agentId: WorkerAgentId }> {
   const operationState = getOperationState(input.missionId);
   if (!operationState) {
@@ -105,6 +141,10 @@ export async function dispatchCurrentOperationStepToWorker(input: {
     message: `Execute the active operation step "${currentStep.name}" for operation "${operation.name}".`,
     taskId,
     missionObjective: mission?.objective,
+    fromAgent: input.fromAgent ?? "noctis",
+    orchestratedBy: input.orchestratedBy ?? "noctis",
+    stepName: currentStep.name,
+    canonicalMessage: input.canonicalMessage,
   });
 
   return {
@@ -121,11 +161,18 @@ export async function dispatchTaskToWorker(input: {
   taskId?: string;
   missionObjective?: string;
   outputSchema?: string;
+  fromAgent?: AgentId;
+  orchestratedBy?: AgentId;
+  stepName?: string;
+  canonicalMessage?: string;
 }): Promise<{ sessionId: string; taskId: string }> {
   const mission = getMission(input.missionId);
   if (!mission) {
     throw new Error("Mission not found");
   }
+
+  const handoffFromAgent = input.fromAgent ?? "noctis";
+  const orchestratedBy = input.orchestratedBy ?? "noctis";
 
   const explicitTaskId = input.taskId?.trim();
   const operationState = getOperationState(input.missionId);
@@ -203,6 +250,7 @@ export async function dispatchTaskToWorker(input: {
 
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
+  const executionRoot = resolveExecutionRootForWorkerDispatch(input.missionId);
   const existingSessionId = mission.workerSessions[input.agentId];
 
   const markDelegatedDispatchFailed = (summary: string) => {
@@ -218,11 +266,15 @@ export async function dispatchTaskToWorker(input: {
     saveOperationState(input.missionId, operationState);
   };
 
-  const appendLog = (sessionId: string, deliveryStatus: "sent" | "failed", error?: string) => {
+  const appendLog = (
+    sessionId: string,
+    deliveryStatus: "sent" | "failed",
+    error?: string,
+  ): MissionMessageLogEntry => {
     const entry: MissionMessageLogEntry = {
       id: `msg_${crypto.randomUUID()}`,
       missionId: input.missionId,
-      fromAgent: "noctis",
+      fromAgent: handoffFromAgent,
       toAgent: input.agentId,
       type: "task",
       body: input.message,
@@ -233,6 +285,7 @@ export async function dispatchTaskToWorker(input: {
       error,
     };
     appendMissionMessage(input.missionId, entry);
+    return entry;
   };
 
   if (existingSessionId) {
@@ -268,7 +321,23 @@ export async function dispatchTaskToWorker(input: {
       }
 
       updateTask(input.missionId, taskId, "running");
-      appendLog(existingSessionId, "sent");
+      const entry = appendLog(existingSessionId, "sent");
+      recordDirectedTaskDelegation({
+        missionId: input.missionId,
+        fromAgent: handoffFromAgent,
+        toAgent: input.agentId,
+        orchestratedBy,
+        taskId,
+        stepName: input.stepName,
+        canonicalMessage: input.canonicalMessage ?? input.message,
+        createdAt: entry.createdAt,
+        transport: {
+          deliveredToSessionId: entry.deliveredToSessionId,
+          deliveryStatus: entry.deliveryStatus,
+          error: entry.error,
+          sessionId: entry.deliveredToSessionId,
+        },
+      });
       return { sessionId: existingSessionId, taskId };
     } catch (error) {
       appendLog(
@@ -283,7 +352,7 @@ export async function dispatchTaskToWorker(input: {
 
   const ledger = buildDelegationLedger(mission);
   const sessionResult = await client.session.create({
-    directory: projectRoot,
+    directory: executionRoot,
     title: `mission:${input.missionId}:${input.agentId}`,
   });
 
@@ -332,7 +401,23 @@ export async function dispatchTaskToWorker(input: {
     }
 
     updateTask(input.missionId, taskId, "running");
-    appendLog(sessionId, "sent");
+    const entry = appendLog(sessionId, "sent");
+    recordDirectedTaskDelegation({
+      missionId: input.missionId,
+      fromAgent: handoffFromAgent,
+      toAgent: input.agentId,
+      orchestratedBy,
+      taskId,
+      stepName: input.stepName,
+      canonicalMessage: input.canonicalMessage ?? input.message,
+      createdAt: entry.createdAt,
+      transport: {
+        deliveredToSessionId: entry.deliveredToSessionId,
+        deliveryStatus: entry.deliveryStatus,
+        error: entry.error,
+        sessionId: entry.deliveredToSessionId,
+      },
+    });
     return { sessionId, taskId };
   } catch (error) {
     appendLog(sessionId, "failed", error instanceof Error ? error.message : String(error));

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readAppConfig } from "@/lib/app-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { listOperationCatalogEntriesForScope } from "@/lib/operation-definition/operation-catalog";
-import { getActiveProjectDefinitionsForScope } from "@/lib/project-config.server";
+import { readRegisteredProjects } from "@/lib/project-config.server";
 import {
   compareOperationOptions,
   toOperationOption,
@@ -86,10 +86,10 @@ export function listOperationDebugProjectFilterOptions(): OperationDebugProjectF
   const root = getProjectRoot();
 
   return [
-    { value: "all", label: "All Active Projects" },
-    ...getActiveProjectDefinitionsForScope(root, "noctis_team").map((project) => ({
+    { value: "all", label: "All Registered Projects" },
+    ...readRegisteredProjects(root).map((project) => ({
       value: project.id,
-      label: project.name,
+      label: project.displayName,
     })),
   ];
 }

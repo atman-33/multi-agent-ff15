@@ -1,4 +1,5 @@
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { readEffectiveSessionExecutionContext } from "@/lib/managed-session.server";
 import { listSessionRequestAnchors } from "@/lib/session-request-anchors.server";
 import {
   hasTrackedSelectionDifference,
@@ -114,6 +115,8 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     return Response.json({ error: "Missing session id" }, { status: 400 });
   }
 
+  const executionContext = readEffectiveSessionExecutionContext(sessionId);
+
   try {
     const client = getOpencodeClient();
     const result = await client.session.messages({ sessionID: sessionId });
@@ -127,8 +130,8 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
       toMessageInfo(message, anchors),
     );
 
-    return Response.json({ messages });
+    return Response.json({ executionContext, messages });
   } catch {
-    return Response.json({ messages: [] }, { status: 503 });
+    return Response.json({ executionContext, messages: [] }, { status: 503 });
   }
 };

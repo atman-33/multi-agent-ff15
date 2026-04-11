@@ -56,6 +56,18 @@ type Session = {
   id: string;
   title: string;
   archivedAt: string | null;
+  executionContext: {
+    executionProjectId: string;
+    contextProjectIds: string[];
+    updatedAt: string | null;
+  };
+  executionSummary: string;
+  managedSession: {
+    missionId: string;
+    missionTitle: string;
+    ownerAgent: string;
+    ownerLabel: string;
+  } | null;
   time: {
     created: number;
     updated: number;
@@ -186,6 +198,14 @@ const SessionNavItem = memo(
                   <div className="truncate font-medium text-xs text-foreground">
                     {session.title || "Untitled"}
                   </div>
+                  {session.managedSession ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-primary/90">
+                        Managed by {session.managedSession.ownerLabel}
+                      </span>
+                      <span className="truncate">{session.executionSummary}</span>
+                    </div>
+                  ) : null}
                   <div className="text-[10px] text-muted-foreground">
                     {isArchivedView && session.archivedAt
                       ? `Archived ${formatRelativeTime(new Date(session.archivedAt).getTime())}`
@@ -194,7 +214,7 @@ const SessionNavItem = memo(
                 </div>
               </div>
               <div className="relative z-10 flex items-center gap-1">
-                {!isArchivedView ? (
+                {!isArchivedView && !session.managedSession ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -330,7 +350,7 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
           return true;
         }
 
-        return !isSessionStatusActive(sessionStates[session.id] ?? "idle");
+        return session.managedSession !== null || !isSessionStatusActive(sessionStates[session.id] ?? "idle");
       }),
     [sessionStates, sessionView, visibleSessions]
   );
@@ -698,7 +718,10 @@ const OpenCodeLayout = ({ loaderData }: Route.ComponentProps) => {
                         session={session}
                         isActive={isActive}
                         isArchivedView={sessionView === "archived"}
-                        isArchiveDisabled={isBulkSessionActionPending || (sessionView === "active" && isRunning)}
+                        isArchiveDisabled={
+                          isBulkSessionActionPending ||
+                          (sessionView === "active" && isRunning && session.managedSession === null)
+                        }
                         isArchivePending={archiveSessionId === session.id || isBulkSessionActionPending}
                         isRunning={isRunning}
                         isEditing={isEditing}

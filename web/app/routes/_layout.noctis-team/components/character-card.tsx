@@ -270,11 +270,15 @@ export const CharacterCard = ({
               </TooltipTrigger>
               <TooltipContent side="top" className="font-mono text-[10px]">
                 <div className="flex min-w-32 items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Used</span>
+                  <span>{contextUsage.usedTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex min-w-32 items-center justify-between gap-3">
                   <span className="text-muted-foreground">Remaining</span>
                   <span>{contextUsage.remainingTokens.toLocaleString()}</span>
                 </div>
                 <div className="flex min-w-32 items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Window</span>
+                  <span className="text-muted-foreground">Limit</span>
                   <span>{contextUsage.limitTokens.toLocaleString()}</span>
                 </div>
               </TooltipContent>
@@ -318,11 +322,15 @@ export const CharacterCard = ({
               </TooltipTrigger>
               <TooltipContent side="top" className="font-mono text-[10px]">
                 <div className="flex min-w-32 items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Used</span>
+                  <span>-</span>
+                </div>
+                <div className="flex min-w-32 items-center justify-between gap-3">
                   <span className="text-muted-foreground">Remaining</span>
                   <span>-</span>
                 </div>
                 <div className="flex min-w-32 items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Window</span>
+                  <span className="text-muted-foreground">Limit</span>
                   <span>-</span>
                 </div>
               </TooltipContent>

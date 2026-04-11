@@ -1,15 +1,17 @@
 ---
 name: project-manage
-description: "(opencode-project - Skill) Manages external project registration and activation in the FF15 multi-agent system. Use when registering a new project, activating/deactivating projects, or listing active projects. Triggers on: 'register project', 'activate project', 'deactivate project', 'list active projects', 'add project', 'project management'."
+description: "(opencode-project - Skill) Registers external projects in the FF15 project registry and refreshes their metadata. Use when registering a new project, re-registering after instruction file changes, or confirming how registry-backed projects are surfaced in the UI. Triggers on: 'register project', 'refresh project metadata', 'project registry', 'project management'."
 metadata:
   author: multi-agent-ff15
-  version: "2.2"
+  version: "3.0"
   created: "2026-02-22"
 ---
 
 # project-manage
 
-Registers external projects and manages active project state. Projects can have instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) at their root, which are automatically detected and injected into agent context via the `project-instruction-injection` plugin.
+Registers external projects in the project registry. Projects can have instruction files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` at their root; these are detected during registration and persisted in `projects/<id>/project.yaml`.
+
+Execution and context assignment no longer use a global active-project list. After registration, choose `Execution Project` and `Context Projects` from the relevant Noctis mission or OpenCode session surface.
 
 ## Commands
 
@@ -49,41 +51,21 @@ Output: `projects/my-app/project.yaml` with detected instruction files and `sere
 
 ---
 
-### 2. Manage Active Projects
+### 2. Refresh Registered Metadata
 
-Control which projects are currently active. Active projects have their instruction files injected into every agent message automatically.
-
-```bash
-# Add projects to active list (preserves existing)
-scripts/projects_activate.sh <scope> add <project_id...>
-
-# Remove projects from active list
-scripts/projects_activate.sh <scope> remove <project_id...>
-
-# Replace active list entirely
-scripts/projects_activate.sh <scope> set <project_id...>
-
-# Show currently active projects
-scripts/projects_activate.sh <scope> list
-```
-
-**Example — enable two projects:**
+Refresh a project's detected metadata after adding or changing instruction files.
 
 ```bash
-scripts/projects_activate.sh noctis_team add my-app another-project
+scripts/project_register.sh \
+  --id "client-x" \
+  --name "Client X" \
+  --root "/home/atman/repos/client-x" \
+  --force
 ```
 
-**Example — switch to a single project:**
+If `serena_project` is already present in the existing YAML, re-registering without `--serena-project` preserves that value.
 
-```bash
-scripts/projects_activate.sh noctis_team set my-app
-```
-
-**Example — deactivate all:**
-
-```bash
-scripts/projects_activate.sh noctis_team remove my-app
-```
+After registration, inspect the result in the Projects screen or by reading `projects/<id>/project.yaml`.
 
 ---
 
@@ -102,14 +84,15 @@ scripts/project_register.sh \
   --root "/home/atman/repos/client-x" \
   --serena-project "<confirmed_value>"   # value confirmed in step 1
 
-# 3. Add to active project list
-scripts/projects_activate.sh noctis_team add client-x
+# 3. Verify the registry entry
+cat projects/client-x/project.yaml
 
-# 4. Verify
-scripts/projects_activate.sh noctis_team list
+# 4. Use the registered project from the UI
+#    - Projects page: browse metadata, Open Folder, VS Code
+#    - Noctis mission / OpenCode session: pick Execution Project / Context Projects
 ```
 
-After activation, the `project-instruction-injection` plugin automatically adds a project-instruction-context block to every user message, listing instruction file paths for agents to read on demand.
+Registered instruction files are later resolved through mission-local or session-local execution-context state. There is no standalone activation step.
 
 ---
 
@@ -147,19 +130,6 @@ instruction_files:
     enabled: true
 ```
 
-`config/current_projects.yaml`:
-
-```yaml
-project_scopes:
-  noctis_team:
-    active_project_ids:
-      - 'client-x'
-  lunafreya:
-    active_project_ids: []
-updated_at: '2026-02-22T12:00:00Z'
-updated_by: 'script'
-```
-
 ---
 
 ## Re-registering After Changes
@@ -182,22 +152,31 @@ Note: `project_register.sh` now writes YAML-safe single-quoted scalars for path-
 
 ---
 
+## Registry vs Runtime Selection
+
+- Registration stores long-lived project metadata in `projects/<id>/project.yaml`.
+- Runtime assignment happens per mission or session through `Execution Project` and `Context Projects`.
+- The FF15 web app no longer provides a global active-project config file or activation CLI.
+
+---
+
 ## Error Handling
 
 | Error | Cause | Solution |
 |-------|-------|----------|
 | Symlink detected | Project root contains symlinks | Use a real path |
-| Project not found in projects/ | Activating unregistered ID | Run project_register.sh first |
+| Project not found in projects/ | Requested ID is not registered | Run project_register.sh first |
 | Cannot resolve path | Non-existent root path | Verify the path exists |
 | Failed to write YAML | Lock timeout | Retry; check for stale .lock files |
 
 ## When to Use This Skill
 
 - Starting work on a new external project
-- Switching between client projects
 - Onboarding multiple projects for parallel work
 - Re-registering after instruction files were added or changed
+- Explaining how registered projects appear in Projects / mission / session UI
 
 **Don't use when:**
 - Editing project metadata directly — edit `projects/<id>/project.yaml` manually
+- Selecting runtime execution or context for a mission/session — do that from the relevant UI surface
 - The project has no instruction files — registration still works (with a warning)

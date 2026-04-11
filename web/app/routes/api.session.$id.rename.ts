@@ -1,3 +1,4 @@
+import { findManagedSession } from "@/lib/managed-session.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import type { Route } from "./+types/api.session.$id.rename";
 
@@ -5,6 +6,10 @@ export const action = async ({ params, request }: Route.ActionArgs) => {
   const sessionId = params.id;
   if (!sessionId) {
     return Response.json({ error: "Missing session id" }, { status: 400 });
+  }
+
+  if (findManagedSession(sessionId)) {
+    return Response.json({ error: "Mission-managed sessions cannot be renamed." }, { status: 409 });
   }
 
   try {

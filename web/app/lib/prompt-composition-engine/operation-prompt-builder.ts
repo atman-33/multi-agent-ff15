@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
+import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type {
   ContentSource,
   OperationDefinition,
@@ -386,6 +387,8 @@ function buildDelegationGuidance(input: {
     allowedWorkersOverride: input.allowedWorkersOverride,
   });
   const authoredWorkers = input.step.delegation.allowed_workers;
+  const sendTaskScript = getRuntimeScriptPath("send_task.sh");
+  const sendReportScript = getRuntimeScriptPath("send_report.sh");
   const lines = [
     input.step.rules.length === 0
       ? "This is an open-ended Noctis-owned step. Stay in conversation with User and dispatch child tasks only when they help advance the work."
@@ -401,14 +404,14 @@ function buildDelegationGuidance(input: {
     lines.push("");
     lines.push("Delegate one child task with the bash tool:");
     for (const worker of effectiveWorkers) {
-      lines.push(`- scripts/send_task.sh ${input.missionId} ${worker} "<message>"`);
+      lines.push(`- ${sendTaskScript} ${input.missionId} ${worker} "<message>"`);
     }
     lines.push("");
     lines.push("Delegation rules:");
     lines.push("- Write one focused task message per child task.");
     lines.push("- Child task reports return to this Noctis-owned step.");
     lines.push(
-      "- Do not use `scripts/send_report.sh` for the parent step unless this step also defines workflow rules.",
+      `- Do not use \`${sendReportScript}\` for the parent step unless this step also defines workflow rules.`,
     );
   } else {
     lines.push("Effective allowed workers: none");
@@ -619,9 +622,10 @@ function buildStepCompletionContract(
 ): string {
   const isInitialNoctisStep = step.agent === "noctis" && step.name === operation.initial_step;
   const nextCandidates = [...new Set(step.rules.map((rule) => rule.next.trim()).filter(Boolean))];
+  const sendReportScript = getRuntimeScriptPath("send_report.sh");
   const lines = [
     isInitialNoctisStep
-      ? "Continue the conversation normally until you are ready to advance this workflow step. Do not run `scripts/send_report.sh` until you choose one of the allowed `next` values below."
+      ? `Continue the conversation normally until you are ready to advance this workflow step. Do not run \`${sendReportScript}\` until you choose one of the allowed \`next\` values below.`
       : step.agent === "noctis"
         ? "When this Noctis-owned workflow step is ready to finish, choose one allowed `next` value and send one canonical `message` payload."
         : "When this workflow step is complete, choose one allowed `next` value and send one canonical `message` payload.",
@@ -640,7 +644,7 @@ function buildStepCompletionContract(
     lines.push("Report with the bash tool using the same task ID and one quoted message:");
     for (const nextCandidate of nextCandidates) {
       lines.push(
-        `- scripts/send_report.sh ${context.missionId} ${context.agentId} ${context.taskId} ${nextCandidate} "<message>"`,
+        `- ${sendReportScript} ${context.missionId} ${context.agentId} ${context.taskId} ${nextCandidate} "<message>"`,
       );
     }
     lines.push("");
@@ -653,7 +657,7 @@ function buildStepCompletionContract(
       lines.push("After sending any required User-facing response, run exactly one report command to finalize the step.");
     }
   } else {
-    lines.push("Use one allowed `next` value and one quoted `message` when calling `scripts/send_report.sh`.");
+    lines.push(`Use one allowed \`next\` value and one quoted \`message\` when calling \`${sendReportScript}\`.`);
   }
 
   return buildMarkdownSection("step-completion-contract", lines.join("\n"));

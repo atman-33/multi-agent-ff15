@@ -1,8 +1,14 @@
 import { MessagesSquare } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
+import { useProjectRegistry } from "@/hooks/use-project-registry";
+import {
+  APP_ROOT_EXECUTION_PROJECT_ID,
+  APP_ROOT_EXECUTION_PROJECT_LABEL,
+  normalizeContextProjectIds,
+} from "@/lib/execution-context";
 import { NEW_OPENCODE_SESSION_DRAFT_KEY } from "@/lib/opencode-session";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { useChatStore } from "@/stores/chat-store";
@@ -11,11 +17,45 @@ import MessageComposer from "../_layout.opencode.session.$id/components/message-
 const OpenCodeIndex = () => {
   const navigate = useNavigate();
   const [isStarting, setIsStarting] = useState(false);
+  const [selectedExecutionProjectId, setSelectedExecutionProjectId] = useState(
+    APP_ROOT_EXECUTION_PROJECT_ID,
+  );
+  const [selectedContextProjectIds, setSelectedContextProjectIds] = useState<string[]>([]);
+  const { data: projectRegistryData } = useProjectRegistry();
 
   const selectedAgent = useChatStore((state) => state.selectedAgent);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const clearSessionDraft = useChatStore((state) => state.clearSessionDraft);
   const setOptimisticSessionState = useChatStore((state) => state.setOptimisticSessionState);
+  const registeredProjects = projectRegistryData?.projects ?? [];
+  const executionProjectOptions = useMemo(
+    () => [
+      { value: APP_ROOT_EXECUTION_PROJECT_ID, label: APP_ROOT_EXECUTION_PROJECT_LABEL },
+      ...registeredProjects.map((project) => ({ value: project.id, label: project.displayName })),
+    ],
+    [registeredProjects],
+  );
+  const contextProjectOptions = useMemo(
+    () =>
+      registeredProjects
+        .filter((project) => project.id !== selectedExecutionProjectId)
+        .map((project) => ({ value: project.id, label: project.displayName })),
+    [registeredProjects, selectedExecutionProjectId],
+  );
+
+  useEffect(() => {
+    setSelectedContextProjectIds((current) =>
+      normalizeContextProjectIds(selectedExecutionProjectId, current),
+    );
+  }, [selectedExecutionProjectId]);
+
+  const toggleContextProjectId = useCallback((projectId: string) => {
+    setSelectedContextProjectIds((current) =>
+      current.includes(projectId)
+        ? current.filter((entry) => entry !== projectId)
+        : [...current, projectId],
+    );
+  }, []);
 
   const handleSend = useCallback(
     async (parts: PromptPart[], options?: { agent?: string | null }) => {
@@ -33,6 +73,8 @@ const OpenCodeIndex = () => {
             parts,
             model: selectedModel ?? undefined,
             agent: options?.agent ?? selectedAgent ?? undefined,
+            executionProjectId: selectedExecutionProjectId,
+            contextProjectIds: selectedContextProjectIds,
           }),
         });
 
@@ -67,7 +109,16 @@ const OpenCodeIndex = () => {
         setIsStarting(false);
       }
     },
-    [clearSessionDraft, isStarting, navigate, selectedAgent, selectedModel, setOptimisticSessionState]
+    [
+      clearSessionDraft,
+      isStarting,
+      navigate,
+      selectedAgent,
+      selectedContextProjectIds,
+      selectedExecutionProjectId,
+      selectedModel,
+      setOptimisticSessionState,
+    ]
   );
 
   return (
@@ -77,6 +128,12 @@ const OpenCodeIndex = () => {
       footer={
         <MessageComposer
           sessionId={NEW_OPENCODE_SESSION_DRAFT_KEY}
+          executionProjectOptions={executionProjectOptions}
+          selectedExecutionProjectId={selectedExecutionProjectId}
+          onSelectedExecutionProjectChange={setSelectedExecutionProjectId}
+          contextProjectOptions={contextProjectOptions}
+          selectedContextProjectIds={selectedContextProjectIds}
+          onToggleContextProjectId={toggleContextProjectId}
           onSend={handleSend}
           disabled={isStarting}
           placeholder="Start a new OpenCode session"
