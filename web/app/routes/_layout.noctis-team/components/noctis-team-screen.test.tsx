@@ -102,7 +102,7 @@ vi.mock("./chat-area", () => ({
     selectedExecutionProjectId,
     executionProjectHint,
     executionProjectOptions,
-    missionContextLabel,
+    contextProjects,
     contextActionLabel,
     missionExecutionLabel,
     missionActionLabel,
@@ -111,7 +111,7 @@ vi.mock("./chat-area", () => ({
     selectedExecutionProjectId?: string | null;
     executionProjectHint?: string | null;
     executionProjectOptions?: Array<{ value: string; label: string }>;
-    missionContextLabel?: string | null;
+    contextProjects?: Array<{ id: string; label: string }>;
     contextActionLabel?: string | null;
     missionExecutionLabel?: string | null;
     missionActionLabel?: string | null;
@@ -125,7 +125,9 @@ vi.mock("./chat-area", () => ({
         <div>{`execution-options:${executionProjectOptions.map((project) => project.label).join(",")}`}</div>
       ) : null}
       {executionProjectHint ? <div>{executionProjectHint}</div> : null}
-      {missionContextLabel ? <div>{`context:${missionContextLabel}`}</div> : null}
+      {contextProjects ? (
+        <div>{`context:${contextProjects.length > 0 ? contextProjects.map((project) => project.label).join("|") : "None"}`}</div>
+      ) : null}
       {contextActionLabel ? <div>{`context-action:${contextActionLabel}`}</div> : null}
       {missionExecutionLabel ? <div>{`started-execution:${missionExecutionLabel}`}</div> : null}
       {missionActionLabel ? <div>{`mission-action:${missionActionLabel}`}</div> : null}

@@ -80,7 +80,11 @@ describe("chat-area", () => {
         ]}
         selectedExecutionProjectId="core-repo"
         executionProjectHint="Secondary context starts with Projects page presets."
-        missionContextLabel="Reference Docs"
+        contextProjects={[
+          { id: "docs-repo", label: "Reference Docs" },
+          { id: "api-repo", label: "API Notes" },
+          { id: "ops-repo", label: "Ops Runbook" },
+        ]}
         contextActionLabel="Mission Context"
         onContextAction={() => undefined}
         availableOperations={[]}
@@ -97,9 +101,12 @@ describe("chat-area", () => {
     expect(markup).toContain("Workflow");
     expect(markup).toContain("Context");
     expect(markup).toContain("Reference Docs");
+    expect(markup).toContain("API Notes");
+    expect(markup).toContain("Ops Runbook");
     expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
+    expect(markup).not.toContain("+1");
     expect(markup).not.toContain("Mission Setup");
   });
 
@@ -109,7 +116,11 @@ describe("chat-area", () => {
         messages={[]}
         isResponding={false}
         missionExecutionLabel="Core Repo"
-        missionContextLabel="Reference Docs"
+        contextProjects={[
+          { id: "docs-repo", label: "Reference Docs" },
+          { id: "api-repo", label: "API Notes" },
+          { id: "ops-repo", label: "Ops Runbook" },
+        ]}
         missionActionLabel="Mission Details"
         onMissionAction={() => undefined}
         availableOperations={[
@@ -133,11 +144,14 @@ describe("chat-area", () => {
 
     expect(markup).toContain(">Execution<");
     expect(markup).toContain(">Core Repo<");
-  expect(markup).toContain(">Context<");
-  expect(markup).toContain(">Reference Docs<");
+    expect(markup).toContain(">Context<");
+    expect(markup).toContain(">Reference Docs<");
+    expect(markup).toContain(">API Notes<");
+    expect(markup).toContain(">Ops Runbook<");
     expect(markup).toContain(">Workflow<");
     expect(markup).toContain(">Autonomous<");
     expect(markup).toContain("Mission Details");
+    expect(markup).not.toContain("+1");
     expect(markup).not.toContain("Workflow: Workflow unavailable");
     expect(markup).not.toContain("This mission is already running with its current workflow setting.");
     expect(markup).not.toContain("Mission Workflow");

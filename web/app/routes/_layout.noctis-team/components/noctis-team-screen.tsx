@@ -56,25 +56,6 @@ import { PartyStatusPanel } from "./party-status-panel";
 
 const LAST_MISSION_STORAGE_KEY = "noctis-team:last-mission-id";
 
-function summarizeContextProjects(
-  projectIds: string[],
-  projects: Array<{ id: string; displayName: string }>,
-): string {
-  if (projectIds.length === 0) {
-    return "None";
-  }
-
-  const labels = projectIds.map(
-    (projectId) => projects.find((project) => project.id === projectId)?.displayName ?? projectId,
-  );
-
-  if (labels.length <= 2) {
-    return labels.join(", ");
-  }
-
-  return `${labels[0]}, ${labels[1]} +${labels.length - 2}`;
-}
-
 type BulkMissionAction = "archive" | "restore";
 
 type BulkMissionDialogState = {
@@ -323,8 +304,12 @@ export function NoctisTeamScreen({
     missionDetail?.contextProjectIds,
     missionDetail?.executionProjectId,
   ]);
-  const missionContextLabel = useMemo(
-    () => summarizeContextProjects(effectiveContextProjectIds, availableProjects),
+  const contextProjects = useMemo(
+    () =>
+      effectiveContextProjectIds.map((projectId) => ({
+        id: projectId,
+        label: availableProjects.find((project) => project.id === projectId)?.displayName ?? projectId,
+      })),
     [availableProjects, effectiveContextProjectIds],
   );
   const {
@@ -1110,7 +1095,7 @@ export function NoctisTeamScreen({
                   ? selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"
                   : null
               }
-              missionContextLabel={missionContextLabel}
+              contextProjects={contextProjects}
               contextActionLabel={!effectiveMissionId ? "Mission Context" : null}
               onContextAction={!effectiveMissionId ? openContextDialog : undefined}
               missionActionLabel={effectiveMissionId ? missionActionLabel : null}
@@ -1291,7 +1276,7 @@ export function NoctisTeamScreen({
 
             <div className="space-y-2">
               <p className="font-medium text-sm">Context projects</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 {availableProjects
                   .filter((project) => project.id !== (missionDetail?.executionProjectId ?? draftExecutionProjectId))
                   .map((project) => {
@@ -1300,7 +1285,14 @@ export function NoctisTeamScreen({
                       <Button
                         key={project.id}
                         type="button"
-                        variant={selected ? "default" : "outline"}
+                        aria-pressed={selected}
+                        className={cn(
+                          "rounded-full px-4",
+                          selected
+                            ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                            : "bg-background/70 text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                        )}
+                        variant="outline"
                         size="sm"
                         onClick={() => toggleDraftContextProjectId(project.id)}
                       >
@@ -1312,7 +1304,7 @@ export function NoctisTeamScreen({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="mt-4 border-border/50 border-t pt-4">
             {effectiveMissionId ? (
               <Button
                 type="button"

@@ -1,4 +1,4 @@
-import { FileText, Info, Radio } from "lucide-react";
+import { FileText, Info, Radio, SlidersHorizontal } from "lucide-react";
 import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -9,6 +9,7 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -35,6 +36,7 @@ import type {
 } from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind, OperationState } from "@/lib/types/mission";
+import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
 import MessageDetailSheet from "./message-detail-sheet";
@@ -69,7 +71,10 @@ interface ChatAreaProps {
   executionProjectError?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
   missionExecutionLabel?: string | null;
-  missionContextLabel?: string | null;
+  contextProjects: Array<{
+    id: string;
+    label: string;
+  }>;
   contextActionLabel?: string | null;
   onContextAction?: () => void;
   missionActionLabel?: string | null;
@@ -128,6 +133,85 @@ function toSessionPresentationMessage(message: ChatMessage): SessionPresentation
     timestamp: message.timestamp,
     source: message.source,
   };
+}
+
+function ContextProjectBadges({
+  projects,
+  tone = "default",
+}: {
+  projects: Array<{ id: string; label: string }>;
+  tone?: "default" | "mission";
+}) {
+  const badgeClassName =
+    tone === "mission"
+      ? "border-primary/25 bg-background/15 text-foreground/90"
+      : "border-border/60 bg-background/70 text-foreground/85";
+  const items =
+    projects.length > 0
+      ? projects
+      : [
+          {
+            id: "none",
+            label: "None",
+          },
+        ];
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((project) => (
+        <Tooltip key={project.id}>
+          <TooltipTrigger asChild>
+            <Badge
+              className={cn(
+                "max-w-48 rounded-full px-2 py-0.5 text-[10px] font-medium shadow-none",
+                badgeClassName,
+              )}
+              variant="outline"
+            >
+              <span className="truncate">{project.label}</span>
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+            {project.label}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+    </div>
+  );
+}
+
+function MissionContextActionButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  const needsAttention = label.toLowerCase().includes("assign");
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          className={cn(
+            "h-8 w-8 rounded-full p-0",
+            needsAttention &&
+              "border-amber-500/40 text-amber-200 hover:bg-amber-500/10 hover:text-amber-100",
+          )}
+          onClick={onClick}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs leading-relaxed">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 const MessageBubble = memo(
@@ -270,7 +354,7 @@ export const ChatArea = ({
   executionProjectError = null,
   onSelectedExecutionProjectChange,
   missionExecutionLabel = null,
-  missionContextLabel = null,
+  contextProjects,
   contextActionLabel = null,
   onContextAction,
   missionActionLabel = null,
@@ -490,33 +574,23 @@ export const ChatArea = ({
                   </div>
                 </div>
 
-                {missionContextLabel || (contextActionLabel && onContextAction) ? (
+                {contextProjects.length > 0 || (contextActionLabel && onContextAction) ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background/40 px-3 py-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
                         Context
                       </p>
-                      <p className="truncate text-sm text-foreground">
-                        {missionContextLabel ?? "None"}
-                      </p>
+                      <ContextProjectBadges projects={contextProjects} />
                     </div>
 
                     {contextActionLabel && onContextAction ? (
-                      <Button
-                        className="h-8 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
-                        onClick={onContextAction}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        {contextActionLabel}
-                      </Button>
+                      <MissionContextActionButton label={contextActionLabel} onClick={onContextAction} />
                     ) : null}
                   </div>
                 ) : null}
               </div>
             ) : isOperationSelectionLocked ? (
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   {missionExecutionLabel ? (
                     <span className={startedMissionChipClass}>
@@ -526,14 +600,12 @@ export const ChatArea = ({
                       <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
                     </span>
                   ) : null}
-                  {missionContextLabel ? (
-                    <span className={startedMissionChipClass}>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                        Context
-                      </span>
-                      <span className="truncate font-semibold text-foreground">{missionContextLabel}</span>
+                  <div className={cn(startedMissionChipClass, "items-start")}>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                      Context
                     </span>
-                  ) : null}
+                    <ContextProjectBadges projects={contextProjects} tone="mission" />
+                  </div>
                   <span className={startedMissionChipClass}>
                     <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
                       Workflow
@@ -543,15 +615,7 @@ export const ChatArea = ({
                 </div>
 
                 {missionActionLabel && onMissionAction ? (
-                  <Button
-                    className="h-8 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
-                    onClick={onMissionAction}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    {missionActionLabel}
-                  </Button>
+                  <MissionContextActionButton label={missionActionLabel} onClick={onMissionAction} />
                 ) : null}
               </div>
             ) : (
