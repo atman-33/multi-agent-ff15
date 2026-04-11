@@ -35,6 +35,7 @@ export interface AgentContextUsage {
   };
   usedPercentage: number;
   usedTokens: number;
+  windowTokens: number;
 }
 
 export type MissionStatus = "active" | "completed" | "archived";
