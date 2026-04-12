@@ -26,7 +26,7 @@ function resolveLunafreyaOperationRef(root: string, language: string): string {
   );
 
   if (!preferredLanguage) {
-    throw new Error("Hidden Lunafreya workflow is not available.");
+    throw new Error("Hidden Lunafreya operation is not available.");
   }
 
   return buildBuiltinOperationRef(preferredLanguage, fileName);

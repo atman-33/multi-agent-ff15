@@ -124,7 +124,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       selectedOperationInput &&
       !availableOperationEntries.some((entry) => entry.ref === selectedOperationInput)
     ) {
-      return Response.json({ error: "Selected workflow is not available for this execution project" }, { status: 409 });
+      return Response.json({ error: "Selected operation is not available for this execution project" }, { status: 409 });
     }
     const selectedOperation =
       selectedOperationInput ??
@@ -135,7 +135,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         builtinLanguages: language === "en" ? ["en"] : [language, "en"],
       });
     if (!selectedOperation) {
-      return Response.json({ error: "No workflow is available" }, { status: 409 });
+      return Response.json({ error: "No operation is available" }, { status: 409 });
     }
     const missionId = crypto.randomUUID();
     const missionCreatedAt = new Date().toISOString();

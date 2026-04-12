@@ -145,6 +145,29 @@ afterEach(() => {
 });
 
 describe("Lunafreya mission routing", () => {
+  it("returns an operation terminology error when the hidden Lunafreya operation is unavailable", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    rmSync(join(root, "builtins", "ja", "operations", "lunafreya-autonomous.yaml"), { force: true });
+    rmSync(join(root, "builtins", "en", "operations", "lunafreya-autonomous.yaml"), { force: true });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Guide me calmly.",
+          executionProjectId: "alpha",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    await expect(readJson<{ error: string }>(response)).resolves.toEqual({
+      error: "Hidden Lunafreya operation is not available.",
+    });
+  });
+
   it("starts a Lunafreya mission with the implicit default Job when no explicit override is selected", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

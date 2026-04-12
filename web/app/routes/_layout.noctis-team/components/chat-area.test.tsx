@@ -136,7 +136,7 @@ describe("chat-area", () => {
     );
 
     expect(markup).toContain("Execution Project");
-    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("Context");
     expect(markup).toContain("Reference Docs");
     expect(markup).toContain("API Notes");
@@ -189,7 +189,7 @@ describe("chat-area", () => {
     expect(markup).toContain('data-disabled="yes"');
   });
 
-  it("shows execution and context summary instead of workflow help text after mission start", () => {
+  it("shows execution and context summary instead of operation help text after mission start", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
@@ -230,18 +230,18 @@ describe("chat-area", () => {
     expect(markup).toContain(
       'class="inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm"><span class="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">Context</span>',
     );
-    expect(markup).toContain(">Workflow<");
+    expect(markup).toContain(">Operation<");
     expect(markup).toContain(">Autonomous<");
     expect(markup).toContain("Mission Details");
     expect(markup).not.toContain("+1");
-    expect(markup).not.toContain("Workflow: Workflow unavailable");
-    expect(markup).not.toContain("This mission is already running with its current workflow setting.");
-    expect(markup).not.toContain("Mission Workflow");
+    expect(markup).not.toContain("Operation: Operation unavailable");
+    expect(markup).not.toContain("This mission is already running with its current operation setting.");
+    expect(markup).not.toContain("Mission Operation");
     expect(markup).not.toContain("Starting Mission");
-    expect(markup).not.toContain("Workflow Progress");
+    expect(markup).not.toContain("Operation Progress");
   });
 
-  it("shows compact workflow progress and revisit details in the header", () => {
+  it("shows compact operation progress and revisit details in the header", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
@@ -269,7 +269,7 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("3/5");
     expect(markup).toContain("Waiting");
     expect(markup).toContain("review");
@@ -277,7 +277,7 @@ describe("chat-area", () => {
     expect(markup).toContain("Pass 2");
   });
 
-  it("keeps terminal workflow progress visible in the header", () => {
+  it("keeps terminal operation progress visible in the header", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
@@ -305,7 +305,7 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("5/5");
     expect(markup).toContain("Done");
     expect(markup).toContain("refactor");

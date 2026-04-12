@@ -45,7 +45,7 @@ describe("mission-output-browser", () => {
     );
 
     expect(markup).toContain("No outputs yet");
-    expect(markup).toContain("This mission has not generated any workflow output files yet.");
+    expect(markup).toContain("This mission has not generated any operation output files yet.");
   });
 
   it("renders grouped outputs and highlights the current step", () => {

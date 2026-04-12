@@ -56,7 +56,7 @@ Implemented the requested change.
     expect(markup).toContain("Ignis message detail");
     expect(markup).not.toContain("User message detail");
     expect(markup).toContain("Prompt Context");
-    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("Instruction");
     expect(markup).toContain("Raw Prompt Payload");
   });

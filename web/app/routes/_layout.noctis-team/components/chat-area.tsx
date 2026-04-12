@@ -286,7 +286,7 @@ function WorkflowProgressSummary({
           <Workflow className="h-3.5 w-3.5 shrink-0 text-primary/80" />
           <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
-              Workflow
+              Operation
             </span>
             <span className="rounded-full border border-primary/20 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
               {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
@@ -303,7 +303,7 @@ function WorkflowProgressSummary({
       <PopoverContent align="start" className="w-64 space-y-3 border-border/60 bg-background/95 p-3 backdrop-blur">
         <div className="space-y-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-            Workflow Progress
+            Operation Progress
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 font-mono text-[10px] text-foreground/85">
@@ -328,7 +328,7 @@ function WorkflowProgressSummary({
         <div className="space-y-2 text-xs leading-relaxed text-foreground/85">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/65">
-              Workflow
+              Operation
             </p>
             <p className="font-semibold text-sm">{workflowProgress.workflowLabel}</p>
           </div>
@@ -581,10 +581,10 @@ export const ChatArea = ({
     availableOperations,
     operationSelectValue,
   ]);
-  const operationBadgeLabel = selectedOperationOption?.label ?? "Workflow unavailable";
+  const operationBadgeLabel = selectedOperationOption?.label ?? "Operation unavailable";
   const operationDescription = selectedOperationOption?.description ?? "";
   const operationPlaceholder = isOperationSelectionLocked
-    ? "Workflow unavailable"
+    ? "Operation unavailable"
     : defaultOperation.label;
   const startedMissionChipClass =
     "inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm";
@@ -740,7 +740,7 @@ export const ChatArea = ({
                   {showWorkflowSelector ? (
                     <div className="space-y-1">
                       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                        Workflow
+                        Operation
                       </p>
                       {workflowSelector}
                     </div>
@@ -818,7 +818,7 @@ export const ChatArea = ({
                   {showWorkflowSelector ? (
                     <span className={startedMissionChipClass}>
                       <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                        Workflow
+                        Operation
                       </span>
                       <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
                     </span>
@@ -833,10 +833,10 @@ export const ChatArea = ({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                    Mission Workflow
+                    Operation
                   </p>
                   <p className="text-xs text-muted-foreground/75">
-                    {`${defaultOperation.label} is selected unless you choose another workflow.`}
+                    {`${defaultOperation.label} is selected unless you choose another operation.`}
                   </p>
                 </div>
 

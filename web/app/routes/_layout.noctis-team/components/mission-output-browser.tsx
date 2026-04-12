@@ -165,7 +165,7 @@ export function MissionOutputBrowser({
           <div className="space-y-2 rounded-xl border border-border/50 bg-card/40 px-4 py-6">
             <p className="font-semibold text-sm">No outputs yet</p>
             <p className="text-muted-foreground text-xs leading-5">
-              This mission has not generated any workflow output files yet.
+              This mission has not generated any operation output files yet.
             </p>
           </div>
         </div>

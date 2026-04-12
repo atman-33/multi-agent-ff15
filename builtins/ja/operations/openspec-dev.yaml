@@ -1,6 +1,6 @@
 name: openspec-dev
 description: >
-  Guided OpenSpec delivery workflow.
+  Guided OpenSpec delivery operation.
   Noctis plans with User, Gladiolus implements and fixes issues, Ignis reviews, and Prompto performs the final refactor before completion.
 initial_step: spec-planning
 

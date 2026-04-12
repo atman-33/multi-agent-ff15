@@ -121,7 +121,7 @@ function toPromptContextSection(
 }
 
 export function getPromptContextSourceLabel(source: PromptContextSource): string {
-  return source === "workflow" ? "Workflow" : "Injected";
+  return source === "workflow" ? "Operation" : "Injected";
 }
 
 export function parseInjectedPromptContextSections(rawText: string): PromptContextSection[] {
