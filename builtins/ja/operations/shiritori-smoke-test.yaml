@@ -1,7 +1,8 @@
 name: shiritori-smoke-test
 description: >
   低モデル agent のオペレーション遷移確認用。
-  Noctis が開始し、Ignis、Gladiolus、Prompto が固定語列のしりとりを 1 手ずつ返して完了する。
+  Noctis が開始し、Ignis、Gladiolus、Prompto が自分で考えた単語でしりとりを 1 手ずつ返して完了する。
+  各 step は handoff の message に単語列を 1 語ずつ追記する。
 initial_step: start
 
 steps:
@@ -11,28 +12,31 @@ steps:
       file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
-        返答は「りんご」のみ。
+        開始語を自分で 1 つ決める。
+        ひらがなの短い名詞 1 語にする。
+        「ん」で終わる語は使わない。
+        report の message には開始語だけを書く。
         説明は書かない。
-        next は ignis-turn。
+        開始できたら next は ignis-turn。
+        開始できない場合だけ next は start-failed。
     rules:
-      - condition: 「りんご」を返した
+      - condition: 開始語を決めて handoff message に書けた
         next: ignis-turn
-      - condition: 指示どおりに返せなかった
+      - condition: 開始語を決められなかった
         next: start-failed
 
   - name: start-failed
     agent: noctis
     job:
-      file: ../facets/jobs/shiritori-player.md
+      inline: |
+        しりとり開始失敗の報告だけを行う。
     instruction:
       inline: |
-        初手のしりとり smoke test に失敗した。
+        しりとりの開始語を決められなかった。
         失敗したことだけを短く報告する。
         next は ABORT。
     rules:
-      - condition: 初手 failure を報告した
-        next: ABORT
-      - condition: 指示どおりに返せなかった
+      - condition: 開始失敗を報告した
         next: ABORT
 
   - name: ignis-turn
@@ -41,14 +45,19 @@ steps:
       file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
-        直前の単語は「りんご」。
-        返答は「ごま」のみ。
+        handoff の message にある単語列を読む。
+        最後の単語の末尾から始まる新しい語を 1 つだけ自分で考える。
+        ひらがなの短い名詞 1 語にする。
+        既出語は使わない。
+        「ん」で終わる語は使わない。
+        report の message には単語列全体を ` -> ` 区切りで書き、新しい語を 1 語だけ末尾に追記する。
         説明は書かない。
-        next は gladiolus-turn。
+        正常に続けられたら next は gladiolus-turn。
+        続けられない場合だけ next は ABORT。
     rules:
-      - condition: 「ごま」を返した
+      - condition: 単語列に 1 語追記して handoff message を作れた
         next: gladiolus-turn
-      - condition: 指示どおりに返せなかった
+      - condition: しりとりを続けられなかった
         next: ABORT
 
   - name: gladiolus-turn
@@ -57,14 +66,19 @@ steps:
       file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
-        直前の単語は「ごま」。
-        返答は「まくら」のみ。
+        handoff の message にある単語列を読む。
+        最後の単語の末尾から始まる新しい語を 1 つだけ自分で考える。
+        ひらがなの短い名詞 1 語にする。
+        既出語は使わない。
+        「ん」で終わる語は使わない。
+        report の message には単語列全体を ` -> ` 区切りで書き、新しい語を 1 語だけ末尾に追記する。
         説明は書かない。
-        next は prompto-turn。
+        正常に続けられたら next は prompto-turn。
+        続けられない場合だけ next は ABORT。
     rules:
-      - condition: 「まくら」を返した
+      - condition: 単語列に 1 語追記して handoff message を作れた
         next: prompto-turn
-      - condition: 指示どおりに返せなかった
+      - condition: しりとりを続けられなかった
         next: ABORT
 
   - name: prompto-turn
@@ -73,12 +87,17 @@ steps:
       file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
-        直前の単語は「まくら」。
-        返答は「らくだ」のみ。
+        handoff の message にある単語列を読む。
+        最後の単語の末尾から始まる新しい語を 1 つだけ自分で考える。
+        ひらがなの短い名詞 1 語にする。
+        既出語は使わない。
+        「ん」で終わる語は使わない。
+        report の message には完成した単語列全体を ` -> ` 区切りで書き、新しい語を 1 語だけ末尾に追記する。
         説明は書かない。
-        next は COMPLETE。
+        正常に完了できたら next は COMPLETE。
+        完了できない場合だけ next は ABORT。
     rules:
-      - condition: 「らくだ」を返した
+      - condition: 完成した単語列を作って完了した
         next: COMPLETE
-      - condition: 指示どおりに返せなかった
+      - condition: しりとりを完了できなかった
         next: ABORT
