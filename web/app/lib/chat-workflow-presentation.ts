@@ -156,6 +156,7 @@ function normalizeActorId(value: string | null | undefined): ActivityActorId | n
   if (
     normalized === "user" ||
     normalized === "noctis" ||
+    normalized === "lunafreya" ||
     normalized === "ignis" ||
     normalized === "gladiolus" ||
     normalized === "prompto" ||

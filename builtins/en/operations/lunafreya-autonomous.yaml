@@ -1,0 +1,14 @@
+name: lunafreya-autonomous
+description: >
+  Hidden Lunafreya workflow.
+  Lunafreya responds directly to User without delegation and keeps selected overlays active.
+initial_step: autonomous
+
+steps:
+  - name: autonomous
+    agent: lunafreya
+    job:
+      file: ../facets/jobs/lunafreya-autonomous.md
+    instruction:
+      file: ../facets/instructions/lunafreya-autonomous.md
+    rules: []

@@ -1,6 +1,7 @@
-import type { MissionExecutionTargetMode } from "@/lib/types/mission";
+import type { MissionExecutionTargetMode, MissionSurfaceId } from "@/lib/types/mission";
 
 export const NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY = "noctis-team:new-mission-draft";
+export const LUNAFREYA_NEW_MISSION_DRAFT_STORAGE_KEY = "lunafreya:new-mission-draft";
 
 export type NoctisTeamNewMissionDraft = {
   executionProjectId: string | null;
@@ -11,10 +12,17 @@ export type NoctisTeamNewMissionDraft = {
 type ReadStorage = Pick<Storage, "getItem" | "removeItem">;
 type WriteStorage = Pick<Storage, "setItem" | "removeItem">;
 
-export function readNoctisTeamNewMissionDraft(
+export function getMissionSurfaceNewMissionDraftStorageKey(surfaceId: MissionSurfaceId): string {
+  return surfaceId === "lunafreya"
+    ? LUNAFREYA_NEW_MISSION_DRAFT_STORAGE_KEY
+    : NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY;
+}
+
+export function readMissionSurfaceNewMissionDraft(
   storage: ReadStorage,
+  surfaceId: MissionSurfaceId,
 ): NoctisTeamNewMissionDraft | null {
-  const raw = storage.getItem(NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY);
+  const raw = storage.getItem(getMissionSurfaceNewMissionDraftStorageKey(surfaceId));
   if (!raw) {
     return null;
   }
@@ -43,18 +51,39 @@ export function readNoctisTeamNewMissionDraft(
         : [],
     };
   } catch {
-    storage.removeItem(NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY);
+    storage.removeItem(getMissionSurfaceNewMissionDraftStorageKey(surfaceId));
     return null;
   }
+}
+
+export function writeMissionSurfaceNewMissionDraft(
+  storage: WriteStorage,
+  surfaceId: MissionSurfaceId,
+  draft: NoctisTeamNewMissionDraft,
+): void {
+  storage.setItem(getMissionSurfaceNewMissionDraftStorageKey(surfaceId), JSON.stringify(draft));
+}
+
+export function clearMissionSurfaceNewMissionDraft(
+  storage: Pick<Storage, "removeItem">,
+  surfaceId: MissionSurfaceId,
+): void {
+  storage.removeItem(getMissionSurfaceNewMissionDraftStorageKey(surfaceId));
+}
+
+export function readNoctisTeamNewMissionDraft(
+  storage: ReadStorage,
+): NoctisTeamNewMissionDraft | null {
+  return readMissionSurfaceNewMissionDraft(storage, "noctis_team");
 }
 
 export function writeNoctisTeamNewMissionDraft(
   storage: WriteStorage,
   draft: NoctisTeamNewMissionDraft,
 ): void {
-  storage.setItem(NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  writeMissionSurfaceNewMissionDraft(storage, "noctis_team", draft);
 }
 
 export function clearNoctisTeamNewMissionDraft(storage: Pick<Storage, "removeItem">): void {
-  storage.removeItem(NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY);
+  clearMissionSurfaceNewMissionDraft(storage, "noctis_team");
 }

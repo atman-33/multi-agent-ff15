@@ -224,6 +224,27 @@ export function MissionOutputBrowser({
                               })}
                             </span>
                           </div>
+                          {output.metadata?.lunafreyaFacetSnapshot ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
+                                Job: {output.metadata.lunafreyaFacetSnapshot.selectedJobLabel ?? output.metadata.lunafreyaFacetSnapshot.selectedJobId ?? "none"}
+                              </span>
+                              {output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.length > 0 ? (
+                                output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (
+                                  <span
+                                    key={`${outputKey}:${label}`}
+                                    className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-foreground/80"
+                                  >
+                                    {label}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground/80">
+                                  Knowledge: none
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
                         </button>
                       );
                     })}

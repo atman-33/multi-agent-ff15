@@ -3,6 +3,8 @@ export {
   composeGenericSessionPrompt,
   composePromptPreview,
   composeTeamMessagePrompt,
+  composeUserToPrimaryAgentPrompt,
+  composeUserToPrimaryAgentPromptPreview,
   composeUserToNoctisPromptPreview,
   composeUserToNoctisPrompt,
   composeWorkerTaskPrompt,

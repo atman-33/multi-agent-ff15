@@ -73,6 +73,7 @@ function normalizeActivityActorId(value: string | null | undefined): ActivityAct
   if (
     normalized === "user" ||
     normalized === "noctis" ||
+    normalized === "lunafreya" ||
     normalized === "ignis" ||
     normalized === "gladiolus" ||
     normalized === "prompto" ||

@@ -94,4 +94,35 @@ describe("mission-output-browser", () => {
     expect(markup).toContain("Code review");
     expect(markup).toContain("task-review-1");
   });
+
+  it("renders Lunafreya facet snapshot badges when output metadata is present", () => {
+    const markup = renderToStaticMarkup(
+      <MissionOutputBrowser
+        currentStep="review"
+        isLoadingOutputs={false}
+        onReload={() => undefined}
+        onSelectOutput={() => undefined}
+        outputs={[
+          {
+            ...baseOutput,
+            metadata: {
+              capturedAt: "2026-04-11T00:00:00.000Z",
+              lunafreyaFacetSnapshot: {
+                selectedJobId: "oracle",
+                selectedJobLabel: "Oracle",
+                selectedKnowledgeIds: ["hydraean"],
+                selectedKnowledgeLabels: ["Hydraean Records"],
+                updatedAt: "2026-04-11T00:00:00.000Z",
+              },
+            },
+          },
+        ]}
+        outputsError={null}
+        selectedOutput={baseOutput}
+      />,
+    );
+
+    expect(markup).toContain("Job: Oracle");
+    expect(markup).toContain("Hydraean Records");
+  });
 });

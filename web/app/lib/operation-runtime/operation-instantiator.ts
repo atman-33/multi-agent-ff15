@@ -1,4 +1,5 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { isWorkerAgentId } from "@/lib/agent-identity";
 import {
   findUnambiguousOperationEntryForMessage,
   loadOperationByRef,
@@ -246,7 +247,7 @@ function buildTransitionGuidance(
 ): string {
   const nextStep = operation.steps.find((step) => step.name === transition.nextStep);
   const nextAction =
-    nextStep?.agent === "noctis"
+    nextStep && !isWorkerAgentId(nextStep.agent)
       ? "begin_self_step"
       : nextStep
         ? "dispatch_worker"
@@ -272,7 +273,7 @@ function buildTransitionGuidance(
     nextStep
       ? buildTextSection(
           "next-action",
-          nextStep.agent === "noctis"
+          !isWorkerAgentId(nextStep.agent)
             ? `Begin the "${nextStep.name}" step yourself.`
             : `Runtime will dispatch ${nextStep.agent} for the "${nextStep.name}" step.`,
         )
@@ -327,7 +328,7 @@ export function createOperationInstantiator(): OperationInstantiator {
           (step) => step.name === existingState.currentStep,
         ) ?? null;
 
-        if (currentStep?.agent === "noctis" && input.allowReuseActiveOperation !== false) {
+        if (currentStep && !isWorkerAgentId(currentStep.agent) && input.allowReuseActiveOperation !== false) {
           const promptArtifact = buildActivationArtifact({
             missionId: input.missionId,
             operation,
@@ -386,7 +387,7 @@ export function createOperationInstantiator(): OperationInstantiator {
       let promptArtifact: OperationPromptArtifact | null = null;
       let activationText: string | null = null;
 
-      if (step?.agent === "noctis") {
+      if (step && !isWorkerAgentId(step.agent)) {
         promptArtifact = buildActivationArtifact({
           missionId: input.missionId,
           operation,
@@ -498,7 +499,7 @@ export function createOperationInstantiator(): OperationInstantiator {
 
         if (
           currentStep &&
-          currentStep.agent === "noctis" &&
+          !isWorkerAgentId(currentStep.agent) &&
           hasDelegationPolicy(currentStep) &&
           delegatedTask &&
           delegatedTask.parentStep === currentStep.name
@@ -598,7 +599,7 @@ export function createOperationInstantiator(): OperationInstantiator {
       const nextStep = operation.steps.find((step) => step.name === ruleMatch.next) ?? null;
       const noctisGuidance = buildTransitionGuidance(operation, stateTransition);
 
-      if (nextStep?.agent === "noctis") {
+      if (nextStep && !isWorkerAgentId(nextStep.agent)) {
         const promptArtifact = buildActivationArtifact({
           missionId: input.missionId,
           operation,

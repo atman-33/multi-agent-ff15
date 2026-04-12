@@ -23,7 +23,9 @@ describe("output-detail-routing", () => {
   it("forces the outputs inspector tab when an output detail route is active", () => {
     expect(hasMissionOutputDetailRoute({ step: "prepare-run", taskId: "task-1", filename: "plan.md" })).toBe(true);
     expect(resolveMissionInspectorTab("banter", true)).toBe("outputs");
+    expect(resolveMissionInspectorTab("activity", true)).toBe("outputs");
     expect(resolveMissionInspectorTab("outputs", false)).toBe("outputs");
     expect(buildMissionPath("mission-123")).toBe("/noctis-team/mission/mission-123");
+    expect(buildMissionPath("mission-123", "/lunafreya")).toBe("/lunafreya/mission/mission-123");
   });
 });

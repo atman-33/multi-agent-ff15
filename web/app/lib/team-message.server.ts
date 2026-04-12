@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { isWorkerAgentId } from "@/lib/agent-identity";
 import {
   recordDirectedReportReturn,
   recordDirectedTaskDelegation,
@@ -9,7 +10,7 @@ import {
   appendMissionMessage,
   clearMissionSessions,
   getMission,
-  setNoctisSession,
+  setMissionPrimarySession,
   setWorkerSession,
   updateMissionExecutionContext,
 } from "@/lib/mission-store";
@@ -128,9 +129,10 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
 
   const client = getOpencodeClient();
 
-  if (toAgent === "noctis") {
-    if (mission.noctisSessionId) {
-      return mission.noctisSessionId;
+  if (!isWorkerAgentId(toAgent)) {
+    const existingPrimarySessionId = mission.primarySessionId || mission.noctisSessionId;
+    if (existingPrimarySessionId) {
+      return existingPrimarySessionId;
     }
 
     const sessionResult = await client.session.create({
@@ -143,7 +145,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
       throw new Error("Session creation returned no ID");
     }
 
-    setNoctisSession(missionId, sessionId);
+    setMissionPrimarySession(missionId, toAgent, sessionId);
     return sessionId;
   }
 

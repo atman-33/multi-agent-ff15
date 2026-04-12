@@ -269,7 +269,29 @@ describe("operation loader", () => {
       "",
     ].join("\n"));
 
-    expect(() => loadOperationFromFile(filePath)).toThrow(/initial_step must be assigned to noctis/i);
+    expect(() => loadOperationFromFile(filePath)).toThrow(/initial_step must be assigned to a primary mission agent/i);
+  });
+
+  it("accepts Lunafreya as an initial self-owned step", () => {
+    const filePath = writeTempOperation([
+      "name: lunafreya-autonomous",
+      "description: Hidden Lunafreya workflow",
+      "initial_step: reflect",
+      "steps:",
+      "  - name: reflect",
+      "    agent: lunafreya",
+      "    job:",
+      "      inline: Reflective advisor role",
+      "    instruction:",
+      "      inline: Respond directly to User and maintain the mission context.",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    const operation = loadOperationFromFile(filePath);
+
+    expect(operation.initial_step).toBe("reflect");
+    expect(operation.steps[0]?.agent).toBe("lunafreya");
   });
 
   it("rejects terminal next values in the initial Noctis step", () => {

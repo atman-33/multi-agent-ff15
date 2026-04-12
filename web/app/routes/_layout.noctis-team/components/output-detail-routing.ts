@@ -1,16 +1,17 @@
 import type { MissionOutputSummary } from "@/lib/types/mission";
 
-export type NoctisInspectorTab = "banter" | "outputs";
+export type MissionInspectorTab = "banter" | "activity" | "outputs";
 
-export function buildMissionPath(missionId: string): string {
-  return `/noctis-team/mission/${encodeURIComponent(missionId)}`;
+export function buildMissionPath(missionId: string, routeBase = "/noctis-team"): string {
+  return `${routeBase}/mission/${encodeURIComponent(missionId)}`;
 }
 
 export function buildMissionOutputDetailPath(
   missionId: string,
   output: Pick<MissionOutputSummary, "step" | "taskId" | "filename">,
+  routeBase = "/noctis-team",
 ): string {
-  return `${buildMissionPath(missionId)}/output/${encodeURIComponent(output.step)}/${encodeURIComponent(output.taskId)}/${encodeURIComponent(output.filename)}`;
+  return `${buildMissionPath(missionId, routeBase)}/output/${encodeURIComponent(output.step)}/${encodeURIComponent(output.taskId)}/${encodeURIComponent(output.filename)}`;
 }
 
 export function hasMissionOutputDetailRoute(input: {
@@ -22,8 +23,8 @@ export function hasMissionOutputDetailRoute(input: {
 }
 
 export function resolveMissionInspectorTab(
-  requestedTab: NoctisInspectorTab,
+  requestedTab: MissionInspectorTab,
   outputDetailActive: boolean,
-): NoctisInspectorTab {
+): MissionInspectorTab {
   return outputDetailActive ? "outputs" : requestedTab;
 }

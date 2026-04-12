@@ -102,10 +102,20 @@ interface ChatAreaProps {
   showAbortAction?: boolean;
   outputCount?: number;
   onOpenOutputs?: () => void;
+  showWorkflowSelector?: boolean;
+  headerTitle?: string;
+  headerSubtitle?: string;
+  primaryAgentId?: ActivityActorId;
+  primaryAgentAvatarSrc?: string;
+  primaryAgentLabel?: string;
+  composerStatusLabel?: string | null;
+  composerPlaceholder?: string;
+  startingMissionDescription?: string;
 }
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   noctis: "/images/noctis.png",
+  lunafreya: "/images/lunafreya.png",
   ignis: "/images/ignis.png",
   gladiolus: "/images/gladiolus.png",
   prompto: "/images/prompto.png",
@@ -344,6 +354,7 @@ function WorkflowProgressSummary({
 const MessageBubble = memo(
   ({
     message,
+    primaryAgentId,
     showCursor,
     detailsExpanded,
     expandedDetailEntries,
@@ -351,6 +362,7 @@ const MessageBubble = memo(
     onToggleDetail,
   }: {
     message: RenderedSessionMessage;
+    primaryAgentId: ActivityActorId;
     showCursor: boolean;
     detailsExpanded: boolean;
     expandedDetailEntries: Record<string, true>;
@@ -359,20 +371,21 @@ const MessageBubble = memo(
   }) => {
     const messageDisplay = message.messageDisplay;
     const isOutgoing = messageDisplay.resolvedSenderIsUser;
-    const isNoctis = message.sender === "noctis";
+    const isPrimaryAgent = message.sender === primaryAgentId;
     const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const messageMarkdown = useMemo(
       () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
-      [messageDisplay.displayContent, reasoning, tools]
+      [messageDisplay.displayContent, reasoning, tools],
     );
-    const copyContent = messageMarkdown.trim()
-      ? messageMarkdown
-      : messageDisplay.displayContent.trim()
-        ? messageDisplay.displayContent
-        : message.detailRawText;
+    const copyContent =
+      isPrimaryAgent && messageMarkdown.trim()
+        ? messageMarkdown
+        : messageDisplay.displayContent.trim()
+          ? messageDisplay.displayContent
+          : message.detailRawText;
     const hasDetails =
       reasoning.trim().length > 0 ||
       tools.length > 0 ||
@@ -406,7 +419,7 @@ const MessageBubble = memo(
         bubbleClassName={
           isOutgoing
             ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
-            : isNoctis
+            : isPrimaryAgent
               ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
               : "rounded-bl-md border-amber-300/15 bg-amber-50/8 text-foreground"
         }
@@ -475,6 +488,7 @@ export const ChatArea = ({
   isStartingMission = false,
   isSessionActive = false,
   isStreaming = false,
+  showWorkflowSelector = true,
   showExecutionProjectSelector = false,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
@@ -500,6 +514,14 @@ export const ChatArea = ({
   showAbortAction = false,
   outputCount = 0,
   onOpenOutputs,
+  headerTitle = "Regalia Command Center",
+  headerSubtitle = "Noctis Lucis Caelum - Direct Line",
+  primaryAgentId = "noctis",
+  primaryAgentAvatarSrc = "/images/noctis.png",
+  primaryAgentLabel = "Noctis",
+  composerStatusLabel = null,
+  composerPlaceholder,
+  startingMissionDescription = "Preparing workspace and briefing Noctis.",
 }: ChatAreaProps) => {
   const isMissionStartPending = isStartingMission && showExecutionProjectSelector;
   const presentationMessages = useMemo(
@@ -515,9 +537,13 @@ export const ChatArea = ({
 
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
+    if (composerStatusLabel) {
+      return composerStatusLabel;
+    }
+
     const allowedWorkers = getAllowedWorkers(workingParty);
     return getWorkingPartySummary(allowedWorkers);
-  }, [workingParty]);
+  }, [composerStatusLabel, workingParty]);
   const defaultOperation = useMemo(
     () =>
       availableOperations.find((operation) => operation.isDefault) ?? {
@@ -595,7 +621,7 @@ export const ChatArea = ({
             Starting Mission
           </p>
           <p className="text-xs leading-relaxed text-foreground/85">
-            Preparing workspace and briefing Noctis.
+            {startingMissionDescription}
           </p>
         </div>
       </div>
@@ -646,10 +672,10 @@ export const ChatArea = ({
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-sm tracking-[0.15em] text-foreground uppercase">
-                Regalia Command Center
+                {headerTitle}
               </h1>
               <p className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
-                Noctis Lucis Caelum - Direct Line
+                {headerSubtitle}
               </p>
             </div>
 
@@ -694,7 +720,7 @@ export const ChatArea = ({
             showExecutionProjectSelector ? (
               <div className="space-y-3">
                 {missionStartPendingCallout}
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className={cn("grid gap-3", showWorkflowSelector && "sm:grid-cols-2")}>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
                       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
@@ -740,12 +766,14 @@ export const ChatArea = ({
                     ) : null}
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                      Workflow
-                    </p>
-                    {workflowSelector}
-                  </div>
+                  {showWorkflowSelector ? (
+                    <div className="space-y-1">
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                        Workflow
+                      </p>
+                      {workflowSelector}
+                    </div>
+                  ) : null}
                 </div>
 
                 {contextProjects.length > 0 || (contextActionLabel && onContextAction) ? (
@@ -800,19 +828,21 @@ export const ChatArea = ({
                     </span>
                     <ContextProjectBadges projects={contextProjects} tone="mission" />
                   </div>
-                  <span className={startedMissionChipClass}>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                      Workflow
+                  {showWorkflowSelector ? (
+                    <span className={startedMissionChipClass}>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                        Workflow
+                      </span>
+                      <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
                     </span>
-                    <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
-                  </span>
+                  ) : null}
                 </div>
 
                 {missionActionLabel && onMissionAction ? (
                   <MissionContextActionButton label={missionActionLabel} onClick={onMissionAction} />
                 ) : null}
               </div>
-            ) : (
+            ) : showWorkflowSelector ? (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
@@ -825,14 +855,14 @@ export const ChatArea = ({
 
                 <div className="w-full sm:max-w-56">{workflowSelector}</div>
               </div>
-            )
+            ) : null
           }
           footerStart={
             <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
               <span className="truncate">{composerSummary}</span>
             </div>
           }
-          placeholder="Send a message to Noctis"
+          placeholder={composerPlaceholder ?? `Send a message to ${primaryAgentLabel}`}
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />
       }
@@ -844,7 +874,7 @@ export const ChatArea = ({
           {renderSnapshot.renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&
-              message.sender === "noctis" &&
+              message.sender === primaryAgentId &&
               index === renderSnapshot.renderedMessages.length - 1;
             return (
               <MessageBubble
@@ -858,6 +888,7 @@ export const ChatArea = ({
                 message={message}
                 onToggleDetail={inspectability.toggleDetailEntry}
                 onToggleDetails={inspectability.toggleConversationUnit}
+                primaryAgentId={primaryAgentId}
                 showCursor={isLastNoctis}
               />
             );
@@ -866,10 +897,10 @@ export const ChatArea = ({
           {isSessionActive ? (
             <div className="flex items-end gap-2">
               <img
-                alt="Noctis"
-                src="/images/noctis.png"
+                alt={primaryAgentLabel}
+                src={primaryAgentAvatarSrc}
                 className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
-                style={getAvatarThemeStyle("noctis")}
+                style={getAvatarThemeStyle(primaryAgentId)}
               />
               <div className="rounded-xl rounded-bl-sm border border-border/50 bg-card px-3 py-2">
                 <div className="flex items-center gap-1">

@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createMission,
   deleteMission,
+  getMissionPrimaryAgentId,
+  getMissionPrimarySessionId,
+  getMissionSurfaceId,
   getMission,
   getMissionFilePath,
   listMissionSummaries,
@@ -92,6 +95,92 @@ describe("mission store", () => {
       "/tmp/.worktrees/alpha/20260410-111213-execution-mission",
     );
     expect(reloaded?.workspaceStatus).toBe("ready");
+  });
+
+  it("persists Lunafreya mission surface metadata and facet selections", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-lunafreya", "session-luna-1", {
+      title: "Oracle Mission",
+      objective: "Verify Lunafreya mission persistence",
+      surfaceId: "lunafreya",
+      primaryAgentId: "lunafreya",
+      lunafreyaFacetSelection: {
+        selectedJobId: "builtin:ja:jobs/reviewer.md",
+        selectedKnowledgeIds: [
+          "builtin:ja:knowledge/agent-relationships.md",
+          "project:alpha:knowledge/domain-notes.md",
+        ],
+        updatedAt: "2026-04-12T10:00:00.000Z",
+      },
+    });
+    missionIds.push(mission.id);
+
+    expect(getMissionSurfaceId(mission)).toBe("lunafreya");
+    expect(getMissionPrimaryAgentId(mission)).toBe("lunafreya");
+    expect(getMissionPrimarySessionId(mission)).toBe("session-luna-1");
+    expect(mission.lunafreyaFacetSelection).toEqual({
+      selectedJobId: "builtin:ja:jobs/reviewer.md",
+      selectedKnowledgeIds: [
+        "builtin:ja:knowledge/agent-relationships.md",
+        "project:alpha:knowledge/domain-notes.md",
+      ],
+      updatedAt: "2026-04-12T10:00:00.000Z",
+    });
+
+    deleteMission(mission.id);
+
+    const reloaded = getMission(mission.id);
+    expect(reloaded).toBeDefined();
+    expect(getMissionSurfaceId(reloaded)).toBe("lunafreya");
+    expect(getMissionPrimaryAgentId(reloaded)).toBe("lunafreya");
+    expect(getMissionPrimarySessionId(reloaded)).toBe("session-luna-1");
+    expect(reloaded?.lunafreyaFacetSelection).toEqual({
+      selectedJobId: "builtin:ja:jobs/reviewer.md",
+      selectedKnowledgeIds: [
+        "builtin:ja:knowledge/agent-relationships.md",
+        "project:alpha:knowledge/domain-notes.md",
+      ],
+      updatedAt: "2026-04-12T10:00:00.000Z",
+    });
+  });
+
+  it("derives shared mission accessors from legacy Noctis missions", () => {
+    const root = createTempRoot();
+    const missionId = "legacy-noctis-accessors";
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    mkdirSync(join(root, "runtime", "noctis-missions", missionId), { recursive: true });
+    writeFileSync(
+      join(root, "runtime", "noctis-missions", missionId, "mission.json"),
+      JSON.stringify({
+        id: missionId,
+        noctisSessionId: "session-legacy-noctis",
+        workerSessions: {},
+        allowedWorkers: [],
+        taskGraph: [],
+        delegationLedger: {
+          missionId,
+          activeTasks: [],
+          completedSummaries: {},
+        },
+        agentModels: {},
+        createdAt: "2026-04-10T00:00:00.000Z",
+        updatedAt: "2026-04-10T00:00:00.000Z",
+        title: "Legacy Noctis Mission",
+        status: "active",
+        messageLog: [],
+        activityLog: [],
+      }),
+      "utf-8",
+    );
+
+    const mission = getMission(missionId);
+    missionIds.push(missionId);
+
+    expect(getMissionSurfaceId(mission)).toBe("noctis_team");
+    expect(getMissionPrimaryAgentId(mission)).toBe("noctis");
+    expect(getMissionPrimarySessionId(mission)).toBe("session-legacy-noctis");
   });
 
   it("reads legacy missions without execution metadata", () => {

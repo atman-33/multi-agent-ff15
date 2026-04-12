@@ -6,7 +6,7 @@ import {
   buildSharedPromptContextBundle,
   type BuildSharedPromptContextOptions,
 } from "./common-context.server";
-import { buildTextSection, wrapOperationPrompt } from "./prompt-xml";
+import { buildTextSection, joinXmlSections, wrapOperationPrompt } from "./prompt-xml";
 import {
   composeReportWorkflowExtension,
   composeUserWorkflowExtension,
@@ -22,16 +22,17 @@ export interface ComposedPromptPayload {
   payloadParts: TextPromptPart[];
 }
 
-function buildUserRequestSection(userMessage: string): string {
+function buildUserRequestSection(userMessage: string, toAgent: AgentId): string {
   return buildTextSection("user-request", userMessage, {
     from: "user",
-    to: "noctis",
+    to: toAgent,
   });
 }
 
-function composeUserToNoctisPayload(input: {
+function composeUserToPrimaryAgentPayload(input: {
   context: BuildSharedPromptContextOptions;
   userMessage: string;
+  toAgent: AgentId;
   workflowExtension?: string | null;
 }): ComposedPromptPayload {
   const workflowExtension = input.workflowExtension?.trim() || null;
@@ -41,7 +42,7 @@ function composeUserToNoctisPayload(input: {
       ...input.context,
       allowedWorkers: workflowExtension ? undefined : input.context.allowedWorkers,
     },
-    promptBody: buildUserRequestSection(input.userMessage),
+    promptBody: buildUserRequestSection(input.userMessage, input.toAgent),
     workflowExtension,
   });
 }
@@ -129,6 +130,25 @@ export function composeUserToNoctisPrompt(input: {
   operationActivated?: string;
   stateTransition?: StateTransition;
 } {
+  return composeUserToPrimaryAgentPrompt({
+    ...input,
+    toAgent: "noctis",
+  });
+}
+
+export function composeUserToPrimaryAgentPrompt(input: {
+  context: BuildSharedPromptContextOptions;
+  userMessage: string;
+  missionId: string;
+  sessionId: string;
+  isNewMission: boolean;
+  selectedOperation?: string | null;
+  toAgent: AgentId;
+  workflowExtensionAppend?: string | null;
+}): ComposedPromptPayload & {
+  operationActivated?: string;
+  stateTransition?: StateTransition;
+} {
   const workflow = composeUserWorkflowExtension({
     missionId: input.missionId,
     sessionId: input.sessionId,
@@ -138,14 +158,27 @@ export function composeUserToNoctisPrompt(input: {
   });
 
   return {
-    ...composeUserToNoctisPayload({
+    ...composeUserToPrimaryAgentPayload({
       context: input.context,
       userMessage: input.userMessage,
-      workflowExtension: workflow.additionalContext,
+      toAgent: input.toAgent,
+      workflowExtension: joinXmlSections([
+        workflow.additionalContext,
+        input.workflowExtensionAppend,
+      ]),
     }),
     operationActivated: workflow.operationActivated,
     stateTransition: workflow.stateTransition,
   };
+}
+
+export function composeUserToPrimaryAgentPromptPreview(input: {
+  context: BuildSharedPromptContextOptions;
+  userMessage: string;
+  toAgent: AgentId;
+  workflowExtension?: string | null;
+}): ComposedPromptPayload {
+  return composeUserToPrimaryAgentPayload(input);
 }
 
 export function composeUserToNoctisPromptPreview(input: {
@@ -153,7 +186,10 @@ export function composeUserToNoctisPromptPreview(input: {
   userMessage: string;
   workflowExtension?: string | null;
 }): ComposedPromptPayload {
-  return composeUserToNoctisPayload(input);
+  return composeUserToPrimaryAgentPayload({
+    ...input,
+    toAgent: "noctis",
+  });
 }
 
 export function composeWorkerTaskPrompt(input: {

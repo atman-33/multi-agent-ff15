@@ -8,6 +8,7 @@ import {
   FolderGit2,
   Github,
   LoaderCircle,
+  Sparkles,
   Rabbit,
   ServerCrash,
   SlidersHorizontal,
@@ -67,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Workspace",
     items: [
       { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
+      { to: "/lunafreya", icon: Sparkles, label: "Lunafreya" },
       { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
       { to: "/reports", icon: FileText, label: "Reports", end: true },
       { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
