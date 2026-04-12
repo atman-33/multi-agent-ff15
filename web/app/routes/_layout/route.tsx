@@ -142,7 +142,7 @@ function areServerStatusesEqual(left: HeaderServerStatus | null, right: HeaderSe
   );
 }
 
-const Layout = (_props: Route.ComponentProps) => {
+export const Layout = (_props: Route.ComponentProps) => {
   const location = useLocation();
   const navigation = useNavigation();
   const [serverStatus, setServerStatus] = useState<HeaderServerStatus | null>(null);

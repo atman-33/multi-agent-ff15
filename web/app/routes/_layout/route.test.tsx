@@ -7,12 +7,17 @@ const { locationMock, navigationMock } = vi.hoisted(() => ({
   navigationMock: vi.fn(),
 }));
 
-vi.mock("react-router", () => ({
-  NavLink: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
-  Outlet: () => <div>nested-route</div>,
-  useLocation: () => locationMock(),
-  useNavigation: () => navigationMock(),
-}));
+vi.mock("react-router", async () => {
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
+
+  return {
+    ...actual,
+    NavLink: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
+    Outlet: () => <div>nested-route</div>,
+    useLocation: () => locationMock(),
+    useNavigation: () => navigationMock(),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: {
@@ -46,7 +51,7 @@ vi.mock("@/components/ui/sidebar", () => ({
   SidebarTrigger: () => <button type="button">Toggle</button>,
 }));
 
-import Layout from "./route";
+import { Layout } from "./route";
 
 const TestLayout = Layout as unknown as (props: { loaderData: unknown }) => ReactNode;
 
