@@ -44,6 +44,12 @@ vi.mock("@/components/ui/input", () => ({
   Input: (props: Record<string, unknown>) => <input {...props} />,
 }));
 
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  TooltipContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  TooltipTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock("@/components/ui/scroll-area", () => ({
   ScrollArea: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
@@ -156,8 +162,15 @@ describe("LunafreyaStatusPanel", () => {
 
     expect(markup).toContain("Hydraean Records");
     expect(markup).toContain("1 selected");
+    expect(markup).toContain("Knowledge overlays help");
+    expect(markup).toContain(
+      "Knowledge overlay changes are stored immediately and apply on Lunafreya&#x27;s next User turn.",
+    );
     expect(markup).toContain("Open knowledge selector");
     expect(markup).not.toContain("Archive Index");
+    expect(markup).not.toContain(
+      "Model and overlay edits are stored immediately and will be applied when User sends the next prompt.",
+    );
   });
 
   it("renders dialog results from the active query and selected-only filter", () => {
@@ -213,6 +226,9 @@ describe("LunafreyaStatusPanel", () => {
 
     expect(markup).toContain("model-picker:github-copilot/gpt-5.4:balanced");
     expect(markup).toContain("Model and facet changes apply on the next User turn.");
+    expect(markup).not.toContain(
+      "Model and overlay edits are stored immediately and will be applied when User sends the next prompt.",
+    );
 
     const pickerProps = pickerPropsSpy.mock.calls[0]?.[0] as {
       ariaLabel: string;

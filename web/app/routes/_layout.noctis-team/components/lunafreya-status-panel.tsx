@@ -1,4 +1,4 @@
-import { BrainCircuit, Cpu, Layers3, Search, SlidersHorizontal } from "lucide-react";
+import { BrainCircuit, Cpu, Info, Layers3, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   flattenProviderModels,
   type ModelCatalogItem,
@@ -371,6 +372,22 @@ export function LunafreyaStatusPanel({
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
                 Knowledge Overlays
               </p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-label="Knowledge overlays help"
+                    className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Info className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+                  Knowledge overlay changes are stored immediately and apply on Lunafreya&#39;s next User turn.
+                </TooltipContent>
+              </Tooltip>
             </div>
             {knowledgeOptions.length > 0 ? (
               <Button
@@ -433,10 +450,6 @@ export function LunafreyaStatusPanel({
           selectedKnowledgeIds={selectedKnowledgeIds}
           selectedOnly={selectedOnly}
         />
-
-        <div className="rounded-lg border border-border/50 bg-background/40 px-3 py-2 text-xs leading-5 text-muted-foreground/80">
-          Model and overlay edits are stored immediately and will be applied when User sends the next prompt.
-        </div>
 
         <div className="flex flex-wrap gap-1.5">
           <Button
