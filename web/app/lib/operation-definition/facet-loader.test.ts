@@ -211,10 +211,10 @@ describe("operation-definition path-based facet resolution", () => {
         kind: "reference",
         name: "operation-system-contract",
         description: "Read when changing runtime-owned dispatch or report routing.",
-        critical: ["Runtime decides the next actor.", "Reports use taskId + next + message."],
         source: expect.stringContaining("operation-system-contract.md"),
       }),
     );
+    expect(facets.knowledge[0]).not.toHaveProperty("critical");
     expect(facets.instruction).toContain("Spec Planning — 手順指示");
     expect(facets.outputContracts).toEqual([]);
   });

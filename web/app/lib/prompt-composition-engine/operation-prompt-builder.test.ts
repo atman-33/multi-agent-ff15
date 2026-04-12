@@ -376,8 +376,8 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain(
       "Read the source file when the current task matches this description.",
     );
-    expect(prompt).toContain("Critical facts:");
-    expect(prompt).toContain("- Runtime decides the next actor.");
+    expect(prompt).not.toContain("Critical facts:");
+    expect(prompt).not.toContain("- Runtime decides the next actor.");
     expect(prompt).not.toContain("This text should not be injected into the prompt.");
     expect(prompt).not.toContain("This text should also stay out of the prompt body.");
     expect(prompt).toContain("<knowledge-body>");

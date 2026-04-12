@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getAgentLabel, isWorkerAgentId } from "@/lib/agent-identity";
+import { buildKnowledgeCatalog } from "@/lib/knowledge-catalog.server";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type {
@@ -8,7 +9,6 @@ import type {
   OperationDefinition,
   ReportOutputContractDefinition,
   ResolvedFacets,
-  ResolvedKnowledgeEntry,
   StepDefinition,
 } from "@/lib/operation-definition/types";
 import {
@@ -17,7 +17,6 @@ import {
 } from "@/lib/operation-runtime/autonomous";
 import type { AgentId, OperationState, WorkerAgentId } from "@/lib/types/mission";
 import {
-  buildXmlSection,
   buildMarkdownSection,
   buildTextSection,
   joinXmlSections,
@@ -201,50 +200,6 @@ function resolveInstructionPlaceholders(input: {
   }
 
   return resolved;
-}
-
-function buildKnowledgeReferenceContent(entry: Extract<ResolvedKnowledgeEntry, { kind: "reference" }>): string {
-  const lines = [
-    `Name: ${entry.name}`,
-    `Description: ${entry.description}`,
-    `Source: ${entry.source}`,
-  ];
-
-  if (entry.critical.length > 0) {
-    lines.push("", "Critical facts:");
-    for (const fact of entry.critical) {
-      lines.push(`- ${fact}`);
-    }
-  }
-
-  return lines.join("\n");
-}
-
-function buildKnowledgeCatalog(entries: ResolvedKnowledgeEntry[]): string | null {
-  if (entries.length === 0) {
-    return null;
-  }
-
-  const catalogEntries = entries.map((entry) =>
-    entry.kind === "reference"
-      ? buildMarkdownSection("knowledge-ref", buildKnowledgeReferenceContent(entry))
-      : buildMarkdownSection("knowledge-body", entry.content),
-  );
-
-  const sections: string[] = [];
-
-  if (entries.some((entry) => entry.kind === "reference")) {
-    sections.push(
-      [
-        "Reference entries below are reference cards, not full knowledge documents.",
-        "Read a source file only when the current task matches its description.",
-      ].join("\n"),
-    );
-  }
-
-  sections.push(joinXmlSections(catalogEntries));
-
-  return buildXmlSection("knowledge-catalog", sections.join("\n\n"));
 }
 
 export interface StepHandoffSource {

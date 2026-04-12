@@ -163,7 +163,7 @@ function seedLunafreyaBoundaryOperation(root: string): void {
       "    job:",
       "      inline: Lunafreya keeps the conversation focused and calm.",
       "    instruction:",
-      "      inline: Respond directly to User without delegating.",
+      "      inline: Respond directly to User.",
       "    knowledge:",
       "      - inline: Selected job and knowledge overlays are already active.",
       "    rules: []",
@@ -213,7 +213,7 @@ describe("OperationInstantiator", () => {
     expect(result.step?.agent).toBe("lunafreya");
     expect(result.promptArtifact?.mode).toBe("activation");
     expect(result.activationText).toContain("Lunafreya keeps the conversation focused and calm.");
-    expect(result.activationText).toContain("Respond directly to User without delegating.");
+    expect(result.activationText).toContain("Respond directly to User.");
   });
 
   it("activates a detected operation and returns resolved prompt metadata", () => {

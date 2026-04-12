@@ -1,13 +1,6 @@
 ---
 name: operation-authoring-and-diagnostics
 description: operation YAML、project workflow authoring path、source-aware operationRef、facet source 解決、output contract、output placeholder、または workflow 関連テストを安全に変更するときに読むこと。
-critical:
-  - Canonical な operation schema は `initial_step` と `steps` を使い、各 facet source は `file` または `inline` の source object で表現する。
-  - Authored workflow は `builtins/<lang>/operations/*.yaml` または `projects/<project-id>/operations/*.yaml` に置けて、`file` source は常に operation YAML からの相対パスで解決される。
-  - Mission runtime state と selector value の canonical な workflow 識別子は source-aware な `operationRef` であり、same-name workflow は別 candidate のまま扱う。
-  - knowledge と policy の list は authored order を保持する。
-  - output placeholder は既存の mission-scoped file に解決できなければ prompt build が失敗する。
-  - `rules` を持たない step は、`delegation` を持つ Noctis-owned autonomous step としてだけ authoring する。
 ---
 
 # Operation Authoring And Diagnostics

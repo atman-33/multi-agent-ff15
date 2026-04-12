@@ -1,4 +1,8 @@
 import { readFileSync } from "node:fs";
+import {
+  buildKnowledgeCatalog,
+  normalizeFileKnowledgeEntry,
+} from "@/lib/knowledge-catalog.server";
 import type { LunafreyaFacetSelection } from "@/lib/types/mission";
 import {
   type LunafreyaFacetCatalogEntry,
@@ -105,7 +109,11 @@ export function resolveLunafreyaFacetSelection(input: {
         )
       : null,
     selectedJobEntry ? buildFacetSection("lunafreya-job-overlay", selectedJobEntry) : null,
-    ...selectedKnowledgeEntries.map((entry) => buildFacetSection("lunafreya-knowledge-overlay", entry)),
+    buildKnowledgeCatalog(
+      selectedKnowledgeEntries.map((entry) =>
+        normalizeFileKnowledgeEntry(readFileSync(entry.filePath, "utf-8"), entry.filePath),
+      ),
+    ),
   ];
 
   return {

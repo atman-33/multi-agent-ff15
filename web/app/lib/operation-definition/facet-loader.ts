@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import yaml from "yaml";
+import {
+  normalizeFileKnowledgeEntry,
+  normalizeInlineKnowledgeEntry,
+} from "@/lib/knowledge-catalog.server";
 import { resolveOperationFacetPath } from "./operation-loader";
 import type {
   ContentSource,
@@ -8,8 +11,6 @@ import type {
   ResolvedKnowledgeEntry,
   StepDefinition,
 } from "./types";
-
-const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 function loadFacetSource(
   operation: OperationDefinition,
@@ -47,51 +48,6 @@ function describeContentSourceReference(
   return `${operation.sourcePath}#${inlineLocator}.inline`;
 }
 
-function parseKnowledgeEntry(
-  content: string,
-  sourceReference: string,
-): ResolvedKnowledgeEntry {
-  const frontmatterMatch = content.match(FRONTMATTER_REGEX);
-
-  if (!frontmatterMatch) {
-    return { kind: "body", content };
-  }
-
-  const body = content.slice(frontmatterMatch[0].length);
-
-  try {
-    const parsed = yaml.parse(frontmatterMatch[1]);
-
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      typeof parsed.name === "string" &&
-      parsed.name.trim().length > 0 &&
-      typeof parsed.description === "string" &&
-      parsed.description.trim().length > 0
-    ) {
-      const critical = Array.isArray(parsed.critical)
-        ? parsed.critical
-            .filter((item: unknown): item is string => typeof item === "string")
-            .map((item: string) => item.trim())
-            .filter(Boolean)
-        : [];
-
-      return {
-        kind: "reference",
-        name: parsed.name.trim(),
-        description: parsed.description.trim(),
-        critical,
-        source: sourceReference,
-      };
-    }
-  } catch {
-    return { kind: "body", content: body };
-  }
-
-  return { kind: "body", content: body };
-}
-
 function resolveKnowledgeSources(input: {
   operation: OperationDefinition;
   step: StepDefinition;
@@ -107,10 +63,10 @@ function resolveKnowledgeSources(input: {
       }
 
       if ("inline" in source) {
-        return { kind: "body", content } satisfies ResolvedKnowledgeEntry;
+        return normalizeInlineKnowledgeEntry(content);
       }
 
-      return parseKnowledgeEntry(
+      return normalizeFileKnowledgeEntry(
         content,
         describeContentSourceReference(
           input.operation,

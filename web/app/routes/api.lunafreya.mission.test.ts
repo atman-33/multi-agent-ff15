@@ -93,6 +93,10 @@ function createTempRoot(): string {
   writeFileSync(
     join(root, "builtins", "ja", "facets", "knowledge", "oracle-notes.md"),
     [
+      "---",
+      "name: Oracle Notes",
+      'description: Read when you need Lunafreya-specific long-horizon guidance.',
+      "---",
       "# Oracle Notes",
       "",
       "Consider the longer-term implications before committing to a direction.",
@@ -182,7 +186,10 @@ describe("Lunafreya mission routing", () => {
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText).toContain("Strategic Advisor");
     expect(promptText).toContain("Alpha Domain Notes");
-    expect(promptText).toContain("Respond directly to User without delegating");
+    expect(promptText).toContain("<knowledge-catalog>");
+    expect(promptText).toContain("<knowledge-body>");
+    expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
+    expect(promptText).not.toContain("without delegating");
     expect(promptText).not.toContain("<delegation-context");
   });
 
@@ -250,5 +257,9 @@ describe("Lunafreya mission routing", () => {
     expect(promptText).toContain("Oracle Notes");
     expect(promptText).toContain("Alpha Domain Notes");
     expect(promptText).toContain("Strategic Advisor");
+    expect(promptText).toContain("<knowledge-catalog>");
+    expect(promptText).toContain("<knowledge-ref>");
+    expect(promptText).toContain("Source: ");
+    expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
   });
 });

@@ -1103,10 +1103,6 @@ export function NoctisTeamScreen({
     }
   }, [effectiveMissionId, loadMissionDetail, loadMissions, missionApiBase]);
 
-  const handleOpenOutputs = useCallback(() => {
-    setInspectorTab("outputs");
-  }, []);
-
   const handleSelectOutput = useCallback((output: MissionOutputSummary) => {
     if (!effectiveMissionId) {
       return;
@@ -1292,8 +1288,6 @@ export function NoctisTeamScreen({
               onAbort={abort}
               onSend={handleSend}
               showAbortAction={isSessionActive && !isLoadingHistory && !isMissionStartPending}
-              outputCount={missionOutputs.length}
-              onOpenOutputs={handleOpenOutputs}
               showWorkflowSelector={surface.supportsWorkflowSelector}
               headerTitle={
                 isLunafreyaSurface ? "Oracle Mission Surface" : "Regalia Command Center"

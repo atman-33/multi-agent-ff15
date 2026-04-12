@@ -263,7 +263,7 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Workflow Progress");
+    expect(markup).toContain("Workflow");
     expect(markup).toContain("3/5");
     expect(markup).toContain("Waiting");
     expect(markup).toContain("review");
@@ -299,9 +299,40 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Workflow Progress");
+    expect(markup).toContain("Workflow");
     expect(markup).toContain("5/5");
     expect(markup).toContain("Done");
     expect(markup).toContain("refactor");
+  });
+
+  it("removes active-mission header shortcuts", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        isSessionActive={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation="builtin:ja:openspec-dev.yaml"
+        activeOperationState={null}
+        workflowProgress={{
+          workflowLabel: "openspec-dev",
+          currentStep: "review",
+          currentStepIndex: 3,
+          totalSteps: 5,
+          status: "waiting_for_report",
+          updatedAt: "2026-04-11T00:16:00.000Z",
+          visitCount: 1,
+          isTerminal: false,
+        }}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).not.toContain("Radio Incoming");
+    expect(markup).not.toContain("Outputs");
   });
 });

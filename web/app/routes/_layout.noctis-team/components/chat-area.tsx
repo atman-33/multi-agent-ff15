@@ -1,4 +1,4 @@
-import { FileText, Info, Radio, SlidersHorizontal, Workflow } from "lucide-react";
+import { Info, SlidersHorizontal, Workflow } from "lucide-react";
 import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -100,8 +100,6 @@ interface ChatAreaProps {
   onAbort?: () => void;
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
-  outputCount?: number;
-  onOpenOutputs?: () => void;
   showWorkflowSelector?: boolean;
   headerTitle?: string;
   headerSubtitle?: string;
@@ -276,26 +274,24 @@ function WorkflowProgressSummary({
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          className="h-auto min-h-9 max-w-full justify-start gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-left shadow-sm hover:bg-primary/15"
+          className="h-9 max-w-full justify-start gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 text-left shadow-sm hover:bg-primary/15"
           type="button"
           variant="outline"
         >
           <Workflow className="h-3.5 w-3.5 shrink-0 text-primary/80" />
-          <div className="min-w-0 space-y-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
-                Workflow Progress
-              </span>
-              <span className="rounded-full border border-primary/20 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
-                {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
-              </span>
-              <span className="rounded-full bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
-                {statusLabel}
-              </span>
-            </div>
-            <p className="truncate font-semibold text-xs text-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
+              Workflow
+            </span>
+            <span className="rounded-full border border-primary/20 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
+              {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
+            </span>
+            <span className="rounded-full bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+              {statusLabel}
+            </span>
+            <span className="truncate font-semibold text-xs text-foreground">
               {workflowProgress.currentStep}
-            </p>
+            </span>
           </div>
         </Button>
       </PopoverTrigger>
@@ -512,8 +508,6 @@ export const ChatArea = ({
   onAbort,
   onSend,
   showAbortAction = false,
-  outputCount = 0,
-  onOpenOutputs,
   headerTitle = "Regalia Command Center",
   headerSubtitle = "Noctis Lucis Caelum - Direct Line",
   primaryAgentId = "noctis",
@@ -534,7 +528,6 @@ export const ChatArea = ({
   const inspectability = useConversationUnitInspectability(
     renderSnapshot.inspectabilityBoundaries,
   );
-
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
     if (composerStatusLabel) {
@@ -555,7 +548,7 @@ export const ChatArea = ({
         sourceKind: "builtin" as const,
         sourceLabel: "Builtin",
       },
-    [availableOperations]
+    [availableOperations],
   );
   const operationSelectValue =
     selectedOperation ??
@@ -661,7 +654,7 @@ export const ChatArea = ({
     <ChatThreadFrame
       autoFollowKey={renderSnapshot.autoFollowKey}
       header={
-        <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-border/50 border-b px-4 py-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-border/50 border-b px-4 py-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center">
               <img
@@ -680,33 +673,6 @@ export const ChatArea = ({
             </div>
 
             {workflowProgress ? <WorkflowProgressSummary workflowProgress={workflowProgress} /> : null}
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            {onOpenOutputs ? (
-              <Button
-                className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
-                onClick={onOpenOutputs}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Outputs{outputCount > 0 ? ` (${outputCount})` : ""}
-              </Button>
-            ) : null}
-
-            {isSessionActive ? (
-              <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
-                <Radio
-                  className="h-3 w-3 text-primary"
-                  style={{ animation: "agent-glow 1s ease-in-out infinite" }}
-                />
-                <span className="animate-pulse font-mono text-[9px] font-semibold uppercase tracking-widest text-primary">
-                  Radio Incoming
-                </span>
-              </div>
-            ) : null}
           </div>
         </div>
       }

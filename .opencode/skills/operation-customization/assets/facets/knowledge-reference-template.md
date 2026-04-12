@@ -1,13 +1,10 @@
 ---
 name: <knowledge-name>
 description: 'Read this when <trigger or change surface>.'
-critical:
-  - <Critical fact 1>
-  - <Critical fact 2>
 ---
 
 Replace every placeholder and localize the final file body to the target facet language.
-Keep `name`, `description`, and `critical` machine-readable and non-empty.
+Keep `name` and `description` machine-readable and non-empty.
 
 # <Knowledge Title>
 

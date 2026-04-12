@@ -40,7 +40,6 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Use for background context, runtime contracts, diagnostics maps, and reusable reference material.
 - For file-based knowledge facets, use frontmatter when you want the prompt to inject a compact reference instead of the whole body.
 - Valid reference-mode frontmatter requires both `name` and `description`.
-- `critical` is optional and must be a list of non-empty strings.
 - If file-based knowledge frontmatter is missing or malformed, the system falls back to body injection.
 - Inline knowledge is always treated as body content. Do not expect frontmatter behavior there.
 - Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is knowledge-specific.
