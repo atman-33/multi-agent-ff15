@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { MarkdownDocumentSheetPreview } from "@/components/markdown-document-sheet-preview";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { getLunafreyaJobDisplayLabel } from "@/lib/lunafreya-prompt-context";
 import { readMissionOutputDocument } from "@/lib/mission-output-metadata.server";
 import { buildMissionPath } from "../_layout.noctis-team/components/output-detail-routing";
 import type { Route } from "./+types/route";
@@ -142,7 +143,7 @@ export const LunafreyaMissionOutputDetailRoute = ({ loaderData }: Route.Componen
               {loaderData.metadata?.lunafreyaFacetSnapshot ? (
                 <>
                   <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
-                    Job: {loaderData.metadata.lunafreyaFacetSnapshot.selectedJobLabel ?? loaderData.metadata.lunafreyaFacetSnapshot.selectedJobId ?? "none"}
+                    Job: {getLunafreyaJobDisplayLabel(loaderData.metadata.lunafreyaFacetSnapshot)}
                   </span>
                   {loaderData.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (
                     <span

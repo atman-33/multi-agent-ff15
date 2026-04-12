@@ -5,6 +5,7 @@ import {
   getProjectAuthoringDirectory,
   readRegisteredProjectDefinition,
 } from "@/lib/project-config.server";
+import { DEFAULT_LUNAFREYA_JOB_FILE_NAME } from "./lunafreya-prompt-context";
 import { getProjectRoot } from "./get-project-root.server";
 
 const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -114,6 +115,7 @@ function listBuiltinFacetEntries(input: {
   root: string;
   kind: LunafreyaFacetKind;
   builtinLanguages: string[];
+  includeReservedEntries?: boolean;
 }): LunafreyaFacetCatalogEntry[] {
   const directoryName = getFacetDirectoryName(input.kind);
   const entries: LunafreyaFacetCatalogEntry[] = [];
@@ -122,6 +124,14 @@ function listBuiltinFacetEntries(input: {
   for (const language of [...new Set(input.builtinLanguages.filter(Boolean))]) {
     const directory = join(input.root, "builtins", language, "facets", directoryName);
     for (const fileName of getFacetFiles(directory)) {
+      if (
+        !input.includeReservedEntries &&
+        input.kind === "job" &&
+        fileName === DEFAULT_LUNAFREYA_JOB_FILE_NAME
+      ) {
+        continue;
+      }
+
       if (seenFileNames.has(fileName)) {
         continue;
       }
@@ -181,6 +191,7 @@ export function listLunafreyaFacetCatalogEntries(input: {
   builtinLanguages: string[];
   executionProjectId?: string;
   root?: string;
+  includeReservedEntries?: boolean;
 }): LunafreyaFacetCatalogEntry[] {
   const root = input.root ?? getProjectRoot();
 
@@ -189,6 +200,7 @@ export function listLunafreyaFacetCatalogEntries(input: {
       root,
       kind: input.kind,
       builtinLanguages: input.builtinLanguages,
+      includeReservedEntries: input.includeReservedEntries,
     }),
     ...listProjectFacetEntries({
       root,

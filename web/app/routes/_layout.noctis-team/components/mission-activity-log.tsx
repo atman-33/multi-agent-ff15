@@ -1,6 +1,7 @@
 import { Clock3, Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getLunafreyaJobDisplayLabel } from "@/lib/lunafreya-prompt-context";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { MissionActivityLogEntry } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
@@ -111,11 +112,11 @@ export function MissionActivityLog({ entries }: MissionActivityLogProps) {
                   {facetSnapshot ? (
                     <div className="space-y-2 rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
                       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                        Applied overlays
+                        Applied context
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         <span className="rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-foreground/85">
-                          Job: {facetSnapshot.selectedJobLabel ?? facetSnapshot.selectedJobId ?? "none"}
+                          Job: {getLunafreyaJobDisplayLabel(facetSnapshot)}
                         </span>
                         {facetSnapshot.selectedKnowledgeLabels.length > 0 ? (
                           facetSnapshot.selectedKnowledgeLabels.map((label) => (

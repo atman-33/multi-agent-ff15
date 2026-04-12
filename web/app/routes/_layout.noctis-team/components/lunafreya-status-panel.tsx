@@ -26,6 +26,7 @@ import {
   type OpencodeProvider,
   type OpencodeProvidersResponse,
 } from "@/lib/opencode-provider-catalog";
+import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
@@ -344,7 +345,7 @@ export function LunafreyaStatusPanel({
           <div className="flex items-center gap-1.5">
             <Layers3 className="h-3.5 w-3.5 text-primary/80" />
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-              Job Overlay
+              Job
             </p>
           </div>
           <Select
@@ -352,10 +353,10 @@ export function LunafreyaStatusPanel({
             onValueChange={(value) => onSelectedJobIdChange(value === NO_JOB_VALUE ? null : value)}
           >
             <SelectTrigger className="h-9 bg-background/70 text-sm">
-              <SelectValue placeholder="Select a job overlay" />
+              <SelectValue placeholder="Select a job" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_JOB_VALUE}>No job overlay</SelectItem>
+              <SelectItem value={NO_JOB_VALUE}>{DEFAULT_LUNAFREYA_JOB_LABEL}</SelectItem>
               {jobOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.label}
@@ -459,7 +460,7 @@ export function LunafreyaStatusPanel({
             type="button"
             variant="outline"
           >
-            Clear Job
+            Reset Job
           </Button>
           {selectedKnowledgeIds.length > 0 ? (
             <Button

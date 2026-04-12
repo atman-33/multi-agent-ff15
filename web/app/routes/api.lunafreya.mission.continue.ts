@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
@@ -58,8 +59,8 @@ function buildSelectionUpdateBody(input: {
   selectedKnowledgeLabels: string[];
 }): string {
   return [
-    "Updated Lunafreya overlays.",
-    `Job: ${input.selectedJobLabel ?? "none"}`,
+    "Updated Lunafreya prompt context.",
+    `Job: ${input.selectedJobLabel ?? DEFAULT_LUNAFREYA_JOB_LABEL}`,
     `Knowledge: ${input.selectedKnowledgeLabels.join(", ") || "none"}`,
   ].join("\n");
 }

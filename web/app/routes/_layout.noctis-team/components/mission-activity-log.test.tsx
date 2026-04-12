@@ -15,7 +15,7 @@ const baseEntry: MissionActivityLogEntry = {
   actor: "system",
   speaker: "system",
   kind: "system_event",
-  body: "Updated Lunafreya overlays.",
+  body: "Updated Lunafreya prompt context.",
   createdAt: "2026-04-12T15:07:00.000Z",
 };
 
@@ -50,7 +50,7 @@ describe("mission-activity-log", () => {
           {
             ...baseEntry,
             body: [
-              "Updated Lunafreya overlays.",
+              "Updated Lunafreya prompt context.",
               "Job: Shiritori lead",
               "Knowledge: agent-relationships",
             ].join("\n"),
@@ -69,8 +69,8 @@ describe("mission-activity-log", () => {
       />,
     );
 
-    expect(markup).toContain("Updated Lunafreya overlays.");
-    expect(markup).toContain("Applied overlays");
+    expect(markup).toContain("Updated Lunafreya prompt context.");
+    expect(markup).toContain("Applied context");
     expect(markup).not.toContain("Knowledge: agent-relationships");
     expect(markup).toContain("Job: Shiritori lead");
     expect(markup).toContain("agent-relationships");
@@ -90,6 +90,30 @@ describe("mission-activity-log", () => {
 
     expect(markup).toContain("Updated mission context projects.");
     expect(markup).toContain("Knowledge: keep this line");
-    expect(markup).not.toContain("Applied overlays");
+    expect(markup).not.toContain("Applied context");
+  });
+
+  it("shows the default Lunafreya Job label when the snapshot has no explicit job override", () => {
+    const markup = renderToStaticMarkup(
+      <MissionActivityLog
+        entries={[
+          {
+            ...baseEntry,
+            body: "Updated Lunafreya prompt context.",
+            source: {
+              type: "system",
+              lunafreyaFacetSnapshot: {
+                selectedKnowledgeIds: [],
+                selectedKnowledgeLabels: [],
+                updatedAt: "2026-04-12T15:07:00.000Z",
+              },
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Applied context");
+    expect(markup).toContain("Job: Default (Lunafreya Autonomous)");
   });
 });

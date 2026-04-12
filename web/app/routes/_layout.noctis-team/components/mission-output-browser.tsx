@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getLunafreyaJobDisplayLabel } from "@/lib/lunafreya-prompt-context";
 import type { MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 
@@ -227,7 +228,7 @@ export function MissionOutputBrowser({
                           {output.metadata?.lunafreyaFacetSnapshot ? (
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
-                                Job: {output.metadata.lunafreyaFacetSnapshot.selectedJobLabel ?? output.metadata.lunafreyaFacetSnapshot.selectedJobId ?? "none"}
+                                Job: {getLunafreyaJobDisplayLabel(output.metadata.lunafreyaFacetSnapshot)}
                               </span>
                               {output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.length > 0 ? (
                                 output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (

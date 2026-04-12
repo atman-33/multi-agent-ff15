@@ -145,6 +145,40 @@ afterEach(() => {
 });
 
 describe("Lunafreya mission routing", () => {
+  it("starts a Lunafreya mission with the implicit default Job when no explicit override is selected", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-default" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-lunafreya-default" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Guide me calmly.",
+          executionProjectId: "alpha",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string; lunafreyaSessionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    const mission = getMission(data.missionId);
+    expect(mission?.lunafreyaFacetSelection).toMatchObject({
+      selectedKnowledgeIds: [],
+    });
+    expect(mission?.lunafreyaFacetSelection?.selectedJobId).toBeUndefined();
+
+    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
+    expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
+    expect(promptText).toContain("Lunafreya Autonomous");
+    expect(promptText).not.toContain("<instruction>");
+    expect(promptText).not.toContain("Hidden Lunafreya Instruction");
+    expect(promptText).not.toContain("<lunafreya-overlays>");
+  });
+
   it("starts a Lunafreya mission with the hidden workflow and selected overlays", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-start" } });
@@ -184,12 +218,14 @@ describe("Lunafreya mission routing", () => {
     );
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
+    expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
     expect(promptText).toContain("Strategic Advisor");
     expect(promptText).toContain("Alpha Domain Notes");
     expect(promptText).toContain("<knowledge-catalog>");
     expect(promptText).toContain("<knowledge-body>");
+    expect(promptText).not.toContain("<instruction>");
+    expect(promptText).not.toContain("Hidden Lunafreya Instruction");
     expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
-    expect(promptText).not.toContain("without delegating");
     expect(promptText).not.toContain("<delegation-context");
   });
 
@@ -254,12 +290,15 @@ describe("Lunafreya mission routing", () => {
     });
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
+    expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
     expect(promptText).toContain("Oracle Notes");
     expect(promptText).toContain("Alpha Domain Notes");
     expect(promptText).toContain("Strategic Advisor");
     expect(promptText).toContain("<knowledge-catalog>");
     expect(promptText).toContain("<knowledge-ref>");
     expect(promptText).toContain("Source: ");
+    expect(promptText).not.toContain("<instruction>");
+    expect(promptText).not.toContain("Hidden Lunafreya Instruction");
     expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
   });
 });

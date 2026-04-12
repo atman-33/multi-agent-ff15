@@ -125,4 +125,32 @@ describe("mission-output-browser", () => {
     expect(markup).toContain("Job: Oracle");
     expect(markup).toContain("Hydraean Records");
   });
+
+  it("shows the default Lunafreya Job label when output metadata has no explicit job override", () => {
+    const markup = renderToStaticMarkup(
+      <MissionOutputBrowser
+        currentStep="review"
+        isLoadingOutputs={false}
+        onReload={() => undefined}
+        onSelectOutput={() => undefined}
+        outputs={[
+          {
+            ...baseOutput,
+            metadata: {
+              capturedAt: "2026-04-11T00:00:00.000Z",
+              lunafreyaFacetSnapshot: {
+                selectedKnowledgeIds: [],
+                selectedKnowledgeLabels: [],
+                updatedAt: "2026-04-11T00:00:00.000Z",
+              },
+            },
+          },
+        ]}
+        outputsError={null}
+        selectedOutput={baseOutput}
+      />,
+    );
+
+    expect(markup).toContain("Job: Default (Lunafreya Autonomous)");
+  });
 });

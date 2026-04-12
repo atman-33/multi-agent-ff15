@@ -173,6 +173,35 @@ describe("LunafreyaStatusPanel", () => {
     );
   });
 
+  it("renders the default Job label instead of a no-job overlay option", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        jobOptions={[
+          {
+            id: "builtin:ja:jobs/strategist.md",
+            label: "Strategic Advisor",
+            description: "Adds structured strategic framing.",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+        ]}
+        knowledgeOptions={[]}
+        onClearKnowledgeIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleKnowledgeId={() => undefined}
+        selectedJobId={null}
+        selectedKnowledgeIds={[]}
+        status="idle"
+      />,
+    );
+
+    expect(markup).toContain("Job");
+    expect(markup).toContain("Default (Lunafreya Autonomous)");
+    expect(markup).toContain("Strategic Advisor");
+    expect(markup).not.toContain("Job Overlay");
+    expect(markup).not.toContain("No job overlay");
+  });
+
   it("renders dialog results from the active query and selected-only filter", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaKnowledgeSelectorDialog

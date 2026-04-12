@@ -39,6 +39,20 @@ describe("lunafreya facet catalog", () => {
 
     writeFile(
       root,
+      "builtins/ja/facets/jobs/lunafreya-autonomous.md",
+      [
+        "---",
+        'name: Default (Lunafreya Autonomous)',
+        'description: Reserved default Lunafreya job.',
+        "---",
+        "",
+        "# Lunafreya Autonomous",
+        "",
+        "Default job.",
+      ].join("\n"),
+    );
+    writeFile(
+      root,
       "builtins/ja/facets/jobs/reviewer.md",
       [
         "---",
@@ -119,6 +133,13 @@ describe("lunafreya facet catalog", () => {
         projectId: "alpha",
       }),
     ]);
+    expect(jobs).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
+          id: "builtin:ja:jobs/lunafreya-autonomous.md",
+        }),
+      ]),
+    );
 
     expect(knowledge).toEqual([
       expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
