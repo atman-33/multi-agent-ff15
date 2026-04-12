@@ -788,7 +788,7 @@ export const ChatArea = ({
                       <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
                     </span>
                   ) : null}
-                  <div className={cn(startedMissionChipClass, "items-start")}>
+                  <div className={startedMissionChipClass}>
                     <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
                       Context
                     </span>

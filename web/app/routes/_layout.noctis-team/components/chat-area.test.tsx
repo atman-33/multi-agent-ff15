@@ -224,6 +224,9 @@ describe("chat-area", () => {
     expect(markup).toContain(">Reference Docs<");
     expect(markup).toContain(">API Notes<");
     expect(markup).toContain(">Ops Runbook<");
+    expect(markup).toContain(
+      'class="inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm"><span class="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">Context</span>',
+    );
     expect(markup).toContain(">Workflow<");
     expect(markup).toContain(">Autonomous<");
     expect(markup).toContain("Mission Details");
