@@ -1,4 +1,6 @@
-import { BrainCircuit, Layers3 } from "lucide-react";
+import { BrainCircuit, Cpu, Layers3 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -8,8 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  flattenProviderModels,
+  type ModelCatalogItem,
+  type OpencodeProvider,
+  type OpencodeProvidersResponse,
+} from "@/lib/opencode-provider-catalog";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
+import { useChatStore } from "@/stores/chat-store";
 import type { AgentStatus } from "./character-card";
 import { CharacterCard } from "./character-card";
 
@@ -51,6 +60,38 @@ export function LunafreyaStatusPanel({
   onSelectedJobIdChange,
   onToggleKnowledgeId,
 }: LunafreyaStatusPanelProps) {
+  const [providers, setProviders] = useState<OpencodeProvider[]>([]);
+  const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
+  const selectedModel = useChatStore((state) => state.agentModels.lunafreya ?? null);
+  const setAgentModel = useChatStore((state) => state.setAgentModel);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProviders = async () => {
+      const response = await fetch("/api/providers").catch(() => null);
+      if (!response?.ok || !isMounted) {
+        return;
+      }
+
+      const data = (await response.json()) as OpencodeProvidersResponse;
+      if (!isMounted) {
+        return;
+      }
+
+      setProviders(data.providers ?? []);
+      setVariantsByModel(data.variantsByModel ?? {});
+    };
+
+    void loadProviders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2 border-border/50 border-b pb-2">
@@ -63,10 +104,30 @@ export function LunafreyaStatusPanel({
       <CharacterCard
         agentId="lunafreya"
         contextUsage={contextUsage}
-        detail="Facet changes apply on the next User turn."
+        detail="Model and facet changes apply on the next User turn."
         imageSrc="/images/lunafreya.png"
         isInParty
         isSpeaking={isSpeaking}
+        metaAccessory={
+          <CompactModelVariantPicker
+            ariaLabel="Select model for lunafreya"
+            contentAlign="end"
+            contentSide="bottom"
+            emptyLabel="model"
+            modelItems={modelItems}
+            onSelect={(model) => setAgentModel("lunafreya", model)}
+            selectedModel={selectedModel}
+            showProviderName={false}
+            triggerClassName={cn(
+              "h-6 w-full rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
+              selectedModel
+                ? "text-primary/80 hover:text-primary"
+                : "text-muted-foreground/50 hover:text-muted-foreground"
+            )}
+            triggerIcon={<Cpu className="h-2.5 w-2.5 shrink-0" />}
+            variantsByModel={variantsByModel}
+          />
+        }
         {...LUNAFREYA_CARD_COPY}
         status={status}
       />
@@ -155,7 +216,7 @@ export function LunafreyaStatusPanel({
         </div>
 
         <div className="rounded-lg border border-border/50 bg-background/40 px-3 py-2 text-xs leading-5 text-muted-foreground/80">
-          Overlay edits are stored immediately and will be applied when User sends the next prompt.
+          Model and overlay edits are stored immediately and will be applied when User sends the next prompt.
         </div>
 
         <div className="flex flex-wrap gap-1.5">
