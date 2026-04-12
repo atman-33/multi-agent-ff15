@@ -122,9 +122,14 @@ function writeServerState(
   return filePath;
 }
 
-function installProcessKillMock(options?: { alivePids?: number[]; removablePids?: number[] }): void {
+function installProcessKillMock(options?: {
+  alivePids?: number[];
+  removablePids?: number[];
+  removableSignalsByPid?: Record<number, Array<NodeJS.Signals | number>>;
+}): void {
   const alivePids = new Set(options?.alivePids ?? []);
   const removablePids = new Set(options?.removablePids ?? []);
+  const removableSignalsByPid = options?.removableSignalsByPid ?? {};
 
   processKillSpy = vi.spyOn(process, "kill").mockImplementation(
     ((pid: number, signal?: NodeJS.Signals | number) => {
@@ -140,7 +145,10 @@ function installProcessKillMock(options?: { alivePids?: number[]; removablePids?
         throw new Error(`pid ${pid} is not running`);
       }
 
-      if (removablePids.has(pid)) {
+      if (
+        removablePids.has(pid) ||
+        removableSignalsByPid[pid]?.some((candidate) => candidate === signal)
+      ) {
         alivePids.delete(pid);
         return true;
       }
@@ -161,6 +169,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   processKillSpy?.mockRestore();
   processKillSpy = null;
+  vi.useRealTimers();
 
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
@@ -275,7 +284,7 @@ describe("opencode-server", () => {
     });
   });
 
-  it("reports recovery-blocked status and does not start a second server when reclaim fails", async () => {
+  it("reports a recover error without force-restart blocking when graceful reclaim fails", async () => {
     const root = createTempRoot();
     getProjectRootMock.mockReturnValue(root);
     installHealthProbeMock({ appOk: false, legacyOk: false, staleOk: false });
@@ -291,7 +300,7 @@ describe("opencode-server", () => {
 
     expect(status).toMatchObject({
       isRunning: false,
-      recoveryBlocked: true,
+      recoveryBlocked: false,
       url: STALE_SERVER_URL,
     });
     expect(status.error).toContain("Failed to reclaim app-owned OpenCode server process 34567");
@@ -341,5 +350,149 @@ describe("opencode-server", () => {
     });
     expect(processKillSpy).not.toHaveBeenCalled();
     expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("force-restarts a healthy app-owned server and replaces the runtime marker", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: true, legacyOk: false, staleOk: true });
+    installProcessKillMock({ alivePids: [34567], removablePids: [34567] });
+    installSpawnSuccess({ pid: 56789, url: APP_SERVER_URL });
+
+    const statePath = writeServerState(root, {
+      pid: 34567,
+      url: STALE_SERVER_URL,
+    });
+
+    const module = await loadModule();
+    const status = await module.forceRestartOpencodeServer();
+
+    expect(status).toMatchObject({
+      forceRestart: {
+        availability: "available",
+        reason: null,
+      },
+      isRunning: true,
+      managedByApp: true,
+      recoveryBlocked: false,
+      url: APP_SERVER_URL,
+    });
+    expect(processKillSpy).toHaveBeenCalledWith(34567, 0);
+    expect(processKillSpy).toHaveBeenCalledWith(34567, "SIGTERM");
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(readFileSync(statePath, "utf-8"))).toMatchObject({
+      pid: 56789,
+      projectRoot: root,
+      url: APP_SERVER_URL,
+    });
+  });
+
+  it("force-restarts after a hard-kill fallback when graceful reclaim times out", async () => {
+    vi.useFakeTimers();
+
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: true, legacyOk: false, staleOk: true });
+    installProcessKillMock({
+      alivePids: [34567],
+      removableSignalsByPid: {
+        34567: ["SIGKILL"],
+      },
+    });
+    installSpawnSuccess({ pid: 56789, url: APP_SERVER_URL });
+
+    const statePath = writeServerState(root, {
+      pid: 34567,
+      url: STALE_SERVER_URL,
+    });
+
+    const module = await loadModule();
+    const statusPromise = module.forceRestartOpencodeServer();
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    const status = await statusPromise;
+
+    expect(status).toMatchObject({
+      isRunning: true,
+      managedByApp: true,
+      recoveryBlocked: false,
+      url: APP_SERVER_URL,
+    });
+    expect(processKillSpy).toHaveBeenCalledWith(34567, "SIGTERM");
+    expect(processKillSpy).toHaveBeenCalledWith(34567, "SIGKILL");
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(readFileSync(statePath, "utf-8"))).toMatchObject({
+      pid: 56789,
+      projectRoot: root,
+      url: APP_SERVER_URL,
+    });
+  });
+
+  it("rejects force restart when no running app-owned server exists", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: false, legacyOk: false, staleOk: false });
+
+    const module = await loadModule();
+    const status = await module.forceRestartOpencodeServer();
+
+    expect(status).toMatchObject({
+      forceRestart: {
+        availability: "unavailable",
+        reason: "Force restart is available only for a running app-owned OpenCode server",
+      },
+      isRunning: false,
+      managedByApp: false,
+      recoveryBlocked: false,
+      url: null,
+    });
+    expect(status.error).toContain("running app-owned OpenCode server");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("never kills a foreign legacy server during force restart", async () => {
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: false, legacyOk: true, staleOk: false });
+    installProcessKillMock({ alivePids: [] });
+
+    const module = await loadModule();
+    const status = await module.forceRestartOpencodeServer();
+
+    expect(status.foreignServerUrl).toBe(LEGACY_SERVER_URL);
+    expect(status.error).toContain("running app-owned OpenCode server");
+    expect(processKillSpy).not.toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("reports recovery-blocked status when force restart cannot reclaim the current app-owned server", async () => {
+    vi.useFakeTimers();
+
+    const root = createTempRoot();
+    getProjectRootMock.mockReturnValue(root);
+    installHealthProbeMock({ appOk: false, legacyOk: false, staleOk: true });
+    installProcessKillMock({ alivePids: [34567] });
+    installSpawnSuccess({ pid: 56789, url: APP_SERVER_URL });
+    writeServerState(root, {
+      pid: 34567,
+      url: STALE_SERVER_URL,
+    });
+
+    const module = await loadModule();
+    const statusPromise = module.forceRestartOpencodeServer();
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    const status = await statusPromise;
+
+    expect(status.recoveryBlocked).toBe(true);
+    expect(status.forceRestart).toMatchObject({
+      availability: "blocked",
+      reason: expect.stringContaining("Failed to reclaim app-owned OpenCode server process 34567"),
+    });
+    expect(status.error).toContain("Failed to reclaim app-owned OpenCode server process 34567");
+    expect(status.url).toBe(STALE_SERVER_URL);
+    expect(processKillSpy).toHaveBeenCalledWith(34567, "SIGTERM");
+    expect(processKillSpy).toHaveBeenCalledWith(34567, "SIGKILL");
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 });
