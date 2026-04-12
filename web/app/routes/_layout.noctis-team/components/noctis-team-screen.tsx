@@ -988,6 +988,10 @@ export function NoctisTeamScreen({
     );
   }, []);
 
+  const clearLunafreyaKnowledgeIds = useCallback(() => {
+    setSelectedLunafreyaKnowledgeIds([]);
+  }, []);
+
   const openContextDialog = useCallback(() => {
     if (effectiveMissionId) {
       setDraftContextProjectIds(missionDetail?.contextProjectIds ?? []);
@@ -1331,6 +1335,7 @@ export function NoctisTeamScreen({
                   isSpeaking={isStreaming || speakingAgentId === primaryAgentId}
                   jobOptions={lunafreyaJobOptions}
                   knowledgeOptions={lunafreyaKnowledgeOptions}
+                  onClearKnowledgeIds={clearLunafreyaKnowledgeIds}
                   onSelectedJobIdChange={setSelectedLunafreyaJobId}
                   onToggleKnowledgeId={toggleLunafreyaKnowledgeId}
                   selectedJobId={selectedLunafreyaJobId}

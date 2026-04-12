@@ -28,6 +28,22 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
 }));
 
+vi.mock("@/components/ui/badge", () => ({
+  Badge: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+}));
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
+  DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+}));
+
+vi.mock("@/components/ui/input", () => ({
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+}));
+
 vi.mock("@/components/ui/scroll-area", () => ({
   ScrollArea: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
@@ -60,7 +76,11 @@ vi.mock("./character-card", () => ({
   ),
 }));
 
-import { LunafreyaStatusPanel } from "./lunafreya-status-panel";
+import {
+  filterKnowledgeOptions,
+  LunafreyaKnowledgeSelectorDialog,
+  LunafreyaStatusPanel,
+} from "./lunafreya-status-panel";
 
 describe("LunafreyaStatusPanel", () => {
   beforeEach(() => {
@@ -79,11 +99,110 @@ describe("LunafreyaStatusPanel", () => {
     });
   });
 
+  it("filters knowledge options by name and selected-only state", () => {
+    expect(
+      filterKnowledgeOptions({
+        knowledgeOptions: [
+          {
+            id: "hydraean",
+            label: "Hydraean Records",
+            description: "Oracle field notes",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+          {
+            id: "archive-index",
+            label: "Archive Index",
+            description: "Background archive catalog",
+            sourceKind: "project",
+            sourceLabel: "Project Atlas",
+          },
+        ],
+        selectedKnowledgeIds: ["hydraean"],
+        query: "hyd",
+        selectedOnly: true,
+      }).map((option) => option.id),
+    ).toEqual(["hydraean"]);
+  });
+
+  it("shows selected knowledge as a compact summary instead of the full catalog", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        jobOptions={[]}
+        knowledgeOptions={[
+          {
+            id: "hydraean",
+            label: "Hydraean Records",
+            description: "Oracle field notes",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+          {
+            id: "archive-index",
+            label: "Archive Index",
+            description: "Background archive catalog",
+            sourceKind: "project",
+            sourceLabel: "Project Atlas",
+          },
+        ]}
+        onClearKnowledgeIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleKnowledgeId={() => undefined}
+        selectedJobId={null}
+        selectedKnowledgeIds={["hydraean"]}
+        status="idle"
+      />
+    );
+
+    expect(markup).toContain("Hydraean Records");
+    expect(markup).toContain("1 selected");
+    expect(markup).toContain("Open knowledge selector");
+    expect(markup).not.toContain("Archive Index");
+  });
+
+  it("renders dialog results from the active query and selected-only filter", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaKnowledgeSelectorDialog
+        knowledgeOptions={[
+          {
+            id: "hydraean",
+            label: "Hydraean Records",
+            description: "Oracle field notes",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+          {
+            id: "archive-index",
+            label: "Archive Index",
+            description: "Background archive catalog",
+            sourceKind: "project",
+            sourceLabel: "Project Atlas",
+          },
+        ]}
+        onClearKnowledgeIds={() => undefined}
+        onOpenChange={() => undefined}
+        onQueryChange={() => undefined}
+        onSelectedOnlyChange={() => undefined}
+        onToggleKnowledgeId={() => undefined}
+        open
+        query="hyd"
+        selectedKnowledgeIds={["hydraean"]}
+        selectedOnly
+      />
+    );
+
+    expect(markup).toContain("Manage Knowledge Overlays");
+    expect(markup).toContain("Hydraean Records");
+    expect(markup).toContain("Clear All");
+    expect(markup).not.toContain("Archive Index");
+  });
+
   it("renders a model picker wired to Lunafreya's model selection", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaStatusPanel
         jobOptions={[]}
         knowledgeOptions={[]}
+        onClearKnowledgeIds={() => undefined}
         onSelectedJobIdChange={() => undefined}
         onToggleKnowledgeId={() => undefined}
         selectedJobId={null}

@@ -6,6 +6,7 @@ import type { MissionResumePayload } from "@/hooks/use-agent-session";
 const {
   projectRegistryStateMock,
   agentSessionStateMock,
+  lunafreyaStatusPropsSpy,
   matchMock,
   navigateMock,
   paramsMock,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   projectRegistryStateMock: vi.fn(),
   agentSessionStateMock: vi.fn(),
+  lunafreyaStatusPropsSpy: vi.fn(),
   matchMock: vi.fn(),
   navigateMock: vi.fn(),
   paramsMock: vi.fn(),
@@ -178,15 +180,18 @@ vi.mock("./party-status-panel", () => ({
 }));
 
 vi.mock("./lunafreya-status-panel", () => ({
-  LunafreyaStatusPanel: ({
-    selectedJobId,
-    selectedKnowledgeIds,
-  }: {
+  LunafreyaStatusPanel: (props: {
     selectedJobId?: string | null;
     selectedKnowledgeIds?: string[];
-  }) => (
-    <div>{`lunafreya-status:${selectedJobId ?? "none"}:${selectedKnowledgeIds?.join("|") || "none"}`}</div>
-  ),
+    onToggleKnowledgeId?: (knowledgeId: string) => void;
+    onClearKnowledgeIds?: () => void;
+  }) => {
+    lunafreyaStatusPropsSpy(props);
+
+    return (
+      <div>{`lunafreya-status:${props.selectedJobId ?? "none"}:${props.selectedKnowledgeIds?.join("|") || "none"}`}</div>
+    );
+  },
 }));
 
 vi.mock("./mission-activity-log", () => ({
@@ -226,6 +231,7 @@ describe("noctis-team-screen", () => {
   beforeEach(() => {
     paramsMock.mockReturnValue({});
     matchMock.mockReturnValue(null);
+    lunafreyaStatusPropsSpy.mockReset();
     navigateMock.mockReset();
     toastErrorMock.mockReset();
     toastSuccessMock.mockReset();
@@ -473,5 +479,47 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("lunafreya-status:oracle:hydraean");
     expect(markup).toContain("activity-log:1");
     expect(markup).not.toContain("party-status-panel");
+  });
+
+  it("keeps Lunafreya knowledge selection state in the mission screen and passes management callbacks", () => {
+    paramsMock.mockReturnValue({ id: "mission-luna" });
+
+    renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-luna"
+        initialMissionData={buildMission({
+          missionId: "mission-luna",
+          primaryAgentId: "lunafreya",
+          primarySessionId: "session-luna",
+          surfaceId: "lunafreya",
+          lunafreyaFacetSelection: {
+            selectedJobId: "oracle",
+            selectedKnowledgeIds: ["hydraean"],
+            updatedAt: "2026-04-11T00:00:00.000Z",
+          },
+          sessions: {
+            primary: "session-luna",
+            noctis: null,
+            ignis: null,
+            gladiolus: null,
+            prompto: null,
+          },
+        })}
+        language="other"
+        surfaceId="lunafreya"
+      />,
+    );
+
+    const props = lunafreyaStatusPropsSpy.mock.calls.at(-1)?.[0] as {
+      selectedJobId: string | null;
+      selectedKnowledgeIds: string[];
+      onToggleKnowledgeId: (knowledgeId: string) => void;
+      onClearKnowledgeIds: () => void;
+    };
+
+    expect(props.selectedJobId).toBe("oracle");
+    expect(props.selectedKnowledgeIds).toEqual(["hydraean"]);
+    expect(typeof props.onToggleKnowledgeId).toBe("function");
+    expect(typeof props.onClearKnowledgeIds).toBe("function");
   });
 });
