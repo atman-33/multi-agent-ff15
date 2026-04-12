@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildProjectOperationRef,
   listOperationCatalogEntriesForScope,
+  listUserFacingOperationCatalogEntriesForScope,
   loadOperationByRef,
 } from "./operation-catalog";
 
@@ -101,6 +102,34 @@ afterEach(() => {
 });
 
 describe("operation catalog", () => {
+  it("keeps internal-only builtin workflows out of Noctis Team user-facing options", () => {
+    const root = createTempRoot();
+    writeBuiltinOperation(root, "ja", "lunafreya-autonomous.yaml", "lunafreya-autonomous");
+    writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
+    writeBuiltinOperation(root, "ja", "openspec-dev.yaml", "openspec-dev");
+
+    const fullEntries = listOperationCatalogEntriesForScope({
+      root,
+      scope: "noctis_team",
+      builtinLanguages: ["ja", "en"],
+    });
+    const userFacingEntries = listUserFacingOperationCatalogEntriesForScope({
+      root,
+      scope: "noctis_team",
+      builtinLanguages: ["ja", "en"],
+    });
+
+    expect(fullEntries.map((entry) => entry.ref)).toEqual([
+      "builtin:ja:lunafreya-autonomous.yaml",
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
+    ]);
+    expect(userFacingEntries.map((entry) => entry.ref)).toEqual([
+      "builtin:ja:noctis-autonomous.yaml",
+      "builtin:ja:openspec-dev.yaml",
+    ]);
+  });
+
   it("includes registered project workflows alongside builtin workflows without collapsing same-name entries", () => {
     const root = createTempRoot();
     writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");

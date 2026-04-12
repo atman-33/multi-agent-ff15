@@ -1,7 +1,7 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { isWorkerAgentId } from "@/lib/agent-identity";
 import {
-  findUnambiguousOperationEntryForMessage,
+  findUnambiguousUserFacingOperationEntryForMessage,
   loadOperationByRef,
 } from "@/lib/operation-definition/operation-catalog";
 import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
@@ -121,7 +121,7 @@ function listPreferredBuiltinLanguages(language: string): string[] {
 function detectOperationRef(message: string): string | null {
   const language = readOperationLanguage();
   return (
-    findUnambiguousOperationEntryForMessage({
+    findUnambiguousUserFacingOperationEntryForMessage({
       builtinLanguages: listPreferredBuiltinLanguages(language),
       message,
       scope: "noctis_team",

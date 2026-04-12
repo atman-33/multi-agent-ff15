@@ -216,6 +216,25 @@ describe("OperationInstantiator", () => {
     expect(result.activationText).toContain("Respond directly to User.");
   });
 
+  it("does not auto-activate the hidden Lunafreya workflow on Noctis Team", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedLunafreyaBoundaryOperation(root);
+    createMissionFixture("mission-lunafreya-hidden");
+
+    const instantiator = createOperationInstantiator();
+    const result = instantiator.activateOperation({
+      missionId: "mission-lunafreya-hidden",
+      message: "Please run lunafreya-autonomous for this mission.",
+    });
+
+    expect(result.operation).toBeNull();
+    expect(result.operationState).toBeNull();
+    expect(result.step).toBeNull();
+    expect(result.activationText).toBeNull();
+    expect(getOperationState("mission-lunafreya-hidden")).toBeUndefined();
+  });
+
   it("activates a detected operation and returns resolved prompt metadata", () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

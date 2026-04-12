@@ -8,8 +8,8 @@ import {
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import {
-  listOperationCatalogEntriesForScope,
-  resolveDefaultOperationRef,
+  listUserFacingOperationCatalogEntriesForScope,
+  resolveDefaultUserFacingOperationRef,
 } from "@/lib/operation-definition/operation-catalog";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
@@ -113,7 +113,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         projectId !== executionProjectId && !!readRegisteredProjectDefinition(projectRoot, projectId),
     );
     const language = readOperationLanguage();
-    const availableOperationEntries = listOperationCatalogEntriesForScope({
+    const availableOperationEntries = listUserFacingOperationCatalogEntriesForScope({
       root: projectRoot,
       scope: "noctis_team",
       projectFilterId: executionProjectId,
@@ -127,7 +127,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
     const selectedOperation =
       selectedOperationInput ??
-      resolveDefaultOperationRef({
+      resolveDefaultUserFacingOperationRef({
         root: projectRoot,
         scope: "noctis_team",
         projectFilterId: executionProjectId,
