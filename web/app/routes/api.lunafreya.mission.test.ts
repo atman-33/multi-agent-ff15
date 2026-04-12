@@ -146,7 +146,8 @@ afterEach(() => {
 
 describe("Lunafreya mission routing", () => {
   it("starts a Lunafreya mission with the implicit default Job when no explicit override is selected", async () => {
-    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
     sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-default" } });
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-lunafreya-default" } });
 
@@ -166,10 +167,19 @@ describe("Lunafreya mission routing", () => {
     missionIds.push(data.missionId);
 
     const mission = getMission(data.missionId);
+    expect(mission?.executionTargetMode).toBe("execution_project");
+    expect(mission?.workspacePath).toBeUndefined();
+    expect(mission?.workspaceStatus).toBeUndefined();
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
       selectedKnowledgeIds: [],
     });
     expect(mission?.lunafreyaFacetSelection?.selectedJobId).toBeUndefined();
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: join(root, "external-alpha"),
+        title: `mission:${data.missionId}`,
+      }),
+    );
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);

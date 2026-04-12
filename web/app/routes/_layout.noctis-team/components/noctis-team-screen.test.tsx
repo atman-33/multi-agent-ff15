@@ -281,7 +281,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("execution-selector:core-repo");
-    expect(markup).toContain("execution-mode:mission_workspace");
+    expect(markup).toContain("execution-mode:execution_project");
     expect(markup).toContain("execution-options:Core Repo,Reference Docs");
     expect(markup).toContain("Context projects start empty for new missions.");
     expect(markup).toContain("context:None");
@@ -392,7 +392,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("Execution mode");
-    expect(markup).toContain("Execution project direct");
+    expect(markup).toContain("Registered project");
     expect(markup).toContain("This mission is using the execution project directly without a dedicated workspace.");
     expect(markup).toContain("/repos/core");
   });

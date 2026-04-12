@@ -119,7 +119,7 @@ afterEach(() => {
 });
 
 describe("Noctis mission execution workspace lifecycle", () => {
-  it("provisions a shared clone workspace on mission start", async () => {
+  it("provisions a shared clone workspace on mission start when dedicated workspace is selected", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-start" } });
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-start" } });
@@ -131,6 +131,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
         body: JSON.stringify({
           message: "Implement execution workspace lifecycle.",
           executionProjectId: "alpha",
+          executionTargetMode: "mission_workspace",
           allowedWorkers: [],
         }),
       }),
@@ -156,7 +157,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     );
   });
 
-  it("blocks mission start when the selected execution project is not git-backed", async () => {
+  it("blocks dedicated-workspace mission start when the selected execution project is not git-backed", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot({ gitBacked: false });
 
     const response = await startAction({
@@ -166,6 +167,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
         body: JSON.stringify({
           message: "This should fail.",
           executionProjectId: "alpha",
+          executionTargetMode: "mission_workspace",
           allowedWorkers: [],
         }),
       }),
@@ -176,6 +178,41 @@ describe("Noctis mission execution workspace lifecycle", () => {
       error: "Execution project must point to a git repository.",
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("defaults new missions to the execution project root when executionTargetMode is omitted", async () => {
+    const root = createTempRoot({ gitBacked: false });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-default-direct" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-default-direct" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Use the new default execution mode.",
+          executionProjectId: "alpha",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    const mission = getMission(data.missionId);
+    expect(mission?.executionProjectId).toBe("alpha");
+    expect(mission?.executionTargetMode).toBe("execution_project");
+    expect(mission?.workspacePath).toBeUndefined();
+    expect(mission?.workspaceStatus).toBeUndefined();
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: join(root, "external-alpha"),
+        title: `mission:${data.missionId}`,
+      }),
+    );
   });
 
   it("starts direct-mode missions in the execution project root without provisioning a workspace", async () => {
@@ -238,6 +275,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     const data = await readJson<{ missionId: string }>(response);
     missionIds.push(data.missionId);
 
+    expect(getMission(data.missionId)?.executionTargetMode).toBe("execution_project");
     expect(getMission(data.missionId)?.contextProjectIds).toEqual(["beta"]);
   });
 
@@ -255,6 +293,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
         body: JSON.stringify({
           message: "Implement execution workspace lifecycle.",
           executionProjectId: "alpha",
+          executionTargetMode: "mission_workspace",
           allowedWorkers: [],
         }),
       }),

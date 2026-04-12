@@ -24,6 +24,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
+import {
+  DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
+  EXECUTION_MODE_TOGGLE_LABEL,
+  EXECUTION_MODE_TOOLTIP_COPY,
+} from "@/lib/mission-execution-target-mode";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -488,7 +493,7 @@ export const ChatArea = ({
   showExecutionProjectSelector = false,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
-  selectedExecutionTargetMode = "mission_workspace",
+  selectedExecutionTargetMode = DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   executionProjectHint = null,
   executionProjectError = null,
   onSelectedExecutionProjectChange,
@@ -515,7 +520,7 @@ export const ChatArea = ({
   primaryAgentLabel = "Noctis",
   composerStatusLabel = null,
   composerPlaceholder,
-  startingMissionDescription = "Preparing workspace and briefing Noctis.",
+  startingMissionDescription = "Preparing mission and briefing Noctis.",
 }: ChatAreaProps) => {
   const isMissionStartPending = isStartingMission && showExecutionProjectSelector;
   const presentationMessages = useMemo(
@@ -755,15 +760,31 @@ export const ChatArea = ({
                       {onSelectedExecutionTargetModeChange ? (
                         <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
                           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-                            Direct
+                            {EXECUTION_MODE_TOGGLE_LABEL}
                           </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                aria-label="Execution mode help"
+                                className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
+                                size="icon"
+                                type="button"
+                                variant="ghost"
+                              >
+                                <Info className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+                              {EXECUTION_MODE_TOOLTIP_COPY}
+                            </TooltipContent>
+                          </Tooltip>
                           <Switch
-                            aria-label="Use execution project directly"
-                            checked={selectedExecutionTargetMode === "execution_project"}
+                            aria-label="Toggle dedicated workspace"
+                            checked={selectedExecutionTargetMode === "mission_workspace"}
                             disabled={isMissionStartPending}
                             onCheckedChange={(checked) =>
                               onSelectedExecutionTargetModeChange(
-                                checked ? "execution_project" : "mission_workspace",
+                                checked ? "mission_workspace" : "execution_project",
                               )
                             }
                           />

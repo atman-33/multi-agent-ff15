@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppLanguage } from "@/lib/app-language.server";
+import { DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE } from "@/lib/mission-execution-target-mode";
 import {
   createBanterFeedPresenter,
   type BanterFeedPresenter,
@@ -453,7 +454,7 @@ export function useAgentSession({
   initialMissionData,
   initialMessageInfos,
   selectedExecutionProjectId,
-  selectedExecutionTargetMode = "mission_workspace",
+  selectedExecutionTargetMode = DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   selectedContextProjectIds = [],
   selectedLunafreyaJobId = null,
   selectedLunafreyaKnowledgeIds = [],

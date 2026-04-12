@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
+import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import { createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
@@ -81,9 +82,9 @@ export const action = async ({ request }: { request: Request }) => {
     return Response.json({ error: "Missing executionProjectId" }, { status: 400 });
   }
 
-  const executionTargetMode = body?.executionTargetMode === "execution_project"
-    ? "execution_project"
-    : "mission_workspace";
+  const executionTargetMode = normalizeIncomingMissionExecutionTargetMode(
+    body?.executionTargetMode,
+  );
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const message = stringifyPromptParts(promptParts);
   const missionTitle = title || message.slice(0, 80);

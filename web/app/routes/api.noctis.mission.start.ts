@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
@@ -67,9 +68,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
     typeof body.executionProjectId === "string" && body.executionProjectId.trim().length > 0
       ? body.executionProjectId.trim()
       : "";
-  const executionTargetMode = body?.executionTargetMode === "execution_project"
-    ? "execution_project"
-    : "mission_workspace";
+  const executionTargetMode = normalizeIncomingMissionExecutionTargetMode(
+    body?.executionTargetMode,
+  );
   if (!executionProjectId) {
     return Response.json({ error: "Missing executionProjectId" }, { status: 400 });
   }

@@ -1,7 +1,11 @@
+import {
+  DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
+  normalizeIncomingMissionExecutionTargetMode,
+} from "@/lib/mission-execution-target-mode";
 import type { MissionExecutionTargetMode, MissionSurfaceId } from "@/lib/types/mission";
 
-export const NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY = "noctis-team:new-mission-draft";
-export const LUNAFREYA_NEW_MISSION_DRAFT_STORAGE_KEY = "lunafreya:new-mission-draft";
+export const NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY = "noctis-team:new-mission-draft:v2";
+export const LUNAFREYA_NEW_MISSION_DRAFT_STORAGE_KEY = "lunafreya:new-mission-draft:v2";
 
 export type NoctisTeamNewMissionDraft = {
   executionProjectId: string | null;
@@ -39,10 +43,7 @@ export function readMissionSurfaceNewMissionDraft(
         typeof parsed.executionProjectId === "string" && parsed.executionProjectId.trim().length > 0
           ? parsed.executionProjectId
           : null,
-      executionTargetMode:
-        parsed.executionTargetMode === "execution_project"
-          ? "execution_project"
-          : "mission_workspace",
+      executionTargetMode: normalizeIncomingMissionExecutionTargetMode(parsed.executionTargetMode),
       contextProjectIds: Array.isArray(parsed.contextProjectIds)
         ? parsed.contextProjectIds.filter(
             (projectId): projectId is string =>
@@ -86,4 +87,14 @@ export function writeNoctisTeamNewMissionDraft(
 
 export function clearNoctisTeamNewMissionDraft(storage: Pick<Storage, "removeItem">): void {
   clearMissionSurfaceNewMissionDraft(storage, "noctis_team");
+}
+
+export function createDefaultNewMissionDraft(
+  executionProjectId: string | null,
+): NoctisTeamNewMissionDraft {
+  return {
+    executionProjectId,
+    executionTargetMode: DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
+    contextProjectIds: [],
+  };
 }

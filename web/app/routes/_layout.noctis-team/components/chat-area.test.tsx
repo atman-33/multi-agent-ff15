@@ -116,7 +116,7 @@ describe("chat-area", () => {
         ]}
         selectedExecutionProjectId="core-repo"
         executionProjectHint="Secondary context starts with Projects page presets."
-        selectedExecutionTargetMode="mission_workspace"
+        selectedExecutionTargetMode="execution_project"
         contextProjects={[
           { id: "docs-repo", label: "Reference Docs" },
           { id: "api-repo", label: "API Notes" },
@@ -144,7 +144,10 @@ describe("chat-area", () => {
     expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
-    expect(markup).toContain("Use execution project directly");
+    expect(markup).toContain("Dedicated workspace");
+    expect(markup).toContain("Execution mode help");
+    expect(markup).toContain("Work directly in the registered project folder");
+    expect(markup).toContain("Create a mission-specific workspace and work there");
     expect(markup).toContain('data-state="unchecked"');
     expect(markup).not.toContain("+1");
     expect(markup).not.toContain("Mission Setup");
@@ -179,10 +182,10 @@ describe("chat-area", () => {
     );
 
     expect(markup).toContain("Starting Mission");
-    expect(markup).toContain("Preparing workspace and briefing Noctis.");
+    expect(markup).toContain("Preparing mission and briefing Noctis.");
     expect(markup).toContain("/images/chocobo.png");
     expect(markup).toContain("send-disabled");
-    expect(markup).toContain('data-state="checked"');
+    expect(markup).toContain('data-state="unchecked"');
     expect(markup).toContain('data-disabled="yes"');
   });
 

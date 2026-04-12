@@ -39,6 +39,7 @@ import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
 import type { AppLanguage } from "@/lib/app-language.server";
 import { normalizeContextProjectIds } from "@/lib/execution-context";
 import {
+  DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   getMissionExecutionTargetModeLabel,
   normalizeMissionExecutionTargetMode,
 } from "@/lib/mission-execution-target-mode";
@@ -310,10 +311,12 @@ export function NoctisTeamScreen({
     initialMissionData?.executionProjectId ?? null,
   );
   const [draftExecutionTargetMode, setDraftExecutionTargetMode] = useState<MissionExecutionTargetMode>(
-    normalizeMissionExecutionTargetMode(
-      initialMissionData?.executionTargetMode ?? undefined,
-      initialMissionData?.executionProjectId ?? undefined,
-    ) ?? "mission_workspace",
+    initialMissionData
+      ? (normalizeMissionExecutionTargetMode(
+          initialMissionData.executionTargetMode ?? undefined,
+          initialMissionData.executionProjectId ?? undefined,
+        ) ?? "mission_workspace")
+      : DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   );
   const [draftContextProjectIds, setDraftContextProjectIds] = useState<string[]>(
     initialMissionData?.contextProjectIds ?? [],
@@ -423,7 +426,7 @@ export function NoctisTeamScreen({
     Boolean(effectiveMissionId) && Boolean(missionDetail) && !missionDetail?.executionProjectId;
   const workspaceStatusLabel =
     isDirectExecutionMission
-      ? "Direct execution"
+      ? "Registered project"
       : missionDetail?.workspaceStatus === "ready"
         ? "Ready"
         : missionDetail?.workspaceStatus === "deleted"
@@ -1302,7 +1305,7 @@ export function NoctisTeamScreen({
               primaryAgentLabel={primaryAgentLabel}
               composerStatusLabel={isLunafreyaSurface ? "Solo mission surface" : null}
               composerPlaceholder={`Send a message to ${primaryAgentLabel}`}
-              startingMissionDescription={`Preparing workspace and briefing ${primaryAgentLabel}.`}
+              startingMissionDescription={`Preparing mission and briefing ${primaryAgentLabel}.`}
             />
           </div>
         </ResizablePanel>
