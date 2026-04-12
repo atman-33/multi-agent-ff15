@@ -1,0 +1,72 @@
+import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import type { MissionActivityLogEntry } from "@/lib/types/mission";
+
+vi.mock("@/components/ui/scroll-area", () => ({
+  ScrollArea: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+import { MissionActivityLog } from "./mission-activity-log";
+
+const baseEntry: MissionActivityLogEntry = {
+  id: "activity-1",
+  missionId: "mission-1",
+  actor: "system",
+  speaker: "system",
+  kind: "system_event",
+  body: "Updated Lunafreya overlays.",
+  createdAt: "2026-04-12T15:07:00.000Z",
+};
+
+describe("mission-activity-log", () => {
+  it("hides duplicate Lunafreya job and knowledge lines when overlay badges are shown", () => {
+    const markup = renderToStaticMarkup(
+      <MissionActivityLog
+        entries={[
+          {
+            ...baseEntry,
+            body: [
+              "Updated Lunafreya overlays.",
+              "Job: Shiritori lead",
+              "Knowledge: agent-relationships",
+            ].join("\n"),
+            source: {
+              type: "system",
+              lunafreyaFacetSnapshot: {
+                selectedJobId: "shiritori-lead",
+                selectedJobLabel: "Shiritori lead",
+                selectedKnowledgeIds: ["agent-relationships"],
+                selectedKnowledgeLabels: ["agent-relationships"],
+                updatedAt: "2026-04-12T15:07:00.000Z",
+              },
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Updated Lunafreya overlays.");
+    expect(markup).toContain("Applied overlays");
+    expect(markup).not.toContain("Knowledge: agent-relationships");
+    expect(markup).toContain("Job: Shiritori lead");
+    expect(markup).toContain("agent-relationships");
+  });
+
+  it("preserves the original body when no Lunafreya overlay snapshot exists", () => {
+    const markup = renderToStaticMarkup(
+      <MissionActivityLog
+        entries={[
+          {
+            ...baseEntry,
+            body: "Updated mission context projects.\nKnowledge: keep this line",
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("Updated mission context projects.");
+    expect(markup).toContain("Knowledge: keep this line");
+    expect(markup).not.toContain("Applied overlays");
+  });
+});

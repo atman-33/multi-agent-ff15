@@ -34,6 +34,18 @@ function getEntryTone(entry: MissionActivityLogEntry): string {
   }
 }
 
+function getEntryBody(entry: MissionActivityLogEntry): string {
+  if (!entry.source?.lunafreyaFacetSnapshot) {
+    return entry.body;
+  }
+
+  const lines = entry.body
+    .split("\n")
+    .filter((line) => !line.startsWith("Job:") && !line.startsWith("Knowledge:"));
+
+  return lines.join("\n").trim() || entry.body;
+}
+
 export function MissionActivityLog({ entries }: MissionActivityLogProps) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -76,7 +88,7 @@ export function MissionActivityLog({ entries }: MissionActivityLogProps) {
                         {getActivityActorLabel(entry.speaker)}
                       </p>
                       <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground/90">
-                        {entry.body}
+                        {getEntryBody(entry)}
                       </p>
                     </div>
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground/80">
