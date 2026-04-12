@@ -1,4 +1,5 @@
 import { Clock3, Sparkles } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { MissionActivityLogEntry } from "@/lib/types/mission";
@@ -47,6 +48,16 @@ function getEntryBody(entry: MissionActivityLogEntry): string {
 }
 
 export function MissionActivityLog({ entries }: MissionActivityLogProps) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(entries.length);
+
+  useEffect(() => {
+    if (entries.length !== prevLengthRef.current) {
+      prevLengthRef.current = entries.length;
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  });
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center gap-2 border-border/50 border-b px-3 py-2.5">
@@ -71,7 +82,7 @@ export function MissionActivityLog({ entries }: MissionActivityLogProps) {
       ) : (
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-3 p-3">
-            {[...entries].reverse().map((entry) => {
+            {entries.map((entry) => {
               const facetSnapshot = entry.source?.lunafreyaFacetSnapshot;
 
               return (
@@ -126,6 +137,7 @@ export function MissionActivityLog({ entries }: MissionActivityLogProps) {
                 </article>
               );
             })}
+            <div ref={bottomRef} />
           </div>
         </ScrollArea>
       )}

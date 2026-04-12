@@ -20,6 +20,29 @@ const baseEntry: MissionActivityLogEntry = {
 };
 
 describe("mission-activity-log", () => {
+  it("renders activity entries in chronological order with the newest item last", () => {
+    const markup = renderToStaticMarkup(
+      <MissionActivityLog
+        entries={[
+          {
+            ...baseEntry,
+            id: "activity-older",
+            body: "Older entry",
+            createdAt: "2026-04-12T15:06:00.000Z",
+          },
+          {
+            ...baseEntry,
+            id: "activity-newer",
+            body: "Newer entry",
+            createdAt: "2026-04-12T15:07:00.000Z",
+          },
+        ]}
+      />,
+    );
+
+    expect(markup.indexOf("Older entry")).toBeLessThan(markup.indexOf("Newer entry"));
+  });
+
   it("hides duplicate Lunafreya job and knowledge lines when overlay badges are shown", () => {
     const markup = renderToStaticMarkup(
       <MissionActivityLog
