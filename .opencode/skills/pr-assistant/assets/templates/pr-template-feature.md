@@ -6,13 +6,13 @@
 
 <!-- Why is this change needed? What problem does it solve? -->
 
-## 🔧 Changes
+## 🔧 Changes Overview
 
 <!-- AUTO_CHANGES -->
 
 ## ✅ Testing
 
-<!-- Describe what testing was performed -->
+<!-- Fill in commands run and any notable manual checks -->
 
 - [ ] Tested locally
 - [ ] Manual testing completed

@@ -3,27 +3,45 @@
 Analyze git changes and categorize them for PR creation.
 
 Usage:
-    python analyze_changes.py [target_branch]
+    python analyze_changes.py [target_branch] [--output OUTPUT]
 
-Output: JSON with categorized changes and summary statistics
+Output: JSON with categorized changes, confidence metadata, and summary statistics
 """
 
+import argparse
 import json
+import re
 import subprocess
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
+from pathlib import Path, PurePosixPath
 from typing import Dict, List, Tuple
 
 
-# Project-specific categories
-CATEGORIES = {
-    'backend': ['apis/', 'requirements.txt'],
-    'frontend': ['ui/src/', 'ui/package.json', 'ui/quasar.config.js', 'ui/eslint.config.js'],
-    'database': ['supabase/'],
-    'devops': ['docker-compose.yml', 'Dockerfile', 'nginx.conf', 'supervisord.conf'],
-    'docs': ['doc/', 'README.md', 'CLAUDE.md', 'LICENSE'],
-    'config': ['.gitignore', '.env', 'jsconfig.json', 'postcss.config.js'],
+DOC_EXTENSIONS = {".md", ".mdx", ".rst", ".txt"}
+DOC_BASENAMES = {
+    "README",
+    "README.md",
+    "README.mdx",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "LICENSE",
+    "LICENSE.md",
 }
+FRONTEND_EXTENSIONS = {".tsx", ".jsx", ".css", ".scss", ".sass", ".less", ".html", ".vue", ".svelte"}
+BACKEND_EXTENSIONS = {".py", ".rb", ".go", ".rs", ".java", ".kt", ".cs", ".php", ".scala"}
+SCRIPT_EXTENSIONS = {".sh", ".bash", ".zsh", ".ps1"}
+CONFIG_EXTENSIONS = {".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties"}
+ASSET_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp", ".avif", ".ttf", ".otf", ".woff", ".woff2"}
+DATA_EXTENSIONS = {".sql", ".csv", ".tsv", ".parquet", ".jsonl"}
+SOURCE_EXTENSIONS = {".ts", ".js", ".mjs", ".cjs"}
+CI_PATH_PREFIXES = (".github/workflows/", ".circleci/", ".buildkite/")
+CI_FILENAMES = {"Jenkinsfile", ".gitlab-ci.yml", "azure-pipelines.yml", "azure-pipelines.yaml"}
+INFRA_MARKERS = {"terraform", "infra", "infrastructure", "helm", "charts", "k8s", "kubernetes", "ansible"}
+FRONTEND_MARKERS = {"web", "ui", "frontend", "client"}
+BACKEND_MARKERS = {"api", "apis", "server", "backend", "worker", "workers"}
+TEST_MARKERS = {"test", "tests", "spec", "specs", "__tests__", "__snapshots__"}
 
 
 def run_command(cmd: List[str]) -> Tuple[str, int]:
@@ -44,6 +62,12 @@ def get_current_branch() -> str:
     """Get the current git branch name."""
     output, _ = run_command(['git', 'branch', '--show-current'])
     return output
+
+
+def sanitize_branch_name(branch_name: str) -> str:
+    """Return a filesystem-safe branch slug."""
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", branch_name.replace("/", "-"))
+    return slug.strip("-") or "head"
 
 
 def get_changed_files(target_branch: str) -> List[Tuple[str, str]]:
@@ -73,17 +97,53 @@ def get_changed_files(target_branch: str) -> List[Tuple[str, str]]:
 
 
 def categorize_file(filepath: str) -> str:
-    """Categorize a file based on its path."""
-    for category, patterns in CATEGORIES.items():
-        for pattern in patterns:
-            if pattern.endswith('/'):
-                # Directory pattern
-                if filepath.startswith(pattern):
-                    return category
-            else:
-                # File or extension pattern
-                if filepath == pattern or filepath.endswith(pattern):
-                    return category
+    """Categorize a file using generic, repository-agnostic heuristics."""
+    path = PurePosixPath(filepath)
+    suffix = path.suffix.lower()
+    basename = path.name
+    lowered = filepath.lower()
+    parts = {part.lower() for part in path.parts}
+
+    if parts & TEST_MARKERS or re.search(r"(^|[._-])(test|spec)([._-]|$)", basename.lower()):
+        return 'tests'
+
+    if basename in DOC_BASENAMES or suffix in DOC_EXTENSIONS or 'docs' in parts or 'doc' in parts:
+        return 'docs'
+
+    if lowered.startswith(CI_PATH_PREFIXES) or basename in CI_FILENAMES:
+        return 'ci'
+
+    if basename == 'Dockerfile' or 'docker-compose' in basename.lower() or parts & INFRA_MARKERS:
+        return 'infrastructure'
+
+    if (path.parts and path.parts[0] == 'scripts') or suffix in SCRIPT_EXTENSIONS:
+        return 'scripts'
+
+    if basename.startswith('.') and suffix not in DOC_EXTENSIONS:
+        return 'config'
+
+    if basename in {'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'} or suffix in CONFIG_EXTENSIONS:
+        return 'config'
+
+    if suffix in ASSET_EXTENSIONS or parts & {'assets', 'images', 'img', 'media', 'static', 'public'}:
+        return 'assets'
+
+    if suffix in DATA_EXTENSIONS or parts & {'data', 'fixtures', 'migrations', 'seeds'}:
+        return 'data'
+
+    if suffix in FRONTEND_EXTENSIONS:
+        return 'frontend'
+
+    if suffix in BACKEND_EXTENSIONS:
+        return 'backend'
+
+    if suffix in SOURCE_EXTENSIONS:
+        if parts & FRONTEND_MARKERS:
+            return 'frontend'
+        if parts & BACKEND_MARKERS:
+            return 'backend'
+        return 'application'
+
     return 'other'
 
 
@@ -139,29 +199,137 @@ def get_diff_stats(target_branch: str) -> Dict[str, int]:
     return stats
 
 
-def infer_pr_type(changes_by_category: Dict[str, List], commit_messages: List[str]) -> str:
-    """Infer PR type from changes and commits."""
-    # Check commit messages for keywords
-    all_messages = ' '.join(commit_messages).lower()
+def summarize_categories(changes_by_category: Dict[str, List[Dict[str, str]]]) -> List[Dict[str, object]]:
+    """Return compact category summaries with sample files."""
+    summaries: List[Dict[str, object]] = []
+    for category, files in changes_by_category.items():
+        samples = [file_info['file'] for file_info in files[:3]]
+        statuses = Counter(file_info['status'] for file_info in files)
+        summaries.append({
+            'category': category,
+            'file_count': len(files),
+            'samples': samples,
+            'statuses': dict(sorted(statuses.items())),
+        })
 
-    if 'fix' in all_messages or 'bugfix' in all_messages:
-        return 'bugfix'
+    summaries.sort(key=lambda item: (-int(item['file_count']), str(item['category'])))
+    return summaries
 
-    # Check if only docs changed
-    if len(changes_by_category) == 1 and 'docs' in changes_by_category:
+
+def summarize_top_level_areas(changed_files: List[Tuple[str, str]]) -> List[Dict[str, object]]:
+    """Summarize changed files by top-level area."""
+    area_counts: Counter[str] = Counter()
+    area_samples: Dict[str, List[str]] = defaultdict(list)
+
+    for _, filepath in changed_files:
+        parts = filepath.split('/', 1)
+        area = parts[0] if len(parts) > 1 else '(repo root)'
+        area_counts[area] += 1
+        if len(area_samples[area]) < 3:
+            area_samples[area].append(filepath)
+
+    summaries = [
+        {
+            'area': area,
+            'file_count': count,
+            'samples': area_samples[area],
+        }
+        for area, count in area_counts.items()
+    ]
+    summaries.sort(key=lambda item: (-int(item['file_count']), str(item['area'])))
+    return summaries
+
+
+def measure_classification_confidence(changes_by_category: Dict[str, List[Dict[str, str]]], total_files: int) -> Dict[str, object]:
+    """Estimate whether the generic category split is trustworthy enough to show directly."""
+    other_files = len(changes_by_category.get('other', []))
+    coverage = 1.0 if total_files == 0 else (total_files - other_files) / total_files
+
+    if coverage >= 0.85:
+        confidence = 'high'
+    elif coverage >= 0.6:
+        confidence = 'medium'
+    else:
+        confidence = 'low'
+
+    return {
+        'strategy': 'generic',
+        'confidence': confidence,
+        'matched_files': total_files - other_files,
+        'other_files': other_files,
+        'coverage': round(coverage, 3),
+    }
+
+
+def extract_commit_subject(commit_line: str) -> str:
+    """Return the commit subject from a `git log --oneline` entry."""
+    parts = commit_line.split(' ', 1)
+    return parts[1] if len(parts) > 1 else commit_line
+
+
+def infer_pr_type(current_branch: str, changes_by_category: Dict[str, List[Dict[str, str]]], commit_messages: List[str]) -> str:
+    """Infer PR type from branch, changes, and commits."""
+    branch_prefix = current_branch.lower().split('/', 1)[0]
+    branch_type_map = {
+        'feature': 'feature',
+        'feat': 'feature',
+        'bugfix': 'bugfix',
+        'fix': 'bugfix',
+        'hotfix': 'bugfix',
+        'docs': 'docs',
+        'doc': 'docs',
+        'refactor': 'refactor',
+        'chore': 'chore',
+        'build': 'chore',
+        'ci': 'chore',
+    }
+    if branch_prefix in branch_type_map:
+        return branch_type_map[branch_prefix]
+
+    categories = set(changes_by_category)
+    if categories == {'docs'}:
         return 'docs'
 
-    # Check for chore/config only changes
-    config_only = all(cat in ['config', 'devops'] for cat in changes_by_category.keys())
-    if config_only:
+    if categories and categories.issubset({'config', 'ci', 'infrastructure', 'scripts'}):
         return 'chore'
 
-    # Default to feature
+    commit_type_counts: Counter[str] = Counter()
+    for message in commit_messages:
+        subject = extract_commit_subject(message)
+        match = re.match(r'(?P<kind>feat|fix|docs|refactor|chore|build|ci|test)(\(.+\))?!?:', subject)
+        if match:
+            commit_type_counts[match.group('kind')] += 1
+
+    total_typed_commits = sum(commit_type_counts.values())
+    fix_count = commit_type_counts.get('fix', 0)
+    feat_count = commit_type_counts.get('feat', 0)
+
+    if total_typed_commits > 0:
+        if fix_count > feat_count and fix_count >= max(2, (total_typed_commits + 1) // 2):
+            return 'bugfix'
+        if commit_type_counts.get('docs', 0) == total_typed_commits:
+            return 'docs'
+        if feat_count > 0:
+            return 'feature'
+        if commit_type_counts.get('refactor', 0) == total_typed_commits:
+            return 'refactor'
+        if commit_type_counts.get('chore', 0) + commit_type_counts.get('build', 0) + commit_type_counts.get('ci', 0) == total_typed_commits:
+            return 'chore'
+
     return 'feature'
 
 
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description='Analyze git changes for PR generation.')
+    parser.add_argument('target_branch', nargs='?', default='main', help='Target branch to compare against (default: main)')
+    parser.add_argument('--output', '-o', help='Optional JSON output path')
+    return parser
+
+
 def main():
-    target_branch = sys.argv[1] if len(sys.argv) > 1 else 'main'
+    parser = build_parser()
+    args = parser.parse_args()
+    target_branch = args.target_branch
 
     current_branch = get_current_branch()
     changed_files = get_changed_files(target_branch)
@@ -170,7 +338,7 @@ def main():
     diff_stats = get_diff_stats(target_branch)
 
     # Categorize changes
-    changes_by_category = defaultdict(list)
+    changes_by_category: Dict[str, List[Dict[str, str]]] = defaultdict(list)
     for status, filepath in changed_files:
         category = categorize_file(filepath)
         changes_by_category[category].append({
@@ -179,21 +347,35 @@ def main():
         })
 
     # Infer PR type
-    pr_type = infer_pr_type(changes_by_category, commit_messages)
+    pr_type = infer_pr_type(current_branch, changes_by_category, commit_messages)
+    total_files = len(changed_files)
+    category_summary = summarize_categories(dict(changes_by_category))
+    top_level_areas = summarize_top_level_areas(changed_files)
+    classification = measure_classification_confidence(dict(changes_by_category), total_files)
 
     # Build result
     result = {
         'current_branch': current_branch,
+        'branch_slug': sanitize_branch_name(current_branch),
         'target_branch': target_branch,
         'pr_type': pr_type,
         'stats': diff_stats,
         'commits': commit_messages,
         'issue_references': issue_refs,
         'changes_by_category': dict(changes_by_category),
-        'total_files': len(changed_files)
+        'category_summary': category_summary,
+        'top_level_areas': top_level_areas,
+        'classification': classification,
+        'total_files': total_files,
     }
 
-    print(json.dumps(result, indent=2))
+    payload = json.dumps(result, indent=2)
+    if args.output:
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(payload + '\n', encoding='utf-8')
+    else:
+        print(payload)
     return 0
 
 

@@ -6,7 +6,7 @@
 
 <!-- Why were these documentation changes needed? -->
 
-## 📄 Changes
+## 📄 Changes Overview
 
 <!-- AUTO_CHANGES -->
 
