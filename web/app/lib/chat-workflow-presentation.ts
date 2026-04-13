@@ -121,7 +121,7 @@ function toPromptContextSection(
 }
 
 export function getPromptContextSourceLabel(source: PromptContextSource): string {
-  return source === "workflow" ? "Workflow" : "Injected";
+  return source === "workflow" ? "Operation" : "Injected";
 }
 
 export function parseInjectedPromptContextSections(rawText: string): PromptContextSection[] {
@@ -156,6 +156,7 @@ function normalizeActorId(value: string | null | undefined): ActivityActorId | n
   if (
     normalized === "user" ||
     normalized === "noctis" ||
+    normalized === "lunafreya" ||
     normalized === "ignis" ||
     normalized === "gladiolus" ||
     normalized === "prompto" ||
@@ -225,6 +226,61 @@ function extractTopLevelSections(document: string): Array<{
   return sections;
 }
 
+function prioritizeNormalizedLunafreyaSections(input: {
+  sections: Array<{
+    tagName: string;
+    content: string;
+    attributes: WorkflowSectionAttributes;
+  }>;
+  visibleSection?: {
+    tagName: string;
+    content: string;
+    attributes: WorkflowSectionAttributes;
+  };
+}): Array<{
+  tagName: string;
+  content: string;
+  attributes: WorkflowSectionAttributes;
+}> {
+  const talksToOrFromLunafreya =
+    input.visibleSection?.attributes.to === "lunafreya" ||
+    input.visibleSection?.attributes.from === "lunafreya";
+  const hasJob = input.sections.some((section) => section.tagName === "job");
+  const hasInstruction = input.sections.some((section) => section.tagName === "instruction");
+  const hasLegacyOverlayTags = input.sections.some(
+    (section) =>
+      section.tagName === "lunafreya-overlays" || section.tagName === "lunafreya-job-overlay",
+  );
+
+  if (!talksToOrFromLunafreya || !hasJob || hasInstruction || hasLegacyOverlayTags) {
+    return input.sections;
+  }
+
+  const prioritized: typeof input.sections = [];
+
+  for (const section of input.sections) {
+    if (section.tagName === "job") {
+      prioritized.push(section);
+    }
+  }
+
+  for (const section of input.sections) {
+    if (section.tagName === "knowledge-catalog") {
+      prioritized.push(section);
+    }
+  }
+
+  for (const section of input.sections) {
+    if (section.tagName === "job" || section.tagName === "knowledge-catalog") {
+      continue;
+    }
+
+    prioritized.push(section);
+  }
+
+  return prioritized;
+}
+
 export function parseWorkflowMessagePresentation(rawText: string): WorkflowMessagePresentation | null {
   const normalizedRawText = rawText.trim();
   if (!normalizedRawText) {
@@ -258,7 +314,10 @@ export function parseWorkflowMessagePresentation(rawText: string): WorkflowMessa
     };
   }
 
-  const promptContextSections = topLevelSections
+  const promptContextSections = prioritizeNormalizedLunafreyaSections({
+    sections: topLevelSections,
+    visibleSection,
+  })
     .filter((section) => !NON_WORKFLOW_SECTION_TAG_NAMES.has(section.tagName))
     .map((section, index) => toPromptContextSection(section, index, "workflow"));
 

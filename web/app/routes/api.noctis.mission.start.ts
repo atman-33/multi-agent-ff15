@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
@@ -8,8 +9,8 @@ import {
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import {
-  listOperationCatalogEntriesForScope,
-  resolveDefaultOperationRef,
+  listUserFacingOperationCatalogEntriesForScope,
+  resolveDefaultUserFacingOperationRef,
 } from "@/lib/operation-definition/operation-catalog";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
@@ -67,9 +68,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
     typeof body.executionProjectId === "string" && body.executionProjectId.trim().length > 0
       ? body.executionProjectId.trim()
       : "";
-  const executionTargetMode = body?.executionTargetMode === "execution_project"
-    ? "execution_project"
-    : "mission_workspace";
+  const executionTargetMode = normalizeIncomingMissionExecutionTargetMode(
+    body?.executionTargetMode,
+  );
   if (!executionProjectId) {
     return Response.json({ error: "Missing executionProjectId" }, { status: 400 });
   }
@@ -113,7 +114,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         projectId !== executionProjectId && !!readRegisteredProjectDefinition(projectRoot, projectId),
     );
     const language = readOperationLanguage();
-    const availableOperationEntries = listOperationCatalogEntriesForScope({
+    const availableOperationEntries = listUserFacingOperationCatalogEntriesForScope({
       root: projectRoot,
       scope: "noctis_team",
       projectFilterId: executionProjectId,
@@ -123,18 +124,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
       selectedOperationInput &&
       !availableOperationEntries.some((entry) => entry.ref === selectedOperationInput)
     ) {
-      return Response.json({ error: "Selected workflow is not available for this execution project" }, { status: 409 });
+      return Response.json({ error: "Selected operation is not available for this execution project" }, { status: 409 });
     }
     const selectedOperation =
       selectedOperationInput ??
-      resolveDefaultOperationRef({
+      resolveDefaultUserFacingOperationRef({
         root: projectRoot,
         scope: "noctis_team",
         projectFilterId: executionProjectId,
         builtinLanguages: language === "en" ? ["en"] : [language, "en"],
       });
     if (!selectedOperation) {
-      return Response.json({ error: "No workflow is available" }, { status: 409 });
+      return Response.json({ error: "No operation is available" }, { status: 409 });
     }
     const missionId = crypto.randomUUID();
     const missionCreatedAt = new Date().toISOString();

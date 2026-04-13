@@ -150,6 +150,29 @@ function seedAutonomousBoundaryOperation(root: string): void {
   );
 }
 
+function seedLunafreyaBoundaryOperation(root: string): void {
+  writeFileSync(
+    join(root, "builtins", "ja", "operations", "lunafreya-autonomous.yaml"),
+    [
+      "name: lunafreya-autonomous",
+      "description: Hidden Lunafreya activation fixture",
+      "initial_step: reflect",
+      "steps:",
+      "  - name: reflect",
+      "    agent: lunafreya",
+      "    job:",
+      "      inline: Lunafreya keeps the conversation focused and calm.",
+      "    instruction:",
+      "      inline: Respond directly to User.",
+      "    knowledge:",
+      "      - inline: Selected job and knowledge overlays are already active.",
+      "    rules: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 afterEach(() => {
   if (originalRootEnv === undefined) {
     delete process.env.MULTI_AGENT_FF15_ROOT;
@@ -173,6 +196,45 @@ afterEach(() => {
 });
 
 describe("OperationInstantiator", () => {
+  it("builds an activation prompt for a Lunafreya-owned initial step", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedLunafreyaBoundaryOperation(root);
+    createMissionFixture("mission-lunafreya-activate");
+
+    const instantiator = createOperationInstantiator();
+    const result = instantiator.activateOperation({
+      missionId: "mission-lunafreya-activate",
+      message: "Start the hidden Lunafreya workflow.",
+      selectedOperation: "builtin:ja:lunafreya-autonomous.yaml",
+    });
+
+    expect(result.operation?.name).toBe("lunafreya-autonomous");
+    expect(result.step?.agent).toBe("lunafreya");
+    expect(result.promptArtifact?.mode).toBe("activation");
+    expect(result.activationText).toContain("Lunafreya keeps the conversation focused and calm.");
+    expect(result.activationText).toContain("Respond directly to User.");
+  });
+
+  it("does not auto-activate the hidden Lunafreya workflow on Noctis Team", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedLunafreyaBoundaryOperation(root);
+    createMissionFixture("mission-lunafreya-hidden");
+
+    const instantiator = createOperationInstantiator();
+    const result = instantiator.activateOperation({
+      missionId: "mission-lunafreya-hidden",
+      message: "Please run lunafreya-autonomous for this mission.",
+    });
+
+    expect(result.operation).toBeNull();
+    expect(result.operationState).toBeNull();
+    expect(result.step).toBeNull();
+    expect(result.activationText).toBeNull();
+    expect(getOperationState("mission-lunafreya-hidden")).toBeUndefined();
+  });
+
   it("activates a detected operation and returns resolved prompt metadata", () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

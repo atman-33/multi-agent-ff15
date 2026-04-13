@@ -8,6 +8,7 @@ import {
   FolderGit2,
   Github,
   LoaderCircle,
+  Sparkles,
   Rabbit,
   ServerCrash,
   SlidersHorizontal,
@@ -17,6 +18,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigation } from "react-router";
 import { toast } from "sonner";
+import { APP_NAVIGATION_FLAGS } from "@/constants/app-navigation";
 import { Badge } from "@/components/ui/badge";
 import { RouteTransitionOverlay } from "@/components/route-transition-overlay";
 import {
@@ -61,12 +63,19 @@ type HeaderServerStatus = {
   url: string;
 };
 
+const OH_MY_OPENCODE_NAV_ITEM: NavItem = {
+  to: "/oh-my-opencode",
+  icon: Settings2,
+  label: "OMO Config",
+};
+
 const NAV_GROUPS: NavGroup[] = [
   {
     id: "workspace",
     label: "Workspace",
     items: [
       { to: "/noctis-team", icon: Crown, label: "Noctis Team" },
+      { to: "/lunafreya", icon: Sparkles, label: "Lunafreya" },
       { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
       { to: "/reports", icon: FileText, label: "Reports", end: true },
       { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
@@ -78,7 +87,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/mcp", icon: Cpu, label: "MCP", end: true },
       { to: "/config", icon: SlidersHorizontal, label: "Config", end: true },
-      { to: "/oh-my-opencode", icon: Settings2, label: "OMO Config" },
+      ...(APP_NAVIGATION_FLAGS.showOhMyOpencodeConfigInSidebar
+        ? [OH_MY_OPENCODE_NAV_ITEM]
+        : []),
       { to: "/server", icon: Activity, label: "Server Monitor", end: true },
     ],
   },
@@ -92,7 +103,12 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
+const NAV_ITEMS = [
+  ...NAV_GROUPS.flatMap((group) => group.items),
+  ...(!APP_NAVIGATION_FLAGS.showOhMyOpencodeConfigInSidebar
+    ? [OH_MY_OPENCODE_NAV_ITEM]
+    : []),
+];
 
 function getServerStatusLabel(status: HeaderServerStatus | null) {
   if (!status) {
@@ -126,7 +142,7 @@ function areServerStatusesEqual(left: HeaderServerStatus | null, right: HeaderSe
   );
 }
 
-const Layout = (_props: Route.ComponentProps) => {
+export const Layout = (_props: Route.ComponentProps) => {
   const location = useLocation();
   const navigation = useNavigation();
   const [serverStatus, setServerStatus] = useState<HeaderServerStatus | null>(null);

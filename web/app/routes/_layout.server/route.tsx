@@ -11,12 +11,30 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PageContainer } from "@/components/page-container";
 import { getOpencodeServerStatus, type OpencodeServerStatus } from "@/lib/opencode-server";
 import { cn } from "@/lib/utils";
 import type { Route } from "./+types/route";
 
 type ServerStatus = OpencodeServerStatus;
+
+class ForceRestartRequestError extends Error {
+  readonly status: ServerStatus;
+
+  constructor(message: string, status: ServerStatus) {
+    super(message);
+    this.name = "ForceRestartRequestError";
+    this.status = status;
+  }
+}
 
 export const loader = async (_args: Route.LoaderArgs) => {
   return {
@@ -37,10 +55,37 @@ const formatTimestamp = (value: string | null): string => {
   return date.toLocaleString();
 };
 
-const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
+const canForceRestart = (status: ServerStatus | null): boolean => {
+  return status?.forceRestart.availability === "available";
+};
+
+export const performForceRestartRequest = async ({
+  fetchImpl = fetch,
+}: {
+  fetchImpl?: typeof fetch;
+} = {}): Promise<ServerStatus | null> => {
+  const response = await fetchImpl("/api/opencode-server", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "force-restart" }),
+  });
+  const status: ServerStatus = await response.json();
+
+  if (!response.ok) {
+    throw new ForceRestartRequestError(status.error ?? `HTTP ${response.status}`, status);
+  }
+
+  return status;
+};
+
+export const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
   const [status, setStatus] = useState<ServerStatus | null>(loaderData.initialStatus);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [isForceRestarting, setIsForceRestarting] = useState(false);
+  const [isForceRestartDialogOpen, setIsForceRestartDialogOpen] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,6 +152,44 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
     }
   }, [fetchStatus]);
 
+  const handleForceRestart = useCallback(async () => {
+    setIsForceRestarting(true);
+    setFetchError(null);
+
+    try {
+      const nextStatus = await performForceRestartRequest();
+
+      if (!nextStatus) {
+        return;
+      }
+
+      setStatus(nextStatus);
+      setIsForceRestartDialogOpen(false);
+      toast.success("OpenCode server force restarted", {
+        description:
+          "The app replaced the running app-owned server. In-flight OpenCode requests may have been interrupted.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (error instanceof ForceRestartRequestError) {
+        setStatus(error.status);
+      } else {
+        setFetchError(message);
+      }
+
+      toast.error("Failed to force restart OpenCode server", {
+        description: message,
+      });
+    } finally {
+      setIsForceRestarting(false);
+    }
+  }, []);
+
+  const forceRestartEnabled = canForceRestart(status);
+  const forceRestartAvailability = status?.forceRestart.availability ?? "unavailable";
+  const forceRestartReason = status?.forceRestart.reason;
+
   return (
     <PageContainer className="gap-5" size="medium">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -114,11 +197,15 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
           <p className="text-muted-foreground text-sm">
             Check whether the local OpenCode server is healthy and recover it when it goes down.
           </p>
+          <p className="text-muted-foreground mt-2 text-sm">
+            Force Restart replaces the healthy app-owned server with a fresh process after local
+            agent or config changes, and may interrupt in-flight OpenCode requests.
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
-            disabled={isLoading || isRecovering}
+            disabled={isLoading || isRecovering || isForceRestarting}
             onClick={fetchStatus}
             size="sm"
             variant="outline"
@@ -127,12 +214,20 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
             Refresh
           </Button>
           <Button
-            disabled={isRecovering || status?.state === "starting"}
+            disabled={isRecovering || isForceRestarting || status?.state === "starting"}
             onClick={handleRecover}
             size="sm"
           >
             <ServerCrash className={cn("mr-1.5 h-3.5 w-3.5", isRecovering && "animate-pulse")} />
             Recover Server
+          </Button>
+          <Button
+            disabled={!forceRestartEnabled || isRecovering || isForceRestarting || isLoading}
+            onClick={() => setIsForceRestartDialogOpen(true)}
+            size="sm"
+            variant="destructive"
+          >
+            {isForceRestarting ? "Restarting..." : "Force Restart"}
           </Button>
         </div>
       </div>
@@ -147,9 +242,18 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
 
       <Card className="border-border/60">
         <CardContent className="space-y-5 px-6 py-6">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Force restart interrupts active work</AlertTitle>
+            <AlertDescription>
+              Use Force Restart only when you need a fresh app-owned OpenCode process. This
+              action terminates the current healthy server instead of reusing it.
+            </AlertDescription>
+          </Alert>
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-                {status?.state === "running" ? (
+              {status?.state === "running" ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
               ) : status?.state === "starting" ? (
                 <LoaderCircle className="h-5 w-5 animate-spin text-amber-500" />
@@ -159,8 +263,8 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
               <div>
                 <div className="font-medium text-base">Current status</div>
                 <div className="text-muted-foreground text-sm">
-                  {status?.recoveryBlocked
-                    ? "App-owned server recovery is blocked until the stale process is cleared."
+                  {forceRestartAvailability === "blocked"
+                    ? "A previous force restart could not reclaim the current app-owned process."
                     : status?.state === "running"
                     ? "The OpenCode server responded to the latest health check."
                     : status?.state === "starting"
@@ -175,12 +279,12 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
                 "px-2 py-0.5 text-xs capitalize",
                 status?.state === "running" && "bg-emerald-500/15 text-emerald-600",
                 status?.state === "starting" && "bg-amber-500/15 text-amber-600",
-                (status?.state === "down" || status?.recoveryBlocked) &&
+                (status?.state === "down" || forceRestartAvailability === "blocked") &&
                   "bg-destructive/10 text-destructive"
               )}
               variant="secondary"
             >
-              {status?.recoveryBlocked ? "blocked" : status?.state ?? "unknown"}
+              {forceRestartAvailability === "blocked" ? "blocked" : status?.state ?? "unknown"}
             </Badge>
           </div>
 
@@ -227,6 +331,27 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
             </Alert>
           )}
 
+          {forceRestartAvailability === "blocked" && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Force restart blocked</AlertTitle>
+              <AlertDescription>
+                {forceRestartReason ?? status?.error ?? "Force restart is currently blocked."}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {forceRestartAvailability === "unavailable" && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Force restart unavailable</AlertTitle>
+              <AlertDescription>
+                {forceRestartReason ??
+                  "Force restart is available only while a healthy app-owned OpenCode server is running."}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {status?.error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -236,6 +361,38 @@ const OpenCodeServerPage = ({ loaderData }: Route.ComponentProps) => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isForceRestartDialogOpen} onOpenChange={setIsForceRestartDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Force Restart</DialogTitle>
+            <DialogDescription>
+              Force restart replaces the current app-owned OpenCode server with a fresh process
+              and may interrupt in-flight requests. If graceful shutdown does not complete in
+              time, the app may escalate to a hard kill for this app-owned server. Use this only
+              after local agent or config changes that require a new server instance.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              disabled={isForceRestarting}
+              onClick={() => setIsForceRestartDialogOpen(false)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isForceRestarting}
+              onClick={handleForceRestart}
+              type="button"
+              variant="destructive"
+            >
+              {isForceRestarting ? "Restarting..." : "Confirm Force Restart"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 };

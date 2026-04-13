@@ -243,4 +243,71 @@ do not render me
   it("returns null for plain chat messages", () => {
     expect(parseWorkflowMessagePresentation("Hello there")).toBeNull();
   });
+
+  it("prioritizes normalized Lunafreya job and knowledge context ahead of workspace scaffolding", () => {
+    const presentation = parseWorkflowMessagePresentation(`
+<operation-prompt>
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<tooling-context>
+serena_project: multi-agent-ff15
+</tooling-context>
+
+<job>
+# Strategic Advisor
+
+Structure the response as calm, high-signal guidance.
+</job>
+
+<knowledge-catalog>
+<knowledge-ref>
+Name: Oracle Notes
+Description: Read when you need Lunafreya-specific long-horizon guidance.
+Source: /tmp/example/oracle-notes.md
+</knowledge-ref>
+</knowledge-catalog>
+
+<user-request from="user" to="lunafreya">
+次の一手を整理して
+</user-request>
+</operation-prompt>
+    `);
+
+    expect(presentation?.promptContextSections.map((section) => section.tagName)).toEqual([
+      "job",
+      "knowledge-catalog",
+      "workspace-context",
+      "tooling-context",
+    ]);
+  });
+
+  it("keeps legacy Lunafreya overlay-tag payloads readable during the transition", () => {
+    const presentation = parseWorkflowMessagePresentation(`
+<operation-prompt>
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<lunafreya-overlays>
+Apply the selected job and knowledge overlays below.
+</lunafreya-overlays>
+
+<lunafreya-job-overlay>
+# Strategic Advisor
+</lunafreya-job-overlay>
+
+<user-request from="user" to="lunafreya">
+次へ進めて
+</user-request>
+</operation-prompt>
+    `);
+
+    expect(presentation?.promptContextSections.map((section) => section.tagName)).toEqual([
+      "workspace-context",
+      "lunafreya-overlays",
+      "lunafreya-job-overlay",
+    ]);
+  });
 });

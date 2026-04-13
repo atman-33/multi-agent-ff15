@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { isWorkerAgentId } from "@/lib/agent-identity";
 import { recordDirectedTaskDelegation } from "@/lib/banter/conversation-service";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
@@ -129,8 +130,8 @@ export async function dispatchCurrentOperationStepToWorker(input: {
   if (!currentStep) {
     throw new Error("Operation step not found");
   }
-  if (currentStep.agent === "noctis") {
-    throw new Error("Current step is assigned to Noctis");
+  if (!isWorkerAgentId(currentStep.agent)) {
+    throw new Error("Current step is assigned to the primary agent");
   }
 
   const mission = getMission(input.missionId);
@@ -181,7 +182,7 @@ export async function dispatchTaskToWorker(input: {
     : null;
   const currentStep = operation?.steps.find((step) => step.name === operationState?.currentStep);
   const isDelegatedChildDispatch =
-    !explicitTaskId && !!currentStep && currentStep.agent === "noctis" && hasDelegationPolicy(currentStep);
+    !explicitTaskId && !!currentStep && !isWorkerAgentId(currentStep.agent) && hasDelegationPolicy(currentStep);
 
   if (isDelegatedChildDispatch && currentStep) {
     const effectiveWorkers = resolveEffectiveDelegationWorkers({

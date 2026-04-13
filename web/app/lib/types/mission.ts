@@ -1,7 +1,7 @@
 import type { BanterCue } from "@/lib/banter/types";
 
 export type WorkerAgentId = "ignis" | "gladiolus" | "prompto";
-export type AgentId = "noctis" | WorkerAgentId;
+export type AgentId = "noctis" | "lunafreya" | WorkerAgentId;
 export type ActivityActorId = AgentId | "user" | "iris" | "system";
 export type TeamMessageType = "task" | "report" | "message";
 export type ReportStatus = "running" | "blocked" | "completed" | "failed";
@@ -46,6 +46,26 @@ export type MissionWorkspaceStatus = "ready" | "missing" | "deleted";
 
 export type MissionExecutionTargetMode = "mission_workspace" | "execution_project";
 
+export type MissionSurfaceId = "noctis_team" | "lunafreya";
+
+export type MissionPrimaryAgentId = "noctis" | "lunafreya";
+
+export interface LunafreyaFacetSelection {
+  selectedJobId?: string;
+  selectedKnowledgeIds: string[];
+  updatedAt: string;
+}
+
+export interface LunafreyaFacetSnapshot extends LunafreyaFacetSelection {
+  selectedJobLabel?: string | null;
+  selectedKnowledgeLabels: string[];
+}
+
+export interface MissionOutputMetadata {
+  capturedAt: string;
+  lunafreyaFacetSnapshot?: LunafreyaFacetSnapshot;
+}
+
 export interface StepResult {
   task_id: string;
   next: WorkflowNext;
@@ -85,6 +105,9 @@ export interface AgentRuntime {
 export interface Mission {
   id: string;
   noctisSessionId: string;
+  surfaceId?: MissionSurfaceId;
+  primaryAgentId?: MissionPrimaryAgentId;
+  primarySessionId?: string;
   workerSessions: Partial<Record<WorkerAgentId, string>>;
   executionProjectId?: string;
   executionTargetMode?: MissionExecutionTargetMode;
@@ -108,6 +131,8 @@ export interface Mission {
   messageLog: MissionMessageLogEntry[];
   activityLog: MissionActivityLogEntry[];
   operationState?: OperationState;
+  lunafreyaFacetSelection?: LunafreyaFacetSelection;
+  outputMetadataByKey?: Record<string, MissionOutputMetadata>;
 }
 
 export type OperationStatus = "running" | "waiting_for_report" | "complete" | "aborted";
@@ -187,6 +212,7 @@ export interface MissionActivitySource {
   next?: WorkflowNext;
   reportStatus?: ReportStatus;
   deliveryStatus?: "sent" | "failed";
+  lunafreyaFacetSnapshot?: LunafreyaFacetSnapshot;
 }
 
 export interface MissionActivityLogEntry {
@@ -285,6 +311,7 @@ export interface MissionOutputSummary {
   date: string;
   filePath: string;
   tags: string[];
+  metadata?: MissionOutputMetadata | null;
 }
 
 export interface MissionOutputDocument extends MissionOutputSummary {

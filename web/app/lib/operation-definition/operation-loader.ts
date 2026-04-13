@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { isMissionPrimaryAgentId } from "@/lib/agent-identity";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
   ContentSource,
@@ -10,6 +11,25 @@ import type {
   RuleDefinition,
   StepDefinition,
 } from "./types";
+
+function normalizeStepAgent(raw: unknown, stepName: string): StepDefinition["agent"] {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  const agent = value || "noctis";
+
+  if (
+    agent !== "noctis" &&
+    agent !== "lunafreya" &&
+    agent !== "ignis" &&
+    agent !== "gladiolus" &&
+    agent !== "prompto"
+  ) {
+    throw new Error(
+      `Operation step "${stepName}" field "agent" must be one of noctis, lunafreya, ignis, gladiolus, or prompto.`,
+    );
+  }
+
+  return agent;
+}
 
 function normalizeAllowedWorkers(raw: unknown, fieldLabel: string): DelegationDefinition["allowed_workers"] {
   if (raw === undefined || raw === null) {
@@ -172,7 +192,7 @@ function normalizeDelegation(
 function normalizeStep(raw: Record<string, unknown>): StepDefinition {
   const stepName = String(raw.name ?? "");
   validateNoLegacyStepFields(raw, stepName);
-  const agent = String(raw.agent ?? "noctis") as StepDefinition["agent"];
+  const agent = normalizeStepAgent(raw.agent, stepName);
 
   const rules = Array.isArray(raw.rules)
     ? (raw.rules as Record<string, unknown>[]).map(
@@ -291,8 +311,10 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
     throw new Error(`Operation initial_step must reference a defined step: ${absolutePath}`);
   }
 
-  if (initialStepDefinition.agent !== "noctis") {
-    throw new Error(`Operation initial_step must be assigned to noctis: ${absolutePath}`);
+  if (!isMissionPrimaryAgentId(initialStepDefinition.agent)) {
+    throw new Error(
+      `Operation initial_step must be assigned to a primary mission agent: ${absolutePath}`,
+    );
   }
 
   const terminalInitialRule = initialStepDefinition.rules.find(

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { MarkdownDocumentSheetPreview } from "@/components/markdown-document-sheet-preview";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { getLunafreyaJobDisplayLabel } from "@/lib/lunafreya-prompt-context";
 import { readMissionOutputDocument } from "@/lib/mission-output-metadata.server";
 import { buildMissionPath } from "../_layout.noctis-team/components/output-detail-routing";
 import type { Route } from "./+types/route";
@@ -16,6 +17,13 @@ type LoaderData = {
   filePath: string;
   filename: string;
   frontmatter: Record<string, unknown> | null;
+  metadata?: {
+    lunafreyaFacetSnapshot?: {
+      selectedJobId?: string;
+      selectedJobLabel?: string | null;
+      selectedKnowledgeLabels: string[];
+    };
+  } | null;
   missionId: string;
   rawContent: string;
   step: string;
@@ -127,6 +135,21 @@ export const NoctisTeamMissionOutputDetailRoute = ({ loaderData }: Route.Compone
               <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                 {loaderData.taskId}
               </span>
+              {loaderData.metadata?.lunafreyaFacetSnapshot ? (
+                <>
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
+                    Job: {getLunafreyaJobDisplayLabel(loaderData.metadata.lunafreyaFacetSnapshot)}
+                  </span>
+                  {loaderData.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (
+                    <span
+                      key={`${loaderData.taskId}:${label}`}
+                      className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-foreground/80"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </>
+              ) : null}
             </>
           }
           previewLabel="Mission output"

@@ -10,7 +10,7 @@ projects/*
 docs/reports
 
 # OpenSpec working files
-openspec/*
+openspec/
 
 # Local tooling state
 .serena

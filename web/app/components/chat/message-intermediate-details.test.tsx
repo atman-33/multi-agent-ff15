@@ -63,7 +63,7 @@ describe("message-intermediate-details", () => {
     );
 
     expect(markup).toContain("Prompt Context");
-    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("Report Details");
     expect(markup).toContain("Workspace Context");
     expect(markup).toContain("Analyze Mode");

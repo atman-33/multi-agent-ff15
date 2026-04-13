@@ -48,12 +48,6 @@ export interface RuleDefinition {
   next: string;
 }
 
-export interface KnowledgeReferenceMetadata {
-  name: string;
-  description: string;
-  critical: string[];
-}
-
 export type ResolvedKnowledgeEntry =
   | {
       kind: "body";
@@ -63,7 +57,6 @@ export type ResolvedKnowledgeEntry =
       kind: "reference";
       name: string;
       description: string;
-      critical: string[];
       source: string;
     };
 

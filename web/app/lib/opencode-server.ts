@@ -8,6 +8,11 @@ const HOSTNAME = "127.0.0.1";
 const LEGACY_URL = "http://127.0.0.1:4097";
 const SERVER_START_TIMEOUT_MS = 15_000;
 const SERVER_STATE_FILE = "opencode-server-web.json";
+const PROCESS_RECLAIM_TIMEOUT_MS = 2_000;
+const FORCE_RESTART_GRACE_TIMEOUT_MS = 5_000;
+const FORCE_RESTART_KILL_TIMEOUT_MS = 1_000;
+const FORCE_RESTART_UNAVAILABLE_ERROR =
+  "Force restart is available only for a running app-owned OpenCode server";
 
 type ManagedServer = {
   close(): void;
@@ -44,6 +49,7 @@ type RecordedServerInspection =
     };
 
 class OpencodeRecoveryBlockedError extends Error {}
+class OpencodeReclaimError extends Error {}
 
 type StartResult = {
   lastStartedAt: string | null;
@@ -56,6 +62,10 @@ export type OpencodeServerStatus = {
   checkedAt: string;
   error: string | null;
   foreignServerUrl: string | null;
+  forceRestart: {
+    availability: "available" | "blocked" | "unavailable";
+    reason: string | null;
+  };
   isRunning: boolean;
   lastStartedAt: string | null;
   managedByApp: boolean;
@@ -72,6 +82,38 @@ let managedByApp = false;
 let lastError: string | null = null;
 let lastStartedAt: string | null = null;
 let recoveryBlocked = false;
+
+function getForceRestartStatus(options: {
+  isRunning: boolean;
+  managedByApp: boolean;
+  recoveryBlocked: boolean;
+  state: "down" | "running" | "starting";
+  url: string | null;
+}): OpencodeServerStatus["forceRestart"] {
+  if (options.recoveryBlocked) {
+    return {
+      availability: "blocked",
+      reason: lastError,
+    };
+  }
+
+  if (
+    options.isRunning &&
+    options.managedByApp &&
+    options.state === "running" &&
+    options.url
+  ) {
+    return {
+      availability: "available",
+      reason: null,
+    };
+  }
+
+  return {
+    availability: "unavailable",
+    reason: FORCE_RESTART_UNAVAILABLE_ERROR,
+  };
+}
 
 function getOpencodeServerStatePath(root = getProjectRoot()): string {
   return join(root, "runtime", SERVER_STATE_FILE);
@@ -209,14 +251,20 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-async function terminateProcess(pid: number): Promise<boolean> {
+async function terminateProcess(
+  pid: number,
+  options?: { signal?: NodeJS.Signals | number; timeoutMs?: number }
+): Promise<boolean> {
+  const signal = options?.signal ?? "SIGTERM";
+  const timeoutMs = options?.timeoutMs ?? PROCESS_RECLAIM_TIMEOUT_MS;
+
   try {
-    process.kill(pid, "SIGTERM");
+    process.kill(pid, signal);
   } catch {
     return !isProcessAlive(pid);
   }
 
-  const deadline = Date.now() + 2_000;
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!isProcessAlive(pid)) {
       return true;
@@ -374,11 +422,31 @@ async function reclaimRecordedServer(
     return;
   }
 
-  const terminated = await terminateProcess(inspection.record.pid);
+  await terminateRecordedServer(root, inspection.record);
+}
+
+async function terminateRecordedServer(
+  root: string,
+  record: OpencodeServerRecord,
+  options?: { allowForceKill?: boolean }
+): Promise<void> {
+  let terminated = await terminateProcess(record.pid, {
+    signal: "SIGTERM",
+    timeoutMs: options?.allowForceKill ? FORCE_RESTART_GRACE_TIMEOUT_MS : PROCESS_RECLAIM_TIMEOUT_MS,
+  });
+
+  if (!terminated && options?.allowForceKill) {
+    terminated = await terminateProcess(record.pid, {
+      signal: "SIGKILL",
+      timeoutMs: FORCE_RESTART_KILL_TIMEOUT_MS,
+    });
+  }
+
   if (!terminated) {
-    throw new OpencodeRecoveryBlockedError(
-      `Failed to reclaim app-owned OpenCode server process ${inspection.record.pid}`
-    );
+    const message = `Failed to reclaim app-owned OpenCode server process ${record.pid}`;
+    throw options?.allowForceKill
+      ? new OpencodeRecoveryBlockedError(message)
+      : new OpencodeReclaimError(message);
   }
 
   clearOpencodeServerRecord(root);
@@ -448,10 +516,10 @@ export async function ensureOpencodeServer(): Promise<string> {
       })
       .catch((err) => {
         clearServerState();
-        if (err instanceof OpencodeRecoveryBlockedError) {
+        if (err instanceof OpencodeRecoveryBlockedError || err instanceof OpencodeReclaimError) {
           const record = readOpencodeServerRecord();
           managedByApp = true;
-          recoveryBlocked = true;
+          recoveryBlocked = err instanceof OpencodeRecoveryBlockedError;
           serverUrl = record?.url ?? serverUrl;
           lastStartedAt = record?.startedAt ?? lastStartedAt;
         } else {
@@ -478,15 +546,23 @@ export async function getOpencodeServerStatus(): Promise<OpencodeServerStatus> {
   const pendingForeignServer = await getForeignServerInfo(pendingUrl);
 
   if (startPromise) {
+    const state = "starting" as const;
     return {
       checkedAt,
       error: lastError,
       foreignServerUrl: pendingForeignServer.foreignServerUrl,
+      forceRestart: getForceRestartStatus({
+        isRunning: false,
+        managedByApp,
+        recoveryBlocked,
+        state,
+        url: pendingUrl,
+      }),
       isRunning: false,
       lastStartedAt,
       managedByApp,
       recoveryBlocked,
-      state: "starting",
+      state,
       url: pendingUrl,
       warning: pendingForeignServer.warning,
     };
@@ -511,15 +587,23 @@ export async function getOpencodeServerStatus(): Promise<OpencodeServerStatus> {
   const foreignServer = await getForeignServerInfo(activeUrl);
 
   if (!activeUrl) {
+    const state = "down" as const;
     return {
       checkedAt,
       error: recoveryBlocked ? lastError : lastError,
       foreignServerUrl: foreignServer.foreignServerUrl,
+      forceRestart: getForceRestartStatus({
+        isRunning: false,
+        managedByApp,
+        recoveryBlocked,
+        state,
+        url: null,
+      }),
       isRunning: false,
       lastStartedAt,
       managedByApp,
       recoveryBlocked,
-      state: "down",
+      state,
       url: null,
       warning: foreignServer.warning,
     };
@@ -529,29 +613,45 @@ export async function getOpencodeServerStatus(): Promise<OpencodeServerStatus> {
   if (health.ok) {
     serverUrl = activeUrl;
     lastError = null;
+    const state = "running" as const;
     return {
       checkedAt,
       error: null,
       foreignServerUrl: foreignServer.foreignServerUrl,
+      forceRestart: getForceRestartStatus({
+        isRunning: true,
+        managedByApp,
+        recoveryBlocked,
+        state,
+        url: activeUrl,
+      }),
       isRunning: true,
       lastStartedAt,
       managedByApp,
       recoveryBlocked,
-      state: "running",
+      state,
       url: activeUrl,
       warning: foreignServer.warning,
     };
   }
 
+  const state = "down" as const;
   return {
     checkedAt,
-    error: recoveryBlocked ? lastError : health.error ?? lastError,
+    error: lastError ?? health.error,
     foreignServerUrl: foreignServer.foreignServerUrl,
+    forceRestart: getForceRestartStatus({
+      isRunning: false,
+      managedByApp,
+      recoveryBlocked,
+      state,
+      url: activeUrl,
+    }),
     isRunning: false,
     lastStartedAt,
     managedByApp,
     recoveryBlocked,
-    state: "down",
+    state,
     url: activeUrl,
     warning: foreignServer.warning,
   };
@@ -562,6 +662,64 @@ export async function recoverOpencodeServer(): Promise<OpencodeServerStatus> {
     await ensureOpencodeServer();
   } catch {
     // Surface recoverable status instead of throwing through the API route.
+  }
+
+  return getOpencodeServerStatus();
+}
+
+export async function forceRestartOpencodeServer(): Promise<OpencodeServerStatus> {
+  const projectRoot = getProjectRoot();
+  const inspection = await inspectRecordedServer(projectRoot);
+
+  if (inspection.kind !== "valid") {
+    if (inspection.kind === "stale-dead") {
+      clearOpencodeServerRecord(projectRoot);
+    }
+
+    clearServerState();
+    recoveryBlocked = false;
+    lastError = FORCE_RESTART_UNAVAILABLE_ERROR;
+    return getOpencodeServerStatus();
+  }
+
+  try {
+    await terminateRecordedServer(projectRoot, inspection.record, { allowForceKill: true });
+    clearServerState();
+    recoveryBlocked = false;
+    lastError = null;
+    await ensureOpencodeServer();
+  } catch (error) {
+    managedServer = null;
+    managedByApp = true;
+    recoveryBlocked = error instanceof OpencodeRecoveryBlockedError;
+    serverUrl = inspection.record.url;
+    lastStartedAt = inspection.record.startedAt;
+    lastError = error instanceof Error ? error.message : String(error);
+
+    if (recoveryBlocked) {
+      const state = "running" as const;
+      const checkedAt = new Date().toISOString();
+      const foreignServer = await getForeignServerInfo(serverUrl);
+      return {
+        checkedAt,
+        error: lastError,
+        foreignServerUrl: foreignServer.foreignServerUrl,
+        forceRestart: getForceRestartStatus({
+          isRunning: true,
+          managedByApp,
+          recoveryBlocked,
+          state,
+          url: serverUrl,
+        }),
+        isRunning: true,
+        lastStartedAt,
+        managedByApp,
+        recoveryBlocked,
+        state,
+        url: serverUrl,
+        warning: foreignServer.warning,
+      };
+    }
   }
 
   return getOpencodeServerStatus();

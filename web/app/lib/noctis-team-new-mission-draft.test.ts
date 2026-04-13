@@ -12,7 +12,7 @@ describe("noctis-team-new-mission-draft", () => {
       getItem: vi.fn(() =>
         JSON.stringify({
           executionProjectId: "docs-repo",
-          executionTargetMode: "execution_project",
+          executionTargetMode: "invalid-mode",
           contextProjectIds: ["alpha", null, "beta", ""],
         }),
       ),
@@ -24,6 +24,26 @@ describe("noctis-team-new-mission-draft", () => {
       executionTargetMode: "execution_project",
       contextProjectIds: ["alpha", "beta"],
     });
+  });
+
+  it("ignores legacy draft keys after the storage key version changes", () => {
+    const legacyKey = "noctis-team:new-mission-draft";
+    const storage = {
+      getItem: vi.fn((key: string) =>
+        key === legacyKey
+          ? JSON.stringify({
+              executionProjectId: "docs-repo",
+              executionTargetMode: "mission_workspace",
+              contextProjectIds: ["alpha"],
+            })
+          : null,
+      ),
+      removeItem: vi.fn(),
+    };
+
+    expect(readNoctisTeamNewMissionDraft(storage)).toBeNull();
+    expect(storage.getItem).toHaveBeenCalledWith(NOCTIS_TEAM_NEW_MISSION_DRAFT_STORAGE_KEY);
+    expect(storage.getItem).not.toHaveBeenCalledWith(legacyKey);
   });
 
   it("clears invalid draft payloads when reading", () => {

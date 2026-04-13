@@ -1,4 +1,4 @@
-import { FileText, Info, Radio, SlidersHorizontal, Workflow } from "lucide-react";
+import { Info, SlidersHorizontal, Workflow } from "lucide-react";
 import { memo, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
@@ -24,6 +24,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
+import {
+  DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
+  EXECUTION_MODE_TOGGLE_LABEL,
+  EXECUTION_MODE_TOOLTIP_COPY,
+} from "@/lib/mission-execution-target-mode";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -100,12 +105,20 @@ interface ChatAreaProps {
   onAbort?: () => void;
   onSend: (parts: PromptPart[]) => undefined | Promise<unknown>;
   showAbortAction?: boolean;
-  outputCount?: number;
-  onOpenOutputs?: () => void;
+  showWorkflowSelector?: boolean;
+  headerTitle?: string;
+  headerSubtitle?: string;
+  primaryAgentId?: ActivityActorId;
+  primaryAgentAvatarSrc?: string;
+  primaryAgentLabel?: string;
+  composerStatusLabel?: string | null;
+  composerPlaceholder?: string;
+  startingMissionDescription?: string;
 }
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   noctis: "/images/noctis.png",
+  lunafreya: "/images/lunafreya.png",
   ignis: "/images/ignis.png",
   gladiolus: "/images/gladiolus.png",
   prompto: "/images/prompto.png",
@@ -266,33 +279,31 @@ function WorkflowProgressSummary({
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          className="h-auto min-h-9 max-w-full justify-start gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-left shadow-sm hover:bg-primary/15"
+          className="h-9 max-w-full justify-start gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 text-left shadow-sm hover:bg-primary/15"
           type="button"
           variant="outline"
         >
           <Workflow className="h-3.5 w-3.5 shrink-0 text-primary/80" />
-          <div className="min-w-0 space-y-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
-                Workflow Progress
-              </span>
-              <span className="rounded-full border border-primary/20 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
-                {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
-              </span>
-              <span className="rounded-full bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
-                {statusLabel}
-              </span>
-            </div>
-            <p className="truncate font-semibold text-xs text-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
+              Operation
+            </span>
+            <span className="rounded-full border border-primary/20 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
+              {workflowProgress.currentStepIndex}/{workflowProgress.totalSteps}
+            </span>
+            <span className="rounded-full bg-primary/12 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+              {statusLabel}
+            </span>
+            <span className="truncate font-semibold text-xs text-foreground">
               {workflowProgress.currentStep}
-            </p>
+            </span>
           </div>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 space-y-3 border-border/60 bg-background/95 p-3 backdrop-blur">
         <div className="space-y-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-            Workflow Progress
+            Operation Progress
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 font-mono text-[10px] text-foreground/85">
@@ -317,7 +328,7 @@ function WorkflowProgressSummary({
         <div className="space-y-2 text-xs leading-relaxed text-foreground/85">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/65">
-              Workflow
+              Operation
             </p>
             <p className="font-semibold text-sm">{workflowProgress.workflowLabel}</p>
           </div>
@@ -344,6 +355,7 @@ function WorkflowProgressSummary({
 const MessageBubble = memo(
   ({
     message,
+    primaryAgentId,
     showCursor,
     detailsExpanded,
     expandedDetailEntries,
@@ -351,6 +363,7 @@ const MessageBubble = memo(
     onToggleDetail,
   }: {
     message: RenderedSessionMessage;
+    primaryAgentId: ActivityActorId;
     showCursor: boolean;
     detailsExpanded: boolean;
     expandedDetailEntries: Record<string, true>;
@@ -359,20 +372,21 @@ const MessageBubble = memo(
   }) => {
     const messageDisplay = message.messageDisplay;
     const isOutgoing = messageDisplay.resolvedSenderIsUser;
-    const isNoctis = message.sender === "noctis";
+    const isPrimaryAgent = message.sender === primaryAgentId;
     const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const messageMarkdown = useMemo(
       () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
-      [messageDisplay.displayContent, reasoning, tools]
+      [messageDisplay.displayContent, reasoning, tools],
     );
-    const copyContent = messageMarkdown.trim()
-      ? messageMarkdown
-      : messageDisplay.displayContent.trim()
-        ? messageDisplay.displayContent
-        : message.detailRawText;
+    const copyContent =
+      isPrimaryAgent && messageMarkdown.trim()
+        ? messageMarkdown
+        : messageDisplay.displayContent.trim()
+          ? messageDisplay.displayContent
+          : message.detailRawText;
     const hasDetails =
       reasoning.trim().length > 0 ||
       tools.length > 0 ||
@@ -406,7 +420,7 @@ const MessageBubble = memo(
         bubbleClassName={
           isOutgoing
             ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
-            : isNoctis
+            : isPrimaryAgent
               ? "rounded-bl-md border-border/40 bg-white/6 text-foreground"
               : "rounded-bl-md border-amber-300/15 bg-amber-50/8 text-foreground"
         }
@@ -475,10 +489,11 @@ export const ChatArea = ({
   isStartingMission = false,
   isSessionActive = false,
   isStreaming = false,
+  showWorkflowSelector = true,
   showExecutionProjectSelector = false,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
-  selectedExecutionTargetMode = "mission_workspace",
+  selectedExecutionTargetMode = DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   executionProjectHint = null,
   executionProjectError = null,
   onSelectedExecutionProjectChange,
@@ -498,8 +513,14 @@ export const ChatArea = ({
   onAbort,
   onSend,
   showAbortAction = false,
-  outputCount = 0,
-  onOpenOutputs,
+  headerTitle = "Regalia Command Center",
+  headerSubtitle = "Noctis Lucis Caelum - Direct Line",
+  primaryAgentId = "noctis",
+  primaryAgentAvatarSrc = "/images/noctis.png",
+  primaryAgentLabel = "Noctis",
+  composerStatusLabel = null,
+  composerPlaceholder,
+  startingMissionDescription = "Preparing mission and briefing Noctis.",
 }: ChatAreaProps) => {
   const isMissionStartPending = isStartingMission && showExecutionProjectSelector;
   const presentationMessages = useMemo(
@@ -512,12 +533,15 @@ export const ChatArea = ({
   const inspectability = useConversationUnitInspectability(
     renderSnapshot.inspectabilityBoundaries,
   );
-
   const workingParty = useChatStore((state) => state.workingParty);
   const composerSummary = useMemo(() => {
+    if (composerStatusLabel) {
+      return composerStatusLabel;
+    }
+
     const allowedWorkers = getAllowedWorkers(workingParty);
     return getWorkingPartySummary(allowedWorkers);
-  }, [workingParty]);
+  }, [composerStatusLabel, workingParty]);
   const defaultOperation = useMemo(
     () =>
       availableOperations.find((operation) => operation.isDefault) ?? {
@@ -529,7 +553,7 @@ export const ChatArea = ({
         sourceKind: "builtin" as const,
         sourceLabel: "Builtin",
       },
-    [availableOperations]
+    [availableOperations],
   );
   const operationSelectValue =
     selectedOperation ??
@@ -557,10 +581,10 @@ export const ChatArea = ({
     availableOperations,
     operationSelectValue,
   ]);
-  const operationBadgeLabel = selectedOperationOption?.label ?? "Workflow unavailable";
+  const operationBadgeLabel = selectedOperationOption?.label ?? "Operation unavailable";
   const operationDescription = selectedOperationOption?.description ?? "";
   const operationPlaceholder = isOperationSelectionLocked
-    ? "Workflow unavailable"
+    ? "Operation unavailable"
     : defaultOperation.label;
   const startedMissionChipClass =
     "inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm";
@@ -595,7 +619,7 @@ export const ChatArea = ({
             Starting Mission
           </p>
           <p className="text-xs leading-relaxed text-foreground/85">
-            Preparing workspace and briefing Noctis.
+            {startingMissionDescription}
           </p>
         </div>
       </div>
@@ -635,7 +659,7 @@ export const ChatArea = ({
     <ChatThreadFrame
       autoFollowKey={renderSnapshot.autoFollowKey}
       header={
-        <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-border/50 border-b px-4 py-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-border/50 border-b px-4 py-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center">
               <img
@@ -646,41 +670,14 @@ export const ChatArea = ({
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-sm tracking-[0.15em] text-foreground uppercase">
-                Regalia Command Center
+                {headerTitle}
               </h1>
               <p className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
-                Noctis Lucis Caelum - Direct Line
+                {headerSubtitle}
               </p>
             </div>
 
             {workflowProgress ? <WorkflowProgressSummary workflowProgress={workflowProgress} /> : null}
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            {onOpenOutputs ? (
-              <Button
-                className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
-                onClick={onOpenOutputs}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Outputs{outputCount > 0 ? ` (${outputCount})` : ""}
-              </Button>
-            ) : null}
-
-            {isSessionActive ? (
-              <div className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
-                <Radio
-                  className="h-3 w-3 text-primary"
-                  style={{ animation: "agent-glow 1s ease-in-out infinite" }}
-                />
-                <span className="animate-pulse font-mono text-[9px] font-semibold uppercase tracking-widest text-primary">
-                  Radio Incoming
-                </span>
-              </div>
-            ) : null}
           </div>
         </div>
       }
@@ -694,7 +691,7 @@ export const ChatArea = ({
             showExecutionProjectSelector ? (
               <div className="space-y-3">
                 {missionStartPendingCallout}
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className={cn("grid gap-3", showWorkflowSelector && "sm:grid-cols-2")}>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
                       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
@@ -740,12 +737,14 @@ export const ChatArea = ({
                     ) : null}
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                      Workflow
-                    </p>
-                    {workflowSelector}
-                  </div>
+                  {showWorkflowSelector ? (
+                    <div className="space-y-1">
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                        Operation
+                      </p>
+                      {workflowSelector}
+                    </div>
+                  ) : null}
                 </div>
 
                 {contextProjects.length > 0 || (contextActionLabel && onContextAction) ? (
@@ -761,15 +760,31 @@ export const ChatArea = ({
                       {onSelectedExecutionTargetModeChange ? (
                         <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
                           <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-                            Direct
+                            {EXECUTION_MODE_TOGGLE_LABEL}
                           </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                aria-label="Execution mode help"
+                                className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
+                                size="icon"
+                                type="button"
+                                variant="ghost"
+                              >
+                                <Info className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+                              {EXECUTION_MODE_TOOLTIP_COPY}
+                            </TooltipContent>
+                          </Tooltip>
                           <Switch
-                            aria-label="Use execution project directly"
-                            checked={selectedExecutionTargetMode === "execution_project"}
+                            aria-label="Toggle dedicated workspace"
+                            checked={selectedExecutionTargetMode === "mission_workspace"}
                             disabled={isMissionStartPending}
                             onCheckedChange={(checked) =>
                               onSelectedExecutionTargetModeChange(
-                                checked ? "execution_project" : "mission_workspace",
+                                checked ? "mission_workspace" : "execution_project",
                               )
                             }
                           />
@@ -794,45 +809,47 @@ export const ChatArea = ({
                       <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
                     </span>
                   ) : null}
-                  <div className={cn(startedMissionChipClass, "items-start")}>
+                  <div className={startedMissionChipClass}>
                     <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
                       Context
                     </span>
                     <ContextProjectBadges projects={contextProjects} tone="mission" />
                   </div>
-                  <span className={startedMissionChipClass}>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                      Workflow
+                  {showWorkflowSelector ? (
+                    <span className={startedMissionChipClass}>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                        Operation
+                      </span>
+                      <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
                     </span>
-                    <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
-                  </span>
+                  ) : null}
                 </div>
 
                 {missionActionLabel && onMissionAction ? (
                   <MissionContextActionButton label={missionActionLabel} onClick={onMissionAction} />
                 ) : null}
               </div>
-            ) : (
+            ) : showWorkflowSelector ? (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                    Mission Workflow
+                    Operation
                   </p>
                   <p className="text-xs text-muted-foreground/75">
-                    {`${defaultOperation.label} is selected unless you choose another workflow.`}
+                    {`${defaultOperation.label} is selected unless you choose another operation.`}
                   </p>
                 </div>
 
                 <div className="w-full sm:max-w-56">{workflowSelector}</div>
               </div>
-            )
+            ) : null
           }
           footerStart={
             <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
               <span className="truncate">{composerSummary}</span>
             </div>
           }
-          placeholder="Send a message to Noctis"
+          placeholder={composerPlaceholder ?? `Send a message to ${primaryAgentLabel}`}
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />
       }
@@ -844,7 +861,7 @@ export const ChatArea = ({
           {renderSnapshot.renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&
-              message.sender === "noctis" &&
+              message.sender === primaryAgentId &&
               index === renderSnapshot.renderedMessages.length - 1;
             return (
               <MessageBubble
@@ -858,6 +875,7 @@ export const ChatArea = ({
                 message={message}
                 onToggleDetail={inspectability.toggleDetailEntry}
                 onToggleDetails={inspectability.toggleConversationUnit}
+                primaryAgentId={primaryAgentId}
                 showCursor={isLastNoctis}
               />
             );
@@ -866,10 +884,10 @@ export const ChatArea = ({
           {isSessionActive ? (
             <div className="flex items-end gap-2">
               <img
-                alt="Noctis"
-                src="/images/noctis.png"
+                alt={primaryAgentLabel}
+                src={primaryAgentAvatarSrc}
                 className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
-                style={getAvatarThemeStyle("noctis")}
+                style={getAvatarThemeStyle(primaryAgentId)}
               />
               <div className="rounded-xl rounded-bl-sm border border-border/50 bg-card px-3 py-2">
                 <div className="flex items-center gap-1">

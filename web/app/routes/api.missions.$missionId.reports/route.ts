@@ -1,6 +1,15 @@
 import { existsSync } from "node:fs";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
+import { captureMissionTaskOutputMetadata } from "@/lib/mission-output-metadata.server";
 import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
-import { getMissionOutputFilePath, updateTask } from "@/lib/mission-store";
+import { readOperationLanguage } from "@/lib/operation-definition/language";
+import {
+  getMission,
+  getMissionOutputFilePath,
+  getMissionPrimaryAgentId,
+  updateTask,
+} from "@/lib/mission-store";
 import { hasDelegationPolicy } from "@/lib/operation-runtime/autonomous";
 import { createOperationInstantiator } from "@/lib/operation-runtime/operation-instantiator";
 import {
@@ -15,8 +24,18 @@ import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type { AgentId, ReportStatus, StepResult, WorkerAgentId } from "@/lib/types/mission";
 import type { Route } from "./+types/route";
 
-const AGENT_IDS: ReadonlySet<string> = new Set<AgentId>(["noctis", "ignis", "gladiolus", "prompto"]);
+const AGENT_IDS: ReadonlySet<string> = new Set<AgentId>([
+  "noctis",
+  "lunafreya",
+  "ignis",
+  "gladiolus",
+  "prompto",
+]);
 const operationInstantiator = createOperationInstantiator();
+
+function listBuiltinLanguages(language: string): string[] {
+  return language === "en" ? ["en"] : [language, "en"];
+}
 
 function isAgentId(value: unknown): value is AgentId {
   return typeof value === "string" && AGENT_IDS.has(value);
@@ -60,6 +79,66 @@ function buildMissingOutputRetryGuidance(): string {
   return `Create the missing output files at the paths above, then rerun the same ${getRuntimeScriptPath("send_report.sh")} command.`;
 }
 
+function captureOutputSnapshots(input: {
+  missionId: string;
+  stepName: string;
+  taskId: string;
+}): void {
+  const mission = getMission(input.missionId);
+  if (!mission || getMissionPrimaryAgentId(mission) !== "lunafreya" || !mission.executionProjectId) {
+    return;
+  }
+
+  const selectedKnowledgeIds = mission.lunafreyaFacetSelection?.selectedKnowledgeIds ?? [];
+  const selectedJobId = mission.lunafreyaFacetSelection?.selectedJobId;
+
+  let resolvedSelection:
+    | ReturnType<typeof resolveLunafreyaFacetSelection>
+    | null = null;
+
+  try {
+    resolvedSelection = resolveLunafreyaFacetSelection({
+      root: getProjectRoot(),
+      executionProjectId: mission.executionProjectId,
+      builtinLanguages: listBuiltinLanguages(readOperationLanguage()),
+      selectedJobId,
+      selectedKnowledgeIds,
+    });
+  } catch {
+    resolvedSelection = null;
+  }
+
+  captureMissionTaskOutputMetadata({
+    missionId: input.missionId,
+    step: input.stepName,
+    taskId: input.taskId,
+    metadata: {
+      capturedAt: new Date().toISOString(),
+      ...(resolvedSelection
+        ? {
+            lunafreyaFacetSnapshot: {
+              ...resolvedSelection.selection,
+              ...(resolvedSelection.selectedJobLabel
+                ? { selectedJobLabel: resolvedSelection.selectedJobLabel }
+                : {}),
+              selectedKnowledgeLabels: resolvedSelection.selectedKnowledgeLabels,
+            },
+          }
+        : selectedJobId || selectedKnowledgeIds.length > 0 || mission.lunafreyaFacetSelection
+          ? {
+              lunafreyaFacetSnapshot: {
+                ...(selectedJobId ? { selectedJobId } : {}),
+                selectedKnowledgeIds,
+                updatedAt:
+                  mission.lunafreyaFacetSelection?.updatedAt ?? new Date().toISOString(),
+                selectedKnowledgeLabels: [],
+              },
+            }
+          : {}),
+    },
+  });
+}
+
 export const action = async ({ request, params }: Route.ActionArgs) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
@@ -92,6 +171,12 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   }
 
   try {
+    const mission = getMission(missionId);
+    if (!mission) {
+      return Response.json({ error: "Mission not found" }, { status: 404 });
+    }
+
+    const primaryAgentId = getMissionPrimaryAgentId(mission);
     const taskId = body.taskId.trim();
     const next = body.next.trim();
     const message = body.message.trim();
@@ -109,8 +194,11 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       | undefined;
     let nextStep: string | null = null;
 
-    if (body.fromAgent === "noctis" && !operationState) {
-      return Response.json({ error: "No active workflow step for Noctis report" }, { status: 409 });
+    if (primaryAgentId && body.fromAgent === primaryAgentId && !operationState) {
+      return Response.json(
+        { error: `No active workflow step for ${body.fromAgent} report` },
+        { status: 409 },
+      );
     }
 
     if (operationState && (operationState.status === "running" || operationState.status === "waiting_for_report")) {
@@ -225,6 +313,12 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
               { status: 400 },
             );
           }
+
+          captureOutputSnapshots({
+            missionId,
+            stepName: currentStep.name,
+            taskId,
+          });
         }
 
         const reportResult = operationInstantiator.processStepReport({
@@ -255,7 +349,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
           } catch (error) {
             const dispatchError = error instanceof Error ? error.message : String(error);
 
-            if (body.fromAgent === "noctis") {
+            if (primaryAgentId && body.fromAgent === primaryAgentId) {
               return Response.json(
                 {
                   error: `Automatic dispatch failed: ${dispatchError}`,
@@ -296,7 +390,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       });
     }
 
-    if (body.fromAgent === "noctis") {
+    if (primaryAgentId && body.fromAgent === primaryAgentId) {
       return Response.json({
         acknowledged: true,
         nextStep,

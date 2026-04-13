@@ -1,5 +1,10 @@
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
-import { getMission, listMissionSummaries } from "@/lib/mission-store";
+import {
+  getMission,
+  getMissionPrimaryAgentId,
+  getMissionPrimarySessionId,
+  listMissionSummaries,
+} from "@/lib/mission-store";
 import { readSessionExecutionContext, type SessionExecutionContextEntry } from "@/lib/session-execution-context.server";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
@@ -44,10 +49,13 @@ export function listManagedSessions(): Record<string, ManagedSessionInfo> {
       continue;
     }
 
-    if (mission.noctisSessionId && !(mission.noctisSessionId in managedSessions)) {
-      const info = buildManagedSessionInfo(summary.missionId, "noctis");
+    const primarySessionId = getMissionPrimarySessionId(mission);
+    const primaryAgentId = getMissionPrimaryAgentId(mission);
+
+    if (primarySessionId && primaryAgentId && !(primarySessionId in managedSessions)) {
+      const info = buildManagedSessionInfo(summary.missionId, primaryAgentId);
       if (info) {
-        managedSessions[mission.noctisSessionId] = info;
+        managedSessions[primarySessionId] = info;
       }
     }
 

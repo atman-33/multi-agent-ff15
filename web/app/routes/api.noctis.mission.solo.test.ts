@@ -103,6 +103,51 @@ afterEach(() => {
 });
 
 describe("Noctis mission solo routing", () => {
+  it("returns an operation terminology error when the selected operation is unavailable", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Handle this directly.",
+          executionProjectId: "alpha",
+          selectedOperation: "project:beta:repo-review.yaml",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    await expect(readJson<{ error: string }>(response)).resolves.toEqual({
+      error: "Selected operation is not available for this execution project",
+    });
+  });
+
+  it("returns an operation terminology error when no operation is available", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    rmSync(join(root, "builtins"), { recursive: true, force: true });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Handle this directly.",
+          executionProjectId: "alpha",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    await expect(readJson<{ error: string }>(response)).resolves.toEqual({
+      error: "No operation is available",
+    });
+  });
+
   it("keeps mission start on the base noctis profile in solo mode", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionCreateMock.mockResolvedValue({ data: { id: "session-noctis-start" } });

@@ -1,6 +1,6 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import {
-  listOperationCatalogEntriesForScope,
+  listUserFacingOperationCatalogEntriesForScope,
 } from "@/lib/operation-definition/operation-catalog";
 import {
   compareOperationOptions,
@@ -15,7 +15,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     const language = readOperationLanguage();
     const url = new URL(request.url);
     const executionProjectId = url.searchParams.get("executionProjectId")?.trim() || undefined;
-    const operations = listOperationCatalogEntriesForScope({
+    const operations = listUserFacingOperationCatalogEntriesForScope({
       root,
       scope: "noctis_team",
       projectFilterId: executionProjectId,

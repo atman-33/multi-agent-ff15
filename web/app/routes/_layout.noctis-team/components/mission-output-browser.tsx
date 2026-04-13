@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getLunafreyaJobDisplayLabel } from "@/lib/lunafreya-prompt-context";
 import type { MissionOutputSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 
@@ -164,7 +165,7 @@ export function MissionOutputBrowser({
           <div className="space-y-2 rounded-xl border border-border/50 bg-card/40 px-4 py-6">
             <p className="font-semibold text-sm">No outputs yet</p>
             <p className="text-muted-foreground text-xs leading-5">
-              This mission has not generated any workflow output files yet.
+              This mission has not generated any operation output files yet.
             </p>
           </div>
         </div>
@@ -224,6 +225,27 @@ export function MissionOutputBrowser({
                               })}
                             </span>
                           </div>
+                          {output.metadata?.lunafreyaFacetSnapshot ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
+                                Job: {getLunafreyaJobDisplayLabel(output.metadata.lunafreyaFacetSnapshot)}
+                              </span>
+                              {output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.length > 0 ? (
+                                output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (
+                                  <span
+                                    key={`${outputKey}:${label}`}
+                                    className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-foreground/80"
+                                  >
+                                    {label}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground/80">
+                                  Knowledge: none
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
                         </button>
                       );
                     })}

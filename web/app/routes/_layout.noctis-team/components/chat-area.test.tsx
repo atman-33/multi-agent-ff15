@@ -116,7 +116,7 @@ describe("chat-area", () => {
         ]}
         selectedExecutionProjectId="core-repo"
         executionProjectHint="Secondary context starts with Projects page presets."
-        selectedExecutionTargetMode="mission_workspace"
+        selectedExecutionTargetMode="execution_project"
         contextProjects={[
           { id: "docs-repo", label: "Reference Docs" },
           { id: "api-repo", label: "API Notes" },
@@ -136,7 +136,7 @@ describe("chat-area", () => {
     );
 
     expect(markup).toContain("Execution Project");
-    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("Context");
     expect(markup).toContain("Reference Docs");
     expect(markup).toContain("API Notes");
@@ -144,7 +144,10 @@ describe("chat-area", () => {
     expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
-    expect(markup).toContain("Use execution project directly");
+    expect(markup).toContain("Dedicated workspace");
+    expect(markup).toContain("Execution mode help");
+    expect(markup).toContain("Work directly in the registered project folder");
+    expect(markup).toContain("Create a mission-specific workspace and work there");
     expect(markup).toContain('data-state="unchecked"');
     expect(markup).not.toContain("+1");
     expect(markup).not.toContain("Mission Setup");
@@ -179,14 +182,14 @@ describe("chat-area", () => {
     );
 
     expect(markup).toContain("Starting Mission");
-    expect(markup).toContain("Preparing workspace and briefing Noctis.");
+    expect(markup).toContain("Preparing mission and briefing Noctis.");
     expect(markup).toContain("/images/chocobo.png");
     expect(markup).toContain("send-disabled");
-    expect(markup).toContain('data-state="checked"');
+    expect(markup).toContain('data-state="unchecked"');
     expect(markup).toContain('data-disabled="yes"');
   });
 
-  it("shows execution and context summary instead of workflow help text after mission start", () => {
+  it("shows execution and context summary instead of operation help text after mission start", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
@@ -224,18 +227,21 @@ describe("chat-area", () => {
     expect(markup).toContain(">Reference Docs<");
     expect(markup).toContain(">API Notes<");
     expect(markup).toContain(">Ops Runbook<");
-    expect(markup).toContain(">Workflow<");
+    expect(markup).toContain(
+      'class="inline-flex max-w-full items-center gap-1.5 rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] shadow-sm"><span class="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">Context</span>',
+    );
+    expect(markup).toContain(">Operation<");
     expect(markup).toContain(">Autonomous<");
     expect(markup).toContain("Mission Details");
     expect(markup).not.toContain("+1");
-    expect(markup).not.toContain("Workflow: Workflow unavailable");
-    expect(markup).not.toContain("This mission is already running with its current workflow setting.");
-    expect(markup).not.toContain("Mission Workflow");
+    expect(markup).not.toContain("Operation: Operation unavailable");
+    expect(markup).not.toContain("This mission is already running with its current operation setting.");
+    expect(markup).not.toContain("Mission Operation");
     expect(markup).not.toContain("Starting Mission");
-    expect(markup).not.toContain("Workflow Progress");
+    expect(markup).not.toContain("Operation Progress");
   });
 
-  it("shows compact workflow progress and revisit details in the header", () => {
+  it("shows compact operation progress and revisit details in the header", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
@@ -263,7 +269,7 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Workflow Progress");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("3/5");
     expect(markup).toContain("Waiting");
     expect(markup).toContain("review");
@@ -271,7 +277,7 @@ describe("chat-area", () => {
     expect(markup).toContain("Pass 2");
   });
 
-  it("keeps terminal workflow progress visible in the header", () => {
+  it("keeps terminal operation progress visible in the header", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
@@ -299,9 +305,40 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Workflow Progress");
+    expect(markup).toContain("Operation");
     expect(markup).toContain("5/5");
     expect(markup).toContain("Done");
     expect(markup).toContain("refactor");
+  });
+
+  it("removes active-mission header shortcuts", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        isSessionActive={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation="builtin:ja:openspec-dev.yaml"
+        activeOperationState={null}
+        workflowProgress={{
+          workflowLabel: "openspec-dev",
+          currentStep: "review",
+          currentStepIndex: 3,
+          totalSteps: 5,
+          status: "waiting_for_report",
+          updatedAt: "2026-04-11T00:16:00.000Z",
+          visitCount: 1,
+          isTerminal: false,
+        }}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).not.toContain("Radio Incoming");
+    expect(markup).not.toContain("Outputs");
   });
 });

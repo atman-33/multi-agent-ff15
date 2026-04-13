@@ -11,12 +11,16 @@ import type {
   AgentId,
   ConversationLogEntry,
   DelegationLedger,
+  LunafreyaFacetSelection,
+  MissionOutputMetadata,
   Mission,
   MissionExecutionTargetMode,
   MissionActivityKind,
   MissionActivityLogEntry,
   MissionMessageLogEntry,
+  MissionPrimaryAgentId,
   MissionStatus,
+  MissionSurfaceId,
   MissionSummary,
   ModelSelection,
   OperationState,
@@ -49,6 +53,146 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function normalizeMissionSurfaceId(value: unknown): MissionSurfaceId | undefined {
+  return value === "lunafreya" || value === "noctis_team" ? value : undefined;
+}
+
+function normalizeMissionPrimaryAgentId(value: unknown): MissionPrimaryAgentId | undefined {
+  return value === "lunafreya" || value === "noctis" ? value : undefined;
+}
+
+function normalizeLunafreyaFacetSelection(value: unknown): LunafreyaFacetSelection | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const selectedKnowledgeIds = Array.isArray(record.selectedKnowledgeIds)
+    ? record.selectedKnowledgeIds.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0,
+      )
+    : [];
+  const updatedAt = normalizeOptionalString(record.updatedAt);
+
+  if (!updatedAt) {
+    return undefined;
+  }
+
+  const selectedJobId = normalizeOptionalString(record.selectedJobId);
+
+  return {
+    ...(selectedJobId ? { selectedJobId } : {}),
+    selectedKnowledgeIds,
+    updatedAt,
+  };
+}
+
+function normalizeLunafreyaFacetSnapshot(
+  value: unknown,
+): MissionOutputMetadata["lunafreyaFacetSnapshot"] | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const selection = normalizeLunafreyaFacetSelection(record);
+  if (!selection) {
+    return undefined;
+  }
+
+  const selectedJobLabel =
+    typeof record.selectedJobLabel === "string" && record.selectedJobLabel.trim().length > 0
+      ? record.selectedJobLabel.trim()
+      : null;
+  const selectedKnowledgeLabels = Array.isArray(record.selectedKnowledgeLabels)
+    ? record.selectedKnowledgeLabels.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0,
+      )
+    : [];
+
+  return {
+    ...selection,
+    ...(selectedJobLabel ? { selectedJobLabel } : {}),
+    selectedKnowledgeLabels,
+  };
+}
+
+function normalizeMissionOutputMetadata(value: unknown): MissionOutputMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const capturedAt = normalizeOptionalString(record.capturedAt);
+  if (!capturedAt) {
+    return undefined;
+  }
+
+  const lunafreyaFacetSnapshot = normalizeLunafreyaFacetSnapshot(record.lunafreyaFacetSnapshot);
+
+  return {
+    capturedAt,
+    ...(lunafreyaFacetSnapshot ? { lunafreyaFacetSnapshot } : {}),
+  };
+}
+
+function normalizeMissionOutputMetadataByKey(
+  value: unknown,
+): Record<string, MissionOutputMetadata> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, entryValue]) => {
+      const normalized = normalizeMissionOutputMetadata(entryValue);
+      return normalized ? ([key, normalized] as const) : null;
+    })
+    .filter((entry): entry is readonly [string, MissionOutputMetadata] => entry !== null);
+
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(entries);
+}
+
+export function getMissionSurfaceId(mission: Mission | null | undefined): MissionSurfaceId | null {
+  if (!mission) {
+    return null;
+  }
+
+  if (mission.surfaceId) {
+    return mission.surfaceId;
+  }
+
+  return mission.primaryAgentId === "lunafreya" ? "lunafreya" : "noctis_team";
+}
+
+export function getMissionPrimaryAgentId(
+  mission: Mission | null | undefined,
+): MissionPrimaryAgentId | null {
+  if (!mission) {
+    return null;
+  }
+
+  return mission.primaryAgentId ?? (getMissionSurfaceId(mission) === "lunafreya" ? "lunafreya" : "noctis");
+}
+
+export function getMissionPrimarySessionId(mission: Mission | null | undefined): string | null {
+  if (!mission) {
+    return null;
+  }
+
+  const primarySessionId = normalizeOptionalString(mission.primarySessionId);
+  if (primarySessionId) {
+    return primarySessionId;
+  }
+
+  const noctisSessionId = normalizeOptionalString(mission.noctisSessionId);
+  return noctisSessionId ?? null;
+}
+
 export function getMissionStoreDir(): string {
   return join(getProjectRoot(), "runtime", "noctis-missions");
 }
@@ -63,6 +207,14 @@ export function getMissionFilePath(id: string): string {
 
 export function getMissionOutputsDir(id: string): string {
   return join(getMissionDir(id), "outputs");
+}
+
+export function buildMissionOutputMetadataKey(input: {
+  step: string;
+  taskId: string;
+  filename: string;
+}): string {
+  return `${input.step}::${input.taskId}::${input.filename}`;
 }
 
 export function getMissionTaskOutputDir(missionId: string, step: string, taskId: string): string {
@@ -109,6 +261,9 @@ function readMissionFromDisk(id: string): Mission | null {
       parsed.executionTargetMode,
       parsed.executionProjectId,
     );
+    parsed.surfaceId = normalizeMissionSurfaceId(parsed.surfaceId);
+    parsed.primaryAgentId = normalizeMissionPrimaryAgentId(parsed.primaryAgentId);
+    parsed.primarySessionId = normalizeOptionalString(parsed.primarySessionId);
     parsed.contextProjectIds = normalizeContextProjectIds(
       parsed.executionProjectId,
       parsed.contextProjectIds,
@@ -123,6 +278,10 @@ function readMissionFromDisk(id: string): Mission | null {
     parsed.ambientBanterLog = Array.isArray(parsed.ambientBanterLog) ? parsed.ambientBanterLog : [];
     parsed.messageLog = Array.isArray(parsed.messageLog) ? parsed.messageLog : [];
     parsed.activityLog = Array.isArray(parsed.activityLog) ? parsed.activityLog : [];
+    parsed.lunafreyaFacetSelection = normalizeLunafreyaFacetSelection(
+      parsed.lunafreyaFacetSelection,
+    );
+    parsed.outputMetadataByKey = normalizeMissionOutputMetadataByKey(parsed.outputMetadataByKey);
     parsed.allowedWorkers = Array.isArray(parsed.allowedWorkers)
       ? parsed.allowedWorkers.filter(
           (item): item is WorkerAgentId =>
@@ -197,6 +356,9 @@ export function createMission(
   options?: {
     title?: string;
     objective?: string;
+    surfaceId?: MissionSurfaceId;
+    primaryAgentId?: MissionPrimaryAgentId;
+    lunafreyaFacetSelection?: LunafreyaFacetSelection;
     allowedWorkers?: WorkerAgentId[];
     executionProjectId?: string;
     executionTargetMode?: MissionExecutionTargetMode;
@@ -213,9 +375,14 @@ export function createMission(
     options?.executionTargetMode,
     executionProjectId,
   );
+  const primaryAgentId = options?.primaryAgentId ?? "noctis";
+  const surfaceId = options?.surfaceId ?? (primaryAgentId === "lunafreya" ? "lunafreya" : "noctis_team");
   const mission: Mission = {
     id,
-    noctisSessionId,
+    noctisSessionId: primaryAgentId === "noctis" ? noctisSessionId : "",
+    surfaceId,
+    primaryAgentId,
+    primarySessionId: noctisSessionId,
     workerSessions: {},
     executionProjectId,
     ...(executionTargetMode ? { executionTargetMode } : {}),
@@ -241,6 +408,9 @@ export function createMission(
     ambientBanterLog: [],
     messageLog: [],
     activityLog: [],
+    ...(options?.lunafreyaFacetSelection
+      ? { lunafreyaFacetSelection: options.lunafreyaFacetSelection }
+      : {}),
   };
   store.set(id, mission);
   persistMissionToDisk(mission);
@@ -262,7 +432,10 @@ export function getMission(id: string): Mission | undefined {
   return undefined;
 }
 
-export function listMissionSummaries(options?: { view?: "active" | "archived" | "all" }): MissionSummary[] {
+export function listMissionSummaries(options?: {
+  view?: "active" | "archived" | "all";
+  surfaceId?: MissionSurfaceId;
+}): MissionSummary[] {
   ensureMissionStoreDir();
   const dir = getMissionStoreDir();
   if (!existsSync(dir)) {
@@ -284,6 +457,13 @@ export function listMissionSummaries(options?: { view?: "active" | "archived" | 
 
       const isArchived = mission.status === "archived";
       return view === "archived" ? isArchived : !isArchived;
+    })
+    .filter((mission) => {
+      if (!options?.surfaceId) {
+        return true;
+      }
+
+      return getMissionSurfaceId(mission) === options.surfaceId;
     })
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 
@@ -324,9 +504,72 @@ export function setWorkerSession(
 }
 
 export function setNoctisSession(missionId: string, sessionId: string): void {
+  setMissionPrimarySession(missionId, "noctis", sessionId);
+}
+
+export function setMissionPrimarySession(
+  missionId: string,
+  agentId: MissionPrimaryAgentId,
+  sessionId: string,
+): void {
   const mission = getMission(missionId);
   if (!mission) return;
-  mission.noctisSessionId = sessionId.trim();
+  const normalizedSessionId = sessionId.trim();
+  if (agentId === "noctis") {
+    mission.noctisSessionId = normalizedSessionId;
+  }
+  if (getMissionPrimaryAgentId(mission) === agentId) {
+    mission.primarySessionId = normalizedSessionId;
+  }
+  touchMission(mission);
+}
+
+export function setLunafreyaFacetSelection(
+  missionId: string,
+  selection: Omit<LunafreyaFacetSelection, "updatedAt"> & { updatedAt?: string },
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+  mission.lunafreyaFacetSelection = normalizeLunafreyaFacetSelection({
+    ...selection,
+    updatedAt: selection.updatedAt ?? new Date().toISOString(),
+  });
+  touchMission(mission);
+}
+
+export function getMissionOutputMetadata(
+  mission: Mission | null | undefined,
+  input: {
+    step: string;
+    taskId: string;
+    filename: string;
+  },
+): MissionOutputMetadata | null {
+  if (!mission?.outputMetadataByKey) {
+    return null;
+  }
+
+  const key = buildMissionOutputMetadataKey(input);
+  return mission.outputMetadataByKey[key] ?? null;
+}
+
+export function setMissionOutputMetadata(
+  missionId: string,
+  input: {
+    step: string;
+    taskId: string;
+    filename: string;
+    metadata: MissionOutputMetadata;
+  },
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+
+  const key = buildMissionOutputMetadataKey(input);
+  mission.outputMetadataByKey = {
+    ...(mission.outputMetadataByKey ?? {}),
+    [key]: input.metadata,
+  };
   touchMission(mission);
 }
 
@@ -334,6 +577,7 @@ export function clearMissionSessions(missionId: string): void {
   const mission = getMission(missionId);
   if (!mission) return;
   mission.noctisSessionId = "";
+  mission.primarySessionId = "";
   mission.workerSessions = {};
   touchMission(mission);
 }

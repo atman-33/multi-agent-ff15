@@ -20,14 +20,14 @@ describe("operation-presentation", () => {
       toOperationOption({
         ref: "builtin:ja:openspec-dev.yaml",
         name: "openspec-dev",
-        description: "Guided workflow.\n  Plans, implements, and reviews.",
+        description: "Guided operation.\n  Plans, implements, and reviews.",
         isDefault: false,
         sourceKind: "builtin",
       }),
     ).toEqual({
       value: "builtin:ja:openspec-dev.yaml",
       label: "openspec-dev",
-      description: "Guided workflow. Plans, implements, and reviews.",
+      description: "Guided operation. Plans, implements, and reviews.",
       isDefault: false,
       name: "openspec-dev",
       sourceKind: "builtin",
@@ -40,7 +40,7 @@ describe("operation-presentation", () => {
       toOperationOption({
         ref: "project:multi-agent-ff15:openspec-dev.yaml",
         name: "openspec-dev",
-        description: "Project-local workflow.",
+        description: "Project-local operation.",
         isDefault: false,
         sourceKind: "project",
         projectId: "multi-agent-ff15",
@@ -49,7 +49,7 @@ describe("operation-presentation", () => {
     ).toEqual({
       value: "project:multi-agent-ff15:openspec-dev.yaml",
       label: "openspec-dev · Multi Agent FF15",
-      description: "Project-local workflow.",
+      description: "Project-local operation.",
       isDefault: false,
       name: "openspec-dev",
       projectId: "multi-agent-ff15",

@@ -10,7 +10,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         ? requestedView
         : "active";
 
-    return Response.json({ missions: listMissionSummaries({ view }) });
+    return Response.json({ missions: listMissionSummaries({ view, surfaceId: "noctis_team" }) });
   } catch {
     return Response.json({ missions: [] }, { status: 500 });
   }

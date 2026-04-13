@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { getAgentLabel, isWorkerAgentId } from "@/lib/agent-identity";
+import { buildKnowledgeCatalog } from "@/lib/knowledge-catalog.server";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type {
@@ -7,7 +9,6 @@ import type {
   OperationDefinition,
   ReportOutputContractDefinition,
   ResolvedFacets,
-  ResolvedKnowledgeEntry,
   StepDefinition,
 } from "@/lib/operation-definition/types";
 import {
@@ -16,7 +17,6 @@ import {
 } from "@/lib/operation-runtime/autonomous";
 import type { AgentId, OperationState, WorkerAgentId } from "@/lib/types/mission";
 import {
-  buildXmlSection,
   buildMarkdownSection,
   buildTextSection,
   joinXmlSections,
@@ -38,16 +38,7 @@ export function describeStepRole(jobSource: ContentSource | undefined, fallbackN
 }
 
 function describeAgentName(agentId: StepDefinition["agent"]): string {
-  switch (agentId) {
-    case "noctis":
-      return "Noctis";
-    case "ignis":
-      return "Ignis";
-    case "gladiolus":
-      return "Gladiolus";
-    case "prompto":
-      return "Prompto";
-  }
+  return getAgentLabel(agentId);
 }
 
 function describeNextMessageGuidance(
@@ -55,20 +46,25 @@ function describeNextMessageGuidance(
   nextCandidate: string,
 ): string {
   const nextStep = operation.steps.find((step) => step.name === nextCandidate);
+  const initialStep = operation.steps.find((step) => step.name === operation.initial_step);
+  const primaryAgentLabel =
+    initialStep && !isWorkerAgentId(initialStep.agent)
+      ? getAgentLabel(initialStep.agent)
+      : "the primary agent";
 
   if (nextStep) {
     const agentName = describeAgentName(nextStep.agent);
-    return nextStep.agent === "noctis"
+    return !isWorkerAgentId(nextStep.agent)
       ? `Write \`message\` for ${agentName}. Runtime will pass it back as the canonical handoff text for the "${nextStep.name}" step. Do not write it as a User-facing summary.`
       : `Write \`message\` for ${agentName}. Runtime will pass it as the canonical handoff text for the "${nextStep.name}" step. Do not write it as a User-facing summary.`;
   }
 
   if (nextCandidate === "COMPLETE") {
-    return "There is no next workflow step. Write `message` as the final completion summary that Noctis should report to User.";
+    return `There is no next workflow step. Write \`message\` as the final completion summary that ${primaryAgentLabel} should report to User.`;
   }
 
   if (nextCandidate === "ABORT") {
-    return "There is no next workflow step. Write `message` as the blocker summary that Noctis should use to explain why the workflow stopped.";
+    return `There is no next workflow step. Write \`message\` as the blocker summary that ${primaryAgentLabel} should use to explain why the workflow stopped.`;
   }
 
   return `Write \`message\` as the canonical handoff text for the "${nextCandidate}" step.`;
@@ -204,50 +200,6 @@ function resolveInstructionPlaceholders(input: {
   }
 
   return resolved;
-}
-
-function buildKnowledgeReferenceContent(entry: Extract<ResolvedKnowledgeEntry, { kind: "reference" }>): string {
-  const lines = [
-    `Name: ${entry.name}`,
-    `Description: ${entry.description}`,
-    `Source: ${entry.source}`,
-  ];
-
-  if (entry.critical.length > 0) {
-    lines.push("", "Critical facts:");
-    for (const fact of entry.critical) {
-      lines.push(`- ${fact}`);
-    }
-  }
-
-  return lines.join("\n");
-}
-
-function buildKnowledgeCatalog(entries: ResolvedKnowledgeEntry[]): string | null {
-  if (entries.length === 0) {
-    return null;
-  }
-
-  const catalogEntries = entries.map((entry) =>
-    entry.kind === "reference"
-      ? buildMarkdownSection("knowledge-ref", buildKnowledgeReferenceContent(entry))
-      : buildMarkdownSection("knowledge-body", entry.content),
-  );
-
-  const sections: string[] = [];
-
-  if (entries.some((entry) => entry.kind === "reference")) {
-    sections.push(
-      [
-        "Reference entries below are reference cards, not full knowledge documents.",
-        "Read a source file only when the current task matches its description.",
-      ].join("\n"),
-    );
-  }
-
-  sections.push(joinXmlSections(catalogEntries));
-
-  return buildXmlSection("knowledge-catalog", sections.join("\n\n"));
 }
 
 export interface StepHandoffSource {
@@ -389,9 +341,10 @@ function buildDelegationGuidance(input: {
   const authoredWorkers = input.step.delegation.allowed_workers;
   const sendTaskScript = getRuntimeScriptPath("send_task.sh");
   const sendReportScript = getRuntimeScriptPath("send_report.sh");
+  const primaryAgentName = getAgentLabel(input.step.agent);
   const lines = [
     input.step.rules.length === 0
-      ? "This is an open-ended Noctis-owned step. Stay in conversation with User and dispatch child tasks only when they help advance the work."
+      ? `This is an open-ended ${primaryAgentName}-owned step. Stay in conversation with User and dispatch child tasks only when they help advance the work.`
       : "You may dispatch supporting child tasks while you remain responsible for the current workflow step.",
     "",
   ];
@@ -409,7 +362,7 @@ function buildDelegationGuidance(input: {
     lines.push("");
     lines.push("Delegation rules:");
     lines.push("- Write one focused task message per child task.");
-    lines.push("- Child task reports return to this Noctis-owned step.");
+    lines.push(`- Child task reports return to this ${primaryAgentName}-owned step.`);
     lines.push(
       `- Do not use \`${sendReportScript}\` for the parent step unless this step also defines workflow rules.`,
     );
@@ -462,7 +415,7 @@ export function buildDelegatedWorkerInstruction(input: {
 }): string {
   const sections: Array<string | null> = [
     buildTextSection("task", input.taskPrompt, {
-      from: "noctis",
+      from: input.step.agent,
       to: input.agentId,
     }),
   ];
@@ -620,14 +573,15 @@ function buildStepCompletionContract(
   step: StepDefinition,
   context?: { missionId: string; agentId: StepDefinition["agent"]; taskId: string },
 ): string {
-  const isInitialNoctisStep = step.agent === "noctis" && step.name === operation.initial_step;
+  const isInitialPrimaryStep = !isWorkerAgentId(step.agent) && step.name === operation.initial_step;
+  const primaryAgentName = getAgentLabel(step.agent);
   const nextCandidates = [...new Set(step.rules.map((rule) => rule.next.trim()).filter(Boolean))];
   const sendReportScript = getRuntimeScriptPath("send_report.sh");
   const lines = [
-    isInitialNoctisStep
+    isInitialPrimaryStep
       ? `Continue the conversation normally until you are ready to advance this workflow step. Do not run \`${sendReportScript}\` until you choose one of the allowed \`next\` values below.`
-      : step.agent === "noctis"
-        ? "When this Noctis-owned workflow step is ready to finish, choose one allowed `next` value and send one canonical `message` payload."
+      : !isWorkerAgentId(step.agent)
+        ? `When this ${primaryAgentName}-owned workflow step is ready to finish, choose one allowed \`next\` value and send one canonical \`message\` payload.`
         : "When this workflow step is complete, choose one allowed `next` value and send one canonical `message` payload.",
     "",
     "Allowed next values:",
@@ -652,7 +606,7 @@ function buildStepCompletionContract(
     for (const nextCandidate of nextCandidates) {
       lines.push(`- ${nextCandidate}: ${describeNextMessageGuidance(operation, nextCandidate)}`);
     }
-    if (step.agent === "noctis" && !isInitialNoctisStep) {
+    if (!isWorkerAgentId(step.agent) && !isInitialPrimaryStep) {
       lines.push("");
       lines.push("After sending any required User-facing response, run exactly one report command to finalize the step.");
     }

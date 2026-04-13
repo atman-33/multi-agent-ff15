@@ -6,6 +6,7 @@ import type { MissionResumePayload } from "@/hooks/use-agent-session";
 const {
   projectRegistryStateMock,
   agentSessionStateMock,
+  lunafreyaStatusPropsSpy,
   matchMock,
   navigateMock,
   paramsMock,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   projectRegistryStateMock: vi.fn(),
   agentSessionStateMock: vi.fn(),
+  lunafreyaStatusPropsSpy: vi.fn(),
   matchMock: vi.fn(),
   navigateMock: vi.fn(),
   paramsMock: vi.fn(),
@@ -109,6 +111,10 @@ vi.mock("./chat-area", () => ({
     isStartingMission,
     showAbortAction,
     workflowProgress,
+    showWorkflowSelector,
+    primaryAgentId,
+    headerTitle,
+    composerStatusLabel,
   }: {
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
@@ -121,6 +127,10 @@ vi.mock("./chat-area", () => ({
     missionActionLabel?: string | null;
     isStartingMission?: boolean;
     showAbortAction?: boolean;
+    showWorkflowSelector?: boolean;
+    primaryAgentId?: string | null;
+    headerTitle?: string | null;
+    composerStatusLabel?: string | null;
     workflowProgress?: {
       currentStepIndex: number;
       totalSteps: number;
@@ -132,6 +142,10 @@ vi.mock("./chat-area", () => ({
       <div>chat-area</div>
       <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
+      <div>{`workflow-selector:${showWorkflowSelector === false ? "no" : "yes"}`}</div>
+      <div>{`primary-agent:${primaryAgentId ?? "none"}`}</div>
+      {headerTitle ? <div>{`header:${headerTitle}`}</div> : null}
+      {composerStatusLabel ? <div>{`composer-status:${composerStatusLabel}`}</div> : null}
       {workflowProgress ? (
         <div>{`workflow-progress:${workflowProgress.currentStepIndex}/${workflowProgress.totalSteps}:${workflowProgress.status}:${workflowProgress.currentStep}`}</div>
       ) : null}
@@ -165,6 +179,27 @@ vi.mock("./party-status-panel", () => ({
   PartyStatusPanel: () => <div>party-status-panel</div>,
 }));
 
+vi.mock("./lunafreya-status-panel", () => ({
+  LunafreyaStatusPanel: (props: {
+    selectedJobId?: string | null;
+    selectedKnowledgeIds?: string[];
+    onToggleKnowledgeId?: (knowledgeId: string) => void;
+    onClearKnowledgeIds?: () => void;
+  }) => {
+    lunafreyaStatusPropsSpy(props);
+
+    return (
+      <div>{`lunafreya-status:${props.selectedJobId ?? "none"}:${props.selectedKnowledgeIds?.join("|") || "none"}`}</div>
+    );
+  },
+}));
+
+vi.mock("./mission-activity-log", () => ({
+  MissionActivityLog: ({ entries }: { entries?: Array<unknown> }) => (
+    <div>{`activity-log:${entries?.length ?? 0}`}</div>
+  ),
+}));
+
 import { NoctisTeamScreen } from "./noctis-team-screen";
 
 const buildMission = (overrides: Partial<MissionResumePayload> = {}): MissionResumePayload => ({
@@ -182,6 +217,7 @@ const buildMission = (overrides: Partial<MissionResumePayload> = {}): MissionRes
   workspaceStatus: "ready",
   resumeBlockedReason: null,
   sessions: {
+    primary: "session-1",
     noctis: "session-1",
     ignis: null,
     gladiolus: null,
@@ -195,6 +231,7 @@ describe("noctis-team-screen", () => {
   beforeEach(() => {
     paramsMock.mockReturnValue({});
     matchMock.mockReturnValue(null);
+    lunafreyaStatusPropsSpy.mockReset();
     navigateMock.mockReset();
     toastErrorMock.mockReset();
     toastSuccessMock.mockReset();
@@ -229,6 +266,8 @@ describe("noctis-team-screen", () => {
       availableOperations: [],
       selectedOperation: null,
       activeOperationState: null,
+      activityLog: [],
+      primaryContextUsage: null,
       isOperationSelectionLocked: false,
       setSelectedOperation: vi.fn(),
       send: vi.fn(),
@@ -242,7 +281,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("execution-selector:core-repo");
-    expect(markup).toContain("execution-mode:mission_workspace");
+    expect(markup).toContain("execution-mode:execution_project");
     expect(markup).toContain("execution-options:Core Repo,Reference Docs");
     expect(markup).toContain("Context projects start empty for new missions.");
     expect(markup).toContain("context:None");
@@ -306,6 +345,8 @@ describe("noctis-team-screen", () => {
       availableOperations: [],
       selectedOperation: null,
       activeOperationState: null,
+      activityLog: [],
+      primaryContextUsage: null,
       isOperationSelectionLocked: false,
       setSelectedOperation: vi.fn(),
       send: vi.fn(),
@@ -351,7 +392,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("Execution mode");
-    expect(markup).toContain("Execution project direct");
+    expect(markup).toContain("Registered project");
     expect(markup).toContain("This mission is using the execution project directly without a dedicated workspace.");
     expect(markup).toContain("/repos/core");
   });
@@ -379,5 +420,106 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("workflow-progress:3/5:waiting_for_report:review");
+  });
+
+  it("renders the Lunafreya surface without workflow or party chrome", () => {
+    paramsMock.mockReturnValue({ id: "mission-luna" });
+    agentSessionStateMock.mockReturnValue({
+      messages: [],
+      banterEntries: [],
+      latestBanterEntryId: null,
+      partyMembers: [],
+      speakingAgentId: null,
+      isStartingMission: false,
+      isSessionActive: false,
+      isStreaming: false,
+      isLoadingHistory: false,
+      availableOperations: [],
+      selectedOperation: null,
+      activeOperationState: null,
+      workflowProgress: null,
+      activityLog: [{ id: "activity-1" }],
+      primaryContextUsage: null,
+      isOperationSelectionLocked: true,
+      setSelectedOperation: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(),
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-luna"
+        initialMissionData={buildMission({
+          missionId: "mission-luna",
+          primaryAgentId: "lunafreya",
+          primarySessionId: "session-luna",
+          surfaceId: "lunafreya",
+          lunafreyaFacetSelection: {
+            selectedJobId: "oracle",
+            selectedKnowledgeIds: ["hydraean"],
+            updatedAt: "2026-04-11T00:00:00.000Z",
+          },
+          sessions: {
+            primary: "session-luna",
+            noctis: null,
+            ignis: null,
+            gladiolus: null,
+            prompto: null,
+          },
+        })}
+        language="other"
+        surfaceId="lunafreya"
+      />,
+    );
+
+    expect(markup).toContain("workflow-selector:no");
+    expect(markup).toContain("primary-agent:lunafreya");
+    expect(markup).toContain("header:Oracle Mission Surface");
+    expect(markup).toContain("composer-status:Solo mission surface");
+    expect(markup).toContain("lunafreya-status:oracle:hydraean");
+    expect(markup).toContain("activity-log:1");
+    expect(markup).not.toContain("party-status-panel");
+  });
+
+  it("keeps Lunafreya knowledge selection state in the mission screen and passes management callbacks", () => {
+    paramsMock.mockReturnValue({ id: "mission-luna" });
+
+    renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-luna"
+        initialMissionData={buildMission({
+          missionId: "mission-luna",
+          primaryAgentId: "lunafreya",
+          primarySessionId: "session-luna",
+          surfaceId: "lunafreya",
+          lunafreyaFacetSelection: {
+            selectedJobId: "oracle",
+            selectedKnowledgeIds: ["hydraean"],
+            updatedAt: "2026-04-11T00:00:00.000Z",
+          },
+          sessions: {
+            primary: "session-luna",
+            noctis: null,
+            ignis: null,
+            gladiolus: null,
+            prompto: null,
+          },
+        })}
+        language="other"
+        surfaceId="lunafreya"
+      />,
+    );
+
+    const props = lunafreyaStatusPropsSpy.mock.calls.at(-1)?.[0] as {
+      selectedJobId: string | null;
+      selectedKnowledgeIds: string[];
+      onToggleKnowledgeId: (knowledgeId: string) => void;
+      onClearKnowledgeIds: () => void;
+    };
+
+    expect(props.selectedJobId).toBe("oracle");
+    expect(props.selectedKnowledgeIds).toEqual(["hydraean"]);
+    expect(typeof props.onToggleKnowledgeId).toBe("function");
+    expect(typeof props.onClearKnowledgeIds).toBe("function");
   });
 });

@@ -1,0 +1,10 @@
+name: lunafreya-autonomous
+description: >
+  Hidden Lunafreya operation.
+  Lunafreya responds directly to User without delegation and keeps the selected prompt context active.
+initial_step: autonomous
+
+steps:
+  - name: autonomous
+    agent: lunafreya
+    rules: []

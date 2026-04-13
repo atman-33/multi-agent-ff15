@@ -58,6 +58,25 @@ function getOperationFileStem(fileName: string): string {
   return basename(fileName).replace(/\.ya?ml$/, "");
 }
 
+const USER_FACING_HIDDEN_BUILTIN_OPERATION_NAMES: Record<ProjectScope, readonly string[]> = {
+  noctis_team: ["lunafreya-autonomous"],
+  lunafreya: ["noctis-autonomous"],
+};
+
+function filterUserFacingOperationEntries(
+  entries: OperationCatalogEntry[],
+  scope: ProjectScope,
+): OperationCatalogEntry[] {
+  const hiddenNames = USER_FACING_HIDDEN_BUILTIN_OPERATION_NAMES[scope];
+  if (hiddenNames.length === 0) {
+    return entries;
+  }
+
+  return entries.filter(
+    (entry) => entry.sourceKind !== "builtin" || !hiddenNames.includes(entry.name),
+  );
+}
+
 function toCatalogEntry(input: {
   ref: string;
   sourceKind: OperationSourceKind;
@@ -148,6 +167,15 @@ export function listOperationCatalogEntriesForScope(
   ];
 }
 
+export function listUserFacingOperationCatalogEntriesForScope(
+  options: ListOperationCatalogEntriesOptions,
+): OperationCatalogEntry[] {
+  return filterUserFacingOperationEntries(
+    listOperationCatalogEntriesForScope(options),
+    options.scope,
+  );
+}
+
 function resolveOperationPathFromRef(root: string, operationRef: string): string {
   const parts = operationRef.split(":");
 
@@ -193,6 +221,21 @@ export function findUnambiguousOperationEntryForMessage(input: {
   return entries.length === 1 ? entries[0] : null;
 }
 
+export function findUnambiguousUserFacingOperationEntryForMessage(input: {
+  builtinLanguages: string[];
+  message: string;
+  root?: string;
+  scope: ProjectScope;
+}): OperationCatalogEntry | null {
+  const entries = listUserFacingOperationCatalogEntriesForScope({
+    builtinLanguages: input.builtinLanguages,
+    root: input.root,
+    scope: input.scope,
+  }).filter((entry) => input.message.includes(entry.name));
+
+  return entries.length === 1 ? entries[0] : null;
+}
+
 export function resolveDefaultOperationRef(input: {
   builtinLanguages: string[];
   projectFilterId?: string;
@@ -200,6 +243,22 @@ export function resolveDefaultOperationRef(input: {
   scope: ProjectScope;
 }): string | null {
   const entries = listOperationCatalogEntriesForScope({
+    builtinLanguages: input.builtinLanguages,
+    projectFilterId: input.projectFilterId,
+    root: input.root,
+    scope: input.scope,
+  });
+
+  return entries.find((entry) => entry.isDefault)?.ref ?? entries[0]?.ref ?? null;
+}
+
+export function resolveDefaultUserFacingOperationRef(input: {
+  builtinLanguages: string[];
+  projectFilterId?: string;
+  root?: string;
+  scope: ProjectScope;
+}): string | null {
+  const entries = listUserFacingOperationCatalogEntriesForScope({
     builtinLanguages: input.builtinLanguages,
     projectFilterId: input.projectFilterId,
     root: input.root,

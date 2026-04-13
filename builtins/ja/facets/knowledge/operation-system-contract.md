@@ -1,12 +1,6 @@
 ---
 name: operation-system-contract
 description: runtime-owned dispatch、source-aware operationRef、step-completion transport、prompt composition boundary、または live と debug の prompt 差分を変更するときに読むこと。
-critical:
-  - Canonical な workflow identity は source-aware な `operationRef` であり、plain-name-only mission state は unsupported である。
-  - Runtime が次 actor を決定し、deterministic な worker dispatch を Noctis が手動 relay しない。
-  - Canonical な step-completion transport は `taskId + next + message` である。
-  - Runtime、Noctis Team selector、operation-debug preview は共通 catalog から workflow を解決し、same-name workflow は別 candidate のまま扱う。
-  - routing と prompt activation は message body token ではなく runtime state に依存する。
 ---
 
 # Operation System Contract
