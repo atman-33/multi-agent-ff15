@@ -2,7 +2,7 @@
 
 <!-- What was the bug? How did it manifest? -->
 
-## 📝 Changes
+## 📝 Fix Summary
 
 <!-- AUTO_CHANGES -->
 
@@ -12,7 +12,7 @@
 
 ## ✅ Fix Verification
 
-<!-- How was the fix tested? -->
+<!-- Fill in commands run, reproduction notes, and any manual checks -->
 
 - [ ] Bug reproduced before fix
 - [ ] Bug no longer occurs after fix

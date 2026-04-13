@@ -2,23 +2,17 @@
 # Quality checks before creating a PR
 # Returns JSON with check results
 
-set -e
+set -euo pipefail
 
 TARGET_BRANCH="${1:-main}"
-OUTPUT_JSON="{}"
+RESULTS=()
 
-# Function to add check result to JSON
 add_check() {
     local name="$1"
-    local status="$2"  # pass, warn, fail
+    local status="$2"
     local message="$3"
-
-    OUTPUT_JSON=$(echo "$OUTPUT_JSON" | jq --arg name "$name" --arg status "$status" --arg message "$message" \
-        '.checks += [{name: $name, status: $status, message: $message}]')
+    RESULTS+=("${name}"$'\t'"${status}"$'\t'"${message}")
 }
-
-# Initialize checks array
-OUTPUT_JSON=$(echo "$OUTPUT_JSON" | jq '.checks = []')
 
 # Check 1: Uncommitted changes
 if [[ -n $(git status --porcelain) ]]; then
@@ -28,7 +22,7 @@ else
 fi
 
 # Check 2: Merge conflicts
-if git merge-tree $(git merge-base HEAD "$TARGET_BRANCH") "$TARGET_BRANCH" HEAD | grep -q "^<<<<<"; then
+if git merge-tree "$(git merge-base HEAD "$TARGET_BRANCH")" "$TARGET_BRANCH" HEAD | grep -q "^<<<<<"; then
     add_check "merge_conflicts" "fail" "Merge conflicts detected with $TARGET_BRANCH"
 else
     add_check "merge_conflicts" "pass" "No merge conflicts"
@@ -43,15 +37,15 @@ else
 fi
 
 # Check 4: TODO/FIXME in changed files
-CHANGED_FILES=$(git diff --name-only "$TARGET_BRANCH...HEAD" | grep -E '\.(py|js|ts|vue|jsx|tsx)$' || true)
 TODO_COUNT=0
-if [[ -n "$CHANGED_FILES" ]]; then
-    while IFS= read -r file; do
-        if [[ -f "$file" ]]; then
-            TODO_COUNT=$((TODO_COUNT + $(grep -c -E '(TODO|FIXME)' "$file" 2>/dev/null || echo 0)))
+while IFS= read -r file; do
+    if [[ -f "$file" ]]; then
+        count=$(grep -c -E '(TODO|FIXME)' "$file" 2>/dev/null || true)
+        if [[ -n "$count" ]]; then
+            TODO_COUNT=$((TODO_COUNT + count))
         fi
-    done <<< "$CHANGED_FILES"
-fi
+    fi
+done < <(git diff --name-only "$TARGET_BRANCH...HEAD" | grep -E '\.(py|js|ts|tsx|jsx|vue)$' || true)
 
 if [[ "$TODO_COUNT" -gt 0 ]]; then
     add_check "todo_comments" "warn" "Found $TODO_COUNT TODO/FIXME comment(s) in changed files"
@@ -60,17 +54,19 @@ else
 fi
 
 # Check 5: Large files (>1MB)
-LARGE_FILES=$(git diff --name-only "$TARGET_BRANCH...HEAD" | while read -r file; do
+LARGE_FILES=()
+while IFS= read -r file; do
     if [[ -f "$file" ]]; then
         size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo 0)
         if [[ "$size" -gt 1048576 ]]; then
-            echo "$file ($(numfmt --to=iec-i --suffix=B $size 2>/dev/null || echo "${size}B"))"
+            human_size=$(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "${size}B")
+            LARGE_FILES+=("$file ($human_size)")
         fi
     fi
-done)
+done < <(git diff --name-only "$TARGET_BRANCH...HEAD")
 
-if [[ -n "$LARGE_FILES" ]]; then
-    add_check "large_files" "warn" "Large files detected: $(echo "$LARGE_FILES" | tr '\n' ', ' | sed 's/,$//')"
+if [[ ${#LARGE_FILES[@]} -gt 0 ]]; then
+    add_check "large_files" "warn" "Large files detected: $(printf '%s, ' "${LARGE_FILES[@]}" | sed 's/, $//')"
 else
     add_check "large_files" "pass" "No large files"
 fi
@@ -78,9 +74,8 @@ fi
 # Check 6: Test files for code changes
 HAS_CODE_CHANGES=false
 HAS_TEST_CHANGES=false
-
 while IFS= read -r file; do
-    if [[ "$file" =~ \.(py|js|ts|vue|jsx|tsx)$ ]]; then
+    if [[ "$file" =~ \.(py|js|ts|tsx|jsx|vue)$ ]]; then
         if [[ "$file" =~ (test|spec|__tests__|\.test\.|\.spec\.) ]]; then
             HAS_TEST_CHANGES=true
         else
@@ -98,19 +93,30 @@ else
 fi
 
 # Check 7: Dependencies changed
-DEPS_CHANGED=false
-if git diff --name-only "$TARGET_BRANCH...HEAD" | grep -qE '(requirements\.txt|package\.json|package-lock\.json)'; then
-    DEPS_CHANGED=true
+if git diff --name-only "$TARGET_BRANCH...HEAD" | grep -qE '(requirements\.txt|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)'; then
     add_check "dependencies" "warn" "Dependency files changed - ensure they are properly reviewed"
 else
     add_check "dependencies" "pass" "No dependency changes"
 fi
 
-# Summary
-FAIL_COUNT=$(echo "$OUTPUT_JSON" | jq '[.checks[] | select(.status == "fail")] | length')
-WARN_COUNT=$(echo "$OUTPUT_JSON" | jq '[.checks[] | select(.status == "warn")] | length')
+printf '%s\n' "${RESULTS[@]}" | python3 -c '
+import json
+import sys
 
-OUTPUT_JSON=$(echo "$OUTPUT_JSON" | jq --arg fc "$FAIL_COUNT" --arg wc "$WARN_COUNT" \
-    '.summary = {failures: ($fc | tonumber), warnings: ($wc | tonumber)}')
+checks = []
+for raw_line in sys.stdin.read().splitlines():
+    if not raw_line:
+        continue
+    name, status, message = raw_line.split("\t", 2)
+    checks.append({"name": name, "status": status, "message": message})
 
-echo "$OUTPUT_JSON" | jq .
+payload = {
+    "checks": checks,
+    "summary": {
+        "failures": sum(1 for check in checks if check["status"] == "fail"),
+        "warnings": sum(1 for check in checks if check["status"] == "warn"),
+    },
+}
+
+print(json.dumps(payload, indent=2))
+'

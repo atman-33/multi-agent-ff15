@@ -5,11 +5,13 @@ description: Analyzes git changes and assists with creating comprehensive pull r
 
 # PR Assistant
 
-Assists with creating well-structured pull requests by analyzing changes and generating comprehensive PR descriptions.
+Assists with creating well-structured pull requests by analyzing changes and generating reviewer-friendly PR descriptions.
 
 ## Core Philosophy
 
-**Human-in-the-loop**: This skill generates PR drafts that MUST be reviewed and approved by the user before submission. Never auto-create PRs without explicit confirmation.
+**Default: human-in-the-loop**. Prepare a draft, show it to the user, and ask for approval before creating the PR.
+
+**Explicit fast-path**. If the user clearly asks you to create the PR immediately, you may generate the draft, run sanity checks, and create the PR without a separate approval turn.
 
 ## Workflow
 
@@ -32,33 +34,60 @@ git log $TARGET_BRANCH...$CURRENT_BRANCH --oneline
 git diff $TARGET_BRANCH...$CURRENT_BRANCH --name-status
 ```
 
-Use `scripts/analyze_changes.py` to categorize changes into:
-- Backend changes (apis/, requirements.txt)
-- Frontend changes (ui/)
-- Database changes (supabase/)
-- DevOps changes (docker-compose.yml, Dockerfile, etc.)
-- Documentation (doc/, *.md)
+Use `scripts/analyze_changes.py` to categorize changes into generic buckets:
+- Frontend
+- Backend
+- Application
+- Tests
+- Documentation
+- Configuration
+- CI
+- Infrastructure
+- Scripts
+- Assets
+- Data
+- Other
+
+If classification confidence is low, do not force category-based prose in the PR body. Fall back to diff stats and top-level area summaries.
 
 ### 2. Determine PR Type
 
-Based on the analysis, select the appropriate template:
+Prefer the branch name first when selecting the template:
 - **Feature**: New functionality or enhancements
 - **Bugfix**: Bug fixes or corrections
 - **Docs**: Documentation updates
 - **Refactor**: Code restructuring without behavior change
 - **Chore**: Dependencies, config, tooling updates
 
-### 3. Generate PR Draft
+If the branch name is inconclusive, use commit prefixes and the change mix. Do not switch to a bugfix template just because a feature branch contains a single `fix:` commit.
+
+### 3. Prepare Output Files
+
+Store generated artifacts inside skill-local output storage:
+
+```bash
+mkdir -p .opencode/skills/pr-assistant/outputs
+BRANCH_SLUG=$(git branch --show-current | sed 's#/#-#g; s#[^A-Za-z0-9._-]#-#g')
+STAMP=$(date +%Y%m%d-%H%M%S)
+ANALYSIS_FILE=".opencode/skills/pr-assistant/outputs/pr-analysis-${BRANCH_SLUG}-${STAMP}.json"
+PR_BODY_FILE=".opencode/skills/pr-assistant/outputs/pr-body-${BRANCH_SLUG}-${STAMP}.md"
+```
+
+Always save both the analysis JSON and the generated PR body.
+
+### 4. Generate PR Draft
 
 Use `scripts/generate_pr_body.py` with the appropriate template from `assets/templates/`.
 
 Auto-fill sections:
-- **Summary**: Generated from commit messages and file changes
-- **Changes breakdown**: Categorized list of modified files
+- **Summary**: Commit themes, capped to a short list
+- **Changes breakdown**: Diff stats plus category or top-level area summaries
 - **Related issues**: Parse commit messages for `#123`, `fixes #456` patterns
 - **Checklist**: Auto-populate based on change types
 
-### 4. Quality Checks
+After auto-generation, edit the body if necessary. Avoid dumping every changed file into the PR body.
+
+### 5. Quality Checks
 
 Run `scripts/quality_checks.sh` to check for:
 - Uncommitted changes
@@ -67,11 +96,13 @@ Run `scripts/quality_checks.sh` to check for:
 - Missing test files (for significant code changes)
 - Large file additions (>1MB)
 
-Present warnings to user but don't block PR creation.
+Run validation commands sequentially when a repository has generated artifacts or known typegen/test interactions. Avoid parallel validation unless the repository is known to support it.
 
-### 5. Present Draft for Review
+Present warnings to the user but don't block PR creation unless there is a hard failure or the user says otherwise.
 
-**CRITICAL**: Present the generated PR body in a clear, editable format and explicitly ask the user to review and approve it.
+### 6. Present Draft or Create Immediately
+
+By default, present the generated PR body in a clear, editable format and explicitly ask the user to review and approve it.
 
 Example presentation:
 ```
@@ -88,40 +119,39 @@ Would you like me to:
 4. Add/remove reviewers
 ```
 
-### 6. Create PR Only After Approval
+If the user explicitly requested immediate PR creation, briefly summarize the generated draft and then create the PR.
 
-Once the user approves, use `gh` CLI:
+### 7. Create the PR
+
+Once the user approves, or when the user explicitly requested immediate creation, use `gh` CLI:
 
 ```bash
 gh pr create \
   --title "PR Title" \
-  --body-file /tmp/pr-body.md \
+  --body-file "$PR_BODY_FILE" \
   --base main \
   --head current-branch \
   [--reviewer user1,user2] \
   [--label label1,label2]
 ```
 
-## Project-Specific Configuration
+Only suggest reviewers or labels when repository conventions are obvious or the user asks.
 
-For this repository (tomodachi/srms):
+## Generic Classification Strategy
 
-**Categories**:
-- Backend: `apis/`, `requirements.txt`
-- Frontend: `ui/src/`, `ui/package.json`
-- Database: `supabase/`
-- DevOps: `docker-compose.yml`, `Dockerfile`, `nginx.conf`, `supervisord.conf`
-- Docs: `doc/`, `README.md`, `CLAUDE.md`
-
-**Default reviewers** (suggest based on changes):
-- Backend changes → Backend team
-- Frontend changes → Frontend team
-- Database changes → DBA/Backend team
+- Use coarse categories that travel well across repositories.
+- Prefer confidence-aware output. If the analysis reports low confidence, summarize top-level areas instead of pretending the category split is precise.
+- Keep `Other` as an escape hatch instead of overfitting repository-specific path rules.
+- When the category split is weak, prefer diff stats plus the major top-level directories that changed.
 
 **Branch naming conventions**:
 - `feature/*` → Feature template
+- `feat/*` → Feature template
 - `bugfix/*` or `fix/*` → Bugfix template
+- `hotfix/*` → Bugfix template
 - `docs/*` → Docs template
+- `refactor/*` → Refactor template
+- `chore/*`, `build/*`, `ci/*` → Chore template
 - Other → Feature template (default)
 
 ## Best Practices
@@ -135,6 +165,7 @@ Key points:
 - Include testing evidence
 - Link to related issues
 - Self-review before requesting review
+- Prefer concise, reviewer-friendly summaries over exhaustive file inventories
 
 ## Interactive Editing
 
@@ -163,9 +194,14 @@ If issues arise:
 
 ## Output Format
 
-Always save the generated PR body to a temporary file for easy editing:
+Always save the generated analysis and PR body to skill-local output files for easy editing:
+
 ```bash
-PR_BODY_FILE=".tmp/outputs/pr-body-$(date +%s).md"
+mkdir -p .opencode/skills/pr-assistant/outputs
+BRANCH_SLUG=$(git branch --show-current | sed 's#/#-#g; s#[^A-Za-z0-9._-]#-#g')
+STAMP=$(date +%Y%m%d-%H%M%S)
+ANALYSIS_FILE=".opencode/skills/pr-assistant/outputs/pr-analysis-${BRANCH_SLUG}-${STAMP}.json"
+PR_BODY_FILE=".opencode/skills/pr-assistant/outputs/pr-body-${BRANCH_SLUG}-${STAMP}.md"
 ```
 
-This allows the user to edit it manually if needed before submission.
+The local `.gitignore` in `pr-assistant/` should ignore `outputs/` so these artifacts stay out of version control.
