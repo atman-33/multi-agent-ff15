@@ -12,7 +12,10 @@ vi.mock("react-router", async () => {
 
   return {
     ...actual,
-    Outlet: () => <div>nested-route</div>,
+    Outlet: () => {
+      const params = paramsMock();
+      return params.id ? <div>nested-route</div> : null;
+    },
     useLocation: () => ({ state: null }),
     useNavigate: () => navigateMock,
     useParams: () => paramsMock(),
@@ -43,12 +46,12 @@ describe("lunafreya layout route", () => {
     expect(markup).not.toContain("nested-route");
   });
 
-  it("renders the child mission route when a mission URL is active", () => {
+  it("keeps the Lunafreya mission surface screen mounted when a mission URL is active", () => {
     paramsMock.mockReturnValue({ id: "mission-luna" });
 
     const markup = renderToStaticMarkup(<TestPage loaderData={{ language: "other" }} />);
 
     expect(markup).toContain("nested-route");
-    expect(markup).not.toContain("screen:lunafreya:mission-luna");
+    expect(markup).toContain("screen:lunafreya:mission-luna");
   });
 });
