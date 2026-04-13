@@ -12,7 +12,10 @@ vi.mock("react-router", async () => {
 
   return {
     ...actual,
-    Outlet: () => <div>nested-route</div>,
+    Outlet: () => {
+      const params = paramsMock();
+      return params.id ? <div>nested-route</div> : null;
+    },
     useLocation: () => ({ state: null }),
     useNavigate: () => navigateMock,
     useParams: () => paramsMock(),
@@ -41,7 +44,7 @@ describe("noctis-team layout route", () => {
     expect(markup).not.toContain("nested-route");
   });
 
-  it("renders the child mission route when a mission URL is active", () => {
+  it("keeps the mission surface screen mounted when a mission URL is active", () => {
     paramsMock.mockReturnValue({ id: "mission-123" });
 
     const markup = renderToStaticMarkup(
@@ -49,6 +52,6 @@ describe("noctis-team layout route", () => {
     );
 
     expect(markup).toContain("nested-route");
-    expect(markup).not.toContain("screen:mission-123");
+    expect(markup).toContain("screen:mission-123");
   });
 });
