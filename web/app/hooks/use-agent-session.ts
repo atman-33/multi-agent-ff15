@@ -138,6 +138,7 @@ export interface MissionSummary {
   updatedAt: string;
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
+  activitySessionIds: string[];
 }
 
 export type MissionResumePayload = {

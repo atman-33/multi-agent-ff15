@@ -300,6 +300,7 @@ export interface MissionSummary {
   updatedAt: string;
   archivedAt?: string;
   status: MissionStatus;
+  activitySessionIds: string[];
 }
 
 export interface MissionOutputSummary {

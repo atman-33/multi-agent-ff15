@@ -12,6 +12,7 @@ import {
   getMission,
   getMissionFilePath,
   listMissionSummaries,
+  setWorkerSession,
 } from "./mission-store";
 
 const tempRoots: string[] = [];
@@ -303,6 +304,25 @@ describe("mission store", () => {
     expect(getMission("legacy-flat")).toBeUndefined();
     expect(listMissionSummaries({ view: "all" })).toEqual([
       expect.objectContaining({ missionId: "mission-listed", title: "Listed Mission" }),
+    ]);
+  });
+
+  it("flattens primary and worker activity session ids into mission summaries", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-running-summary", "session-primary", {
+      title: "Running Summary Mission",
+    });
+    missionIds.push(mission.id);
+
+    setWorkerSession(mission.id, "ignis", "session-ignis");
+    setWorkerSession(mission.id, "prompto", "session-prompto");
+
+    expect(listMissionSummaries({ view: "all" })).toEqual([
+      expect.objectContaining({
+        missionId: "mission-running-summary",
+        activitySessionIds: ["session-primary", "session-ignis", "session-prompto"],
+      }),
     ]);
   });
 });

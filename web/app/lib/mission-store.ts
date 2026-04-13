@@ -331,6 +331,17 @@ function readMissionFromDisk(id: string): Mission | null {
 }
 
 function toMissionSummary(mission: Mission): MissionSummary {
+  const activitySessionIds = [
+    getMissionPrimarySessionId(mission),
+    mission.workerSessions.ignis,
+    mission.workerSessions.gladiolus,
+    mission.workerSessions.prompto,
+  ].filter((sessionId, index, values): sessionId is string => {
+    return (
+      typeof sessionId === "string" && sessionId.length > 0 && values.indexOf(sessionId) === index
+    );
+  });
+
   return {
     missionId: mission.id,
     title: mission.title,
@@ -339,6 +350,7 @@ function toMissionSummary(mission: Mission): MissionSummary {
     updatedAt: mission.updatedAt,
     archivedAt: mission.archivedAt,
     status: mission.status,
+    activitySessionIds,
   };
 }
 
