@@ -39,6 +39,8 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Use for background context, runtime contracts, diagnostics maps, and reusable reference material.
 - Skills are file-backed only and should live under `facets/skills/<skill-name>/SKILL.md`.
 - Valid skill frontmatter requires both `name` and `description`.
+- Skill `name` must use lowercase letters, numbers, and hyphens only.
+- Skill `name` must match the enclosing `<skill-name>` directory.
 - Prompt injection includes only `name` and `description`, not the full body.
 - Do not author inline workflow skills. Use a file-backed skill entry instead.
 - Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is skill-specific.
@@ -59,7 +61,6 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 
 ## Template Selection
 
-- Use the knowledge reference template only for file-based knowledge that should surface metadata in prompts.
-- Use the knowledge body template for inline knowledge and for file-based knowledge that should inject the full body.
+- Use the skill template for reusable file-backed skills whose prompt injection should expose only `name` and `description`.
 - Use the frontmatter output-contract template for machine-readable artifacts such as spec pointers.
 - Use the report output-contract template for human-readable markdown reports.

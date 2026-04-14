@@ -1,5 +1,5 @@
 ---
-name: Operation Authoring And Diagnostics
+name: operation-authoring-and-diagnostics
 description: operation YAML、project workflow authoring path、source-aware operationRef、facet source 解決、output contract、output placeholder、または workflow 関連テストを安全に変更するときに読むこと。
 ---
 

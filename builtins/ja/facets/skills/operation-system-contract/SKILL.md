@@ -1,5 +1,5 @@
 ---
-name: Operation System Contract
+name: operation-system-contract
 description: runtime-owned dispatch、source-aware operationRef、step-completion transport、prompt composition boundary、または live と debug の prompt 差分を変更するときに読むこと。
 ---
 

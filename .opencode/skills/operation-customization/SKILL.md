@@ -1,6 +1,6 @@
 ---
 name: operation-customization
-description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, knowledge, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, source-aware operation refs, and debug-preview behavior.'
+description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, skills, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, source-aware operation refs, and debug-preview behavior.'
 argument-hint: 'Describe the operation or facet files to create or change, whether the workflow lives under builtins or projects, the target language or project id, and whether you need authoring only or diagnostics too.'
 ---
 
@@ -13,7 +13,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Add a new operation under `builtins/<lang>/operations/` or `projects/<project-id>/operations/`
 - Extend or refactor an existing operation step flow
 - Add or revise `steps[].delegation` for Noctis-owned autonomous flows
-- Create or revise `jobs`, `instructions`, `knowledge`, `policies`, or `output-contracts` facets under builtin or project facet trees
+- Create or revise `jobs`, `instructions`, `skills`, `policies`, or `output-contracts` facets under builtin or project facet trees
 - Diagnose operation prompt, routing, report transport, source-aware catalog, or output placeholder failures
 
 ## Workflow
@@ -72,6 +72,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Do not stretch the generic operation template into a rules-less delegation pattern; use the dedicated autonomous delegation template instead.
 - Prefer adapting neighboring repository patterns over inventing new structures.
 - Keep same-name builtin and project workflows as separate candidates; do not document or implement name-based collapsing.
+- For `facets/skills/<skill-name>/SKILL.md`, keep frontmatter `name` in lowercase kebab-case and match the enclosing `<skill-name>` directory.
 - Treat unresolved placeholders, legacy schema fields, and malformed output contracts as blocking.
 - Do not skip the validator for "small" workflow edits. A one-line rule change can still break catalog loading for the whole language tree.
 - When runtime behavior changes, inspect both live-path and debug-preview implications before finishing.

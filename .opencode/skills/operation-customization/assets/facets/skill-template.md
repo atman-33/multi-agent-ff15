@@ -5,6 +5,7 @@ description: 'Read this when <trigger or change surface>.'
 
 Replace every placeholder and localize the final file body to the target facet language.
 Keep `name` and `description` machine-readable and non-empty.
+Keep `name` in lowercase letters, numbers, and hyphens only, and match the enclosing `<skill-name>` directory.
 
 # <Skill Title>
 

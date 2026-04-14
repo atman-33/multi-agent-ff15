@@ -50,7 +50,7 @@ Treat validator failures as blocking before you move on to higher-level runtime 
    - `output_contracts.report[].format.file` or `output_contracts.report[].format.inline`
 6. `file` sources are resolved relative to the workflow YAML path, not repository root.
 7. Same-name builtin and project workflows remain separate catalog entries. Keep the visible `name` only when that duplication is intentional, and use `description` to clarify the source-specific behavior.
-8. Do not use removed step fields such as `edit`, `pass_previous_response`, `job_file`, `instruction_file`, `knowledge_files`, `policy_files`, or `format_file`.
+8. Do not use removed step fields such as `edit`, `pass_previous_response`, `job_file`, `instruction_file`, `knowledge`, `knowledge_files`, `worker_knowledge`, `policy_files`, or `format_file`.
 9. `delegation` is only valid on `noctis` steps and is intended for autonomous parent steps that stay open while delegating child tasks.
 10. A step may omit `rules` only for an explicit Noctis-owned autonomous delegation flow.
 11. Default to the fewest steps that preserve clear ownership, required artifact boundaries, and explicit approval or input waits.
