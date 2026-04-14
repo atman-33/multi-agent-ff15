@@ -12,7 +12,7 @@ const PROMPT_CONTEXT_SECTION_LABELS: Record<string, string> = {
   "analyze-mode": "Analyze Mode",
   "delegation-context": "Delegation Context",
   job: "Job",
-  skills: "Skills",
+  "reference-files": "Skills",
   instruction: "Instruction",
   "delegation-guidance": "Delegation Guidance",
   "workspace-context": "Workspace Context",
@@ -265,13 +265,13 @@ function prioritizeNormalizedLunafreyaSections(input: {
   }
 
   for (const section of input.sections) {
-    if (section.tagName === "skills") {
+    if (section.tagName === "reference-files") {
       prioritized.push(section);
     }
   }
 
   for (const section of input.sections) {
-    if (section.tagName === "job" || section.tagName === "skills") {
+    if (section.tagName === "job" || section.tagName === "reference-files") {
       continue;
     }
 

@@ -357,8 +357,8 @@ describe("operation prompt builder", () => {
       taskId: "task-skills",
     });
 
-    expect(prompt).toContain("<skills>");
-    expect(prompt).toContain("<skill>");
+    expect(prompt).toContain("<reference-files>");
+    expect(prompt).toContain("<reference-file>");
     expect(prompt).toContain("<name>");
     expect(prompt).toContain("operation-system-contract");
     expect(prompt).toContain("agent-relationships");
@@ -559,7 +559,7 @@ describe("operation prompt builder", () => {
       `${process.env.MULTI_AGENT_FF15_ROOT}/scripts/send_task.sh mission-solo-guidance ignis`,
     );
     expect(prompt).not.toContain("<job>");
-    expect(prompt).not.toContain("<skills>");
+    expect(prompt).not.toContain("<reference-files>");
     expect(prompt).not.toContain("<instruction>");
   });
 });

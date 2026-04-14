@@ -68,8 +68,8 @@ describe("skill catalog", () => {
       ),
     ]);
 
-    expect(catalog).toContain("<skills>");
-    expect(catalog).toContain("<skill>");
+    expect(catalog).toContain("<reference-files>");
+    expect(catalog).toContain("<reference-file>");
     expect(catalog).toContain("<name>");
     expect(catalog).toContain("operation-system-contract");
     expect(catalog).toContain("agent-relationships");

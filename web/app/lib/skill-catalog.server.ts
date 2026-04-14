@@ -55,8 +55,10 @@ export function buildSkillsCatalog(entries: readonly ResolvedSkillEntry[]): stri
       "Do not assume every listed skill is relevant to the current turn.",
       "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
     ].join("\n"),
-    joinXmlSections(entries.map((entry) => buildXmlSection("skill", buildSkillEntryContent(entry)))),
+    joinXmlSections(
+      entries.map((entry) => buildXmlSection("reference-file", buildSkillEntryContent(entry))),
+    ),
   ];
 
-  return buildXmlSection("skills", sections.join("\n\n"));
+  return buildXmlSection("reference-files", sections.join("\n\n"));
 }

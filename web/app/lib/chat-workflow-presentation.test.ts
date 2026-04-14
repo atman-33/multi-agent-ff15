@@ -261,12 +261,12 @@ serena_project: multi-agent-ff15
 Structure the response as calm, high-signal guidance.
 </job>
 
-<skills>
-<skill>
+<reference-files>
+<reference-file>
 <name>Oracle Notes</name>
 <description>Read when you need Lunafreya-specific long-horizon guidance.</description>
-</skill>
-</skills>
+</reference-file>
+</reference-files>
 
 <user-request from="user" to="lunafreya">
 次の一手を整理して
@@ -276,7 +276,7 @@ Structure the response as calm, high-signal guidance.
 
     expect(presentation?.promptContextSections.map((section) => section.tagName)).toEqual([
       "job",
-      "skills",
+      "reference-files",
       "workspace-context",
       "tooling-context",
     ]);

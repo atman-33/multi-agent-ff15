@@ -64,7 +64,7 @@ describe("resolveLunafreyaPromptContext", () => {
     expect(resolved.promptExtension).toContain("Lunafreya Autonomous");
     expect(resolved.promptExtension).not.toContain("<lunafreya-overlays>");
     expect(resolved.promptExtension).not.toContain("<lunafreya-job-overlay");
-    expect(resolved.promptExtension).not.toContain("<skills>");
+    expect(resolved.promptExtension).not.toContain("<reference-files>");
   });
 
   it("uses the selected Job as the only effective job and renders shared skills", () => {
@@ -123,8 +123,8 @@ describe("resolveLunafreyaPromptContext", () => {
     expect(resolved.promptExtension).toContain("<job>");
     expect(resolved.promptExtension).toContain("Strategic Advisor");
     expect(resolved.promptExtension).not.toContain("Guide User directly.");
-    expect(resolved.promptExtension).toContain("<skills>");
-    expect(resolved.promptExtension).toContain("<skill>");
+    expect(resolved.promptExtension).toContain("<reference-files>");
+    expect(resolved.promptExtension).toContain("<reference-file>");
     expect(resolved.promptExtension).toContain("<name>");
     expect(resolved.promptExtension).toContain("oracle-notes");
     expect(resolved.promptExtension).toContain("<description>");

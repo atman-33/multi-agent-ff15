@@ -262,8 +262,8 @@ describe("Lunafreya mission routing", () => {
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
     expect(promptText).toContain("Strategic Advisor");
     expect(promptText).toContain("alpha-domain-notes");
-    expect(promptText).toContain("<skills>");
-    expect(promptText).toContain("<skill>");
+    expect(promptText).toContain("<reference-files>");
+    expect(promptText).toContain("<reference-file>");
     expect(promptText).toContain("<description>");
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
@@ -336,8 +336,8 @@ describe("Lunafreya mission routing", () => {
     expect(promptText).toContain("oracle-notes");
     expect(promptText).toContain("alpha-domain-notes");
     expect(promptText).toContain("Strategic Advisor");
-    expect(promptText).toContain("<skills>");
-    expect(promptText).toContain("<skill>");
+    expect(promptText).toContain("<reference-files>");
+    expect(promptText).toContain("<reference-file>");
     expect(promptText).toContain("<name>");
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");

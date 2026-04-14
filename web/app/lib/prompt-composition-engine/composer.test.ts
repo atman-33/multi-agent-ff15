@@ -693,9 +693,9 @@ describe("prompt composition engine", () => {
       selectedOperation: builtinOperationRef("skills-workflow"),
     });
 
-    expect(composed.effectivePrompt).toContain("<skills>");
-    expect(composed.effectivePrompt.match(/<skills>/g)).toHaveLength(1);
-    expect(composed.effectivePrompt).toContain("<skill>");
+    expect(composed.effectivePrompt).toContain("<reference-files>");
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain("<reference-file>");
     expect(composed.effectivePrompt).toContain("<name>");
     expect(composed.effectivePrompt).toContain("operation-system-contract");
     expect(composed.effectivePrompt).toContain("agent-relationships");
@@ -777,7 +777,7 @@ describe("prompt composition engine", () => {
 
     expect(composed.operationActivated).toBe("noctis-autonomous");
     expect(composed.effectivePrompt).toContain("<job>");
-    expect(composed.effectivePrompt).toContain("<skills>");
+    expect(composed.effectivePrompt).toContain("<reference-files>");
     expect(composed.effectivePrompt).toContain("<instruction>");
     expect(composed.effectivePrompt).toContain("<delegation-guidance>");
     expect(composed.effectivePrompt).toContain(`${root}/scripts/send_task.sh mission-autonomous ignis`);
@@ -811,7 +811,7 @@ describe("prompt composition engine", () => {
 
       expect(composed.operationActivated).toBe("noctis-autonomous");
       expect(composed.effectivePrompt).not.toContain("<job>");
-  expect(composed.effectivePrompt).not.toContain("<skills>");
+  expect(composed.effectivePrompt).not.toContain("<reference-files>");
       expect(composed.effectivePrompt).not.toContain("<instruction>");
       expect(composed.effectivePrompt).toContain("Effective allowed workers: none");
       expect(composed.effectivePrompt).toContain(
@@ -899,7 +899,7 @@ describe("prompt composition engine", () => {
       nextTarget: "Noctis",
     });
     expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<job>");
-    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<skills>");
+    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<reference-files>");
     expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<instruction>");
     expect(bundle.flowSteps[0]?.effectivePrompt).toContain("Effective allowed workers: none");
     expect(bundle.flowSteps[0]?.internalContext).not.toContain("<delegation-context");
