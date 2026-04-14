@@ -21,7 +21,7 @@ Create or revise operation workflows for this repository without breaking the ru
 1. Confirm the target operation, source tree (`builtins` or `projects/<project-id>`), language or project id, and whether the task includes diagnostics.
 2. Read the references that match the task:
    - For canonical YAML rules, runtime contracts, and parser constraints, read [operation-authoring.md](./references/operation-authoring.md).
-   - For facet-specific writing guidance, read [facet-authoring.md](./references/facet-authoring.md).
+   - For facet-specific writing guidance, read [facet-authoring.md](./references/facet-authoring.md). For skill facets, this bundled reference and template are the complete authoring guide.
    - For routing, prompt, or placeholder failures, read [operation-diagnostics.md](./references/operation-diagnostics.md).
 3. Inspect the closest existing operation and neighboring facet files before drafting.
 4. When creating files from scratch, start from the matching templates in `./assets/`. Use the dedicated autonomous delegation template for rules-less Noctis-owned parent steps.
@@ -45,7 +45,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Use [autonomous-delegation-template.yaml](assets/autonomous-delegation-template.yaml) for internal Noctis-owned autonomous flows that keep the parent step open while delegating child tasks.
 - Use [job-template.md](assets/facets/job-template.md) for reusable step roles.
 - Use [instruction-template.md](assets/facets/instruction-template.md) for file-backed instructions or inline content.
-- Use [skill-template.md](assets/facets/skill-template.md) for reusable file-backed skills under `facets/skills/<skill-name>/SKILL.md`.
+- Use [skill-template.md](assets/facets/skill-template.md) for reusable file-backed skills under `facets/skills/<skill-name>/SKILL.md`. It includes the canonical description pattern, section layout, and split or script thresholds.
 - Use [policy-template.md](assets/facets/policy-template.md) for pass or fail criteria.
 - Use [output-contract-report-template.md](assets/facets/output-contract-report-template.md) for markdown report artifacts.
 - Use [output-contract-frontmatter-template.md](assets/facets/output-contract-frontmatter-template.md) for machine-readable frontmatter artifacts.
