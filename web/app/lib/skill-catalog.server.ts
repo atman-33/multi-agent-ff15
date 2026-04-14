@@ -40,6 +40,7 @@ function buildSkillEntryContent(entry: ResolvedSkillEntry): string {
   return joinXmlSections([
     buildTextSection("name", entry.name),
     buildTextSection("description", entry.description),
+    buildTextSection("file", entry.file),
   ]);
 }
 
@@ -52,6 +53,7 @@ export function buildSkillsCatalog(entries: readonly ResolvedSkillEntry[]): stri
     [
       "Use the skills below only when the current task matches their description.",
       "Do not assume every listed skill is relevant to the current turn.",
+      "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
     ].join("\n"),
     joinXmlSections(entries.map((entry) => buildXmlSection("skill", buildSkillEntryContent(entry)))),
   ];

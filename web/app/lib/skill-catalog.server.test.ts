@@ -6,7 +6,7 @@ import {
 } from "./skill-catalog.server";
 
 describe("skill catalog", () => {
-  it("normalizes file-backed skill metadata using name and description only", () => {
+  it("normalizes file-backed skill metadata using name, description, and file only", () => {
     const entry = normalizeFileSkillEntry(
       [
         "---",
@@ -42,7 +42,7 @@ describe("skill catalog", () => {
     ).toThrow(/name and description/i);
   });
 
-  it("renders one attribute-free skills section with name and description only", () => {
+  it("renders one attribute-free skills section with name, description, and file only", () => {
     const catalog = buildSkillsCatalog([
       normalizeFileSkillEntry(
         [
@@ -74,8 +74,13 @@ describe("skill catalog", () => {
     expect(catalog).toContain("operation-system-contract");
     expect(catalog).toContain("agent-relationships");
     expect(catalog).toContain("<description>");
+    expect(catalog).toContain("<file>");
+    expect(catalog).toContain("/tmp/operation-system-contract/SKILL.md");
+    expect(catalog).toContain("/tmp/agent-relationships/SKILL.md");
+    expect(catalog).toContain(
+      "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
+    );
     expect(catalog).not.toContain("argument-hint");
-    expect(catalog).not.toContain("<file>");
     expect(catalog).not.toContain("This text should not be injected into the prompt.");
   });
 });

@@ -323,13 +323,28 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain("<task>");
   });
 
-  it("emits a grouped skills section with name and description only", () => {
+  it("emits a grouped skills section with name, description, and file path", () => {
     const operation = loadOperationFromFile(createSkillsPromptFixture());
     const step = operation.steps[0];
 
     if (!step) {
       throw new Error("spec-planning step not found");
     }
+
+    const operationSystemContractSkillPath = join(
+      dirname(dirname(operation.sourcePath)),
+      "facets",
+      "skills",
+      "operation-system-contract",
+      "SKILL.md",
+    );
+    const agentRelationshipsSkillPath = join(
+      dirname(dirname(operation.sourcePath)),
+      "facets",
+      "skills",
+      "agent-relationships",
+      "SKILL.md",
+    );
 
     const facets = resolveStepFacets(operation, step, "ja");
     const operationState = createTestOperationState(operation);
@@ -348,10 +363,15 @@ describe("operation prompt builder", () => {
     expect(prompt).toContain("operation-system-contract");
     expect(prompt).toContain("agent-relationships");
     expect(prompt).toContain("<description>");
+    expect(prompt).toContain("<file>");
+    expect(prompt).toContain(operationSystemContractSkillPath);
+    expect(prompt).toContain(agentRelationshipsSkillPath);
     expect(prompt).toContain(
       "Use the skills below only when the current task matches their description.",
     );
-    expect(prompt).not.toContain("<file>");
+    expect(prompt).toContain(
+      "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
+    );
     expect(prompt).not.toContain("argument-hint");
     expect(prompt).not.toContain("metadata");
     expect(prompt).not.toContain("This text should not be injected into the prompt.");

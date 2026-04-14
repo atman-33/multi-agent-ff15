@@ -41,7 +41,8 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Valid skill frontmatter requires both `name` and `description`.
 - Skill `name` must use lowercase letters, numbers, and hyphens only.
 - Skill `name` must match the enclosing `<skill-name>` directory.
-- Prompt injection includes only `name` and `description`, not the full body.
+- Prompt injection includes `name`, `description`, and the absolute `file` path, not the full body.
+- When a listed skill is relevant, read the file at `<file>` and treat that file as the source of truth.
 - Do not author inline workflow skills. Use a file-backed skill entry instead.
 - Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is skill-specific.
 

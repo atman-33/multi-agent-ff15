@@ -699,8 +699,18 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("<name>");
     expect(composed.effectivePrompt).toContain("operation-system-contract");
     expect(composed.effectivePrompt).toContain("agent-relationships");
+    expect(composed.effectivePrompt).toContain("<file>");
+    expect(composed.effectivePrompt).toContain(
+      join(root, "builtins", "ja", "facets", "skills", "operation-system-contract", "SKILL.md"),
+    );
+    expect(composed.effectivePrompt).toContain(
+      join(root, "builtins", "ja", "facets", "skills", "agent-relationships", "SKILL.md"),
+    );
     expect(composed.effectivePrompt).toContain(
       "Use the skills below only when the current task matches their description.",
+    );
+    expect(composed.effectivePrompt).toContain(
+      "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
     );
     expect(composed.effectivePrompt).not.toContain("This text should not be injected into the prompt.");
     expect(composed.effectivePrompt).not.toContain("This text should also stay out of the prompt body.");

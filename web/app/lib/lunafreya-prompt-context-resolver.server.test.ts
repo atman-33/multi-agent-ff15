@@ -128,7 +128,13 @@ describe("resolveLunafreyaPromptContext", () => {
     expect(resolved.promptExtension).toContain("<name>");
     expect(resolved.promptExtension).toContain("oracle-notes");
     expect(resolved.promptExtension).toContain("<description>");
-    expect(resolved.promptExtension).not.toContain("<file>");
+    expect(resolved.promptExtension).toContain("<file>");
+    expect(resolved.promptExtension).toContain(
+      "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
+    );
+    expect(resolved.promptExtension).toContain(
+      join(root, "builtins", "ja", "facets", "skills", "oracle-notes", "SKILL.md"),
+    );
     expect(resolved.promptExtension).not.toContain("<lunafreya-job-overlay");
   });
 });
