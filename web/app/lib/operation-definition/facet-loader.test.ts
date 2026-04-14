@@ -28,7 +28,9 @@ function createTempOperationFixture(): string {
 
   mkdirSync(join(facetsDir, "jobs"), { recursive: true });
   mkdirSync(join(facetsDir, "instructions"), { recursive: true });
-  mkdirSync(join(facetsDir, "knowledge"), { recursive: true });
+  mkdirSync(join(facetsDir, "skills", "operation-system-contract"), { recursive: true });
+  mkdirSync(join(facetsDir, "skills", "agent-relationships"), { recursive: true });
+  mkdirSync(join(facetsDir, "skills", "broken-reference"), { recursive: true });
   mkdirSync(join(facetsDir, "policies"), { recursive: true });
   mkdirSync(join(facetsDir, "output-contracts"), { recursive: true });
   mkdirSync(operationDir, { recursive: true });
@@ -40,31 +42,42 @@ function createTempOperationFixture(): string {
     "utf-8",
   );
   writeFileSync(
-    join(facetsDir, "knowledge", "operation-system-contract.md"),
+    join(facetsDir, "skills", "operation-system-contract", "SKILL.md"),
     [
       "---",
-      "name: operation-system-contract",
+      "name: Operation System Contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
-      "critical:",
-      "  - Runtime decides the next actor.",
-      "  - Reports use taskId + next + message.",
       "---",
-      "# Operation Runtime and Prompt Flow Knowledge",
+      "# Operation Runtime and Prompt Flow Skill",
       "",
-      "This is the full knowledge body.",
+      "This is the full skill body.",
       "",
     ].join("\n"),
     "utf-8",
   );
   writeFileSync(
-    join(facetsDir, "knowledge", "broken-reference.md"),
+    join(facetsDir, "skills", "agent-relationships", "SKILL.md"),
+    [
+      "---",
+      "name: Agent Relationships",
+      'description: Read when you need a compact FF15 relationship cue.',
+      "---",
+      "# Agent relationships",
+      "",
+      "Use this when party dynamics matter.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    join(facetsDir, "skills", "broken-reference", "SKILL.md"),
     [
       "---",
       "name: broken-reference",
       "---",
       "# Broken reference body",
       "",
-      "Fallback to body-backed knowledge.",
+      "This malformed skill should be rejected.",
       "",
     ].join("\n"),
     "utf-8",
@@ -93,8 +106,8 @@ function createTempOperationFixture(): string {
       "      file: ../facets/jobs/planner.md",
       "    instruction:",
       "      file: ../facets/instructions/openspec-planning.md",
-      "    knowledge:",
-      "      - file: ../facets/knowledge/operation-system-contract.md",
+      "    skills:",
+      "      - file: ../facets/skills/operation-system-contract/SKILL.md",
       "    rules: []",
       "  - name: review",
       "    agent: ignis",
@@ -114,10 +127,9 @@ function createTempOperationFixture(): string {
       "      file: ../facets/jobs/implementer.md",
       "    instruction:",
       "      file: ../facets/instructions/implement.md",
-      "    knowledge:",
-      "      - file: ../facets/knowledge/operation-system-contract.md",
-      "      - file: ../facets/knowledge/broken-reference.md",
-      "      - inline: Prefer runtime-owned dispatch.",
+      "    skills:",
+      "      - file: ../facets/skills/operation-system-contract/SKILL.md",
+      "      - file: ../facets/skills/agent-relationships/SKILL.md",
       "    policies:",
       "      - file: ../facets/policies/coding-standards.md",
       "      - inline: Keep changes minimal.",
@@ -197,7 +209,7 @@ describe("operation-definition path-based facet resolution", () => {
     expect(planning).toBeTruthy();
     expect(planning?.job).toEqual({ file: "../facets/jobs/planner.md" });
     expect(planning?.instruction).toEqual({ file: "../facets/instructions/openspec-planning.md" });
-    expect(planning?.knowledge).toEqual([{ file: "../facets/knowledge/operation-system-contract.md" }]);
+    expect(planning?.skills).toEqual([{ file: "../facets/skills/operation-system-contract/SKILL.md" }]);
 
     if (!planning) {
       throw new Error("spec-planning step not found");
@@ -206,15 +218,13 @@ describe("operation-definition path-based facet resolution", () => {
     const facets = resolveStepFacets(operation, planning, "ja");
 
     expect(facets.job).toContain("Planner (仕様計画担当)");
-    expect(facets.knowledge[0]).toEqual(
+    expect(facets.skills[0]).toEqual(
       expect.objectContaining({
-        kind: "reference",
-        name: "operation-system-contract",
+        name: "Operation System Contract",
         description: "Read when changing runtime-owned dispatch or report routing.",
-        source: expect.stringContaining("operation-system-contract.md"),
+        file: expect.stringContaining("operation-system-contract/SKILL.md"),
       }),
     );
-    expect(facets.knowledge[0]).not.toHaveProperty("critical");
     expect(facets.instruction).toContain("Spec Planning — 手順指示");
     expect(facets.outputContracts).toEqual([]);
   });
@@ -237,15 +247,14 @@ describe("operation-definition path-based facet resolution", () => {
     expect(facets.outputContracts[0]).toContain("Inline Code Review Report");
   });
 
-  it("loads mixed worker knowledge entries in authored order", () => {
+  it("loads file-backed skill entries in authored order", () => {
     const operation = loadOperationFromFile(createTempOperationFixture());
     const implement = operation.steps.find((step) => step.name === "implement");
 
     expect(implement).toBeTruthy();
-    expect(implement?.knowledge).toEqual([
-      { file: "../facets/knowledge/operation-system-contract.md" },
-      { file: "../facets/knowledge/broken-reference.md" },
-      { inline: "Prefer runtime-owned dispatch." },
+    expect(implement?.skills).toEqual([
+      { file: "../facets/skills/operation-system-contract/SKILL.md" },
+      { file: "../facets/skills/agent-relationships/SKILL.md" },
     ]);
     expect(implement?.policies).toEqual([
       { file: "../facets/policies/coding-standards.md" },
@@ -258,29 +267,34 @@ describe("operation-definition path-based facet resolution", () => {
 
     const facets = resolveStepFacets(operation, implement, "ja");
 
-    expect(facets.knowledge.map((entry) => entry.kind)).toEqual(["reference", "body", "body"]);
-    expect(facets.knowledge[0]).toEqual(
+    expect(facets.skills).toHaveLength(2);
+    expect(facets.skills[0]).toEqual(
       expect.objectContaining({
-        kind: "reference",
-        name: "operation-system-contract",
+        name: "Operation System Contract",
       }),
     );
-    expect(facets.knowledge[1]).toEqual(
+    expect(facets.skills[1]).toEqual(
       expect.objectContaining({
-        kind: "body",
-        content: expect.stringContaining("# Broken reference body"),
+        name: "Agent Relationships",
       }),
     );
-    if (facets.knowledge[1]?.kind !== "body") {
-      throw new Error("Expected second knowledge entry to be body-backed");
-    }
-    expect(facets.knowledge[1].content).not.toContain("name: broken-reference");
-    expect(facets.knowledge[2]).toEqual({
-      kind: "body",
-      content: "Prefer runtime-owned dispatch.",
-    });
     expect(facets.policies[0]).toContain("Coding Standards");
     expect(facets.policies[1]).toContain("Keep changes minimal.");
+  });
+
+  it("rejects malformed skill entry metadata", () => {
+    const operation = loadOperationFromFile(createTempOperationFixture());
+    const implement = operation.steps.find((step) => step.name === "implement");
+
+    if (!implement) {
+      throw new Error("implement step not found");
+    }
+
+    implement.skills = [{ file: "../facets/skills/broken-reference/SKILL.md" }];
+
+    expect(() => resolveStepFacets(operation, implement, "ja")).toThrow(
+      /Skill entry must define non-empty name and description/i,
+    );
   });
 
   it("rejects malformed inline output contracts with source-aware errors", () => {

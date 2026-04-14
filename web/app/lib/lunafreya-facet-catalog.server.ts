@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import yaml from "yaml";
 import {
   getProjectAuthoringDirectory,
@@ -11,7 +11,7 @@ import { getProjectRoot } from "./get-project-root.server";
 const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const MARKDOWN_HEADING_REGEX = /^#\s+(.+)$/m;
 
-export type LunafreyaFacetKind = "job" | "knowledge";
+export type LunafreyaFacetKind = "job" | "skill";
 
 export interface LunafreyaFacetCatalogEntry {
   id: string;
@@ -25,19 +25,33 @@ export interface LunafreyaFacetCatalogEntry {
   projectId?: string;
 }
 
-function getFacetDirectoryName(kind: LunafreyaFacetKind): "jobs" | "knowledge" {
-  return kind === "job" ? "jobs" : "knowledge";
+function getFacetDirectoryName(kind: LunafreyaFacetKind): "jobs" | "skills" {
+  return kind === "job" ? "jobs" : "skills";
 }
 
-function getFacetFiles(directory: string): string[] {
+function getFacetEntries(
+  kind: LunafreyaFacetKind,
+  directory: string,
+): Array<{ entryName: string; filePath: string }> {
   if (!existsSync(directory)) {
     return [];
   }
 
+  if (kind === "job") {
+    return readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => ({ entryName: entry.name, filePath: join(directory, entry.name) }))
+      .sort((left, right) => left.entryName.localeCompare(right.entryName));
+  }
+
   return readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => entry.name)
-    .sort((left, right) => left.localeCompare(right));
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      entryName: entry.name,
+      filePath: join(directory, entry.name, "SKILL.md"),
+    }))
+    .filter((entry) => existsSync(entry.filePath))
+    .sort((left, right) => left.entryName.localeCompare(right.entryName));
 }
 
 function parseFacetMetadata(content: string): {
@@ -78,6 +92,36 @@ function parseFacetMetadata(content: string): {
   };
 }
 
+function parseSkillMetadata(
+  content: string,
+  filePath: string,
+): {
+  label: string;
+  description: string;
+} {
+  const frontmatterMatch = content.match(FRONTMATTER_REGEX);
+  if (!frontmatterMatch) {
+    throw new Error(`Skill entry must define frontmatter with name and description: ${filePath}`);
+  }
+
+  try {
+    const parsed = yaml.parse(frontmatterMatch[1]) as Record<string, unknown> | null;
+    const name = typeof parsed?.name === "string" ? parsed.name.trim() : "";
+    const description = typeof parsed?.description === "string" ? parsed.description.trim() : "";
+
+    if (name && description) {
+      return {
+        label: name,
+        description,
+      };
+    }
+  } catch {
+    throw new Error(`Skill entry has invalid frontmatter: ${filePath}`);
+  }
+
+  throw new Error(`Skill entry must define non-empty name and description: ${filePath}`);
+}
+
 function buildBuiltinFacetId(language: string, directoryName: string, fileName: string): string {
   return `builtin:${language}:${directoryName}/${fileName}`;
 }
@@ -91,16 +135,20 @@ function toFacetEntry(input: {
   sourceKind: "builtin" | "project";
   sourceLabel: string;
   filePath: string;
+  entryName: string;
   id: string;
   language?: string;
   projectId?: string;
 }): LunafreyaFacetCatalogEntry {
   const content = readFileSync(input.filePath, "utf-8");
-  const metadata = parseFacetMetadata(content);
+  const metadata =
+    input.kind === "skill"
+      ? parseSkillMetadata(content, input.filePath)
+      : parseFacetMetadata(content);
 
   return {
     id: input.id,
-    label: metadata.label ?? basename(input.filePath).replace(/\.md$/, ""),
+    label: metadata.label ?? input.entryName.replace(/\.md$/, ""),
     description: metadata.description,
     kind: input.kind,
     sourceKind: input.sourceKind,
@@ -119,31 +167,32 @@ function listBuiltinFacetEntries(input: {
 }): LunafreyaFacetCatalogEntry[] {
   const directoryName = getFacetDirectoryName(input.kind);
   const entries: LunafreyaFacetCatalogEntry[] = [];
-  const seenFileNames = new Set<string>();
+  const seenEntryNames = new Set<string>();
 
   for (const language of [...new Set(input.builtinLanguages.filter(Boolean))]) {
     const directory = join(input.root, "builtins", language, "facets", directoryName);
-    for (const fileName of getFacetFiles(directory)) {
+    for (const entry of getFacetEntries(input.kind, directory)) {
       if (
         !input.includeReservedEntries &&
         input.kind === "job" &&
-        fileName === DEFAULT_LUNAFREYA_JOB_FILE_NAME
+        entry.entryName === DEFAULT_LUNAFREYA_JOB_FILE_NAME
       ) {
         continue;
       }
 
-      if (seenFileNames.has(fileName)) {
+      if (seenEntryNames.has(entry.entryName)) {
         continue;
       }
 
-      seenFileNames.add(fileName);
+      seenEntryNames.add(entry.entryName);
       entries.push(
         toFacetEntry({
           kind: input.kind,
           sourceKind: "builtin",
           sourceLabel: "Builtin",
-          filePath: join(directory, fileName),
-          id: buildBuiltinFacetId(language, directoryName, fileName),
+          filePath: entry.filePath,
+          entryName: entry.entryName,
+          id: buildBuiltinFacetId(language, directoryName, entry.entryName),
           language,
         }),
       );
@@ -174,13 +223,14 @@ function listProjectFacetEntries(input: {
     directoryName,
   );
 
-  return getFacetFiles(directory).map((fileName) =>
+  return getFacetEntries(input.kind, directory).map((entry) =>
     toFacetEntry({
       kind: input.kind,
       sourceKind: "project",
       sourceLabel: project.name,
-      filePath: join(directory, fileName),
-      id: buildProjectFacetId(project.id, directoryName, fileName),
+      filePath: entry.filePath,
+      entryName: entry.entryName,
+      id: buildProjectFacetId(project.id, directoryName, entry.entryName),
       projectId: project.id,
     }),
   );

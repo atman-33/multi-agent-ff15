@@ -43,7 +43,7 @@ function getEntryBody(entry: MissionActivityLogEntry): string {
 
   const lines = entry.body
     .split("\n")
-    .filter((line) => !line.startsWith("Job:") && !line.startsWith("Knowledge:"));
+    .filter((line) => !line.startsWith("Job:") && !line.startsWith("Skills:"));
 
   return lines.join("\n").trim() || entry.body;
 }
@@ -118,8 +118,8 @@ export function MissionActivityLog({ entries }: MissionActivityLogProps) {
                         <span className="rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-foreground/85">
                           Job: {getLunafreyaJobDisplayLabel(facetSnapshot)}
                         </span>
-                        {facetSnapshot.selectedKnowledgeLabels.length > 0 ? (
-                          facetSnapshot.selectedKnowledgeLabels.map((label) => (
+                        {facetSnapshot.selectedSkillLabels.length > 0 ? (
+                          facetSnapshot.selectedSkillLabels.map((label) => (
                             <span
                               key={`${entry.id}:${label}`}
                               className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90"
@@ -129,7 +129,7 @@ export function MissionActivityLog({ entries }: MissionActivityLogProps) {
                           ))
                         ) : (
                           <span className="rounded-full border border-border/60 bg-background/75 px-2 py-0.5 text-[10px] text-muted-foreground/80">
-                            Knowledge: none
+                            Skills: none
                           </span>
                         )}
                       </div>

@@ -89,9 +89,11 @@ function createTempRoot(): string {
     "utf-8",
   );
 
-  mkdirSync(join(root, "builtins", "ja", "facets", "knowledge"), { recursive: true });
+  mkdirSync(join(root, "builtins", "ja", "facets", "skills", "oracle-notes"), {
+    recursive: true,
+  });
   writeFileSync(
-    join(root, "builtins", "ja", "facets", "knowledge", "oracle-notes.md"),
+    join(root, "builtins", "ja", "facets", "skills", "oracle-notes", "SKILL.md"),
     [
       "---",
       "name: Oracle Notes",
@@ -105,10 +107,16 @@ function createTempRoot(): string {
     "utf-8",
   );
 
-  mkdirSync(join(root, "projects", "alpha", "facets", "knowledge"), { recursive: true });
+  mkdirSync(join(root, "projects", "alpha", "facets", "skills", "domain-notes"), {
+    recursive: true,
+  });
   writeFileSync(
-    join(root, "projects", "alpha", "facets", "knowledge", "domain-notes.md"),
+    join(root, "projects", "alpha", "facets", "skills", "domain-notes", "SKILL.md"),
     [
+      "---",
+      "name: Alpha Domain Notes",
+      'description: Use the Alpha project conventions and existing module boundaries.',
+      "---",
       "# Alpha Domain Notes",
       "",
       "Use the Alpha project conventions and existing module boundaries.",
@@ -194,7 +202,7 @@ describe("Lunafreya mission routing", () => {
     expect(mission?.workspacePath).toBeUndefined();
     expect(mission?.workspaceStatus).toBeUndefined();
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
-      selectedKnowledgeIds: [],
+      selectedSkillIds: [],
     });
     expect(mission?.lunafreyaFacetSelection?.selectedJobId).toBeUndefined();
     expect(sessionCreateMock).toHaveBeenCalledWith(
@@ -225,7 +233,7 @@ describe("Lunafreya mission routing", () => {
           message: "Guide me through the next decision.",
           executionProjectId: "alpha",
           selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-          selectedKnowledgeIds: ["project:alpha:knowledge/domain-notes.md"],
+          selectedSkillIds: ["project:alpha:skills/domain-notes"],
         }),
       }),
     } as never);
@@ -241,7 +249,7 @@ describe("Lunafreya mission routing", () => {
     expect(mission?.noctisSessionId).toBe("");
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
       selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-      selectedKnowledgeIds: ["project:alpha:knowledge/domain-notes.md"],
+      selectedSkillIds: ["project:alpha:skills/domain-notes"],
     });
 
     expect(promptAsyncMock).toHaveBeenCalledWith(
@@ -254,11 +262,12 @@ describe("Lunafreya mission routing", () => {
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
     expect(promptText).toContain("Strategic Advisor");
     expect(promptText).toContain("Alpha Domain Notes");
-    expect(promptText).toContain("<knowledge-catalog>");
-    expect(promptText).toContain("<knowledge-body>");
+    expect(promptText).toContain("<skills>");
+    expect(promptText).toContain("<skill>");
+    expect(promptText).toContain("<description>");
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
-    expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
+    expect(promptText).not.toContain("<lunafreya-skill-overlay>");
     expect(promptText).not.toContain("<delegation-context");
   });
 
@@ -275,7 +284,7 @@ describe("Lunafreya mission routing", () => {
           message: "Begin a Lunafreya mission.",
           executionProjectId: "alpha",
           selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-          selectedKnowledgeIds: ["project:alpha:knowledge/domain-notes.md"],
+          selectedSkillIds: ["project:alpha:skills/domain-notes"],
         }),
       }),
     } as never);
@@ -295,9 +304,9 @@ describe("Lunafreya mission routing", () => {
         body: JSON.stringify({
           missionId,
           message: "Now weigh the long-term risks too.",
-          selectedKnowledgeIds: [
-            "builtin:ja:knowledge/oracle-notes.md",
-            "project:alpha:knowledge/domain-notes.md",
+          selectedSkillIds: [
+            "builtin:ja:skills/oracle-notes",
+            "project:alpha:skills/domain-notes",
           ],
         }),
       }),
@@ -316,9 +325,9 @@ describe("Lunafreya mission routing", () => {
     const mission = getMission(missionId);
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
       selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-      selectedKnowledgeIds: [
-        "builtin:ja:knowledge/oracle-notes.md",
-        "project:alpha:knowledge/domain-notes.md",
+      selectedSkillIds: [
+        "builtin:ja:skills/oracle-notes",
+        "project:alpha:skills/domain-notes",
       ],
     });
 
@@ -327,11 +336,11 @@ describe("Lunafreya mission routing", () => {
     expect(promptText).toContain("Oracle Notes");
     expect(promptText).toContain("Alpha Domain Notes");
     expect(promptText).toContain("Strategic Advisor");
-    expect(promptText).toContain("<knowledge-catalog>");
-    expect(promptText).toContain("<knowledge-ref>");
-    expect(promptText).toContain("Source: ");
+    expect(promptText).toContain("<skills>");
+    expect(promptText).toContain("<skill>");
+    expect(promptText).toContain("<name>");
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
-    expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
+    expect(promptText).not.toContain("<lunafreya-skill-overlay>");
   });
 });

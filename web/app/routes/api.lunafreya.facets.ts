@@ -19,13 +19,13 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         builtinLanguages,
         executionProjectId,
       }),
-      knowledge: listLunafreyaFacetCatalogEntries({
-        kind: "knowledge",
+      skills: listLunafreyaFacetCatalogEntries({
+        kind: "skill",
         builtinLanguages,
         executionProjectId,
       }),
     });
   } catch {
-    return Response.json({ jobs: [], knowledge: [] }, { status: 500 });
+    return Response.json({ jobs: [], skills: [] }, { status: 500 });
   }
 };

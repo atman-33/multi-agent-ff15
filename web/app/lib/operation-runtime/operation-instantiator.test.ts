@@ -19,7 +19,9 @@ function createTempRoot(): string {
   mkdirSync(join(root, "scripts"), { recursive: true });
   mkdirSync(join(root, "config"), { recursive: true });
   mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
-  mkdirSync(join(root, "builtins", "ja", "facets", "knowledge"), { recursive: true });
+  mkdirSync(join(root, "builtins", "ja", "facets", "skills", "runtime-contract"), {
+    recursive: true,
+  });
   mkdirSync(join(root, "builtins", "ja", "facets", "policies"), { recursive: true });
   mkdirSync(join(root, "builtins", "ja", "facets", "output-contracts"), {
     recursive: true,
@@ -54,8 +56,8 @@ function seedActivationBoundaryOperation(root: string): void {
       "      file: ./plan-job.md",
       "    instruction:",
       "      file: ./plan-instruction.md",
-      "    knowledge:",
-      "      - file: ../facets/knowledge/runtime-contract.md",
+      "    skills:",
+      "      - file: ../facets/skills/runtime-contract/SKILL.md",
       "    policies:",
       "      - file: ../facets/policies/noctis-policy.md",
       "    output_contracts:",
@@ -89,13 +91,11 @@ function seedActivationBoundaryOperation(root: string): void {
     "utf-8",
   );
   writeFileSync(
-    join(root, "builtins", "ja", "facets", "knowledge", "runtime-contract.md"),
+    join(root, "builtins", "ja", "facets", "skills", "runtime-contract", "SKILL.md"),
     [
       "---",
-      "name: runtime-contract",
+      "name: Runtime Contract",
       "description: Read when preparing the activation handoff.",
-      "critical:",
-      "  - Runtime decides the next actor.",
       "---",
       "# Runtime contract",
       "",
@@ -164,8 +164,6 @@ function seedLunafreyaBoundaryOperation(root: string): void {
       "      inline: Lunafreya keeps the conversation focused and calm.",
       "    instruction:",
       "      inline: Respond directly to User.",
-      "    knowledge:",
-      "      - inline: Selected job and knowledge overlays are already active.",
       "    rules: []",
       "",
     ].join("\n"),
@@ -251,11 +249,12 @@ describe("OperationInstantiator", () => {
     expect(result.operationState?.currentStep).toBe("plan");
     expect(result.step?.name).toBe("plan");
     expect(result.activationText).toContain("Planner role for the activation step.");
-    expect(result.activationText).toContain("runtime-contract");
+    expect(result.activationText).toContain("Runtime Contract");
+    expect(result.activationText).toContain("Read when preparing the activation handoff.");
     expect(result.activationText).toContain("Always respond with YAML status updates.");
     expect(result.activationText).toContain("Plan output contract");
     expect(result.promptArtifact?.mode).toBe("activation");
-    expect(result.promptArtifact?.facets.knowledge).toHaveLength(1);
+    expect(result.promptArtifact?.facets.skills).toHaveLength(1);
     expect(result.promptArtifact?.facets.policies).toEqual([
       "# Policy\n\nAlways respond with YAML status updates.\n",
     ]);

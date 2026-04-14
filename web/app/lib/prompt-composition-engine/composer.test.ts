@@ -102,18 +102,17 @@ function writeMalformedOutputContractOperation(root: string) {
   );
 }
 
-function writeKnowledgeCatalogOperation(root: string) {
-  const knowledgeDir = join(root, "builtins", "ja", "facets", "knowledge");
-  mkdirSync(knowledgeDir, { recursive: true });
+function writeSkillsOperation(root: string) {
+  const skillsDir = join(root, "builtins", "ja", "facets", "skills");
+  mkdirSync(join(skillsDir, "operation-system-contract"), { recursive: true });
+  mkdirSync(join(skillsDir, "agent-relationships"), { recursive: true });
   writeFileSync(
-    join(knowledgeDir, "operation-system-contract.md"),
+    join(skillsDir, "operation-system-contract", "SKILL.md"),
     [
       "---",
-      "name: operation-system-contract",
+      "name: Operation System Contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
-      "critical:",
-      "  - Runtime decides the next actor.",
-      "  - Reports use taskId + next + message.",
+      'argument-hint: runtime dispatch',
       "---",
       "# Full contract body",
       "",
@@ -123,11 +122,13 @@ function writeKnowledgeCatalogOperation(root: string) {
     "utf-8",
   );
   writeFileSync(
-    join(knowledgeDir, "agent-relationships.md"),
+    join(skillsDir, "agent-relationships", "SKILL.md"),
     [
       "---",
-      "name: agent-relationships",
+      "name: Agent Relationships",
       'description: Read when you need a compact FF15 relationship cue.',
+      "metadata:",
+      '  owner: ff15',
       "---",
       "# Agent relationships",
       "",
@@ -136,27 +137,14 @@ function writeKnowledgeCatalogOperation(root: string) {
     ].join("\n"),
     "utf-8",
   );
-  writeFileSync(
-    join(knowledgeDir, "broken-reference.md"),
-    [
-      "---",
-      "name: broken-reference",
-      "---",
-      "# Broken reference body",
-      "",
-      "Fallback to body-backed knowledge.",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
 
-  const operationPath = join(root, "builtins", "ja", "operations", "knowledge-catalog-workflow.yaml");
+  const operationPath = join(root, "builtins", "ja", "operations", "skills-workflow.yaml");
   mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
   writeFileSync(
     operationPath,
     [
-      "name: knowledge-catalog-workflow",
-      "description: Knowledge catalog workflow fixture",
+      "name: skills-workflow",
+      "description: Skills workflow fixture",
       "initial_step: spec-planning",
       "steps:",
       "  - name: spec-planning",
@@ -165,11 +153,9 @@ function writeKnowledgeCatalogOperation(root: string) {
       "      inline: Planner role",
       "    instruction:",
       "      inline: Clarify the request",
-      "    knowledge:",
-      "      - file: ../facets/knowledge/operation-system-contract.md",
-      "      - file: ../facets/knowledge/agent-relationships.md",
-      "      - file: ../facets/knowledge/broken-reference.md",
-      "      - inline: Prefer runtime-owned dispatch.",
+      "    skills:",
+      "      - file: ../facets/skills/operation-system-contract/SKILL.md",
+      "      - file: ../facets/skills/agent-relationships/SKILL.md",
       "    rules:",
       "      - condition: Ready",
       "        next: implement",
@@ -677,15 +663,15 @@ describe("prompt composition engine", () => {
     expect(summarizeStep?.effectivePrompt).toContain(expectedOutputPath);
   });
 
-  it("renders one knowledge catalog for workflow prompts and keeps debug preview aligned", () => {
+  it("renders one skills section for workflow prompts and keeps debug preview aligned", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
-    writeKnowledgeCatalogOperation(root);
-    const missionId = "debug-knowledge-catalog";
-    const userMessage = "Open the knowledge-catalog workflow.";
+    writeSkillsOperation(root);
+    const missionId = "debug-skills";
+    const userMessage = "Open the skills workflow.";
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationRef: builtinOperationRef("knowledge-catalog-workflow"),
+      operationRef: builtinOperationRef("skills-workflow"),
       userMessage,
     });
     const selfStep = bundle.flowSteps.find(
@@ -696,31 +682,30 @@ describe("prompt composition engine", () => {
       context: {
         appRoot: root,
         agent: "noctis",
-        sessionId: "debug-knowledge-catalog-session",
+        sessionId: "debug-skills-session",
         missionId,
         allowedWorkers: ["ignis", "gladiolus", "prompto"],
       },
       userMessage,
       missionId,
-      sessionId: "debug-knowledge-catalog-session",
+      sessionId: "debug-skills-session",
       isNewMission: true,
-      selectedOperation: builtinOperationRef("knowledge-catalog-workflow"),
+      selectedOperation: builtinOperationRef("skills-workflow"),
     });
 
-    expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
-    expect(composed.effectivePrompt.match(/<knowledge-catalog>/g)).toHaveLength(1);
-    expect(composed.effectivePrompt).toContain("<knowledge-ref>");
-    expect(composed.effectivePrompt).toContain("<knowledge-body>");
-    expect(composed.effectivePrompt).toContain("Name: operation-system-contract");
-    expect(composed.effectivePrompt).toContain("Name: agent-relationships");
+    expect(composed.effectivePrompt).toContain("<skills>");
+    expect(composed.effectivePrompt.match(/<skills>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain("<skill>");
+    expect(composed.effectivePrompt).toContain("<name>");
+    expect(composed.effectivePrompt).toContain("Operation System Contract");
+    expect(composed.effectivePrompt).toContain("Agent Relationships");
     expect(composed.effectivePrompt).toContain(
-      "Reference entries below are reference cards, not full knowledge documents.",
+      "Use the skills below only when the current task matches their description.",
     );
-    expect(
-      composed.effectivePrompt.match(/Reference entries below are reference cards, not full knowledge documents\./g) ?? [],
-    ).toHaveLength(1);
     expect(composed.effectivePrompt).not.toContain("This text should not be injected into the prompt.");
     expect(composed.effectivePrompt).not.toContain("This text should also stay out of the prompt body.");
+    expect(composed.effectivePrompt).not.toContain("argument-hint");
+    expect(composed.effectivePrompt).not.toContain("metadata");
     expect(selfStep).toBeTruthy();
     expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
   });
@@ -782,7 +767,7 @@ describe("prompt composition engine", () => {
 
     expect(composed.operationActivated).toBe("noctis-autonomous");
     expect(composed.effectivePrompt).toContain("<job>");
-    expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
+    expect(composed.effectivePrompt).toContain("<skills>");
     expect(composed.effectivePrompt).toContain("<instruction>");
     expect(composed.effectivePrompt).toContain("<delegation-guidance>");
     expect(composed.effectivePrompt).toContain(`${root}/scripts/send_task.sh mission-autonomous ignis`);
@@ -816,7 +801,7 @@ describe("prompt composition engine", () => {
 
       expect(composed.operationActivated).toBe("noctis-autonomous");
       expect(composed.effectivePrompt).not.toContain("<job>");
-      expect(composed.effectivePrompt).not.toContain("<knowledge-catalog>");
+  expect(composed.effectivePrompt).not.toContain("<skills>");
       expect(composed.effectivePrompt).not.toContain("<instruction>");
       expect(composed.effectivePrompt).toContain("Effective allowed workers: none");
       expect(composed.effectivePrompt).toContain(
@@ -904,7 +889,7 @@ describe("prompt composition engine", () => {
       nextTarget: "Noctis",
     });
     expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<job>");
-    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<knowledge-catalog>");
+    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<skills>");
     expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<instruction>");
     expect(bundle.flowSteps[0]?.effectivePrompt).toContain("Effective allowed workers: none");
     expect(bundle.flowSteps[0]?.internalContext).not.toContain("<delegation-context");

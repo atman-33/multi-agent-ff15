@@ -25,10 +25,8 @@ steps:
       # inline: |
       #   # <Step title>
       #   1. <Action>
-    knowledge:
-      - file: ../facets/knowledge/<shared-knowledge>.md
-      # - inline: |
-      #     <Step-local knowledge>
+    skills:
+      - file: ../facets/skills/<shared-skill>/SKILL.md
     policies:
       - file: ../facets/policies/<policy-file>.md
     output_contracts:

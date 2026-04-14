@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { buildKnowledgeCatalog, normalizeFileKnowledgeEntry } from "@/lib/knowledge-catalog.server";
+import { buildSkillsCatalog, normalizeFileSkillEntry } from "@/lib/skill-catalog.server";
 import type { LunafreyaFacetSelection } from "@/lib/types/mission";
 import {
   DEFAULT_LUNAFREYA_JOB_FILE_NAME,
@@ -67,7 +67,7 @@ export interface ResolvedLunafreyaPromptContext {
   selection: LunafreyaFacetSelection;
   selectedJobLabel: string;
   effectiveJobLabel: string;
-  selectedKnowledgeLabels: string[];
+  selectedSkillLabels: string[];
   promptExtension: string;
 }
 
@@ -75,7 +75,7 @@ export function resolveLunafreyaPromptContext(input: {
   builtinLanguages: string[];
   executionProjectId?: string;
   selectedJobId?: string;
-  selectedKnowledgeIds?: readonly string[];
+  selectedSkillIds?: readonly string[];
   root?: string;
 }): ResolvedLunafreyaPromptContext {
   const jobEntries = listLunafreyaFacetCatalogEntries({
@@ -85,8 +85,8 @@ export function resolveLunafreyaPromptContext(input: {
     root: input.root,
     includeReservedEntries: true,
   });
-  const knowledgeEntries = listLunafreyaFacetCatalogEntries({
-    kind: "knowledge",
+  const skillEntries = listLunafreyaFacetCatalogEntries({
+    kind: "skill",
     builtinLanguages: input.builtinLanguages,
     executionProjectId: input.executionProjectId,
     root: input.root,
@@ -99,14 +99,14 @@ export function resolveLunafreyaPromptContext(input: {
     : null;
   const effectiveJobEntry =
     selectedJobEntry && selectedJobEntry.id !== defaultJobEntry.id ? selectedJobEntry : defaultJobEntry;
-  const normalizedKnowledgeIds = dedupeIds(input.selectedKnowledgeIds ?? []);
-  const selectedKnowledgeEntries = normalizedKnowledgeIds.map((id) =>
-    findFacetEntryOrThrow(knowledgeEntries, id, "knowledge"),
+  const normalizedSkillIds = dedupeIds(input.selectedSkillIds ?? []);
+  const selectedSkillEntries = normalizedSkillIds.map((id) =>
+    findFacetEntryOrThrow(skillEntries, id, "skill"),
   );
 
   const selection: LunafreyaFacetSelection = {
     ...(effectiveJobEntry.id !== defaultJobEntry.id ? { selectedJobId: effectiveJobEntry.id } : {}),
-    selectedKnowledgeIds: selectedKnowledgeEntries.map((entry) => entry.id),
+    selectedSkillIds: selectedSkillEntries.map((entry) => entry.id),
     updatedAt: new Date().toISOString(),
   };
 
@@ -115,9 +115,9 @@ export function resolveLunafreyaPromptContext(input: {
       "job",
       stripFrontmatter(readFileSync(effectiveJobEntry.filePath, "utf-8")),
     ),
-    buildKnowledgeCatalog(
-      selectedKnowledgeEntries.map((entry) =>
-        normalizeFileKnowledgeEntry(readFileSync(entry.filePath, "utf-8"), entry.filePath),
+    buildSkillsCatalog(
+      selectedSkillEntries.map((entry) =>
+        normalizeFileSkillEntry(readFileSync(entry.filePath, "utf-8"), entry.filePath),
       ),
     ),
   ];
@@ -129,7 +129,7 @@ export function resolveLunafreyaPromptContext(input: {
     selection,
     selectedJobLabel: effectiveJobLabel,
     effectiveJobLabel,
-    selectedKnowledgeLabels: selectedKnowledgeEntries.map((entry) => entry.label),
+    selectedSkillLabels: selectedSkillEntries.map((entry) => entry.label),
     promptExtension: joinXmlSections(promptSections),
   };
 }

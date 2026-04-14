@@ -10,8 +10,8 @@ Read this file when creating or editing `builtins/<lang>/operations/*.yaml`, `pr
 
 ## Source Of Truth
 
-- `builtins/<lang>/facets/knowledge/operation-authoring-and-diagnostics.md`
-- `builtins/<lang>/facets/knowledge/operation-system-contract.md`
+- `builtins/<lang>/facets/skills/operation-authoring-and-diagnostics/SKILL.md`
+- `builtins/<lang>/facets/skills/operation-system-contract/SKILL.md`
 - The target workflow file under `builtins/<lang>/operations/<name>.yaml` or `projects/<project-id>/operations/<name>.yaml`
 - Representative neighboring facets in the same source tree
 
@@ -41,11 +41,11 @@ Treat validator failures as blocking before you move on to higher-level runtime 
 5. Canonical source forms are:
    - `job.file` or `job.inline`
    - `instruction.file` or `instruction.inline`
-   - `knowledge[].file` or `knowledge[].inline`
+   - `skills[].file`
    - `policies[].file` or `policies[].inline`
    - `delegation.worker_job.file` or `delegation.worker_job.inline`
    - `delegation.worker_instruction.file` or `delegation.worker_instruction.inline`
-   - `delegation.worker_knowledge[].file` or `delegation.worker_knowledge[].inline`
+   - `delegation.worker_skills[].file`
    - `delegation.worker_policies[].file` or `delegation.worker_policies[].inline`
    - `output_contracts.report[].format.file` or `output_contracts.report[].format.inline`
 6. `file` sources are resolved relative to the workflow YAML path, not repository root.
@@ -56,7 +56,7 @@ Treat validator failures as blocking before you move on to higher-level runtime 
 11. Default to the fewest steps that preserve clear ownership, required artifact boundaries, and explicit approval or input waits.
 12. Do not add Noctis relay steps or User-facing progress-update steps between worker steps unless checkpoints, approvals, or interactive monitoring were explicitly requested.
 13. User-facing messaging should normally happen only at final completion or when the workflow is blocked and waiting for User input.
-14. Preserve authored order for `knowledge`, `policies`, `delegation.worker_knowledge`, and `delegation.worker_policies` lists.
+14. Preserve authored order for `skills`, `policies`, `delegation.worker_skills`, and `delegation.worker_policies` lists.
 15. The runtime owns dispatch. Do not design manual Noctis relay or message-body step tags as the transition mechanism.
 16. The canonical workflow identity is a source-aware `operationRef` derived from the workflow source tree and file name. Do not assume plain `name` is globally unique.
 17. The canonical completion transport is `taskId + next + message`.

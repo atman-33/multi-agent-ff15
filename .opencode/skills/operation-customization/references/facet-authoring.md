@@ -6,8 +6,7 @@ Read this file when creating or revising files under `builtins/<lang>/facets/` o
 
 - [job-template.md](../assets/facets/job-template.md)
 - [instruction-template.md](../assets/facets/instruction-template.md)
-- [knowledge-body-template.md](../assets/facets/knowledge-body-template.md)
-- [knowledge-reference-template.md](../assets/facets/knowledge-reference-template.md)
+- [skill-template.md](../assets/facets/skill-template.md)
 - [policy-template.md](../assets/facets/policy-template.md)
 - [output-contract-report-template.md](../assets/facets/output-contract-report-template.md)
 - [output-contract-frontmatter-template.md](../assets/facets/output-contract-frontmatter-template.md)
@@ -35,14 +34,14 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Do not ask for routine User-facing progress updates unless the workflow explicitly requires checkpoints, approvals, or interactive monitoring.
 - Put step-specific placeholder usage or command references here.
 
-## knowledge
+## skills
 
 - Use for background context, runtime contracts, diagnostics maps, and reusable reference material.
-- For file-based knowledge facets, use frontmatter when you want the prompt to inject a compact reference instead of the whole body.
-- Valid reference-mode frontmatter requires both `name` and `description`.
-- If file-based knowledge frontmatter is missing or malformed, the system falls back to body injection.
-- Inline knowledge is always treated as body content. Do not expect frontmatter behavior there.
-- Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is knowledge-specific.
+- Skills are file-backed only and should live under `facets/skills/<skill-name>/SKILL.md`.
+- Valid skill frontmatter requires both `name` and `description`.
+- Prompt injection includes only `name` and `description`, not the full body.
+- Do not author inline workflow skills. Use a file-backed skill entry instead.
+- Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is skill-specific.
 
 ## policies
 

@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  buildSkillsCatalog,
+  normalizeFileSkillEntry,
+} from "./skill-catalog.server";
+
+describe("skill catalog", () => {
+  it("normalizes file-backed skill metadata using name and description only", () => {
+    const entry = normalizeFileSkillEntry(
+      [
+        "---",
+        "name: Operation System Contract",
+        'description: Read when changing runtime-owned dispatch or report routing.',
+        'argument-hint: runtime dispatch',
+        "---",
+        "# Full contract body",
+        "",
+        "This text should not be injected into the prompt.",
+      ].join("\n"),
+      "/tmp/operation-system-contract/SKILL.md",
+    );
+
+    expect(entry).toEqual({
+      name: "Operation System Contract",
+      description: "Read when changing runtime-owned dispatch or report routing.",
+      file: "/tmp/operation-system-contract/SKILL.md",
+    });
+  });
+
+  it("rejects skill files with incomplete metadata", () => {
+    expect(() =>
+      normalizeFileSkillEntry(
+        [
+          "---",
+          "name: Broken Skill",
+          "---",
+          "# Broken skill body",
+        ].join("\n"),
+        "/tmp/broken-skill/SKILL.md",
+      ),
+    ).toThrow(/name and description/i);
+  });
+
+  it("renders one attribute-free skills section with name and description only", () => {
+    const catalog = buildSkillsCatalog([
+      normalizeFileSkillEntry(
+        [
+          "---",
+          "name: Operation System Contract",
+          'description: Read when changing runtime-owned dispatch or report routing.',
+          "---",
+          "# Full contract body",
+          "",
+          "This text should not be injected into the prompt.",
+        ].join("\n"),
+        "/tmp/operation-system-contract/SKILL.md",
+      ),
+      normalizeFileSkillEntry(
+        [
+          "---",
+          "name: Agent Relationships",
+          'description: Read when you need a compact FF15 relationship cue.',
+          "---",
+          "# Agent relationships",
+        ].join("\n"),
+        "/tmp/agent-relationships/SKILL.md",
+      ),
+    ]);
+
+    expect(catalog).toContain("<skills>");
+    expect(catalog).toContain("<skill>");
+    expect(catalog).toContain("<name>");
+    expect(catalog).toContain("Operation System Contract");
+    expect(catalog).toContain("Agent Relationships");
+    expect(catalog).toContain("<description>");
+    expect(catalog).not.toContain("argument-hint");
+    expect(catalog).not.toContain("<file>");
+    expect(catalog).not.toContain("This text should not be injected into the prompt.");
+  });
+});

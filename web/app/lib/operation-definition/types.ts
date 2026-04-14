@@ -1,6 +1,8 @@
 import type { AgentId, WorkerAgentId } from "@/lib/types/mission";
 
-export type ContentSource = { file: string; inline?: never } | { inline: string; file?: never };
+export type FileContentSource = { file: string; inline?: never };
+export type InlineContentSource = { inline: string; file?: never };
+export type ContentSource = FileContentSource | InlineContentSource;
 
 export interface ReportOutputContractDefinition {
   name: string;
@@ -11,7 +13,7 @@ export interface DelegationDefinition {
   allowed_workers: WorkerAgentId[];
   worker_job?: ContentSource;
   worker_instruction?: ContentSource;
-  worker_knowledge?: ContentSource[];
+  worker_skills?: FileContentSource[];
   worker_policies?: ContentSource[];
 }
 
@@ -22,7 +24,7 @@ export interface OperationDefinition {
   initial_step: string;
   jobs: Record<string, string>;
   instructions: Record<string, string>;
-  knowledge: Record<string, string>;
+  skills: Record<string, string>;
   policies: Record<string, string>;
   steps: StepDefinition[];
 }
@@ -34,7 +36,7 @@ export interface StepDefinition {
   agent: StepAgent;
   job?: ContentSource;
   instruction?: ContentSource;
-  knowledge?: ContentSource[];
+  skills?: FileContentSource[];
   policies?: ContentSource[];
   output_contracts?: {
     report: ReportOutputContractDefinition[];
@@ -48,22 +50,16 @@ export interface RuleDefinition {
   next: string;
 }
 
-export type ResolvedKnowledgeEntry =
-  | {
-      kind: "body";
-      content: string;
-    }
-  | {
-      kind: "reference";
-      name: string;
-      description: string;
-      source: string;
-    };
+export interface ResolvedSkillEntry {
+  name: string;
+  description: string;
+  file: string;
+}
 
 export interface ResolvedFacets {
   job: string;
   instruction: string;
-  knowledge: ResolvedKnowledgeEntry[];
+  skills: ResolvedSkillEntry[];
   policies: string[];
   outputContracts: string[];
 }

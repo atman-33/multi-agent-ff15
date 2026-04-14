@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 describe("resolveLunafreyaPromptContext", () => {
-  it("resolves the implicit default Job without emitting overlay-specific tags", () => {
+  it("resolves the implicit default Job without emitting skill tags", () => {
     const root = createTempRoot();
 
     writeFile(
@@ -52,11 +52,11 @@ describe("resolveLunafreyaPromptContext", () => {
     const resolved = resolveLunafreyaPromptContext({
       root,
       builtinLanguages: ["ja"],
-      selectedKnowledgeIds: [],
+      selectedSkillIds: [],
     });
 
     expect(resolved.selection).toMatchObject({
-      selectedKnowledgeIds: [],
+      selectedSkillIds: [],
     });
     expect(resolved.selection.selectedJobId).toBeUndefined();
     expect(resolved.selectedJobLabel).toBe("Default (Lunafreya Autonomous)");
@@ -64,10 +64,10 @@ describe("resolveLunafreyaPromptContext", () => {
     expect(resolved.promptExtension).toContain("Lunafreya Autonomous");
     expect(resolved.promptExtension).not.toContain("<lunafreya-overlays>");
     expect(resolved.promptExtension).not.toContain("<lunafreya-job-overlay");
-    expect(resolved.promptExtension).not.toContain("<knowledge-catalog>");
+    expect(resolved.promptExtension).not.toContain("<skills>");
   });
 
-  it("uses the selected Job as the only effective job and renders shared knowledge references", () => {
+  it("uses the selected Job as the only effective job and renders shared skills", () => {
     const root = createTempRoot();
 
     writeFile(
@@ -100,7 +100,7 @@ describe("resolveLunafreyaPromptContext", () => {
     );
     writeFile(
       root,
-      "builtins/ja/facets/knowledge/oracle-notes.md",
+      "builtins/ja/facets/skills/oracle-notes/SKILL.md",
       [
         "---",
         "name: Oracle Notes",
@@ -115,7 +115,7 @@ describe("resolveLunafreyaPromptContext", () => {
       root,
       builtinLanguages: ["ja"],
       selectedJobId: "builtin:ja:jobs/strategist.md",
-      selectedKnowledgeIds: ["builtin:ja:knowledge/oracle-notes.md"],
+      selectedSkillIds: ["builtin:ja:skills/oracle-notes"],
     });
 
     expect(resolved.selection.selectedJobId).toBe("builtin:ja:jobs/strategist.md");
@@ -123,10 +123,12 @@ describe("resolveLunafreyaPromptContext", () => {
     expect(resolved.promptExtension).toContain("<job>");
     expect(resolved.promptExtension).toContain("Strategic Advisor");
     expect(resolved.promptExtension).not.toContain("Guide User directly.");
-    expect(resolved.promptExtension).toContain("<knowledge-catalog>");
-    expect(resolved.promptExtension).toContain("<knowledge-ref>");
-    expect(resolved.promptExtension).toContain("Name: Oracle Notes");
-    expect(resolved.promptExtension).toContain("Source: ");
+    expect(resolved.promptExtension).toContain("<skills>");
+    expect(resolved.promptExtension).toContain("<skill>");
+    expect(resolved.promptExtension).toContain("<name>");
+    expect(resolved.promptExtension).toContain("Oracle Notes");
+    expect(resolved.promptExtension).toContain("<description>");
+    expect(resolved.promptExtension).not.toContain("<file>");
     expect(resolved.promptExtension).not.toContain("<lunafreya-job-overlay");
   });
 });

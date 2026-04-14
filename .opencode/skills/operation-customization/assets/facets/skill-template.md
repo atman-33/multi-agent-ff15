@@ -1,16 +1,16 @@
 ---
-name: <knowledge-name>
+name: <skill-name>
 description: 'Read this when <trigger or change surface>.'
 ---
 
 Replace every placeholder and localize the final file body to the target facet language.
 Keep `name` and `description` machine-readable and non-empty.
 
-# <Knowledge Title>
+# <Skill Title>
 
 ## Purpose
 
-<Explain when to read this knowledge and why it matters.>
+<Explain when to read this skill and why it matters.>
 
 ## Key Facts
 

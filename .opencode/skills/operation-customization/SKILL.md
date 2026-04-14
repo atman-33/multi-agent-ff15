@@ -45,8 +45,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Use [autonomous-delegation-template.yaml](assets/autonomous-delegation-template.yaml) for internal Noctis-owned autonomous flows that keep the parent step open while delegating child tasks.
 - Use [job-template.md](assets/facets/job-template.md) for reusable step roles.
 - Use [instruction-template.md](assets/facets/instruction-template.md) for file-backed instructions or inline content.
-- Use [knowledge-body-template.md](assets/facets/knowledge-body-template.md) when the full knowledge body should be injected.
-- Use [knowledge-reference-template.md](assets/facets/knowledge-reference-template.md) when file-based knowledge should expose `name` and `description` metadata.
+- Use [skill-template.md](assets/facets/skill-template.md) for reusable file-backed skills under `facets/skills/<skill-name>/SKILL.md`.
 - Use [policy-template.md](assets/facets/policy-template.md) for pass or fail criteria.
 - Use [output-contract-report-template.md](assets/facets/output-contract-report-template.md) for markdown report artifacts.
 - Use [output-contract-frontmatter-template.md](assets/facets/output-contract-frontmatter-template.md) for machine-readable frontmatter artifacts.

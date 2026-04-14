@@ -52,13 +52,13 @@ export type MissionPrimaryAgentId = "noctis" | "lunafreya";
 
 export interface LunafreyaFacetSelection {
   selectedJobId?: string;
-  selectedKnowledgeIds: string[];
+  selectedSkillIds: string[];
   updatedAt: string;
 }
 
 export interface LunafreyaFacetSnapshot extends LunafreyaFacetSelection {
   selectedJobLabel?: string | null;
-  selectedKnowledgeLabels: string[];
+  selectedSkillLabels: string[];
 }
 
 export interface MissionOutputMetadata {

@@ -244,7 +244,7 @@ do not render me
     expect(parseWorkflowMessagePresentation("Hello there")).toBeNull();
   });
 
-  it("prioritizes normalized Lunafreya job and knowledge context ahead of workspace scaffolding", () => {
+  it("prioritizes normalized Lunafreya job and skills context ahead of workspace scaffolding", () => {
     const presentation = parseWorkflowMessagePresentation(`
 <operation-prompt>
 <workspace-context>
@@ -261,13 +261,12 @@ serena_project: multi-agent-ff15
 Structure the response as calm, high-signal guidance.
 </job>
 
-<knowledge-catalog>
-<knowledge-ref>
-Name: Oracle Notes
-Description: Read when you need Lunafreya-specific long-horizon guidance.
-Source: /tmp/example/oracle-notes.md
-</knowledge-ref>
-</knowledge-catalog>
+<skills>
+<skill>
+<name>Oracle Notes</name>
+<description>Read when you need Lunafreya-specific long-horizon guidance.</description>
+</skill>
+</skills>
 
 <user-request from="user" to="lunafreya">
 次の一手を整理して
@@ -277,7 +276,7 @@ Source: /tmp/example/oracle-notes.md
 
     expect(presentation?.promptContextSections.map((section) => section.tagName)).toEqual([
       "job",
-      "knowledge-catalog",
+      "skills",
       "workspace-context",
       "tooling-context",
     ]);

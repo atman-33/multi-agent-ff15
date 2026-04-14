@@ -1,5 +1,5 @@
 ---
-name: agent-relationships
+name: Agent Relationships
 description: Noctis、Gladiolus、Ignis、Prompto など FF15 由来 agent の関係性と特徴を短く参照したいときに使う。
 ---
 

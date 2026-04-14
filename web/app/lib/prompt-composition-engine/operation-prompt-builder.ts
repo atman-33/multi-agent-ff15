@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getAgentLabel, isWorkerAgentId } from "@/lib/agent-identity";
-import { buildKnowledgeCatalog } from "@/lib/knowledge-catalog.server";
+import { buildSkillsCatalog } from "@/lib/skill-catalog.server";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type {
@@ -293,7 +293,7 @@ export function buildAugmentedInstruction(input: {
     }),
   );
 
-  sections.push(buildKnowledgeCatalog(facets.knowledge));
+  sections.push(buildSkillsCatalog(facets.skills));
 
   if (resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));
@@ -439,7 +439,7 @@ export function buildDelegatedWorkerInstruction(input: {
     }),
   );
 
-  sections.push(buildKnowledgeCatalog(input.facets.knowledge));
+  sections.push(buildSkillsCatalog(input.facets.skills));
 
   if (resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));
@@ -491,7 +491,7 @@ export function buildActivationInstruction(input: {
   );
 
   if (!omitAutonomousSoloFacets) {
-    sections.push(buildKnowledgeCatalog(facets.knowledge));
+    sections.push(buildSkillsCatalog(facets.skills));
   }
 
   if (!omitAutonomousSoloFacets && resolvedInstruction) {

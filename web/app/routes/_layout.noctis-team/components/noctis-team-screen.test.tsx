@@ -182,14 +182,14 @@ vi.mock("./party-status-panel", () => ({
 vi.mock("./lunafreya-status-panel", () => ({
   LunafreyaStatusPanel: (props: {
     selectedJobId?: string | null;
-    selectedKnowledgeIds?: string[];
-    onToggleKnowledgeId?: (knowledgeId: string) => void;
-    onClearKnowledgeIds?: () => void;
+    selectedSkillIds?: string[];
+    onToggleSkillId?: (skillId: string) => void;
+    onClearSkillIds?: () => void;
   }) => {
     lunafreyaStatusPropsSpy(props);
 
     return (
-      <div>{`lunafreya-status:${props.selectedJobId ?? "none"}:${props.selectedKnowledgeIds?.join("|") || "none"}`}</div>
+      <div>{`lunafreya-status:${props.selectedJobId ?? "none"}:${props.selectedSkillIds?.join("|") || "none"}`}</div>
     );
   },
 }));
@@ -456,7 +456,7 @@ describe("noctis-team-screen", () => {
           surfaceId: "lunafreya",
           lunafreyaFacetSelection: {
             selectedJobId: "oracle",
-            selectedKnowledgeIds: ["hydraean"],
+            selectedSkillIds: ["hydraean"],
             updatedAt: "2026-04-11T00:00:00.000Z",
           },
           sessions: {
@@ -481,7 +481,7 @@ describe("noctis-team-screen", () => {
     expect(markup).not.toContain("party-status-panel");
   });
 
-  it("keeps Lunafreya knowledge selection state in the mission screen and passes management callbacks", () => {
+  it("keeps Lunafreya skill selection state in the mission screen and passes management callbacks", () => {
     paramsMock.mockReturnValue({ id: "mission-luna" });
 
     renderToStaticMarkup(
@@ -494,7 +494,7 @@ describe("noctis-team-screen", () => {
           surfaceId: "lunafreya",
           lunafreyaFacetSelection: {
             selectedJobId: "oracle",
-            selectedKnowledgeIds: ["hydraean"],
+            selectedSkillIds: ["hydraean"],
             updatedAt: "2026-04-11T00:00:00.000Z",
           },
           sessions: {
@@ -512,14 +512,14 @@ describe("noctis-team-screen", () => {
 
     const props = lunafreyaStatusPropsSpy.mock.calls.at(-1)?.[0] as {
       selectedJobId: string | null;
-      selectedKnowledgeIds: string[];
-      onToggleKnowledgeId: (knowledgeId: string) => void;
-      onClearKnowledgeIds: () => void;
+      selectedSkillIds: string[];
+      onToggleSkillId: (skillId: string) => void;
+      onClearSkillIds: () => void;
     };
 
     expect(props.selectedJobId).toBe("oracle");
-    expect(props.selectedKnowledgeIds).toEqual(["hydraean"]);
-    expect(typeof props.onToggleKnowledgeId).toBe("function");
-    expect(typeof props.onClearKnowledgeIds).toBe("function");
+    expect(props.selectedSkillIds).toEqual(["hydraean"]);
+    expect(typeof props.onToggleSkillId).toBe("function");
+    expect(typeof props.onClearSkillIds).toBe("function");
   });
 });

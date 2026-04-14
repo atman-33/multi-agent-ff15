@@ -63,8 +63,6 @@ function createInlinePromptFixture(): string {
       "      inline: Planner role",
       "    instruction:",
       "      inline: Clarify the request",
-      "    knowledge:",
-      "      - inline: Runtime owns dispatch",
       "    policies:",
       "      - inline: Keep changes minimal",
       "    output_contracts:",
@@ -142,8 +140,8 @@ function createPlaceholderPromptFixture(selector: string): string {
   return operationFilePath;
 }
 
-function createKnowledgeCatalogPromptFixture(): string {
-  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-knowledge-catalog-"));
+function createSkillsPromptFixture(): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-skills-"));
   tempDirs.push(root);
   process.env.MULTI_AGENT_FF15_ROOT = root;
 
@@ -151,19 +149,18 @@ function createKnowledgeCatalogPromptFixture(): string {
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
 
   const operationDir = join(root, "builtins", "ja", "operations");
-  const knowledgeDir = join(root, "builtins", "ja", "facets", "knowledge");
+  const skillsDir = join(root, "builtins", "ja", "facets", "skills");
   mkdirSync(operationDir, { recursive: true });
-  mkdirSync(knowledgeDir, { recursive: true });
+  mkdirSync(join(skillsDir, "operation-system-contract"), { recursive: true });
+  mkdirSync(join(skillsDir, "agent-relationships"), { recursive: true });
 
   writeFileSync(
-    join(knowledgeDir, "operation-system-contract.md"),
+    join(skillsDir, "operation-system-contract", "SKILL.md"),
     [
       "---",
-      "name: operation-system-contract",
+      "name: Operation System Contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
-      "critical:",
-      "  - Runtime decides the next actor.",
-      "  - Reports use taskId + next + message.",
+      'argument-hint: runtime dispatch',
       "---",
       "# Full contract body",
       "",
@@ -173,11 +170,13 @@ function createKnowledgeCatalogPromptFixture(): string {
     "utf-8",
   );
   writeFileSync(
-    join(knowledgeDir, "agent-relationships.md"),
+    join(skillsDir, "agent-relationships", "SKILL.md"),
     [
       "---",
-      "name: agent-relationships",
+      "name: Agent Relationships",
       'description: Read when you need a compact FF15 relationship cue.',
+      "metadata:",
+      '  owner: ff15',
       "---",
       "# Agent relationships",
       "",
@@ -186,26 +185,13 @@ function createKnowledgeCatalogPromptFixture(): string {
     ].join("\n"),
     "utf-8",
   );
-  writeFileSync(
-    join(knowledgeDir, "broken-reference.md"),
-    [
-      "---",
-      "name: broken-reference",
-      "---",
-      "# Broken reference body",
-      "",
-      "Fallback to body-backed knowledge.",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
 
-  const operationFilePath = join(operationDir, "knowledge-catalog-operation.yaml");
+  const operationFilePath = join(operationDir, "skills-operation.yaml");
   writeFileSync(
     operationFilePath,
     [
-      "name: knowledge-catalog-operation",
-      "description: Knowledge catalog fixture",
+      "name: skills-operation",
+      "description: Skills prompt fixture",
       "initial_step: spec-planning",
       "steps:",
       "  - name: spec-planning",
@@ -214,11 +200,9 @@ function createKnowledgeCatalogPromptFixture(): string {
       "      inline: Planner role",
       "    instruction:",
       "      inline: Clarify the request",
-      "    knowledge:",
-      "      - file: ../facets/knowledge/operation-system-contract.md",
-      "      - file: ../facets/knowledge/agent-relationships.md",
-      "      - file: ../facets/knowledge/broken-reference.md",
-      "      - inline: Prefer runtime-owned dispatch.",
+      "    skills:",
+      "      - file: ../facets/skills/operation-system-contract/SKILL.md",
+      "      - file: ../facets/skills/agent-relationships/SKILL.md",
       "    rules:",
       "      - condition: Ready",
       "        next: implement",
@@ -339,8 +323,8 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain("<task>");
   });
 
-  it("emits a grouped knowledge catalog with reference and body entries", () => {
-    const operation = loadOperationFromFile(createKnowledgeCatalogPromptFixture());
+  it("emits a grouped skills section with name and description only", () => {
+    const operation = loadOperationFromFile(createSkillsPromptFixture());
     const step = operation.steps[0];
 
     if (!step) {
@@ -354,41 +338,26 @@ describe("operation prompt builder", () => {
       step,
       operationState,
       facets,
-      missionId: "mission-knowledge",
-      taskId: "task-knowledge",
+      missionId: "mission-skills",
+      taskId: "task-skills",
     });
 
-    expect(prompt).toContain("<knowledge-catalog>");
-    expect(prompt).toContain("<knowledge-ref>");
-    expect(prompt).toContain("Name: operation-system-contract");
-    expect(prompt).toContain("Name: agent-relationships");
+    expect(prompt).toContain("<skills>");
+    expect(prompt).toContain("<skill>");
+    expect(prompt).toContain("<name>");
+    expect(prompt).toContain("Operation System Contract");
+    expect(prompt).toContain("Agent Relationships");
+    expect(prompt).toContain("<description>");
     expect(prompt).toContain(
-      "Description: Read when changing runtime-owned dispatch or report routing.",
+      "Use the skills below only when the current task matches their description.",
     );
-    expect(prompt).toContain("Source: ");
-    expect(prompt).toContain(
-      "Reference entries below are reference cards, not full knowledge documents.",
-    );
-    expect(
-      prompt.match(/Reference entries below are reference cards, not full knowledge documents\./g) ?? [],
-    ).toHaveLength(1);
-    expect(prompt).not.toContain("This is a reference card, not the full knowledge document.");
-    expect(prompt).not.toContain(
-      "Read the source file when the current task matches this description.",
-    );
-    expect(prompt).not.toContain("Critical facts:");
-    expect(prompt).not.toContain("- Runtime decides the next actor.");
+    expect(prompt).not.toContain("<file>");
+    expect(prompt).not.toContain("argument-hint");
+    expect(prompt).not.toContain("metadata");
     expect(prompt).not.toContain("This text should not be injected into the prompt.");
     expect(prompt).not.toContain("This text should also stay out of the prompt body.");
-    expect(prompt).toContain("<knowledge-body>");
-    expect(prompt.indexOf("Name: operation-system-contract")).toBeLessThan(
-      prompt.indexOf("Name: agent-relationships"),
-    );
-    expect(prompt.indexOf("Name: agent-relationships")).toBeLessThan(
-      prompt.indexOf("# Broken reference body"),
-    );
-    expect(prompt.indexOf("# Broken reference body")).toBeLessThan(
-      prompt.indexOf("Prefer runtime-owned dispatch."),
+    expect(prompt.indexOf("Operation System Contract")).toBeLessThan(
+      prompt.indexOf("Agent Relationships"),
     );
   });
 
@@ -534,7 +503,7 @@ describe("operation prompt builder", () => {
             allowed_workers: ["ignis", "gladiolus"] as WorkerAgentId[],
             worker_job: { inline: "Delegated worker" },
             worker_instruction: { inline: "Support Noctis." },
-            worker_knowledge: [],
+            worker_skills: [],
             worker_policies: [],
           },
           rules: [],
@@ -570,7 +539,7 @@ describe("operation prompt builder", () => {
       `${process.env.MULTI_AGENT_FF15_ROOT}/scripts/send_task.sh mission-solo-guidance ignis`,
     );
     expect(prompt).not.toContain("<job>");
-    expect(prompt).not.toContain("<knowledge-catalog>");
+    expect(prompt).not.toContain("<skills>");
     expect(prompt).not.toContain("<instruction>");
   });
 });
