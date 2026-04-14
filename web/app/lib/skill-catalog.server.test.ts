@@ -10,7 +10,7 @@ describe("skill catalog", () => {
     const entry = normalizeFileSkillEntry(
       [
         "---",
-        "name: Operation System Contract",
+        "name: operation-system-contract",
         'description: Read when changing runtime-owned dispatch or report routing.',
         'argument-hint: runtime dispatch',
         "---",
@@ -22,7 +22,7 @@ describe("skill catalog", () => {
     );
 
     expect(entry).toEqual({
-      name: "Operation System Contract",
+      name: "operation-system-contract",
       description: "Read when changing runtime-owned dispatch or report routing.",
       file: "/tmp/operation-system-contract/SKILL.md",
     });
@@ -33,7 +33,7 @@ describe("skill catalog", () => {
       normalizeFileSkillEntry(
         [
           "---",
-          "name: Broken Skill",
+          "name: broken-skill",
           "---",
           "# Broken skill body",
         ].join("\n"),
@@ -47,7 +47,7 @@ describe("skill catalog", () => {
       normalizeFileSkillEntry(
         [
           "---",
-          "name: Operation System Contract",
+          "name: operation-system-contract",
           'description: Read when changing runtime-owned dispatch or report routing.',
           "---",
           "# Full contract body",
@@ -59,7 +59,7 @@ describe("skill catalog", () => {
       normalizeFileSkillEntry(
         [
           "---",
-          "name: Agent Relationships",
+          "name: agent-relationships",
           'description: Read when you need a compact FF15 relationship cue.',
           "---",
           "# Agent relationships",
@@ -71,8 +71,8 @@ describe("skill catalog", () => {
     expect(catalog).toContain("<skills>");
     expect(catalog).toContain("<skill>");
     expect(catalog).toContain("<name>");
-    expect(catalog).toContain("Operation System Contract");
-    expect(catalog).toContain("Agent Relationships");
+    expect(catalog).toContain("operation-system-contract");
+    expect(catalog).toContain("agent-relationships");
     expect(catalog).toContain("<description>");
     expect(catalog).not.toContain("argument-hint");
     expect(catalog).not.toContain("<file>");

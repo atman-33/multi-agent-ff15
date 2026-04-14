@@ -103,7 +103,7 @@ describe("resolveLunafreyaPromptContext", () => {
       "builtins/ja/facets/skills/oracle-notes/SKILL.md",
       [
         "---",
-        "name: Oracle Notes",
+        "name: oracle-notes",
         'description: Read when you need Lunafreya-specific long-horizon guidance.',
         "---",
         "",
@@ -126,7 +126,7 @@ describe("resolveLunafreyaPromptContext", () => {
     expect(resolved.promptExtension).toContain("<skills>");
     expect(resolved.promptExtension).toContain("<skill>");
     expect(resolved.promptExtension).toContain("<name>");
-    expect(resolved.promptExtension).toContain("Oracle Notes");
+    expect(resolved.promptExtension).toContain("oracle-notes");
     expect(resolved.promptExtension).toContain("<description>");
     expect(resolved.promptExtension).not.toContain("<file>");
     expect(resolved.promptExtension).not.toContain("<lunafreya-job-overlay");

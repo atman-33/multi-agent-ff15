@@ -110,7 +110,7 @@ function writeSkillsOperation(root: string) {
     join(skillsDir, "operation-system-contract", "SKILL.md"),
     [
       "---",
-      "name: Operation System Contract",
+      "name: operation-system-contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
       'argument-hint: runtime dispatch',
       "---",
@@ -125,7 +125,7 @@ function writeSkillsOperation(root: string) {
     join(skillsDir, "agent-relationships", "SKILL.md"),
     [
       "---",
-      "name: Agent Relationships",
+      "name: agent-relationships",
       'description: Read when you need a compact FF15 relationship cue.',
       "metadata:",
       '  owner: ff15',
@@ -697,8 +697,8 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt.match(/<skills>/g)).toHaveLength(1);
     expect(composed.effectivePrompt).toContain("<skill>");
     expect(composed.effectivePrompt).toContain("<name>");
-    expect(composed.effectivePrompt).toContain("Operation System Contract");
-    expect(composed.effectivePrompt).toContain("Agent Relationships");
+    expect(composed.effectivePrompt).toContain("operation-system-contract");
+    expect(composed.effectivePrompt).toContain("agent-relationships");
     expect(composed.effectivePrompt).toContain(
       "Use the skills below only when the current task matches their description.",
     );

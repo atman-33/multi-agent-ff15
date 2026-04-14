@@ -94,7 +94,7 @@ function seedActivationBoundaryOperation(root: string): void {
     join(root, "builtins", "ja", "facets", "skills", "runtime-contract", "SKILL.md"),
     [
       "---",
-      "name: Runtime Contract",
+      "name: runtime-contract",
       "description: Read when preparing the activation handoff.",
       "---",
       "# Runtime contract",
@@ -249,7 +249,7 @@ describe("OperationInstantiator", () => {
     expect(result.operationState?.currentStep).toBe("plan");
     expect(result.step?.name).toBe("plan");
     expect(result.activationText).toContain("Planner role for the activation step.");
-    expect(result.activationText).toContain("Runtime Contract");
+    expect(result.activationText).toContain("runtime-contract");
     expect(result.activationText).toContain("Read when preparing the activation handoff.");
     expect(result.activationText).toContain("Always respond with YAML status updates.");
     expect(result.activationText).toContain("Plan output contract");

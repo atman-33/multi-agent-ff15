@@ -45,7 +45,7 @@ function createTempOperationFixture(): string {
     join(facetsDir, "skills", "operation-system-contract", "SKILL.md"),
     [
       "---",
-      "name: Operation System Contract",
+      "name: operation-system-contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
       "---",
       "# Operation Runtime and Prompt Flow Skill",
@@ -59,7 +59,7 @@ function createTempOperationFixture(): string {
     join(facetsDir, "skills", "agent-relationships", "SKILL.md"),
     [
       "---",
-      "name: Agent Relationships",
+      "name: agent-relationships",
       'description: Read when you need a compact FF15 relationship cue.',
       "---",
       "# Agent relationships",
@@ -220,7 +220,7 @@ describe("operation-definition path-based facet resolution", () => {
     expect(facets.job).toContain("Planner (仕様計画担当)");
     expect(facets.skills[0]).toEqual(
       expect.objectContaining({
-        name: "Operation System Contract",
+        name: "operation-system-contract",
         description: "Read when changing runtime-owned dispatch or report routing.",
         file: expect.stringContaining("operation-system-contract/SKILL.md"),
       }),
@@ -270,12 +270,12 @@ describe("operation-definition path-based facet resolution", () => {
     expect(facets.skills).toHaveLength(2);
     expect(facets.skills[0]).toEqual(
       expect.objectContaining({
-        name: "Operation System Contract",
+        name: "operation-system-contract",
       }),
     );
     expect(facets.skills[1]).toEqual(
       expect.objectContaining({
-        name: "Agent Relationships",
+        name: "agent-relationships",
       }),
     );
     expect(facets.policies[0]).toContain("Coding Standards");

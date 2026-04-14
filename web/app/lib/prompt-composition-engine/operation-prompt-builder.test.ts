@@ -158,7 +158,7 @@ function createSkillsPromptFixture(): string {
     join(skillsDir, "operation-system-contract", "SKILL.md"),
     [
       "---",
-      "name: Operation System Contract",
+      "name: operation-system-contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
       'argument-hint: runtime dispatch',
       "---",
@@ -173,7 +173,7 @@ function createSkillsPromptFixture(): string {
     join(skillsDir, "agent-relationships", "SKILL.md"),
     [
       "---",
-      "name: Agent Relationships",
+      "name: agent-relationships",
       'description: Read when you need a compact FF15 relationship cue.',
       "metadata:",
       '  owner: ff15',
@@ -345,8 +345,8 @@ describe("operation prompt builder", () => {
     expect(prompt).toContain("<skills>");
     expect(prompt).toContain("<skill>");
     expect(prompt).toContain("<name>");
-    expect(prompt).toContain("Operation System Contract");
-    expect(prompt).toContain("Agent Relationships");
+    expect(prompt).toContain("operation-system-contract");
+    expect(prompt).toContain("agent-relationships");
     expect(prompt).toContain("<description>");
     expect(prompt).toContain(
       "Use the skills below only when the current task matches their description.",
@@ -356,8 +356,8 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain("metadata");
     expect(prompt).not.toContain("This text should not be injected into the prompt.");
     expect(prompt).not.toContain("This text should also stay out of the prompt body.");
-    expect(prompt.indexOf("Operation System Contract")).toBeLessThan(
-      prompt.indexOf("Agent Relationships"),
+    expect(prompt.indexOf("operation-system-contract")).toBeLessThan(
+      prompt.indexOf("agent-relationships"),
     );
   });
 

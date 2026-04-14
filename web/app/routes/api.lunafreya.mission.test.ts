@@ -96,7 +96,7 @@ function createTempRoot(): string {
     join(root, "builtins", "ja", "facets", "skills", "oracle-notes", "SKILL.md"),
     [
       "---",
-      "name: Oracle Notes",
+      "name: oracle-notes",
       'description: Read when you need Lunafreya-specific long-horizon guidance.',
       "---",
       "# Oracle Notes",
@@ -114,7 +114,7 @@ function createTempRoot(): string {
     join(root, "projects", "alpha", "facets", "skills", "domain-notes", "SKILL.md"),
     [
       "---",
-      "name: Alpha Domain Notes",
+      "name: alpha-domain-notes",
       'description: Use the Alpha project conventions and existing module boundaries.',
       "---",
       "# Alpha Domain Notes",
@@ -261,7 +261,7 @@ describe("Lunafreya mission routing", () => {
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
     expect(promptText).toContain("Strategic Advisor");
-    expect(promptText).toContain("Alpha Domain Notes");
+    expect(promptText).toContain("alpha-domain-notes");
     expect(promptText).toContain("<skills>");
     expect(promptText).toContain("<skill>");
     expect(promptText).toContain("<description>");
@@ -333,8 +333,8 @@ describe("Lunafreya mission routing", () => {
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
-    expect(promptText).toContain("Oracle Notes");
-    expect(promptText).toContain("Alpha Domain Notes");
+    expect(promptText).toContain("oracle-notes");
+    expect(promptText).toContain("alpha-domain-notes");
     expect(promptText).toContain("Strategic Advisor");
     expect(promptText).toContain("<skills>");
     expect(promptText).toContain("<skill>");

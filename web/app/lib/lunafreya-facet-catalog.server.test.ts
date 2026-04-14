@@ -70,7 +70,7 @@ describe("lunafreya facet catalog", () => {
       "builtins/ja/facets/skills/agent-relationships/SKILL.md",
       [
         "---",
-        'name: Agent Relationships',
+        'name: agent-relationships',
         'description: Read this when coordination depends on party dynamics.',
         'argument-hint: party coordination',
         "---",
@@ -111,7 +111,7 @@ describe("lunafreya facet catalog", () => {
       "projects/alpha/facets/skills/domain-notes/SKILL.md",
       [
         "---",
-        'name: Domain Notes',
+        'name: domain-notes',
         'description: Read this when project-specific terminology matters.',
         "---",
         "",
@@ -128,7 +128,7 @@ describe("lunafreya facet catalog", () => {
       "projects/alpha/facets/skills/nested/ignored/SKILL.md",
       [
         "---",
-        'name: Ignored Nested Skill',
+        'name: ignored-nested-skill',
         'description: Should never be discovered.',
         "---",
       ].join("\n"),
@@ -176,14 +176,14 @@ describe("lunafreya facet catalog", () => {
     expect(skills).toEqual([
       expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
         id: "builtin:ja:skills/agent-relationships",
-        label: "Agent Relationships",
+        label: "agent-relationships",
         description: "Read this when coordination depends on party dynamics.",
         kind: "skill",
         sourceKind: "builtin",
       }),
       expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
         id: "project:alpha:skills/domain-notes",
-        label: "Domain Notes",
+        label: "domain-notes",
         description: "Read this when project-specific terminology matters.",
         kind: "skill",
         sourceKind: "project",
