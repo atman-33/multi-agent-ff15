@@ -127,6 +127,7 @@ function collectSessionProjects(
 }
 
 export type BuildSharedPromptContextOptions = {
+  additionalSections?: Array<string | null | undefined>;
   agent?: string;
   allowedWorkers?: string[];
   appRoot: string;
@@ -254,6 +255,7 @@ function buildSuppressedPromptContext(input: {
 }
 
 export function buildSharedPromptContextBundle({
+  additionalSections,
   agent: _agent,
   allowedWorkers,
   appRoot,
@@ -270,6 +272,7 @@ export function buildSharedPromptContextBundle({
       buildWorkspaceContext(projects),
       buildToolingContext(projects),
       buildDelegationContext(allowedWorkers),
+      ...(additionalSections ?? []),
     ]),
     suppressedContext: buildSuppressedPromptContext({
       executionMode,
@@ -282,6 +285,7 @@ export function buildSharedPromptContextBundle({
 }
 
 export function buildSharedPromptContext({
+  additionalSections,
   agent,
   allowedWorkers,
   appRoot,
@@ -290,6 +294,7 @@ export function buildSharedPromptContext({
   sessionId,
 }: BuildSharedPromptContextOptions): string {
   return buildSharedPromptContextBundle({
+    additionalSections,
     agent,
     allowedWorkers,
     appRoot,

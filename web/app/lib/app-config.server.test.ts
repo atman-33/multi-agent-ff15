@@ -26,7 +26,10 @@ describe("app-config.server", () => {
   it("reads the default language from the generated settings file", () => {
     const root = createTempRoot();
 
-    expect(readAppConfig(root)).toEqual({ language: "en" });
+    expect(readAppConfig(root)).toEqual({
+      language: "en",
+      sharedSkillsRoot: "skills",
+    });
   });
 
   it("updates language without dropping unrelated settings", () => {
@@ -41,10 +44,17 @@ describe("app-config.server", () => {
       "utf-8"
     );
 
-    const updated = writeAppConfig(root, { language: "ja" });
+    const updated = writeAppConfig(root, {
+      language: "ja",
+      sharedSkillsRoot: "skills/shared",
+    });
 
-    expect(updated).toEqual({ language: "ja" });
+    expect(updated).toEqual({
+      language: "ja",
+      sharedSkillsRoot: "skills/shared",
+    });
     expect(readFileSync(settingsPath, "utf-8")).toContain("language: ja");
+    expect(readFileSync(settingsPath, "utf-8")).toContain("shared_skills_root: skills/shared");
     expect(readFileSync(settingsPath, "utf-8")).toContain("theme: desert");
   });
 
@@ -59,6 +69,7 @@ describe("app-config.server", () => {
       [
         "language: en",
         'execution_workspace_root: "../custom-workspaces"',
+        'shared_skills_root: "../shared-skills"',
         "theme: desert",
         "",
       ].join("\n"),
@@ -68,20 +79,24 @@ describe("app-config.server", () => {
     expect(readAppConfig(root)).toEqual({
       language: "en",
       executionWorkspaceRoot: "../custom-workspaces",
+      sharedSkillsRoot: "../shared-skills",
     });
 
     const updated = writeAppConfig(root, {
       language: "ja",
       executionWorkspaceRoot: "../fresh-workspaces",
+      sharedSkillsRoot: "skills/catalog",
     });
 
     expect(updated).toEqual({
       language: "ja",
       executionWorkspaceRoot: "../fresh-workspaces",
+      sharedSkillsRoot: "skills/catalog",
     });
     expect(readFileSync(settingsPath, "utf-8")).toContain(
       'execution_workspace_root: "../fresh-workspaces"',
     );
+    expect(readFileSync(settingsPath, "utf-8")).toContain('shared_skills_root: "skills/catalog"');
     expect(readFileSync(settingsPath, "utf-8")).toContain("theme: desert");
   });
 });

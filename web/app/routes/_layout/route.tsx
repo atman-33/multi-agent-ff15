@@ -79,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/opencode", icon: Terminal, label: "OpenCode", end: true },
       { to: "/reports", icon: FileText, label: "Reports", end: true },
       { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
+      { to: "/skills", icon: CheckCircle2, label: "Skills", end: true },
     ],
   },
   {

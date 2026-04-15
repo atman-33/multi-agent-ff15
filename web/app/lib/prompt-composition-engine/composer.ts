@@ -1,6 +1,8 @@
 import { buildPromptPayloadParts, type PromptPart, type TextPromptPart } from "@/lib/prompt-parts";
+import { buildSkillsCatalog } from "@/lib/skill-catalog.server";
 import type { ActivityActorId, AgentId, ReportStatus, TeamMessageType, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 import type { OperationState, StateTransition } from "@/lib/operation-runtime/types";
+import { resolveSelectedSharedSkills } from "@/lib/shared-skills.server";
 import {
   buildSharedPromptContext,
   buildSharedPromptContextBundle,
@@ -20,6 +22,10 @@ export interface ComposedPromptPayload {
   workflowExtension: string | null;
   effectivePrompt: string;
   payloadParts: TextPromptPart[];
+}
+
+function buildSharedSkillsSection(appRoot: string): string | null {
+  return buildSkillsCatalog(resolveSelectedSharedSkills(appRoot).validEntries);
 }
 
 function buildUserRequestSection(userMessage: string, toAgent: AgentId): string {
@@ -89,9 +95,13 @@ function composePayload(input: {
   promptBody?: string | null;
   workflowExtension?: string | null;
 }): ComposedPromptPayload {
-  const { agentContext, suppressedContext } = buildSharedPromptContextBundle(input.context);
   const promptBody = input.promptBody?.trim() || "";
   const workflowExtension = input.workflowExtension?.trim() || null;
+  const sharedSkillsSection = workflowExtension ? null : buildSharedSkillsSection(input.context.appRoot);
+  const { agentContext, suppressedContext } = buildSharedPromptContextBundle({
+    ...input.context,
+    additionalSections: sharedSkillsSection ? [sharedSkillsSection] : undefined,
+  });
   const effectivePrompt = workflowExtension
     ? wrapOperationPrompt([agentContext, workflowExtension, promptBody])
     : promptBody;
@@ -112,7 +122,11 @@ export function composeGenericSessionPrompt(input: {
   context: BuildSharedPromptContextOptions;
   parts: PromptPart[];
 }): { sharedContext: string; payloadParts: TextPromptPart[] } {
-  const sharedContext = buildSharedPromptContext(input.context);
+  const sharedSkillsSection = buildSharedSkillsSection(input.context.appRoot);
+  const sharedContext = buildSharedPromptContext({
+    ...input.context,
+    additionalSections: sharedSkillsSection ? [sharedSkillsSection] : undefined,
+  });
   return {
     sharedContext,
     payloadParts: buildPromptPayloadParts(sharedContext, input.parts),

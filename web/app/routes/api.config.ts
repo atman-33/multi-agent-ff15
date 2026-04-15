@@ -21,7 +21,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const body = (await request.json()) as {
-      config?: { language?: unknown };
+      config?: { language?: unknown; sharedSkillsRoot?: unknown };
     };
 
     if (!body.config || typeof body.config !== "object") {
@@ -32,8 +32,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "language must be a non-empty string" }, { status: 400 });
     }
 
+    if (
+      body.config.sharedSkillsRoot !== undefined &&
+      typeof body.config.sharedSkillsRoot !== "string"
+    ) {
+      return Response.json({ error: "sharedSkillsRoot must be a string" }, { status: 400 });
+    }
+
     const root = getProjectRoot();
-    const config = writeAppConfig(root, { language: body.config.language });
+    const config = writeAppConfig(root, {
+      ...readAppConfig(root),
+      language: body.config.language,
+      ...(Object.hasOwn(body.config, "sharedSkillsRoot")
+        ? { sharedSkillsRoot: body.config.sharedSkillsRoot }
+        : {}),
+    });
 
     return Response.json({
       success: true,

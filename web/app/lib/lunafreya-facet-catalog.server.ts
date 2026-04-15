@@ -5,6 +5,7 @@ import {
   getProjectAuthoringDirectory,
   readRegisteredProjectDefinition,
 } from "@/lib/project-config.server";
+import { normalizeFileSkillEntry } from "@/lib/skill-catalog.server";
 import { DEFAULT_LUNAFREYA_JOB_FILE_NAME } from "./lunafreya-prompt-context";
 import { getProjectRoot } from "./get-project-root.server";
 
@@ -92,36 +93,6 @@ function parseFacetMetadata(content: string): {
   };
 }
 
-function parseSkillMetadata(
-  content: string,
-  filePath: string,
-): {
-  label: string;
-  description: string;
-} {
-  const frontmatterMatch = content.match(FRONTMATTER_REGEX);
-  if (!frontmatterMatch) {
-    throw new Error(`Skill entry must define frontmatter with name and description: ${filePath}`);
-  }
-
-  try {
-    const parsed = yaml.parse(frontmatterMatch[1]) as Record<string, unknown> | null;
-    const name = typeof parsed?.name === "string" ? parsed.name.trim() : "";
-    const description = typeof parsed?.description === "string" ? parsed.description.trim() : "";
-
-    if (name && description) {
-      return {
-        label: name,
-        description,
-      };
-    }
-  } catch {
-    throw new Error(`Skill entry has invalid frontmatter: ${filePath}`);
-  }
-
-  throw new Error(`Skill entry must define non-empty name and description: ${filePath}`);
-}
-
 function buildBuiltinFacetId(language: string, directoryName: string, fileName: string): string {
   return `builtin:${language}:${directoryName}/${fileName}`;
 }
@@ -143,7 +114,13 @@ function toFacetEntry(input: {
   const content = readFileSync(input.filePath, "utf-8");
   const metadata =
     input.kind === "skill"
-      ? parseSkillMetadata(content, input.filePath)
+      ? (() => {
+          const skill = normalizeFileSkillEntry(content, input.filePath);
+          return {
+            label: skill.name,
+            description: skill.description,
+          };
+        })()
       : parseFacetMetadata(content);
 
   return {

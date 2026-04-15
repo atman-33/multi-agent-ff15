@@ -44,6 +44,12 @@ function buildSkillEntryContent(entry: ResolvedSkillEntry): string {
   ]);
 }
 
+export function mergeSkillEntries(
+  ...groups: ReadonlyArray<readonly ResolvedSkillEntry[] | null | undefined>
+): ResolvedSkillEntry[] {
+  return groups.flatMap((group) => group ?? []);
+}
+
 export function buildSkillsCatalog(entries: readonly ResolvedSkillEntry[]): string | null {
   if (entries.length === 0) {
     return null;

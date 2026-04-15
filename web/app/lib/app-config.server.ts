@@ -6,10 +6,12 @@ import { ensureRequiredWebConfigFiles } from "@/lib/required-config.server";
 export interface AppConfig {
   executionWorkspaceRoot?: string;
   language: string;
+  sharedSkillsRoot?: string;
 }
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   language: "en",
+  sharedSkillsRoot: "skills",
 };
 
 function getSettingsPath(root: string): string {
@@ -23,6 +25,15 @@ function normalizeLanguage(value: unknown): string {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : DEFAULT_APP_CONFIG.language;
+}
+
+function normalizeSharedSkillsRoot(value: unknown): string {
+  if (typeof value !== "string") {
+    return DEFAULT_APP_CONFIG.sharedSkillsRoot ?? "skills";
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : (DEFAULT_APP_CONFIG.sharedSkillsRoot ?? "skills");
 }
 
 function readAppConfigDocument(root: string) {
@@ -49,14 +60,17 @@ export function readAppConfig(root: string): AppConfig {
   return {
     ...(executionWorkspaceRoot ? { executionWorkspaceRoot } : {}),
     language: normalizeLanguage(parsed?.language),
+    sharedSkillsRoot: normalizeSharedSkillsRoot(parsed?.shared_skills_root),
   };
 }
 
 export function writeAppConfig(root: string, nextConfig: AppConfig): AppConfig {
   const language = normalizeLanguage(nextConfig.language);
+  const sharedSkillsRoot = normalizeSharedSkillsRoot(nextConfig.sharedSkillsRoot);
   const document = readAppConfigDocument(root);
 
   document.set("language", language);
+  document.set("shared_skills_root", sharedSkillsRoot);
   if (
     typeof nextConfig.executionWorkspaceRoot === "string" &&
     nextConfig.executionWorkspaceRoot.trim().length > 0

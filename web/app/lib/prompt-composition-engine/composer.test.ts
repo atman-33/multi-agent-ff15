@@ -172,6 +172,38 @@ function writeSkillsOperation(root: string) {
   );
 }
 
+function writeSharedSkill(root: string, relativeDirectory: string, name: string, description: string) {
+  const skillDirectory = join(root, "skills", ...relativeDirectory.split("/"));
+  mkdirSync(skillDirectory, { recursive: true });
+  writeFileSync(
+    join(skillDirectory, "SKILL.md"),
+    [
+      "---",
+      `name: ${name}`,
+      `description: ${description}`,
+      "---",
+      "# Shared skill body",
+      "",
+      "This text should not be injected into prompts.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeSharedSkillsSelection(root: string, selectedSkillIds: string[]) {
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(
+    join(root, "config", "shared-skills.yaml"),
+    [
+      "selected_skill_ids:",
+      ...selectedSkillIds.map((id) => `  - ${JSON.stringify(id)}`),
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function writeNoctisReentryOperation(root: string) {
   const operationPath = join(root, "builtins", "ja", "operations", "noctis-reentry-debug.yaml");
   mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
@@ -446,6 +478,82 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).not.toContain("[NOCTIS_ROUTED_MESSAGE]");
   });
 
+  it("adds selected shared skills to generic prompt composition", () => {
+    const root = createTempRoot();
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+
+    const composed = composeGenericSessionPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "generic-session",
+      },
+      parts: [{ type: "text", text: "Hello from User" }],
+    });
+
+    expect(composed.sharedContext).toContain("<reference-files>");
+    expect(composed.sharedContext.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.sharedContext).toContain("project-manage");
+    expect(composed.sharedContext).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+  });
+
+  it("adds selected shared skills to workflow worker prompts", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+
+    const missionId = "mission-worker-shared-skills";
+    const { state: operationState, taskId } = buildSyntheticOperationState(missionId);
+    const composed = composeWorkerTaskPrompt({
+      context: {
+        appRoot: root,
+        agent: "gladiolus",
+        sessionId: "worker-shared-skills-session",
+        missionId,
+      },
+      missionId,
+      agentId: "gladiolus",
+      taskId,
+      originalPrompt: "Task ID: task-1\nTask: implement the change",
+      operationStateOverride: operationState,
+    });
+
+    expect(composed.effectivePrompt).toContain("project-manage");
+    expect(composed.effectivePrompt).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+  });
+
+  it("merges prompt-specific skills and shared selected skills into one reference-files section", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSkillsOperation(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "skills-session",
+        missionId: "skills-mission",
+        allowedWorkers: ["ignis", "gladiolus", "prompto"],
+      },
+      userMessage: "Open the skills workflow.",
+      missionId: "skills-mission",
+      sessionId: "skills-session",
+      isNewMission: true,
+      selectedOperation: builtinOperationRef("skills-workflow"),
+    });
+
+    expect(composed.effectivePrompt).toContain("<reference-files>");
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain("operation-system-contract");
+    expect(composed.effectivePrompt).toContain("agent-relationships");
+    expect(composed.effectivePrompt).toContain("project-manage");
+  });
+
   it("builds worker prompts through the workflow extension when operation state is active", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
@@ -499,6 +607,32 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain(expectedSpecPlanPath);
     expect(composed.effectivePrompt).not.toContain("{{ output(");
     expect(composed.payloadParts).toHaveLength(1);
+  });
+
+  it("adds selected shared skills to delegated child worker prompts", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+    const { state, childTaskId } = buildSyntheticAutonomousOperationState();
+
+    const composed = composeWorkerTaskPrompt({
+      context: {
+        appRoot: root,
+        agent: "ignis",
+        sessionId: "delegated-shared-skills-session",
+        missionId: "mission-autonomous-worker",
+      },
+      missionId: "mission-autonomous-worker",
+      agentId: "ignis",
+      taskId: childTaskId,
+      originalPrompt: "Investigate the current issue and report back to Noctis.",
+      operationStateOverride: state,
+    });
+
+    expect(composed.effectivePrompt).toContain("project-manage");
+    expect(composed.effectivePrompt).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
   });
 
   it("keeps debug preview aligned with composed worker prompt structure", () => {
@@ -931,6 +1065,36 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("Primary worker report.");
     expect(composed.effectivePrompt).toContain("Secondary report detail.");
     expect(composed.effectivePrompt).not.toContain("<worker-report-details>");
+  });
+
+  it("adds selected shared skills to report-driven team message prompts", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+    const { state, childTaskId } = buildSyntheticAutonomousOperationState();
+
+    const composed = composeTeamMessagePrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "report-shared-skills-session",
+        missionId: "mission-report-shared-skills",
+      },
+      missionId: "mission-report-shared-skills",
+      from: "ignis",
+      to: "noctis",
+      type: "report",
+      body: "Collected the needed context for Noctis.",
+      taskId: childTaskId,
+      next: "COMPLETE",
+      operationStateOverride: state,
+    });
+
+    expect(composed.effectivePrompt).toContain("project-manage");
+    expect(composed.effectivePrompt).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain('<worker-report from="ignis" to="noctis" next="COMPLETE">');
   });
 
   it("embeds actor metadata in plain team messages", () => {

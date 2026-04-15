@@ -64,6 +64,7 @@ describe("app layout navigation", () => {
   it("hides OMO Config from the sidebar navigation", () => {
     const markup = renderToStaticMarkup(<TestLayout loaderData={{}} />);
 
+    expect(markup).toContain("Skills");
     expect(markup).toContain("Config");
     expect(markup).toContain("Server Monitor");
     expect(markup).not.toContain("OMO Config");

@@ -38,6 +38,14 @@ const CONFIG_SECTIONS: ConfigSection[] = [
     description: "Core application settings stored in config/settings.yaml.",
     fields: [
       {
+        key: "sharedSkillsRoot",
+        label: "Shared Skills Root",
+        description:
+          "Repository-relative directory used to discover globally selectable shared skills.",
+        placeholder: "skills",
+        type: "text",
+      },
+      {
         key: "language",
         label: "Language",
         description:
@@ -58,7 +66,7 @@ export const loader = async (_args: Route.LoaderArgs) => {
   } satisfies ConfigApiData;
 };
 
-const ConfigPage = ({ loaderData }: Route.ComponentProps) => {
+export const ConfigPage = ({ loaderData }: Route.ComponentProps) => {
   const [data, setData] = useState<ConfigApiData>(loaderData);
   const [draft, setDraft] = useState<AppConfig>(loaderData.config);
   const [loading, setLoading] = useState(false);
@@ -222,6 +230,14 @@ const ConfigPage = ({ loaderData }: Route.ComponentProps) => {
                 <CardDescription>Live draft values before saving.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
+                <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                  <div className="text-muted-foreground text-xs uppercase tracking-wide">
+                    shared skills root
+                  </div>
+                  <div className="mt-1 font-mono text-sm">
+                    {draft.sharedSkillsRoot || "(default: skills)"}
+                  </div>
+                </div>
                 <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
                   <div className="text-muted-foreground text-xs uppercase tracking-wide">
                     language

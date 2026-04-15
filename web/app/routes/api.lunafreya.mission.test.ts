@@ -125,6 +125,22 @@ function createTempRoot(): string {
     "utf-8",
   );
 
+  mkdirSync(join(root, "skills", "project-manage"), { recursive: true });
+  writeFileSync(
+    join(root, "skills", "project-manage", "SKILL.md"),
+    [
+      "---",
+      "name: project-manage",
+      'description: Manage project execution work.',
+      "---",
+      "# Project Manage",
+      "",
+      "Manage project execution work.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
   return root;
 }
 
@@ -269,6 +285,40 @@ describe("Lunafreya mission routing", () => {
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
     expect(promptText).not.toContain("<lunafreya-skill-overlay>");
     expect(promptText).not.toContain("<delegation-context");
+  });
+
+  it("merges selected Lunafreya skills and shared selected skills into one prompt reference-files section", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "shared-skills.yaml"),
+      ["selected_skill_ids:", '  - "project-manage"', ""].join("\n"),
+      "utf-8",
+    );
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-shared" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-lunafreya-shared" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Guide me through the next decision.",
+          executionProjectId: "alpha",
+          selectedSkillIds: ["project:alpha:skills/domain-notes"],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
+    expect(promptText).toContain("<reference-files>");
+    expect(promptText.match(/<reference-files>/g)).toHaveLength(1);
+    expect(promptText).toContain("alpha-domain-notes");
+    expect(promptText).toContain("project-manage");
   });
 
   it("keeps the Lunafreya session alive and applies updated overlays on continue", async () => {

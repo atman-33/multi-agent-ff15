@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { buildSkillsCatalog, normalizeFileSkillEntry } from "@/lib/skill-catalog.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { buildSkillsCatalog, mergeSkillEntries, normalizeFileSkillEntry } from "@/lib/skill-catalog.server";
+import { resolveSelectedSharedSkills } from "@/lib/shared-skills.server";
 import type { LunafreyaFacetSelection } from "@/lib/types/mission";
 import {
   DEFAULT_LUNAFREYA_JOB_FILE_NAME,
@@ -103,6 +105,7 @@ export function resolveLunafreyaPromptContext(input: {
   const selectedSkillEntries = normalizedSkillIds.map((id) =>
     findFacetEntryOrThrow(skillEntries, id, "skill"),
   );
+  const sharedSkillEntries = resolveSelectedSharedSkills(input.root ?? getProjectRoot()).validEntries;
 
   const selection: LunafreyaFacetSelection = {
     ...(effectiveJobEntry.id !== defaultJobEntry.id ? { selectedJobId: effectiveJobEntry.id } : {}),
@@ -116,8 +119,11 @@ export function resolveLunafreyaPromptContext(input: {
       stripFrontmatter(readFileSync(effectiveJobEntry.filePath, "utf-8")),
     ),
     buildSkillsCatalog(
-      selectedSkillEntries.map((entry) =>
-        normalizeFileSkillEntry(readFileSync(entry.filePath, "utf-8"), entry.filePath),
+      mergeSkillEntries(
+        selectedSkillEntries.map((entry) =>
+          normalizeFileSkillEntry(readFileSync(entry.filePath, "utf-8"), entry.filePath),
+        ),
+        sharedSkillEntries,
       ),
     ),
   ];
