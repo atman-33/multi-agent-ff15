@@ -110,8 +110,8 @@ describe("mission-output-browser", () => {
               lunafreyaFacetSnapshot: {
                 selectedJobId: "oracle",
                 selectedJobLabel: "Oracle",
-                selectedKnowledgeIds: ["hydraean"],
-                selectedKnowledgeLabels: ["Hydraean Records"],
+                selectedSkillIds: ["hydraean"],
+                selectedSkillLabels: ["Hydraean Records"],
                 updatedAt: "2026-04-11T00:00:00.000Z",
               },
             },
@@ -139,8 +139,8 @@ describe("mission-output-browser", () => {
             metadata: {
               capturedAt: "2026-04-11T00:00:00.000Z",
               lunafreyaFacetSnapshot: {
-                selectedKnowledgeIds: [],
-                selectedKnowledgeLabels: [],
+                selectedSkillIds: [],
+                selectedSkillLabels: [],
                 updatedAt: "2026-04-11T00:00:00.000Z",
               },
             },

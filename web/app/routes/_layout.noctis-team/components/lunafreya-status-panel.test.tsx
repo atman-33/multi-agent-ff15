@@ -83,8 +83,8 @@ vi.mock("./character-card", () => ({
 }));
 
 import {
-  filterKnowledgeOptions,
-  LunafreyaKnowledgeSelectorDialog,
+  filterSkillOptions,
+  LunafreyaSkillSelectorDialog,
   LunafreyaStatusPanel,
 } from "./lunafreya-status-panel";
 
@@ -105,10 +105,10 @@ describe("LunafreyaStatusPanel", () => {
     });
   });
 
-  it("filters knowledge options by name and selected-only state", () => {
+  it("filters skill options by name and selected-only state", () => {
     expect(
-      filterKnowledgeOptions({
-        knowledgeOptions: [
+      filterSkillOptions({
+        skillOptions: [
           {
             id: "hydraean",
             label: "Hydraean Records",
@@ -124,18 +124,18 @@ describe("LunafreyaStatusPanel", () => {
             sourceLabel: "Project Atlas",
           },
         ],
-        selectedKnowledgeIds: ["hydraean"],
+        selectedSkillIds: ["hydraean"],
         query: "hyd",
         selectedOnly: true,
       }).map((option) => option.id),
     ).toEqual(["hydraean"]);
   });
 
-  it("shows selected knowledge as a compact summary instead of the full catalog", () => {
+  it("shows selected skills as a compact summary instead of the full catalog", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaStatusPanel
         jobOptions={[]}
-        knowledgeOptions={[
+        skillOptions={[
           {
             id: "hydraean",
             label: "Hydraean Records",
@@ -151,22 +151,22 @@ describe("LunafreyaStatusPanel", () => {
             sourceLabel: "Project Atlas",
           },
         ]}
-        onClearKnowledgeIds={() => undefined}
+        onClearSkillIds={() => undefined}
         onSelectedJobIdChange={() => undefined}
-        onToggleKnowledgeId={() => undefined}
+        onToggleSkillId={() => undefined}
         selectedJobId={null}
-        selectedKnowledgeIds={["hydraean"]}
+        selectedSkillIds={["hydraean"]}
         status="idle"
       />
     );
 
     expect(markup).toContain("Hydraean Records");
     expect(markup).toContain("1 selected");
-    expect(markup).toContain("Knowledge overlays help");
+    expect(markup).toContain("Skills help");
     expect(markup).toContain(
-      "Knowledge overlay changes are stored immediately and apply on Lunafreya&#x27;s next User turn.",
+      "Skill changes are stored immediately and apply on Lunafreya&#x27;s next User turn.",
     );
-    expect(markup).toContain("Open knowledge selector");
+    expect(markup).toContain("Open skills selector");
     expect(markup).not.toContain("Archive Index");
     expect(markup).not.toContain(
       "Model and overlay edits are stored immediately and will be applied when User sends the next prompt.",
@@ -185,12 +185,12 @@ describe("LunafreyaStatusPanel", () => {
             sourceLabel: "Builtin",
           },
         ]}
-        knowledgeOptions={[]}
-        onClearKnowledgeIds={() => undefined}
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
         onSelectedJobIdChange={() => undefined}
-        onToggleKnowledgeId={() => undefined}
+        onToggleSkillId={() => undefined}
         selectedJobId={null}
-        selectedKnowledgeIds={[]}
+        selectedSkillIds={[]}
         status="idle"
       />,
     );
@@ -204,8 +204,8 @@ describe("LunafreyaStatusPanel", () => {
 
   it("renders dialog results from the active query and selected-only filter", () => {
     const markup = renderToStaticMarkup(
-      <LunafreyaKnowledgeSelectorDialog
-        knowledgeOptions={[
+      <LunafreyaSkillSelectorDialog
+        skillOptions={[
           {
             id: "hydraean",
             label: "Hydraean Records",
@@ -221,19 +221,19 @@ describe("LunafreyaStatusPanel", () => {
             sourceLabel: "Project Atlas",
           },
         ]}
-        onClearKnowledgeIds={() => undefined}
+        onClearSkillIds={() => undefined}
         onOpenChange={() => undefined}
         onQueryChange={() => undefined}
         onSelectedOnlyChange={() => undefined}
-        onToggleKnowledgeId={() => undefined}
+        onToggleSkillId={() => undefined}
         open
         query="hyd"
-        selectedKnowledgeIds={["hydraean"]}
+        selectedSkillIds={["hydraean"]}
         selectedOnly
       />
     );
 
-    expect(markup).toContain("Manage Knowledge Overlays");
+    expect(markup).toContain("Manage Skills");
     expect(markup).toContain("Hydraean Records");
     expect(markup).toContain("Clear All");
     expect(markup).not.toContain("Archive Index");
@@ -243,12 +243,12 @@ describe("LunafreyaStatusPanel", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaStatusPanel
         jobOptions={[]}
-        knowledgeOptions={[]}
-        onClearKnowledgeIds={() => undefined}
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
         onSelectedJobIdChange={() => undefined}
-        onToggleKnowledgeId={() => undefined}
+        onToggleSkillId={() => undefined}
         selectedJobId={null}
-        selectedKnowledgeIds={[]}
+        selectedSkillIds={[]}
         status="idle"
       />
     );

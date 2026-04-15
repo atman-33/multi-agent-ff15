@@ -173,12 +173,12 @@ export function NoctisTeamScreen({
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const [lunafreyaJobOptions, setLunafreyaJobOptions] = useState<LunafreyaFacetOption[]>([]);
-  const [lunafreyaKnowledgeOptions, setLunafreyaKnowledgeOptions] = useState<LunafreyaFacetOption[]>([]);
+  const [lunafreyaSkillOptions, setLunafreyaSkillOptions] = useState<LunafreyaFacetOption[]>([]);
   const [selectedLunafreyaJobId, setSelectedLunafreyaJobId] = useState<string | null>(
     initialMissionData?.lunafreyaFacetSelection?.selectedJobId ?? null,
   );
-  const [selectedLunafreyaKnowledgeIds, setSelectedLunafreyaKnowledgeIds] = useState<string[]>(
-    initialMissionData?.lunafreyaFacetSelection?.selectedKnowledgeIds ?? [],
+  const [selectedLunafreyaSkillIds, setSelectedLunafreyaSkillIds] = useState<string[]>(
+    initialMissionData?.lunafreyaFacetSelection?.selectedSkillIds ?? [],
   );
   const {
     data: projectRegistryData,
@@ -246,7 +246,7 @@ export function NoctisTeamScreen({
     selectedExecutionTargetMode: effectiveExecutionTargetMode,
     selectedContextProjectIds: effectiveContextProjectIds,
     selectedLunafreyaJobId,
-    selectedLunafreyaKnowledgeIds,
+    selectedLunafreyaSkillIds,
   });
   const isMissionStartPending = !effectiveMissionId && isStartingMission;
   const currentOperationStep =
@@ -415,7 +415,7 @@ export function NoctisTeamScreen({
   useEffect(() => {
     if (!isLunafreyaSurface) {
       setLunafreyaJobOptions([]);
-      setLunafreyaKnowledgeOptions([]);
+      setLunafreyaSkillOptions([]);
       return;
     }
 
@@ -433,18 +433,18 @@ export function NoctisTeamScreen({
 
         const data = (await response.json()) as {
           jobs?: LunafreyaFacetOption[];
-          knowledge?: LunafreyaFacetOption[];
+          skills?: LunafreyaFacetOption[];
         };
         if (cancelled) {
           return;
         }
 
         setLunafreyaJobOptions(Array.isArray(data.jobs) ? data.jobs : []);
-        setLunafreyaKnowledgeOptions(Array.isArray(data.knowledge) ? data.knowledge : []);
+        setLunafreyaSkillOptions(Array.isArray(data.skills) ? data.skills : []);
       } catch {
         if (!cancelled) {
           setLunafreyaJobOptions([]);
-          setLunafreyaKnowledgeOptions([]);
+          setLunafreyaSkillOptions([]);
         }
       }
     };
@@ -463,14 +463,14 @@ export function NoctisTeamScreen({
 
     if (!effectiveMissionId) {
       setSelectedLunafreyaJobId(null);
-      setSelectedLunafreyaKnowledgeIds([]);
+      setSelectedLunafreyaSkillIds([]);
       return;
     }
 
     const selection =
       missionDetail?.lunafreyaFacetSelection ?? initialMissionData?.lunafreyaFacetSelection ?? null;
     setSelectedLunafreyaJobId(selection?.selectedJobId ?? null);
-    setSelectedLunafreyaKnowledgeIds(selection?.selectedKnowledgeIds ?? []);
+    setSelectedLunafreyaSkillIds(selection?.selectedSkillIds ?? []);
   }, [
     effectiveMissionId,
     initialMissionData?.lunafreyaFacetSelection,
@@ -831,16 +831,16 @@ export function NoctisTeamScreen({
     ]
   );
 
-  const toggleLunafreyaKnowledgeId = useCallback((knowledgeId: string) => {
-    setSelectedLunafreyaKnowledgeIds((current) =>
-      current.includes(knowledgeId)
-        ? current.filter((entry) => entry !== knowledgeId)
-        : [...current, knowledgeId],
+  const toggleLunafreyaSkillId = useCallback((skillId: string) => {
+    setSelectedLunafreyaSkillIds((current) =>
+      current.includes(skillId)
+        ? current.filter((entry) => entry !== skillId)
+        : [...current, skillId],
     );
   }, []);
 
-  const clearLunafreyaKnowledgeIds = useCallback(() => {
-    setSelectedLunafreyaKnowledgeIds([]);
+  const clearLunafreyaSkillIds = useCallback(() => {
+    setSelectedLunafreyaSkillIds([]);
   }, []);
 
   const openContextDialog = useCallback(() => {
@@ -1180,12 +1180,12 @@ export function NoctisTeamScreen({
                   contextUsage={primaryContextUsage}
                   isSpeaking={isStreaming || speakingAgentId === primaryAgentId}
                   jobOptions={lunafreyaJobOptions}
-                  knowledgeOptions={lunafreyaKnowledgeOptions}
-                  onClearKnowledgeIds={clearLunafreyaKnowledgeIds}
+                  skillOptions={lunafreyaSkillOptions}
+                  onClearSkillIds={clearLunafreyaSkillIds}
                   onSelectedJobIdChange={setSelectedLunafreyaJobId}
-                  onToggleKnowledgeId={toggleLunafreyaKnowledgeId}
+                  onToggleSkillId={toggleLunafreyaSkillId}
                   selectedJobId={selectedLunafreyaJobId}
-                  selectedKnowledgeIds={selectedLunafreyaKnowledgeIds}
+                  selectedSkillIds={selectedLunafreyaSkillIds}
                   status={isSessionActive || isStreaming ? "working" : "idle"}
                 />
               )}

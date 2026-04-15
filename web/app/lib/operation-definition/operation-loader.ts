@@ -6,6 +6,7 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import type {
   ContentSource,
   DelegationDefinition,
+  FileContentSource,
   OperationDefinition,
   ReportOutputContractDefinition,
   RuleDefinition,
@@ -85,6 +86,28 @@ function normalizeContentSourceList(raw: unknown, fieldLabel: string): ContentSo
   }
 
   return raw.map((item, index) => normalizeContentSource(item, `${fieldLabel}[${index}]`));
+}
+
+function normalizeFileContentSource(raw: unknown, fieldLabel: string): FileContentSource {
+  const source = normalizeContentSource(raw, fieldLabel);
+
+  if ("inline" in source) {
+    throw new Error(`${fieldLabel} must define "file". Workflow skills are file-only.`);
+  }
+
+  return source;
+}
+
+function normalizeFileContentSourceList(raw: unknown, fieldLabel: string): FileContentSource[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new Error(`${fieldLabel} must be an array of file source objects.`);
+  }
+
+  return raw.map((item, index) => normalizeFileContentSource(item, `${fieldLabel}[${index}]`));
 }
 
 function normalizeOutputContractReport(
@@ -178,9 +201,9 @@ function normalizeDelegation(
       record.worker_instruction,
       `Operation step "${stepName}" delegation.worker_instruction`,
     ),
-    worker_knowledge: normalizeContentSourceList(
-      record.worker_knowledge,
-      `Operation step "${stepName}" delegation.worker_knowledge`,
+    worker_skills: normalizeFileContentSourceList(
+      record.worker_skills,
+      `Operation step "${stepName}" delegation.worker_skills`,
     ),
     worker_policies: normalizeContentSourceList(
       record.worker_policies,
@@ -211,9 +234,9 @@ function normalizeStep(raw: Record<string, unknown>): StepDefinition {
       raw.instruction,
       `Operation step "${stepName}" field "instruction"`,
     ),
-    knowledge: normalizeContentSourceList(
-      raw.knowledge,
-      `Operation step "${stepName}" field "knowledge"`,
+    skills: normalizeFileContentSourceList(
+      raw.skills,
+      `Operation step "${stepName}" field "skills"`,
     ),
     policies: normalizeContentSourceList(
       raw.policies,
@@ -262,7 +285,8 @@ function validateNoLegacyStepFields(raw: Record<string, unknown>, stepName: stri
     job_file: 'Use "job: { file: ... }" or "job: { inline: ... }" instead.',
     instruction_file:
       'Use "instruction: { file: ... }" or "instruction: { inline: ... }" instead.',
-    knowledge_files: 'Use "knowledge:" with a list of content source objects instead.',
+    knowledge: 'Use "skills:" with a list of file source objects instead.',
+    knowledge_files: 'Use "skills:" with a list of file source objects instead.',
     policy_files: 'Use "policies:" with a list of content source objects instead.',
   };
 
@@ -334,7 +358,7 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
     initial_step: initialStep,
     jobs: toStringRecord(raw.jobs),
     instructions: toStringRecord(raw.instructions),
-    knowledge: toStringRecord(raw.knowledge),
+    skills: toStringRecord(raw.skills),
     policies: toStringRecord(raw.policies),
     steps,
   };

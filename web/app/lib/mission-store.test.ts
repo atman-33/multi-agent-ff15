@@ -108,9 +108,9 @@ describe("mission store", () => {
       primaryAgentId: "lunafreya",
       lunafreyaFacetSelection: {
         selectedJobId: "builtin:ja:jobs/reviewer.md",
-        selectedKnowledgeIds: [
-          "builtin:ja:knowledge/agent-relationships.md",
-          "project:alpha:knowledge/domain-notes.md",
+        selectedSkillIds: [
+          "builtin:ja:skills/agent-relationships",
+          "project:alpha:skills/domain-notes",
         ],
         updatedAt: "2026-04-12T10:00:00.000Z",
       },
@@ -122,9 +122,9 @@ describe("mission store", () => {
     expect(getMissionPrimarySessionId(mission)).toBe("session-luna-1");
     expect(mission.lunafreyaFacetSelection).toEqual({
       selectedJobId: "builtin:ja:jobs/reviewer.md",
-      selectedKnowledgeIds: [
-        "builtin:ja:knowledge/agent-relationships.md",
-        "project:alpha:knowledge/domain-notes.md",
+      selectedSkillIds: [
+        "builtin:ja:skills/agent-relationships",
+        "project:alpha:skills/domain-notes",
       ],
       updatedAt: "2026-04-12T10:00:00.000Z",
     });
@@ -138,9 +138,9 @@ describe("mission store", () => {
     expect(getMissionPrimarySessionId(reloaded)).toBe("session-luna-1");
     expect(reloaded?.lunafreyaFacetSelection).toEqual({
       selectedJobId: "builtin:ja:jobs/reviewer.md",
-      selectedKnowledgeIds: [
-        "builtin:ja:knowledge/agent-relationships.md",
-        "project:alpha:knowledge/domain-notes.md",
+      selectedSkillIds: [
+        "builtin:ja:skills/agent-relationships",
+        "project:alpha:skills/domain-notes",
       ],
       updatedAt: "2026-04-12T10:00:00.000Z",
     });

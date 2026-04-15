@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe("lunafreya facet catalog", () => {
-  it("merges builtin and project-authored candidates with stable labels and non-recursive discovery", () => {
+  it("merges builtin jobs and directory-backed skill candidates with stable labels and non-recursive discovery", () => {
     const root = createTempRoot();
 
     writeFile(
@@ -67,8 +67,23 @@ describe("lunafreya facet catalog", () => {
     );
     writeFile(
       root,
-      "builtins/ja/facets/knowledge/agent-relationships.md",
-      ["# Agent Relationships", "", "Reference knowledge."].join("\n"),
+      "builtins/ja/facets/skills/agent-relationships/SKILL.md",
+      [
+        "---",
+        'name: agent-relationships',
+        'description: Read this when coordination depends on party dynamics.',
+        'argument-hint: party coordination',
+        "---",
+        "",
+        "# Agent Relationships",
+        "",
+        "Reference skill.",
+      ].join("\n"),
+    );
+    writeFile(
+      root,
+      "builtins/ja/facets/skills/agent-relationships/assets/example.md",
+      ["# Bundled asset"].join("\n"),
     );
     writeFile(
       root,
@@ -93,13 +108,30 @@ describe("lunafreya facet catalog", () => {
     );
     writeFile(
       root,
-      "projects/alpha/facets/knowledge/domain-notes.md",
-      ["Plain body with no heading."].join("\n"),
+      "projects/alpha/facets/skills/domain-notes/SKILL.md",
+      [
+        "---",
+        'name: domain-notes',
+        'description: Read this when project-specific terminology matters.',
+        "---",
+        "",
+        "# Domain Notes",
+      ].join("\n"),
     );
     writeFile(
       root,
-      "projects/alpha/facets/knowledge/nested/ignored.md",
-      ["# Ignored Nested Knowledge"].join("\n"),
+      "projects/alpha/facets/skills/domain-notes/assets/details.md",
+      ["# Nested asset"].join("\n"),
+    );
+    writeFile(
+      root,
+      "projects/alpha/facets/skills/nested/ignored/SKILL.md",
+      [
+        "---",
+        'name: ignored-nested-skill',
+        'description: Should never be discovered.',
+        "---",
+      ].join("\n"),
     );
 
     const jobs = listLunafreyaFacetCatalogEntries({
@@ -108,9 +140,9 @@ describe("lunafreya facet catalog", () => {
       builtinLanguages: ["ja", "en"],
       executionProjectId: "alpha",
     });
-    const knowledge = listLunafreyaFacetCatalogEntries({
+    const skills = listLunafreyaFacetCatalogEntries({
       root,
-      kind: "knowledge",
+      kind: "skill",
       builtinLanguages: ["ja", "en"],
       executionProjectId: "alpha",
     });
@@ -141,19 +173,28 @@ describe("lunafreya facet catalog", () => {
       ]),
     );
 
-    expect(knowledge).toEqual([
+    expect(skills).toEqual([
       expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
-        id: "builtin:ja:knowledge/agent-relationships.md",
-        label: "Agent Relationships",
-        kind: "knowledge",
+        id: "builtin:ja:skills/agent-relationships",
+        label: "agent-relationships",
+        description: "Read this when coordination depends on party dynamics.",
+        kind: "skill",
         sourceKind: "builtin",
       }),
       expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
-        id: "project:alpha:knowledge/domain-notes.md",
+        id: "project:alpha:skills/domain-notes",
         label: "domain-notes",
-        kind: "knowledge",
+        description: "Read this when project-specific terminology matters.",
+        kind: "skill",
         sourceKind: "project",
       }),
     ]);
+    expect(skills).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining<Partial<LunafreyaFacetCatalogEntry>>({
+          id: "project:alpha:skills/nested",
+        }),
+      ]),
+    );
   });
 });

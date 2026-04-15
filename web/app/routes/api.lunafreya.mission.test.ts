@@ -89,12 +89,14 @@ function createTempRoot(): string {
     "utf-8",
   );
 
-  mkdirSync(join(root, "builtins", "ja", "facets", "knowledge"), { recursive: true });
+  mkdirSync(join(root, "builtins", "ja", "facets", "skills", "oracle-notes"), {
+    recursive: true,
+  });
   writeFileSync(
-    join(root, "builtins", "ja", "facets", "knowledge", "oracle-notes.md"),
+    join(root, "builtins", "ja", "facets", "skills", "oracle-notes", "SKILL.md"),
     [
       "---",
-      "name: Oracle Notes",
+      "name: oracle-notes",
       'description: Read when you need Lunafreya-specific long-horizon guidance.',
       "---",
       "# Oracle Notes",
@@ -105,13 +107,35 @@ function createTempRoot(): string {
     "utf-8",
   );
 
-  mkdirSync(join(root, "projects", "alpha", "facets", "knowledge"), { recursive: true });
+  mkdirSync(join(root, "projects", "alpha", "facets", "skills", "domain-notes"), {
+    recursive: true,
+  });
   writeFileSync(
-    join(root, "projects", "alpha", "facets", "knowledge", "domain-notes.md"),
+    join(root, "projects", "alpha", "facets", "skills", "domain-notes", "SKILL.md"),
     [
+      "---",
+      "name: alpha-domain-notes",
+      'description: Use the Alpha project conventions and existing module boundaries.',
+      "---",
       "# Alpha Domain Notes",
       "",
       "Use the Alpha project conventions and existing module boundaries.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  mkdirSync(join(root, "skills", "project-manage"), { recursive: true });
+  writeFileSync(
+    join(root, "skills", "project-manage", "SKILL.md"),
+    [
+      "---",
+      "name: project-manage",
+      'description: Manage project execution work.',
+      "---",
+      "# Project Manage",
+      "",
+      "Manage project execution work.",
       "",
     ].join("\n"),
     "utf-8",
@@ -194,7 +218,7 @@ describe("Lunafreya mission routing", () => {
     expect(mission?.workspacePath).toBeUndefined();
     expect(mission?.workspaceStatus).toBeUndefined();
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
-      selectedKnowledgeIds: [],
+      selectedSkillIds: [],
     });
     expect(mission?.lunafreyaFacetSelection?.selectedJobId).toBeUndefined();
     expect(sessionCreateMock).toHaveBeenCalledWith(
@@ -225,7 +249,7 @@ describe("Lunafreya mission routing", () => {
           message: "Guide me through the next decision.",
           executionProjectId: "alpha",
           selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-          selectedKnowledgeIds: ["project:alpha:knowledge/domain-notes.md"],
+          selectedSkillIds: ["project:alpha:skills/domain-notes"],
         }),
       }),
     } as never);
@@ -241,7 +265,7 @@ describe("Lunafreya mission routing", () => {
     expect(mission?.noctisSessionId).toBe("");
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
       selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-      selectedKnowledgeIds: ["project:alpha:knowledge/domain-notes.md"],
+      selectedSkillIds: ["project:alpha:skills/domain-notes"],
     });
 
     expect(promptAsyncMock).toHaveBeenCalledWith(
@@ -253,13 +277,48 @@ describe("Lunafreya mission routing", () => {
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
     expect(promptText).toContain("Strategic Advisor");
-    expect(promptText).toContain("Alpha Domain Notes");
-    expect(promptText).toContain("<knowledge-catalog>");
-    expect(promptText).toContain("<knowledge-body>");
+    expect(promptText).toContain("alpha-domain-notes");
+    expect(promptText).toContain("<reference-files>");
+    expect(promptText).toContain("<reference-file>");
+    expect(promptText).toContain("<description>");
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
-    expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
+    expect(promptText).not.toContain("<lunafreya-skill-overlay>");
     expect(promptText).not.toContain("<delegation-context");
+  });
+
+  it("merges selected Lunafreya skills and shared selected skills into one prompt reference-files section", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "shared-skills.yaml"),
+      ["selected_skill_ids:", '  - "project-manage"', ""].join("\n"),
+      "utf-8",
+    );
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-shared" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-lunafreya-shared" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Guide me through the next decision.",
+          executionProjectId: "alpha",
+          selectedSkillIds: ["project:alpha:skills/domain-notes"],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
+    expect(promptText).toContain("<reference-files>");
+    expect(promptText.match(/<reference-files>/g)).toHaveLength(1);
+    expect(promptText).toContain("alpha-domain-notes");
+    expect(promptText).toContain("project-manage");
   });
 
   it("keeps the Lunafreya session alive and applies updated overlays on continue", async () => {
@@ -275,7 +334,7 @@ describe("Lunafreya mission routing", () => {
           message: "Begin a Lunafreya mission.",
           executionProjectId: "alpha",
           selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-          selectedKnowledgeIds: ["project:alpha:knowledge/domain-notes.md"],
+          selectedSkillIds: ["project:alpha:skills/domain-notes"],
         }),
       }),
     } as never);
@@ -295,9 +354,9 @@ describe("Lunafreya mission routing", () => {
         body: JSON.stringify({
           missionId,
           message: "Now weigh the long-term risks too.",
-          selectedKnowledgeIds: [
-            "builtin:ja:knowledge/oracle-notes.md",
-            "project:alpha:knowledge/domain-notes.md",
+          selectedSkillIds: [
+            "builtin:ja:skills/oracle-notes",
+            "project:alpha:skills/domain-notes",
           ],
         }),
       }),
@@ -316,22 +375,22 @@ describe("Lunafreya mission routing", () => {
     const mission = getMission(missionId);
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
       selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-      selectedKnowledgeIds: [
-        "builtin:ja:knowledge/oracle-notes.md",
-        "project:alpha:knowledge/domain-notes.md",
+      selectedSkillIds: [
+        "builtin:ja:skills/oracle-notes",
+        "project:alpha:skills/domain-notes",
       ],
     });
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
     expect(promptText.match(/<job>/g) ?? []).toHaveLength(1);
-    expect(promptText).toContain("Oracle Notes");
-    expect(promptText).toContain("Alpha Domain Notes");
+    expect(promptText).toContain("oracle-notes");
+    expect(promptText).toContain("alpha-domain-notes");
     expect(promptText).toContain("Strategic Advisor");
-    expect(promptText).toContain("<knowledge-catalog>");
-    expect(promptText).toContain("<knowledge-ref>");
-    expect(promptText).toContain("Source: ");
+    expect(promptText).toContain("<reference-files>");
+    expect(promptText).toContain("<reference-file>");
+    expect(promptText).toContain("<name>");
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
-    expect(promptText).not.toContain("<lunafreya-knowledge-overlay>");
+    expect(promptText).not.toContain("<lunafreya-skill-overlay>");
   });
 });

@@ -26,8 +26,10 @@ const LEGACY_STEP_FIELD_MESSAGES = {
   job_file: 'contains removed field "job_file". Use "job: { file: ... }" or "job: { inline: ... }" instead.',
   instruction_file:
     'contains removed field "instruction_file". Use "instruction: { file: ... }" or "instruction: { inline: ... }" instead.',
+  knowledge:
+    'contains removed field "knowledge". Use "skills:" with a list of file source objects instead.',
   knowledge_files:
-    'contains removed field "knowledge_files". Use "knowledge:" with a list of source objects instead.',
+    'contains removed field "knowledge_files". Use "skills:" with a list of file source objects instead.',
   policy_files:
     'contains removed field "policy_files". Use "policies:" with a list of source objects instead.',
 };
@@ -135,6 +137,46 @@ function validateContentSourceList(raw, label, operationDirectory, errors) {
   });
 }
 
+function validateFileContentSource(raw, label, operationDirectory, errors) {
+  if (raw === undefined || raw === null) {
+    return;
+  }
+
+  if (!isPlainObject(raw)) {
+    pushError(errors, `${label} must be an object with "file".`);
+    return;
+  }
+
+  const record = raw;
+  const file = typeof record.file === "string" ? record.file.trim() : "";
+  const inline = typeof record.inline === "string" ? record.inline.trim() : "";
+
+  if (!file || inline) {
+    pushError(errors, `${label} must define exactly one "file" source. Workflow skills are file-only.`);
+    return;
+  }
+
+  const resolvedSourcePath = resolve(operationDirectory, file);
+  if (!existsSync(resolvedSourcePath)) {
+    pushError(errors, `${label} file source does not exist: ${file}`);
+  }
+}
+
+function validateFileContentSourceList(raw, label, operationDirectory, errors) {
+  if (raw === undefined || raw === null) {
+    return;
+  }
+
+  if (!Array.isArray(raw)) {
+    pushError(errors, `${label} must be an array of file source objects.`);
+    return;
+  }
+
+  raw.forEach((entry, index) => {
+    validateFileContentSource(entry, `${label}[${index}]`, operationDirectory, errors);
+  });
+}
+
 function validateDelegation(raw, stepName, agent, operationDirectory, errors) {
   if (raw === undefined || raw === null) {
     return false;
@@ -150,6 +192,13 @@ function validateDelegation(raw, stepName, agent, operationDirectory, errors) {
   }
 
   const record = raw;
+  if ("worker_knowledge" in record) {
+    pushError(
+      errors,
+      `Step "${stepName}" delegation contains removed field "worker_knowledge". Use "worker_skills:" with a list of file source objects instead.`,
+    );
+  }
+
   if (record.allowed_workers !== undefined && record.allowed_workers !== null) {
     if (!Array.isArray(record.allowed_workers)) {
       pushError(errors, `Step "${stepName}" delegation.allowed_workers must be an array.`);
@@ -172,9 +221,9 @@ function validateDelegation(raw, stepName, agent, operationDirectory, errors) {
     operationDirectory,
     errors,
   );
-  validateContentSourceList(
-    record.worker_knowledge,
-    `Step "${stepName}" delegation.worker_knowledge`,
+  validateFileContentSourceList(
+    record.worker_skills,
+    `Step "${stepName}" delegation.worker_skills`,
     operationDirectory,
     errors,
   );
@@ -346,7 +395,7 @@ function validateOperationFile(filePath) {
       operationDirectory,
       errors,
     );
-    validateContentSourceList(step.knowledge, `Step "${stepName}" knowledge`, operationDirectory, errors);
+    validateFileContentSourceList(step.skills, `Step "${stepName}" skills`, operationDirectory, errors);
     validateContentSourceList(step.policies, `Step "${stepName}" policies`, operationDirectory, errors);
     validateOutputContracts(step.output_contracts, stepName, operationDirectory, errors);
 

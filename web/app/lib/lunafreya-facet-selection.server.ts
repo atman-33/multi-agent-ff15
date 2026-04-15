@@ -7,7 +7,7 @@ import {
 export interface ResolvedLunafreyaFacetSelection {
   selection: LunafreyaFacetSelection;
   selectedJobLabel: string | null;
-  selectedKnowledgeLabels: string[];
+  selectedSkillLabels: string[];
   promptExtension: string | null;
 }
 
@@ -15,7 +15,7 @@ export function resolveLunafreyaFacetSelection(input: {
   builtinLanguages: string[];
   executionProjectId?: string;
   selectedJobId?: string;
-  selectedKnowledgeIds?: readonly string[];
+  selectedSkillIds?: readonly string[];
   root?: string;
 }): ResolvedLunafreyaFacetSelection {
   const resolved: ResolvedLunafreyaPromptContext = resolveLunafreyaPromptContext(input);
@@ -23,7 +23,7 @@ export function resolveLunafreyaFacetSelection(input: {
   return {
     selection: resolved.selection,
     selectedJobLabel: resolved.selectedJobLabel,
-    selectedKnowledgeLabels: resolved.selectedKnowledgeLabels,
+    selectedSkillLabels: resolved.selectedSkillLabels,
     promptExtension: resolved.promptExtension,
   };
 }

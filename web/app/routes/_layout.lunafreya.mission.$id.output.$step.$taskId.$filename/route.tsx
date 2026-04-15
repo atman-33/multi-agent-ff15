@@ -21,7 +21,7 @@ type LoaderData = {
     lunafreyaFacetSnapshot?: {
       selectedJobId?: string;
       selectedJobLabel?: string | null;
-      selectedKnowledgeLabels: string[];
+      selectedSkillLabels: string[];
     };
   } | null;
   missionId: string;
@@ -145,7 +145,7 @@ export const LunafreyaMissionOutputDetailRoute = ({ loaderData }: Route.Componen
                   <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
                     Job: {getLunafreyaJobDisplayLabel(loaderData.metadata.lunafreyaFacetSnapshot)}
                   </span>
-                  {loaderData.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (
+                  {loaderData.metadata.lunafreyaFacetSnapshot.selectedSkillLabels.map((label) => (
                     <span
                       key={`${loaderData.taskId}:${label}`}
                       className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-foreground/80"

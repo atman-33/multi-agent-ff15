@@ -4,13 +4,16 @@
 # Project state and local config
 config/settings.yaml
 !config/models.yaml
-projects/*
+/projects/
 
 # Generated reports
-docs/reports
+/docs/reports/
 
 # OpenSpec working files
-openspec/
+/openspec/
+
+# Custom Skills
+/skills/
 
 # Local tooling state
 .serena
@@ -29,5 +32,5 @@ logs/
 runtime/
 
 # Temporary and lock files
-.tmp
+.tmp/
 *.lock

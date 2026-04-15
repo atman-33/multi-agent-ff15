@@ -1,14 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import {
-  normalizeFileKnowledgeEntry,
-  normalizeInlineKnowledgeEntry,
-} from "@/lib/knowledge-catalog.server";
+  normalizeFileSkillEntry,
+} from "@/lib/skill-catalog.server";
 import { resolveOperationFacetPath } from "./operation-loader";
 import type {
   ContentSource,
+  FileContentSource,
   OperationDefinition,
   ResolvedFacets,
-  ResolvedKnowledgeEntry,
+  ResolvedSkillEntry,
   StepDefinition,
 } from "./types";
 
@@ -51,31 +51,23 @@ function describeContentSourceReference(
 function resolveKnowledgeSources(input: {
   operation: OperationDefinition;
   step: StepDefinition;
-  sources: ContentSource[];
+  sources: FileContentSource[];
   locatorPrefix: string;
-}): ResolvedKnowledgeEntry[] {
+}): ResolvedSkillEntry[] {
   return input.sources
     .map((source, index) => {
-      const content = loadFacetSource(input.operation, source);
-
-      if (!content) {
-        return null;
+      const absolutePath = resolveOperationFacetPath(input.operation.sourcePath, source.file);
+      if (!existsSync(absolutePath)) {
+        throw new Error(
+          `Missing workflow skill source at ${absolutePath} referenced by ${input.locatorPrefix}[${index}].`,
+        );
       }
 
-      if ("inline" in source) {
-        return normalizeInlineKnowledgeEntry(content);
-      }
+      const content = readFileSync(absolutePath, "utf-8");
 
-      return normalizeFileKnowledgeEntry(
-        content,
-        describeContentSourceReference(
-          input.operation,
-          source,
-          `${input.locatorPrefix}[${index}]`,
-        ),
-      );
+      return normalizeFileSkillEntry(content, absolutePath);
     })
-    .filter((item): item is ResolvedKnowledgeEntry => item !== null);
+    .filter((item): item is ResolvedSkillEntry => item !== null);
 }
 
 function resolvePolicySources(
@@ -116,11 +108,11 @@ export function resolveStepFacets(
   const job = loadFacetSource(operation, step.job) ?? "";
   const instruction = loadFacetSource(operation, step.instruction) ?? "";
 
-  const knowledge = resolveKnowledgeSources({
+  const skills = resolveKnowledgeSources({
     operation,
     step,
-    sources: step.knowledge ?? [],
-    locatorPrefix: `steps.${step.name}.knowledge`,
+    sources: step.skills ?? [],
+    locatorPrefix: `steps.${step.name}.skills`,
   });
 
   const policies = resolvePolicySources(operation, step.policies ?? []);
@@ -144,7 +136,7 @@ export function resolveStepFacets(
     }
   }
 
-  return { job, instruction, knowledge, policies, outputContracts };
+  return { job, instruction, skills, policies, outputContracts };
 }
 
 export function resolveDelegatedWorkerFacets(
@@ -155,18 +147,18 @@ export function resolveDelegatedWorkerFacets(
   const delegation = step.delegation;
   const job = loadFacetSource(operation, delegation?.worker_job) ?? "";
   const instruction = loadFacetSource(operation, delegation?.worker_instruction) ?? "";
-  const knowledge = resolveKnowledgeSources({
+  const skills = resolveKnowledgeSources({
     operation,
     step,
-    sources: delegation?.worker_knowledge ?? [],
-    locatorPrefix: `steps.${step.name}.delegation.worker_knowledge`,
+    sources: delegation?.worker_skills ?? [],
+    locatorPrefix: `steps.${step.name}.delegation.worker_skills`,
   });
   const policies = resolvePolicySources(operation, delegation?.worker_policies ?? []);
 
   return {
     job,
     instruction,
-    knowledge,
+    skills,
     policies,
     outputContracts: [],
   };

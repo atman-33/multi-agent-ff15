@@ -43,7 +43,7 @@ describe("mission-activity-log", () => {
     expect(markup.indexOf("Older entry")).toBeLessThan(markup.indexOf("Newer entry"));
   });
 
-  it("hides duplicate Lunafreya job and knowledge lines when overlay badges are shown", () => {
+  it("hides duplicate Lunafreya job and skill lines when overlay badges are shown", () => {
     const markup = renderToStaticMarkup(
       <MissionActivityLog
         entries={[
@@ -52,15 +52,15 @@ describe("mission-activity-log", () => {
             body: [
               "Updated Lunafreya prompt context.",
               "Job: Shiritori lead",
-              "Knowledge: agent-relationships",
+              "Skills: agent-relationships",
             ].join("\n"),
             source: {
               type: "system",
               lunafreyaFacetSnapshot: {
                 selectedJobId: "shiritori-lead",
                 selectedJobLabel: "Shiritori lead",
-                selectedKnowledgeIds: ["agent-relationships"],
-                selectedKnowledgeLabels: ["agent-relationships"],
+                selectedSkillIds: ["agent-relationships"],
+                selectedSkillLabels: ["agent-relationships"],
                 updatedAt: "2026-04-12T15:07:00.000Z",
               },
             },
@@ -71,7 +71,7 @@ describe("mission-activity-log", () => {
 
     expect(markup).toContain("Updated Lunafreya prompt context.");
     expect(markup).toContain("Applied context");
-    expect(markup).not.toContain("Knowledge: agent-relationships");
+    expect(markup).not.toContain("Skills: agent-relationships");
     expect(markup).toContain("Job: Shiritori lead");
     expect(markup).toContain("agent-relationships");
   });
@@ -82,14 +82,14 @@ describe("mission-activity-log", () => {
         entries={[
           {
             ...baseEntry,
-            body: "Updated mission context projects.\nKnowledge: keep this line",
+            body: "Updated mission context projects.\nSkills: keep this line",
           },
         ]}
       />,
     );
 
     expect(markup).toContain("Updated mission context projects.");
-    expect(markup).toContain("Knowledge: keep this line");
+    expect(markup).toContain("Skills: keep this line");
     expect(markup).not.toContain("Applied context");
   });
 
@@ -103,8 +103,8 @@ describe("mission-activity-log", () => {
             source: {
               type: "system",
               lunafreyaFacetSnapshot: {
-                selectedKnowledgeIds: [],
-                selectedKnowledgeLabels: [],
+                selectedSkillIds: [],
+                selectedSkillLabels: [],
                 updatedAt: "2026-04-12T15:07:00.000Z",
               },
             },

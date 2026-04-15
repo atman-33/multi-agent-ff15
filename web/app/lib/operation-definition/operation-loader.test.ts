@@ -146,7 +146,7 @@ describe("operation loader", () => {
     expect(operation.steps[1]?.output_contracts?.report[0]?.format).toEqual({ file: "./contract.md" });
   });
 
-  it("loads canonical inline and list facets", () => {
+  it("loads canonical inline facets and file-backed skills", () => {
     const filePath = writeTempOperation([
       "name: inline-operation",
       "description: Inline operation",
@@ -158,8 +158,8 @@ describe("operation loader", () => {
       "      inline: Planner role",
       "    instruction:",
       "      inline: Clarify the request",
-      "    knowledge:",
-      "      - inline: Runtime owns the dispatch",
+      "    skills:",
+      "      - file: ./planner-skill/SKILL.md",
       "    policies:",
       "      - inline: Stay focused",
       "    output_contracts:",
@@ -176,9 +176,26 @@ describe("operation loader", () => {
 
     expect(planStep?.job).toEqual({ inline: "Planner role" });
     expect(planStep?.instruction).toEqual({ inline: "Clarify the request" });
-    expect(planStep?.knowledge).toEqual([{ inline: "Runtime owns the dispatch" }]);
+    expect(planStep?.skills).toEqual([{ file: "./planner-skill/SKILL.md" }]);
     expect(planStep?.policies).toEqual([{ inline: "Stay focused" }]);
     expect(planStep?.output_contracts?.report[0]?.format).toEqual({ inline: "# Plan output" });
+  });
+
+  it("rejects inline workflow skills", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-skills-operation",
+      "description: Invalid skills operation",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    skills:",
+      "      - inline: This must be rejected",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/Workflow skills are file-only/i);
   });
 
   it("loads a rules-less Noctis delegation step", () => {
@@ -199,6 +216,8 @@ describe("operation loader", () => {
       "        inline: Delegated worker role",
       "      worker_instruction:",
       "        inline: Complete the child task and report back.",
+      "      worker_skills:",
+      "        - file: ./delegated-skill/SKILL.md",
       "",
     ].join("\n"));
 
@@ -212,6 +231,7 @@ describe("operation loader", () => {
     expect(step?.delegation?.worker_instruction).toEqual({
       inline: "Complete the child task and report back.",
     });
+    expect(step?.delegation?.worker_skills).toEqual([{ file: "./delegated-skill/SKILL.md" }]);
   });
 
   it("rejects removed legacy root fields", () => {

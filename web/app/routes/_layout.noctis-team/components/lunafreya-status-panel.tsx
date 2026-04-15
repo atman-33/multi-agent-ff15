@@ -46,12 +46,12 @@ type LunafreyaStatusPanelProps = {
   status: AgentStatus;
   isSpeaking?: boolean;
   selectedJobId: string | null;
-  selectedKnowledgeIds: string[];
+  selectedSkillIds: string[];
   jobOptions: LunafreyaFacetOption[];
-  knowledgeOptions: LunafreyaFacetOption[];
+  skillOptions: LunafreyaFacetOption[];
   onSelectedJobIdChange: (jobId: string | null) => void;
-  onToggleKnowledgeId: (knowledgeId: string) => void;
-  onClearKnowledgeIds: () => void;
+  onToggleSkillId: (skillId: string) => void;
+  onClearSkillIds: () => void;
 };
 
 const NO_JOB_VALUE = "__none__";
@@ -61,28 +61,28 @@ const LUNAFREYA_CARD_COPY = {
   role: "Oracle",
 } as const;
 
-export function getSelectedKnowledgeOptions(
-  knowledgeOptions: LunafreyaFacetOption[],
-  selectedKnowledgeIds: string[],
+export function getSelectedSkillOptions(
+  skillOptions: LunafreyaFacetOption[],
+  selectedSkillIds: string[],
 ): LunafreyaFacetOption[] {
-  const optionsById = new Map(knowledgeOptions.map((option) => [option.id, option]));
+  const optionsById = new Map(skillOptions.map((option) => [option.id, option]));
 
-  return selectedKnowledgeIds.flatMap((knowledgeId) => {
-    const option = optionsById.get(knowledgeId);
+  return selectedSkillIds.flatMap((skillId) => {
+    const option = optionsById.get(skillId);
     return option ? [option] : [];
   });
 }
 
-export function filterKnowledgeOptions(input: {
-  knowledgeOptions: LunafreyaFacetOption[];
-  selectedKnowledgeIds: string[];
+export function filterSkillOptions(input: {
+  skillOptions: LunafreyaFacetOption[];
+  selectedSkillIds: string[];
   query: string;
   selectedOnly: boolean;
 }): LunafreyaFacetOption[] {
   const normalizedQuery = input.query.trim().toLowerCase();
 
-  return input.knowledgeOptions.filter((option) => {
-    if (input.selectedOnly && !input.selectedKnowledgeIds.includes(option.id)) {
+  return input.skillOptions.filter((option) => {
+    if (input.selectedOnly && !input.selectedSkillIds.includes(option.id)) {
       return false;
     }
 
@@ -94,40 +94,40 @@ export function filterKnowledgeOptions(input: {
   });
 }
 
-type LunafreyaKnowledgeSelectorDialogProps = {
+type LunafreyaSkillSelectorDialogProps = {
   open: boolean;
-  knowledgeOptions: LunafreyaFacetOption[];
-  selectedKnowledgeIds: string[];
+  skillOptions: LunafreyaFacetOption[];
+  selectedSkillIds: string[];
   query: string;
   selectedOnly: boolean;
   onOpenChange: (open: boolean) => void;
   onQueryChange: (query: string) => void;
   onSelectedOnlyChange: (selectedOnly: boolean) => void;
-  onToggleKnowledgeId: (knowledgeId: string) => void;
-  onClearKnowledgeIds: () => void;
+  onToggleSkillId: (skillId: string) => void;
+  onClearSkillIds: () => void;
 };
 
-export function LunafreyaKnowledgeSelectorDialog({
+export function LunafreyaSkillSelectorDialog({
   open,
-  knowledgeOptions,
-  selectedKnowledgeIds,
+  skillOptions,
+  selectedSkillIds,
   query,
   selectedOnly,
   onOpenChange,
   onQueryChange,
   onSelectedOnlyChange,
-  onToggleKnowledgeId,
-  onClearKnowledgeIds,
-}: LunafreyaKnowledgeSelectorDialogProps) {
-  const filteredKnowledgeOptions = useMemo(
+  onToggleSkillId,
+  onClearSkillIds,
+}: LunafreyaSkillSelectorDialogProps) {
+  const filteredSkillOptions = useMemo(
     () =>
-      filterKnowledgeOptions({
-        knowledgeOptions,
-        selectedKnowledgeIds,
+      filterSkillOptions({
+        skillOptions,
+        selectedSkillIds,
         query,
         selectedOnly,
       }),
-    [knowledgeOptions, query, selectedKnowledgeIds, selectedOnly],
+    [query, selectedOnly, selectedSkillIds, skillOptions],
   );
 
   return (
@@ -136,13 +136,13 @@ export function LunafreyaKnowledgeSelectorDialog({
         <DialogHeader className="border-border/50 border-b px-4 pt-4 pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
-              <DialogTitle>Manage Knowledge Overlays</DialogTitle>
+              <DialogTitle>Manage Skills</DialogTitle>
               <DialogDescription>
-                Search available knowledge, review descriptions, and update Lunafreya&#39;s next-turn knowledge set.
+                Search available skills, review descriptions, and update Lunafreya&#39;s next-turn skill set.
               </DialogDescription>
             </div>
             <Badge className="rounded-full font-mono text-[10px] uppercase tracking-[0.16em]" variant="outline">
-              {`${selectedKnowledgeIds.length} selected`}
+              {`${selectedSkillIds.length} selected`}
             </Badge>
           </div>
         </DialogHeader>
@@ -152,10 +152,10 @@ export function LunafreyaKnowledgeSelectorDialog({
             <div className="relative flex-1">
               <Search className="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
               <Input
-                aria-label="Search knowledge overlays"
+                aria-label="Search skills"
                 className="pl-9"
                 onChange={(event) => onQueryChange(event.currentTarget.value)}
-                placeholder="Search knowledge by name"
+                placeholder="Search skills by name"
                 type="search"
                 value={query}
               />
@@ -172,11 +172,11 @@ export function LunafreyaKnowledgeSelectorDialog({
           </div>
 
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground/75">
-            <p>{`${filteredKnowledgeOptions.length} results`}</p>
-            {selectedKnowledgeIds.length > 0 ? (
+            <p>{`${filteredSkillOptions.length} results`}</p>
+            {selectedSkillIds.length > 0 ? (
               <Button
                 className="h-7 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
-                onClick={onClearKnowledgeIds}
+                onClick={onClearSkillIds}
                 size="sm"
                 type="button"
                 variant="outline"
@@ -188,17 +188,17 @@ export function LunafreyaKnowledgeSelectorDialog({
 
           <ScrollArea className="max-h-[min(58vh,26rem)] rounded-lg border border-border/50 bg-background/40">
             <div className="space-y-2 p-2">
-              {knowledgeOptions.length === 0 ? (
+              {skillOptions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground/75">
-                  No knowledge overlays available for the current execution project.
+                  No skills available for the current execution project.
                 </div>
-              ) : filteredKnowledgeOptions.length === 0 ? (
+              ) : filteredSkillOptions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground/75">
-                  No knowledge overlays match the current filter.
+                  No skills match the current filter.
                 </div>
               ) : (
-                filteredKnowledgeOptions.map((option) => {
-                  const isSelected = selectedKnowledgeIds.includes(option.id);
+                filteredSkillOptions.map((option) => {
+                  const isSelected = selectedSkillIds.includes(option.id);
                   return (
                     <button
                       key={option.id}
@@ -209,7 +209,7 @@ export function LunafreyaKnowledgeSelectorDialog({
                           ? "border-primary/40 bg-primary/10"
                           : "border-border/50 bg-card/40 hover:bg-card/70",
                       )}
-                      onClick={() => onToggleKnowledgeId(option.id)}
+                      onClick={() => onToggleSkillId(option.id)}
                       type="button"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -245,17 +245,17 @@ export function LunafreyaStatusPanel({
   status,
   isSpeaking = false,
   selectedJobId,
-  selectedKnowledgeIds,
+  selectedSkillIds,
   jobOptions,
-  knowledgeOptions,
+  skillOptions,
   onSelectedJobIdChange,
-  onToggleKnowledgeId,
-  onClearKnowledgeIds,
+  onToggleSkillId,
+  onClearSkillIds,
 }: LunafreyaStatusPanelProps) {
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
-  const [isKnowledgeSelectorOpen, setIsKnowledgeSelectorOpen] = useState(false);
-  const [knowledgeQuery, setKnowledgeQuery] = useState("");
+  const [isSkillSelectorOpen, setIsSkillSelectorOpen] = useState(false);
+  const [skillQuery, setSkillQuery] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
   const selectedModel = useChatStore((state) => state.agentModels.lunafreya ?? null);
   const setAgentModel = useChatStore((state) => state.setAgentModel);
@@ -286,19 +286,19 @@ export function LunafreyaStatusPanel({
   }, []);
 
   const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
-  const selectedKnowledgeOptions = useMemo(
-    () => getSelectedKnowledgeOptions(knowledgeOptions, selectedKnowledgeIds),
-    [knowledgeOptions, selectedKnowledgeIds],
+  const selectedSkillOptions = useMemo(
+    () => getSelectedSkillOptions(skillOptions, selectedSkillIds),
+    [selectedSkillIds, skillOptions],
   );
 
   useEffect(() => {
-    if (isKnowledgeSelectorOpen) {
+    if (isSkillSelectorOpen) {
       return;
     }
 
-    setKnowledgeQuery("");
+    setSkillQuery("");
     setSelectedOnly(false);
-  }, [isKnowledgeSelectorOpen]);
+  }, [isSkillSelectorOpen]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -371,12 +371,12 @@ export function LunafreyaStatusPanel({
             <div className="flex items-center gap-1.5">
               <BrainCircuit className="h-3.5 w-3.5 text-primary/80" />
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                Knowledge Overlays
+                Skills
               </p>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    aria-label="Knowledge overlays help"
+                    aria-label="Skills help"
                     className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
                     size="icon"
                     type="button"
@@ -386,15 +386,15 @@ export function LunafreyaStatusPanel({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
-                  Knowledge overlay changes are stored immediately and apply on Lunafreya&#39;s next User turn.
+                  Skill changes are stored immediately and apply on Lunafreya&#39;s next User turn.
                 </TooltipContent>
               </Tooltip>
             </div>
-            {knowledgeOptions.length > 0 ? (
+            {skillOptions.length > 0 ? (
               <Button
-                aria-label="Open knowledge selector"
+                aria-label="Open skills selector"
                 className="h-7 w-7 rounded-full"
-                onClick={() => setIsKnowledgeSelectorOpen(true)}
+                onClick={() => setIsSkillSelectorOpen(true)}
                 size="icon"
                 type="button"
                 variant="ghost"
@@ -405,19 +405,19 @@ export function LunafreyaStatusPanel({
           </div>
 
           <div className="space-y-2 rounded-lg border border-border/50 bg-background/40 px-3 py-3">
-            {knowledgeOptions.length === 0 ? (
+            {skillOptions.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground/75">
-                No knowledge overlays available for the current execution project.
+                No skills available for the current execution project.
               </div>
-            ) : selectedKnowledgeOptions.length > 0 ? (
+            ) : selectedSkillOptions.length > 0 ? (
               <>
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                    {`${selectedKnowledgeOptions.length} selected`}
+                    {`${selectedSkillOptions.length} selected`}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {selectedKnowledgeOptions.map((option) => (
+                  {selectedSkillOptions.map((option) => (
                     <Badge
                       key={option.id}
                       className="max-w-full rounded-full text-xs font-medium"
@@ -430,25 +430,25 @@ export function LunafreyaStatusPanel({
               </>
             ) : (
               <div className="space-y-1">
-                <p className="text-sm text-foreground/85">No knowledge overlays selected.</p>
+                <p className="text-sm text-foreground/85">No skills selected.</p>
                 <p className="text-xs text-muted-foreground/75">
-                  Use the selector to browse the catalog and activate the knowledge Lunafreya should use on the next User turn.
+                  Use the selector to browse the catalog and activate the skills Lunafreya should use on the next User turn.
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        <LunafreyaKnowledgeSelectorDialog
-          knowledgeOptions={knowledgeOptions}
-          onClearKnowledgeIds={onClearKnowledgeIds}
-          onOpenChange={setIsKnowledgeSelectorOpen}
-          onQueryChange={setKnowledgeQuery}
+        <LunafreyaSkillSelectorDialog
+          skillOptions={skillOptions}
+          onClearSkillIds={onClearSkillIds}
+          onOpenChange={setIsSkillSelectorOpen}
+          onQueryChange={setSkillQuery}
           onSelectedOnlyChange={setSelectedOnly}
-          onToggleKnowledgeId={onToggleKnowledgeId}
-          open={isKnowledgeSelectorOpen}
-          query={knowledgeQuery}
-          selectedKnowledgeIds={selectedKnowledgeIds}
+          onToggleSkillId={onToggleSkillId}
+          open={isSkillSelectorOpen}
+          query={skillQuery}
+          selectedSkillIds={selectedSkillIds}
           selectedOnly={selectedOnly}
         />
 
@@ -462,15 +462,15 @@ export function LunafreyaStatusPanel({
           >
             Reset Job
           </Button>
-          {selectedKnowledgeIds.length > 0 ? (
+          {selectedSkillIds.length > 0 ? (
             <Button
               className="h-7 px-2.5 font-mono text-[10px] uppercase tracking-[0.16em]"
-              onClick={onClearKnowledgeIds}
+              onClick={onClearSkillIds}
               size="sm"
               type="button"
               variant="outline"
             >
-              Clear Knowledge
+              Clear Skills
             </Button>
           ) : null}
         </div>

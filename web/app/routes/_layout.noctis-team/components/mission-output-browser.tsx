@@ -230,8 +230,8 @@ export function MissionOutputBrowser({
                               <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] text-primary/90">
                                 Job: {getLunafreyaJobDisplayLabel(output.metadata.lunafreyaFacetSnapshot)}
                               </span>
-                              {output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.length > 0 ? (
-                                output.metadata.lunafreyaFacetSnapshot.selectedKnowledgeLabels.map((label) => (
+                              {output.metadata.lunafreyaFacetSnapshot.selectedSkillLabels.length > 0 ? (
+                                output.metadata.lunafreyaFacetSnapshot.selectedSkillLabels.map((label) => (
                                   <span
                                     key={`${outputKey}:${label}`}
                                     className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-foreground/80"
@@ -241,7 +241,7 @@ export function MissionOutputBrowser({
                                 ))
                               ) : (
                                 <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground/80">
-                                  Knowledge: none
+                                  Skills: none
                                 </span>
                               )}
                             </div>

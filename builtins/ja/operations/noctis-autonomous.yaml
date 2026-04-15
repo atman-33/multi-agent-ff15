@@ -11,8 +11,8 @@ steps:
       file: ../facets/jobs/noctis-autonomous.md
     instruction:
       file: ../facets/instructions/noctis-autonomous.md
-    knowledge:
-      - file: ../facets/knowledge/agent-relationships.md
+    skills:
+      - file: ../facets/skills/agent-relationships/SKILL.md
     delegation:
       allowed_workers:
         - ignis
@@ -22,5 +22,5 @@ steps:
         file: ../facets/jobs/delegated-worker.md
       worker_instruction:
         file: ../facets/instructions/delegated-worker.md
-      worker_knowledge:
-        - file: ../facets/knowledge/agent-relationships.md
+      worker_skills:
+        - file: ../facets/skills/agent-relationships/SKILL.md

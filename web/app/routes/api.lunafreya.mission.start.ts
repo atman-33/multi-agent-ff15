@@ -47,7 +47,7 @@ export const action = async ({ request }: { request: Request }) => {
     title?: unknown;
     objective?: unknown;
     selectedJobId?: unknown;
-    selectedKnowledgeIds?: unknown;
+    selectedSkillIds?: unknown;
   } | null;
   const rawParts = Array.isArray(body?.parts)
     ? body.parts.filter(
@@ -95,8 +95,8 @@ export const action = async ({ request }: { request: Request }) => {
       )
     : [];
   const selectedJobId = typeof body.selectedJobId === "string" ? body.selectedJobId.trim() : undefined;
-  const selectedKnowledgeIds = Array.isArray(body.selectedKnowledgeIds)
-    ? body.selectedKnowledgeIds.filter(
+  const selectedSkillIds = Array.isArray(body.selectedSkillIds)
+    ? body.selectedSkillIds.filter(
         (id): id is string => typeof id === "string" && id.trim().length > 0,
       )
     : [];
@@ -124,7 +124,7 @@ export const action = async ({ request }: { request: Request }) => {
       executionProjectId,
       builtinLanguages: listBuiltinLanguages(language),
       selectedJobId,
-      selectedKnowledgeIds,
+      selectedSkillIds,
     });
     const selectedOperation = resolveLunafreyaOperationRef(projectRoot, language);
     const missionId = crypto.randomUUID();

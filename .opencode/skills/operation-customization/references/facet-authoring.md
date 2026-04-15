@@ -6,8 +6,7 @@ Read this file when creating or revising files under `builtins/<lang>/facets/` o
 
 - [job-template.md](../assets/facets/job-template.md)
 - [instruction-template.md](../assets/facets/instruction-template.md)
-- [knowledge-body-template.md](../assets/facets/knowledge-body-template.md)
-- [knowledge-reference-template.md](../assets/facets/knowledge-reference-template.md)
+- [skill-template.md](../assets/facets/skill-template.md)
 - [policy-template.md](../assets/facets/policy-template.md)
 - [output-contract-report-template.md](../assets/facets/output-contract-report-template.md)
 - [output-contract-frontmatter-template.md](../assets/facets/output-contract-frontmatter-template.md)
@@ -35,14 +34,21 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Do not ask for routine User-facing progress updates unless the workflow explicitly requires checkpoints, approvals, or interactive monitoring.
 - Put step-specific placeholder usage or command references here.
 
-## knowledge
+## skills
 
 - Use for background context, runtime contracts, diagnostics maps, and reusable reference material.
-- For file-based knowledge facets, use frontmatter when you want the prompt to inject a compact reference instead of the whole body.
-- Valid reference-mode frontmatter requires both `name` and `description`.
-- If file-based knowledge frontmatter is missing or malformed, the system falls back to body injection.
-- Inline knowledge is always treated as body content. Do not expect frontmatter behavior there.
-- Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is knowledge-specific.
+- Skills are file-backed only and should live under `facets/skills/<skill-name>/SKILL.md`.
+- Valid skill frontmatter requires both `name` and `description`.
+- Skill `name` must use lowercase letters, numbers, and hyphens only.
+- Skill `name` must match the enclosing `<skill-name>` directory.
+- Treat `description` as the discovery surface. Sentence 1 states the capability. Sentence 2 starts with `Use when ...` and names concrete triggers.
+- Prompt injection includes `name`, `description`, and the absolute `file` path, not the full body.
+- When a listed skill is relevant, read the file at `<file>` and treat that file as the source of truth.
+- Do not author inline workflow skills. Use a file-backed skill entry instead.
+- Do not assume frontmatter metadata works for jobs, instructions, policies, or output-contracts. That special handling is skill-specific.
+- Keep `SKILL.md` focused on the core workflow. If it grows beyond roughly 100 lines, mixes distinct domains, or needs many examples, move extra material to sibling `REFERENCE.md` or `EXAMPLES.md`.
+- Add `scripts/` only for deterministic repeated tasks such as validation, formatting, or explicit error handling.
+- Prefer short sections such as `Purpose`, `When To Read`, `Key Facts`, and `Workflow`. Add `References` only when sibling files exist.
 
 ## policies
 
@@ -60,7 +66,14 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 
 ## Template Selection
 
-- Use the knowledge reference template only for file-based knowledge that should surface metadata in prompts.
-- Use the knowledge body template for inline knowledge and for file-based knowledge that should inject the full body.
+- Use the skill template for reusable file-backed skills whose prompt injection should expose only `name` and `description`, with optional sibling `REFERENCE.md`, `EXAMPLES.md`, or `scripts/` when the core file would stop being concise.
 - Use the frontmatter output-contract template for machine-readable artifacts such as spec pointers.
 - Use the report output-contract template for human-readable markdown reports.
+
+## Review Before Finish
+
+- `description` states both capability and trigger.
+- `name` matches the enclosing directory.
+- Placeholder text is fully removed.
+- References stay one level deep from `SKILL.md`.
+- Time-sensitive or verbose material is moved out of the core file when possible.

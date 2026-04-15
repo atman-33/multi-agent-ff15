@@ -89,7 +89,7 @@ function captureOutputSnapshots(input: {
     return;
   }
 
-  const selectedKnowledgeIds = mission.lunafreyaFacetSelection?.selectedKnowledgeIds ?? [];
+  const selectedSkillIds = mission.lunafreyaFacetSelection?.selectedSkillIds ?? [];
   const selectedJobId = mission.lunafreyaFacetSelection?.selectedJobId;
 
   let resolvedSelection:
@@ -102,7 +102,7 @@ function captureOutputSnapshots(input: {
       executionProjectId: mission.executionProjectId,
       builtinLanguages: listBuiltinLanguages(readOperationLanguage()),
       selectedJobId,
-      selectedKnowledgeIds,
+      selectedSkillIds,
     });
   } catch {
     resolvedSelection = null;
@@ -121,17 +121,17 @@ function captureOutputSnapshots(input: {
               ...(resolvedSelection.selectedJobLabel
                 ? { selectedJobLabel: resolvedSelection.selectedJobLabel }
                 : {}),
-              selectedKnowledgeLabels: resolvedSelection.selectedKnowledgeLabels,
+              selectedSkillLabels: resolvedSelection.selectedSkillLabels,
             },
           }
-        : selectedJobId || selectedKnowledgeIds.length > 0 || mission.lunafreyaFacetSelection
+        : selectedJobId || selectedSkillIds.length > 0 || mission.lunafreyaFacetSelection
           ? {
               lunafreyaFacetSnapshot: {
                 ...(selectedJobId ? { selectedJobId } : {}),
-                selectedKnowledgeIds,
+                selectedSkillIds,
                 updatedAt:
                   mission.lunafreyaFacetSelection?.updatedAt ?? new Date().toISOString(),
-                selectedKnowledgeLabels: [],
+                selectedSkillLabels: [],
               },
             }
           : {}),

@@ -40,28 +40,28 @@ function resolveLunafreyaOperationRef(root: string, language: string): string {
 }
 
 function sameSelection(
-  left: { selectedJobId?: string; selectedKnowledgeIds: string[] } | null | undefined,
-  right: { selectedJobId?: string; selectedKnowledgeIds: string[] },
+  left: { selectedJobId?: string; selectedSkillIds: string[] } | null | undefined,
+  right: { selectedJobId?: string; selectedSkillIds: string[] },
 ): boolean {
   if ((left?.selectedJobId ?? undefined) !== (right.selectedJobId ?? undefined)) {
     return false;
   }
 
-  if ((left?.selectedKnowledgeIds.length ?? 0) !== right.selectedKnowledgeIds.length) {
+  if ((left?.selectedSkillIds.length ?? 0) !== right.selectedSkillIds.length) {
     return false;
   }
 
-  return right.selectedKnowledgeIds.every((id, index) => left?.selectedKnowledgeIds[index] === id);
+  return right.selectedSkillIds.every((id, index) => left?.selectedSkillIds[index] === id);
 }
 
 function buildSelectionUpdateBody(input: {
   selectedJobLabel: string | null;
-  selectedKnowledgeLabels: string[];
+  selectedSkillLabels: string[];
 }): string {
   return [
     "Updated Lunafreya prompt context.",
     `Job: ${input.selectedJobLabel ?? DEFAULT_LUNAFREYA_JOB_LABEL}`,
-    `Knowledge: ${input.selectedKnowledgeLabels.join(", ") || "none"}`,
+    `Skills: ${input.selectedSkillLabels.join(", ") || "none"}`,
   ].join("\n");
 }
 
@@ -76,7 +76,7 @@ export const action = async ({ request }: { request: Request }) => {
     parts?: unknown;
     lunafreyaModel?: unknown;
     selectedJobId?: unknown;
-    selectedKnowledgeIds?: unknown;
+    selectedSkillIds?: unknown;
   } | null;
 
   if (!body || typeof body.missionId !== "string" || !body.missionId.trim()) {
@@ -127,23 +127,23 @@ export const action = async ({ request }: { request: Request }) => {
   }
 
   const hasSelectedJobId = Object.hasOwn(body, "selectedJobId");
-  const hasSelectedKnowledgeIds = Object.hasOwn(body, "selectedKnowledgeIds");
-  const currentSelection: { selectedJobId?: string; selectedKnowledgeIds: string[] } =
+  const hasSelectedSkillIds = Object.hasOwn(body, "selectedSkillIds");
+  const currentSelection: { selectedJobId?: string; selectedSkillIds: string[] } =
     mission.lunafreyaFacetSelection ?? {
-      selectedKnowledgeIds: [],
+      selectedSkillIds: [],
     };
   const nextSelectedJobId = hasSelectedJobId
     ? typeof body.selectedJobId === "string" && body.selectedJobId.trim().length > 0
       ? body.selectedJobId.trim()
       : undefined
     : currentSelection.selectedJobId;
-  const nextSelectedKnowledgeIds = hasSelectedKnowledgeIds
-    ? Array.isArray(body.selectedKnowledgeIds)
-      ? body.selectedKnowledgeIds.filter(
+  const nextSelectedSkillIds = hasSelectedSkillIds
+    ? Array.isArray(body.selectedSkillIds)
+      ? body.selectedSkillIds.filter(
           (id): id is string => typeof id === "string" && id.trim().length > 0,
         )
       : []
-    : currentSelection.selectedKnowledgeIds;
+    : currentSelection.selectedSkillIds;
   const effectiveModel = lunafreyaModel ?? mission.agentModels.lunafreya;
   const { model, variant } = splitModelSelection(effectiveModel);
 
@@ -171,7 +171,7 @@ export const action = async ({ request }: { request: Request }) => {
       executionProjectId: mission.executionProjectId,
       builtinLanguages: listBuiltinLanguages(language),
       selectedJobId: nextSelectedJobId,
-      selectedKnowledgeIds: nextSelectedKnowledgeIds,
+      selectedSkillIds: nextSelectedSkillIds,
     });
     if (!sameSelection(mission.lunafreyaFacetSelection, facetSelection.selection)) {
       const activityCreatedAt = new Date().toISOString();
@@ -183,7 +183,7 @@ export const action = async ({ request }: { request: Request }) => {
         kind: "system_event",
         body: buildSelectionUpdateBody({
           selectedJobLabel: facetSelection.selectedJobLabel,
-          selectedKnowledgeLabels: facetSelection.selectedKnowledgeLabels,
+          selectedSkillLabels: facetSelection.selectedSkillLabels,
         }),
         createdAt: activityCreatedAt,
         source: {
@@ -193,7 +193,7 @@ export const action = async ({ request }: { request: Request }) => {
             ...(facetSelection.selectedJobLabel
               ? { selectedJobLabel: facetSelection.selectedJobLabel }
               : {}),
-            selectedKnowledgeLabels: facetSelection.selectedKnowledgeLabels,
+            selectedSkillLabels: facetSelection.selectedSkillLabels,
           },
         },
       });

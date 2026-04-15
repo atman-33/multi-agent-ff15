@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getAgentLabel, isWorkerAgentId } from "@/lib/agent-identity";
-import { buildKnowledgeCatalog } from "@/lib/knowledge-catalog.server";
+import { buildSkillsCatalog, mergeSkillEntries } from "@/lib/skill-catalog.server";
+import type { ResolvedSkillEntry } from "@/lib/operation-definition/types";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type {
@@ -270,6 +271,7 @@ export function buildAugmentedInstruction(input: {
   missionId: string;
   agentId: StepDefinition["agent"];
   taskId: string;
+  sharedSkillEntries?: readonly ResolvedSkillEntry[];
 }): string {
   const { step, operation, facets } = input;
   const sections: Array<string | null> = [];
@@ -293,7 +295,7 @@ export function buildAugmentedInstruction(input: {
     }),
   );
 
-  sections.push(buildKnowledgeCatalog(facets.knowledge));
+  sections.push(buildSkillsCatalog(mergeSkillEntries(facets.skills, input.sharedSkillEntries)));
 
   if (resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));
@@ -412,6 +414,7 @@ export function buildDelegatedWorkerInstruction(input: {
   operationState: OperationState;
   facets: ResolvedFacets;
   missionId: string;
+  sharedSkillEntries?: readonly ResolvedSkillEntry[];
 }): string {
   const sections: Array<string | null> = [
     buildTextSection("task", input.taskPrompt, {
@@ -439,7 +442,9 @@ export function buildDelegatedWorkerInstruction(input: {
     }),
   );
 
-  sections.push(buildKnowledgeCatalog(input.facets.knowledge));
+  sections.push(
+    buildSkillsCatalog(mergeSkillEntries(input.facets.skills, input.sharedSkillEntries)),
+  );
 
   if (resolvedInstruction) {
     sections.push(buildMarkdownSection("instruction", resolvedInstruction));
@@ -462,6 +467,7 @@ export function buildActivationInstruction(input: {
   missionId: string;
   taskId: string;
   allowedWorkersOverride?: readonly WorkerAgentId[];
+  sharedSkillEntries?: readonly ResolvedSkillEntry[];
 }): string {
   const { operation, step, facets } = input;
   const sections: Array<string | null> = [];
@@ -491,7 +497,7 @@ export function buildActivationInstruction(input: {
   );
 
   if (!omitAutonomousSoloFacets) {
-    sections.push(buildKnowledgeCatalog(facets.knowledge));
+    sections.push(buildSkillsCatalog(mergeSkillEntries(facets.skills, input.sharedSkillEntries)));
   }
 
   if (!omitAutonomousSoloFacets && resolvedInstruction) {

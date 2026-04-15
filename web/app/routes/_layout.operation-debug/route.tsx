@@ -395,10 +395,10 @@ export const OperationDebugPage = ({ loaderData }: Route.ComponentProps) => {
         value: selectedStep.resolvedFacets.instruction ? "loaded" : "missing",
       },
       {
-        label: "Knowledge",
+        label: "Skills",
         value:
-          selectedStep.resolvedFacets.knowledge.length > 0
-            ? `${selectedStep.resolvedFacets.knowledge.length} loaded`
+          selectedStep.resolvedFacets.skills.length > 0
+            ? `${selectedStep.resolvedFacets.skills.length} loaded`
             : "missing",
       },
       {

@@ -1,5 +1,6 @@
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { isWorkerAgentId } from "@/lib/agent-identity";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import {
   findUnambiguousUserFacingOperationEntryForMessage,
   loadOperationByRef,
@@ -23,6 +24,7 @@ import {
   buildYamlSection,
   joinXmlSections,
 } from "@/lib/prompt-composition-engine/prompt-xml";
+import { resolveSelectedSharedSkills } from "@/lib/shared-skills.server";
 import {
   completeDelegatedTask,
   createOperationState,
@@ -143,6 +145,10 @@ function buildActivationArtifact(input: {
   const language = readOperationLanguage();
   const taskId = ensureActiveStepTaskId(input.operationState, input.step.agent);
   const facets = resolveStepFacets(input.operation, input.step, language);
+  const sharedSkillEntries =
+    input.step.agent === "lunafreya"
+      ? []
+      : resolveSelectedSharedSkills(getProjectRoot()).validEntries;
   const promptText = buildActivationInstruction({
     operation: input.operation,
     step: input.step,
@@ -151,6 +157,7 @@ function buildActivationArtifact(input: {
     missionId: input.missionId,
     taskId,
     allowedWorkersOverride: input.allowedWorkersOverride,
+    sharedSkillEntries,
   });
 
   return {
@@ -175,6 +182,7 @@ function buildWorkerPromptArtifact(input: {
 }): OperationPromptArtifact {
   const language = readOperationLanguage();
   const delegatedTask = getDelegatedTaskRecord(input.operationState, input.taskId);
+  const sharedSkillEntries = resolveSelectedSharedSkills(getProjectRoot()).validEntries;
 
   if (
     delegatedTask &&
@@ -195,6 +203,7 @@ function buildWorkerPromptArtifact(input: {
       operationState: input.operationState,
       facets,
       missionId: input.missionId,
+      sharedSkillEntries,
     });
     const promptText = deviationNote
       ? joinXmlSections([basePrompt, buildTextSection("deviation-note", deviationNote)])
@@ -225,6 +234,7 @@ function buildWorkerPromptArtifact(input: {
     missionId: input.missionId,
     agentId: input.agentId,
     taskId: input.taskId,
+    sharedSkillEntries,
   });
   const promptText = deviationNote
     ? joinXmlSections([basePrompt, buildTextSection("deviation-note", deviationNote)])

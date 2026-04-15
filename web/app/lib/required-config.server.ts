@@ -10,6 +10,10 @@ const DEFAULT_SETTINGS_YAML = [
   "# Other language codes (es, zh, ko, fr, de, etc.) also supported",
   "language: en",
   "",
+  "# Shared skills root",
+  "# Relative path from the repository root used to discover globally selectable shared skills",
+  'shared_skills_root: "skills"',
+  "",
 ].join("\n");
 
 function ensureFile(filePath: string, content: string): void {

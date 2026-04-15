@@ -67,8 +67,8 @@ function normalizeLunafreyaFacetSelection(value: unknown): LunafreyaFacetSelecti
   }
 
   const record = value as Record<string, unknown>;
-  const selectedKnowledgeIds = Array.isArray(record.selectedKnowledgeIds)
-    ? record.selectedKnowledgeIds.filter(
+  const selectedSkillIds = Array.isArray(record.selectedSkillIds)
+    ? record.selectedSkillIds.filter(
         (item): item is string => typeof item === "string" && item.trim().length > 0,
       )
     : [];
@@ -82,7 +82,7 @@ function normalizeLunafreyaFacetSelection(value: unknown): LunafreyaFacetSelecti
 
   return {
     ...(selectedJobId ? { selectedJobId } : {}),
-    selectedKnowledgeIds,
+    selectedSkillIds,
     updatedAt,
   };
 }
@@ -104,8 +104,8 @@ function normalizeLunafreyaFacetSnapshot(
     typeof record.selectedJobLabel === "string" && record.selectedJobLabel.trim().length > 0
       ? record.selectedJobLabel.trim()
       : null;
-  const selectedKnowledgeLabels = Array.isArray(record.selectedKnowledgeLabels)
-    ? record.selectedKnowledgeLabels.filter(
+  const selectedSkillLabels = Array.isArray(record.selectedSkillLabels)
+    ? record.selectedSkillLabels.filter(
         (item): item is string => typeof item === "string" && item.trim().length > 0,
       )
     : [];
@@ -113,7 +113,7 @@ function normalizeLunafreyaFacetSnapshot(
   return {
     ...selection,
     ...(selectedJobLabel ? { selectedJobLabel } : {}),
-    selectedKnowledgeLabels,
+    selectedSkillLabels,
   };
 }
 

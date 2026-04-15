@@ -102,18 +102,17 @@ function writeMalformedOutputContractOperation(root: string) {
   );
 }
 
-function writeKnowledgeCatalogOperation(root: string) {
-  const knowledgeDir = join(root, "builtins", "ja", "facets", "knowledge");
-  mkdirSync(knowledgeDir, { recursive: true });
+function writeSkillsOperation(root: string) {
+  const skillsDir = join(root, "builtins", "ja", "facets", "skills");
+  mkdirSync(join(skillsDir, "operation-system-contract"), { recursive: true });
+  mkdirSync(join(skillsDir, "agent-relationships"), { recursive: true });
   writeFileSync(
-    join(knowledgeDir, "operation-system-contract.md"),
+    join(skillsDir, "operation-system-contract", "SKILL.md"),
     [
       "---",
       "name: operation-system-contract",
       'description: Read when changing runtime-owned dispatch or report routing.',
-      "critical:",
-      "  - Runtime decides the next actor.",
-      "  - Reports use taskId + next + message.",
+      'argument-hint: runtime dispatch',
       "---",
       "# Full contract body",
       "",
@@ -123,11 +122,13 @@ function writeKnowledgeCatalogOperation(root: string) {
     "utf-8",
   );
   writeFileSync(
-    join(knowledgeDir, "agent-relationships.md"),
+    join(skillsDir, "agent-relationships", "SKILL.md"),
     [
       "---",
       "name: agent-relationships",
       'description: Read when you need a compact FF15 relationship cue.',
+      "metadata:",
+      '  owner: ff15',
       "---",
       "# Agent relationships",
       "",
@@ -136,27 +137,14 @@ function writeKnowledgeCatalogOperation(root: string) {
     ].join("\n"),
     "utf-8",
   );
-  writeFileSync(
-    join(knowledgeDir, "broken-reference.md"),
-    [
-      "---",
-      "name: broken-reference",
-      "---",
-      "# Broken reference body",
-      "",
-      "Fallback to body-backed knowledge.",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
 
-  const operationPath = join(root, "builtins", "ja", "operations", "knowledge-catalog-workflow.yaml");
+  const operationPath = join(root, "builtins", "ja", "operations", "skills-workflow.yaml");
   mkdirSync(join(root, "builtins", "ja", "operations"), { recursive: true });
   writeFileSync(
     operationPath,
     [
-      "name: knowledge-catalog-workflow",
-      "description: Knowledge catalog workflow fixture",
+      "name: skills-workflow",
+      "description: Skills workflow fixture",
       "initial_step: spec-planning",
       "steps:",
       "  - name: spec-planning",
@@ -165,11 +153,9 @@ function writeKnowledgeCatalogOperation(root: string) {
       "      inline: Planner role",
       "    instruction:",
       "      inline: Clarify the request",
-      "    knowledge:",
-      "      - file: ../facets/knowledge/operation-system-contract.md",
-      "      - file: ../facets/knowledge/agent-relationships.md",
-      "      - file: ../facets/knowledge/broken-reference.md",
-      "      - inline: Prefer runtime-owned dispatch.",
+      "    skills:",
+      "      - file: ../facets/skills/operation-system-contract/SKILL.md",
+      "      - file: ../facets/skills/agent-relationships/SKILL.md",
       "    rules:",
       "      - condition: Ready",
       "        next: implement",
@@ -180,6 +166,38 @@ function writeKnowledgeCatalogOperation(root: string) {
       "    rules:",
       "      - condition: Done",
       "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeSharedSkill(root: string, relativeDirectory: string, name: string, description: string) {
+  const skillDirectory = join(root, "skills", ...relativeDirectory.split("/"));
+  mkdirSync(skillDirectory, { recursive: true });
+  writeFileSync(
+    join(skillDirectory, "SKILL.md"),
+    [
+      "---",
+      `name: ${name}`,
+      `description: ${description}`,
+      "---",
+      "# Shared skill body",
+      "",
+      "This text should not be injected into prompts.",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function writeSharedSkillsSelection(root: string, selectedSkillIds: string[]) {
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(
+    join(root, "config", "shared-skills.yaml"),
+    [
+      "selected_skill_ids:",
+      ...selectedSkillIds.map((id) => `  - ${JSON.stringify(id)}`),
       "",
     ].join("\n"),
     "utf-8",
@@ -460,6 +478,82 @@ describe("prompt composition engine", () => {
     expect(composed.payloadParts[0]?.text).not.toContain("[NOCTIS_ROUTED_MESSAGE]");
   });
 
+  it("adds selected shared skills to generic prompt composition", () => {
+    const root = createTempRoot();
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+
+    const composed = composeGenericSessionPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "generic-session",
+      },
+      parts: [{ type: "text", text: "Hello from User" }],
+    });
+
+    expect(composed.sharedContext).toContain("<reference-files>");
+    expect(composed.sharedContext.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.sharedContext).toContain("project-manage");
+    expect(composed.sharedContext).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+  });
+
+  it("adds selected shared skills to workflow worker prompts", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+
+    const missionId = "mission-worker-shared-skills";
+    const { state: operationState, taskId } = buildSyntheticOperationState(missionId);
+    const composed = composeWorkerTaskPrompt({
+      context: {
+        appRoot: root,
+        agent: "gladiolus",
+        sessionId: "worker-shared-skills-session",
+        missionId,
+      },
+      missionId,
+      agentId: "gladiolus",
+      taskId,
+      originalPrompt: "Task ID: task-1\nTask: implement the change",
+      operationStateOverride: operationState,
+    });
+
+    expect(composed.effectivePrompt).toContain("project-manage");
+    expect(composed.effectivePrompt).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+  });
+
+  it("merges prompt-specific skills and shared selected skills into one reference-files section", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSkillsOperation(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+
+    const composed = composeUserToNoctisPrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "skills-session",
+        missionId: "skills-mission",
+        allowedWorkers: ["ignis", "gladiolus", "prompto"],
+      },
+      userMessage: "Open the skills workflow.",
+      missionId: "skills-mission",
+      sessionId: "skills-session",
+      isNewMission: true,
+      selectedOperation: builtinOperationRef("skills-workflow"),
+    });
+
+    expect(composed.effectivePrompt).toContain("<reference-files>");
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain("operation-system-contract");
+    expect(composed.effectivePrompt).toContain("agent-relationships");
+    expect(composed.effectivePrompt).toContain("project-manage");
+  });
+
   it("builds worker prompts through the workflow extension when operation state is active", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
@@ -513,6 +607,32 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain(expectedSpecPlanPath);
     expect(composed.effectivePrompt).not.toContain("{{ output(");
     expect(composed.payloadParts).toHaveLength(1);
+  });
+
+  it("adds selected shared skills to delegated child worker prompts", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+    const { state, childTaskId } = buildSyntheticAutonomousOperationState();
+
+    const composed = composeWorkerTaskPrompt({
+      context: {
+        appRoot: root,
+        agent: "ignis",
+        sessionId: "delegated-shared-skills-session",
+        missionId: "mission-autonomous-worker",
+      },
+      missionId: "mission-autonomous-worker",
+      agentId: "ignis",
+      taskId: childTaskId,
+      originalPrompt: "Investigate the current issue and report back to Noctis.",
+      operationStateOverride: state,
+    });
+
+    expect(composed.effectivePrompt).toContain("project-manage");
+    expect(composed.effectivePrompt).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
   });
 
   it("keeps debug preview aligned with composed worker prompt structure", () => {
@@ -677,15 +797,15 @@ describe("prompt composition engine", () => {
     expect(summarizeStep?.effectivePrompt).toContain(expectedOutputPath);
   });
 
-  it("renders one knowledge catalog for workflow prompts and keeps debug preview aligned", () => {
+  it("renders one skills section for workflow prompts and keeps debug preview aligned", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
-    writeKnowledgeCatalogOperation(root);
-    const missionId = "debug-knowledge-catalog";
-    const userMessage = "Open the knowledge-catalog workflow.";
+    writeSkillsOperation(root);
+    const missionId = "debug-skills";
+    const userMessage = "Open the skills workflow.";
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationRef: builtinOperationRef("knowledge-catalog-workflow"),
+      operationRef: builtinOperationRef("skills-workflow"),
       userMessage,
     });
     const selfStep = bundle.flowSteps.find(
@@ -696,31 +816,40 @@ describe("prompt composition engine", () => {
       context: {
         appRoot: root,
         agent: "noctis",
-        sessionId: "debug-knowledge-catalog-session",
+        sessionId: "debug-skills-session",
         missionId,
         allowedWorkers: ["ignis", "gladiolus", "prompto"],
       },
       userMessage,
       missionId,
-      sessionId: "debug-knowledge-catalog-session",
+      sessionId: "debug-skills-session",
       isNewMission: true,
-      selectedOperation: builtinOperationRef("knowledge-catalog-workflow"),
+      selectedOperation: builtinOperationRef("skills-workflow"),
     });
 
-    expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
-    expect(composed.effectivePrompt.match(/<knowledge-catalog>/g)).toHaveLength(1);
-    expect(composed.effectivePrompt).toContain("<knowledge-ref>");
-    expect(composed.effectivePrompt).toContain("<knowledge-body>");
-    expect(composed.effectivePrompt).toContain("Name: operation-system-contract");
-    expect(composed.effectivePrompt).toContain("Name: agent-relationships");
+    expect(composed.effectivePrompt).toContain("<reference-files>");
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain("<reference-file>");
+    expect(composed.effectivePrompt).toContain("<name>");
+    expect(composed.effectivePrompt).toContain("operation-system-contract");
+    expect(composed.effectivePrompt).toContain("agent-relationships");
+    expect(composed.effectivePrompt).toContain("<file>");
     expect(composed.effectivePrompt).toContain(
-      "Reference entries below are reference cards, not full knowledge documents.",
+      join(root, "builtins", "ja", "facets", "skills", "operation-system-contract", "SKILL.md"),
     );
-    expect(
-      composed.effectivePrompt.match(/Reference entries below are reference cards, not full knowledge documents\./g) ?? [],
-    ).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain(
+      join(root, "builtins", "ja", "facets", "skills", "agent-relationships", "SKILL.md"),
+    );
+    expect(composed.effectivePrompt).toContain(
+      "Use the skills below only when the current task matches their description.",
+    );
+    expect(composed.effectivePrompt).toContain(
+      "If a listed skill is relevant, read the file at the absolute path in <file> and treat that file as the source of truth.",
+    );
     expect(composed.effectivePrompt).not.toContain("This text should not be injected into the prompt.");
     expect(composed.effectivePrompt).not.toContain("This text should also stay out of the prompt body.");
+    expect(composed.effectivePrompt).not.toContain("argument-hint");
+    expect(composed.effectivePrompt).not.toContain("metadata");
     expect(selfStep).toBeTruthy();
     expect(selfStep?.effectivePrompt).toBe(composed.effectivePrompt);
   });
@@ -782,7 +911,7 @@ describe("prompt composition engine", () => {
 
     expect(composed.operationActivated).toBe("noctis-autonomous");
     expect(composed.effectivePrompt).toContain("<job>");
-    expect(composed.effectivePrompt).toContain("<knowledge-catalog>");
+    expect(composed.effectivePrompt).toContain("<reference-files>");
     expect(composed.effectivePrompt).toContain("<instruction>");
     expect(composed.effectivePrompt).toContain("<delegation-guidance>");
     expect(composed.effectivePrompt).toContain(`${root}/scripts/send_task.sh mission-autonomous ignis`);
@@ -816,7 +945,7 @@ describe("prompt composition engine", () => {
 
       expect(composed.operationActivated).toBe("noctis-autonomous");
       expect(composed.effectivePrompt).not.toContain("<job>");
-      expect(composed.effectivePrompt).not.toContain("<knowledge-catalog>");
+  expect(composed.effectivePrompt).not.toContain("<reference-files>");
       expect(composed.effectivePrompt).not.toContain("<instruction>");
       expect(composed.effectivePrompt).toContain("Effective allowed workers: none");
       expect(composed.effectivePrompt).toContain(
@@ -904,7 +1033,7 @@ describe("prompt composition engine", () => {
       nextTarget: "Noctis",
     });
     expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<job>");
-    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<knowledge-catalog>");
+    expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<reference-files>");
     expect(bundle.flowSteps[0]?.effectivePrompt).not.toContain("<instruction>");
     expect(bundle.flowSteps[0]?.effectivePrompt).toContain("Effective allowed workers: none");
     expect(bundle.flowSteps[0]?.internalContext).not.toContain("<delegation-context");
@@ -936,6 +1065,36 @@ describe("prompt composition engine", () => {
     expect(composed.effectivePrompt).toContain("Primary worker report.");
     expect(composed.effectivePrompt).toContain("Secondary report detail.");
     expect(composed.effectivePrompt).not.toContain("<worker-report-details>");
+  });
+
+  it("adds selected shared skills to report-driven team message prompts", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeSharedSkill(root, "project-manage", "project-manage", "Manage project execution work.");
+    writeSharedSkillsSelection(root, ["project-manage"]);
+    const { state, childTaskId } = buildSyntheticAutonomousOperationState();
+
+    const composed = composeTeamMessagePrompt({
+      context: {
+        appRoot: root,
+        agent: "noctis",
+        sessionId: "report-shared-skills-session",
+        missionId: "mission-report-shared-skills",
+      },
+      missionId: "mission-report-shared-skills",
+      from: "ignis",
+      to: "noctis",
+      type: "report",
+      body: "Collected the needed context for Noctis.",
+      taskId: childTaskId,
+      next: "COMPLETE",
+      operationStateOverride: state,
+    });
+
+    expect(composed.effectivePrompt).toContain("project-manage");
+    expect(composed.effectivePrompt).toContain(join(root, "skills", "project-manage", "SKILL.md"));
+    expect(composed.effectivePrompt.match(/<reference-files>/g)).toHaveLength(1);
+    expect(composed.effectivePrompt).toContain('<worker-report from="ignis" to="noctis" next="COMPLETE">');
   });
 
   it("embeds actor metadata in plain team messages", () => {

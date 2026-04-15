@@ -410,7 +410,7 @@ export interface UseAgentSessionOptions {
   selectedExecutionTargetMode?: MissionExecutionTargetMode;
   selectedContextProjectIds?: string[];
   selectedLunafreyaJobId?: string | null;
-  selectedLunafreyaKnowledgeIds?: string[];
+  selectedLunafreyaSkillIds?: string[];
 }
 
 export interface UseAgentSessionReturn {
@@ -458,7 +458,7 @@ export function useAgentSession({
   selectedExecutionTargetMode = DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   selectedContextProjectIds = [],
   selectedLunafreyaJobId = null,
-  selectedLunafreyaKnowledgeIds = [],
+  selectedLunafreyaSkillIds = [],
 }: UseAgentSessionOptions): UseAgentSessionReturn {
   const surfaceId =
     requestedSurfaceId ??
@@ -1486,7 +1486,7 @@ export function useAgentSession({
             if (isLunafreyaSurface) {
               requestBody.lunafreyaModel = agentModels.lunafreya ?? null;
               requestBody.selectedJobId = selectedLunafreyaJobId;
-              requestBody.selectedKnowledgeIds = selectedLunafreyaKnowledgeIds;
+              requestBody.selectedSkillIds = selectedLunafreyaSkillIds;
             } else {
               requestBody.selectedOperation = selectedOperation;
               requestBody.noctisModel = agentModels.noctis ?? null;
@@ -1553,7 +1553,7 @@ export function useAgentSession({
           if (isLunafreyaSurface) {
             requestBody.lunafreyaModel = agentModels.lunafreya ?? null;
             requestBody.selectedJobId = selectedLunafreyaJobId;
-            requestBody.selectedKnowledgeIds = selectedLunafreyaKnowledgeIds;
+            requestBody.selectedSkillIds = selectedLunafreyaSkillIds;
           } else {
             requestBody.noctisModel = agentModels.noctis ?? null;
             requestBody.allowedWorkers = allowedWorkers;
@@ -1625,7 +1625,7 @@ export function useAgentSession({
       primaryAgentId,
       selectedOperation,
       selectedLunafreyaJobId,
-      selectedLunafreyaKnowledgeIds,
+      selectedLunafreyaSkillIds,
       setPendingMissionSession,
       setOptimisticSessionState,
       subscribeToSession,

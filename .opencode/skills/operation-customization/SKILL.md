@@ -1,6 +1,6 @@
 ---
 name: operation-customization
-description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, knowledge, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, source-aware operation refs, and debug-preview behavior.'
+description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, skills, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, source-aware operation refs, and debug-preview behavior.'
 argument-hint: 'Describe the operation or facet files to create or change, whether the workflow lives under builtins or projects, the target language or project id, and whether you need authoring only or diagnostics too.'
 ---
 
@@ -13,7 +13,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Add a new operation under `builtins/<lang>/operations/` or `projects/<project-id>/operations/`
 - Extend or refactor an existing operation step flow
 - Add or revise `steps[].delegation` for Noctis-owned autonomous flows
-- Create or revise `jobs`, `instructions`, `knowledge`, `policies`, or `output-contracts` facets under builtin or project facet trees
+- Create or revise `jobs`, `instructions`, `skills`, `policies`, or `output-contracts` facets under builtin or project facet trees
 - Diagnose operation prompt, routing, report transport, source-aware catalog, or output placeholder failures
 
 ## Workflow
@@ -21,7 +21,7 @@ Create or revise operation workflows for this repository without breaking the ru
 1. Confirm the target operation, source tree (`builtins` or `projects/<project-id>`), language or project id, and whether the task includes diagnostics.
 2. Read the references that match the task:
    - For canonical YAML rules, runtime contracts, and parser constraints, read [operation-authoring.md](./references/operation-authoring.md).
-   - For facet-specific writing guidance, read [facet-authoring.md](./references/facet-authoring.md).
+   - For facet-specific writing guidance, read [facet-authoring.md](./references/facet-authoring.md). For skill facets, this bundled reference and template are the complete authoring guide.
    - For routing, prompt, or placeholder failures, read [operation-diagnostics.md](./references/operation-diagnostics.md).
 3. Inspect the closest existing operation and neighboring facet files before drafting.
 4. When creating files from scratch, start from the matching templates in `./assets/`. Use the dedicated autonomous delegation template for rules-less Noctis-owned parent steps.
@@ -45,8 +45,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Use [autonomous-delegation-template.yaml](assets/autonomous-delegation-template.yaml) for internal Noctis-owned autonomous flows that keep the parent step open while delegating child tasks.
 - Use [job-template.md](assets/facets/job-template.md) for reusable step roles.
 - Use [instruction-template.md](assets/facets/instruction-template.md) for file-backed instructions or inline content.
-- Use [knowledge-body-template.md](assets/facets/knowledge-body-template.md) when the full knowledge body should be injected.
-- Use [knowledge-reference-template.md](assets/facets/knowledge-reference-template.md) when file-based knowledge should expose `name` and `description` metadata.
+- Use [skill-template.md](assets/facets/skill-template.md) for reusable file-backed skills under `facets/skills/<skill-name>/SKILL.md`. It includes the canonical description pattern, section layout, and split or script thresholds.
 - Use [policy-template.md](assets/facets/policy-template.md) for pass or fail criteria.
 - Use [output-contract-report-template.md](assets/facets/output-contract-report-template.md) for markdown report artifacts.
 - Use [output-contract-frontmatter-template.md](assets/facets/output-contract-frontmatter-template.md) for machine-readable frontmatter artifacts.
@@ -73,6 +72,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Do not stretch the generic operation template into a rules-less delegation pattern; use the dedicated autonomous delegation template instead.
 - Prefer adapting neighboring repository patterns over inventing new structures.
 - Keep same-name builtin and project workflows as separate candidates; do not document or implement name-based collapsing.
+- For `facets/skills/<skill-name>/SKILL.md`, keep frontmatter `name` in lowercase kebab-case and match the enclosing `<skill-name>` directory.
 - Treat unresolved placeholders, legacy schema fields, and malformed output contracts as blocking.
 - Do not skip the validator for "small" workflow edits. A one-line rule change can still break catalog loading for the whole language tree.
 - When runtime behavior changes, inspect both live-path and debug-preview implications before finishing.
