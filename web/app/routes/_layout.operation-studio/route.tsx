@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ProjectEntry } from "@/lib/project-config.server";
 import { readRegisteredProjects } from "@/lib/project-config.server";
@@ -1383,40 +1384,51 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
           </TooltipProvider>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-full border border-slate-700/70 bg-slate-950/40 p-1">
-              {(["noctis_team", "lunafreya"] as const).map((option) => (
-                <Button
-                  key={option}
-                  onClick={() => {
-                    const nextContextKey = buildOperationStudioIrisContextKey({
-                      scope: option,
-                      targetValue,
-                    });
-                    if (!requestIrisContextTransition(nextContextKey)) {
-                      return;
-                    }
+            <ToggleGroup
+              aria-label="Operation Studio scope"
+              className="gap-0 rounded-full border border-slate-700/70 bg-slate-950/40 p-1"
+              onValueChange={(nextScope) => {
+                if (!isProjectScope(nextScope) || nextScope === scope) {
+                  return;
+                }
 
-                    setScope(option);
-                    setSelectedOperation("");
-                    setActiveStepId("");
-                    navigateWithPreviewParams({
-                      nextScope: option,
-                      nextTargetValue: targetValue,
-                      operation: "",
-                      stepId: "",
-                      userInput: userMessage,
-                      nextPartyMode: partyMode,
-                      nextPreviewWorkers: previewWorkers,
-                      task: taskInstruction,
-                    });
-                  }}
-                  size="sm"
-                  variant={scope === option ? "default" : "ghost"}
+                const nextContextKey = buildOperationStudioIrisContextKey({
+                  scope: nextScope,
+                  targetValue,
+                });
+                if (!requestIrisContextTransition(nextContextKey)) {
+                  return;
+                }
+
+                setScope(nextScope);
+                setSelectedOperation("");
+                setActiveStepId("");
+                navigateWithPreviewParams({
+                  nextScope,
+                  nextTargetValue: targetValue,
+                  operation: "",
+                  stepId: "",
+                  userInput: userMessage,
+                  nextPartyMode: partyMode,
+                  nextPreviewWorkers: previewWorkers,
+                  task: taskInstruction,
+                });
+              }}
+              size="sm"
+              type="single"
+              value={scope}
+            >
+              {(["noctis_team", "lunafreya"] as const).map((option) => (
+                <ToggleGroupItem
+                  key={option}
+                  aria-label={PROJECT_SCOPE_LABELS[option]}
+                  className="rounded-none border-0 px-3.5 text-slate-300 shadow-none hover:bg-slate-800/70 hover:text-slate-100 focus-visible:z-10 data-[state=on]:bg-slate-100 data-[state=on]:text-slate-950 data-[state=on]:shadow-sm first:rounded-l-full last:rounded-r-full"
+                  value={option}
                 >
                   {PROJECT_SCOPE_LABELS[option]}
-                </Button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
             <Button
               onClick={() => {
                 setIsIrisSheetOpen(false);
