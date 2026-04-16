@@ -474,6 +474,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const [isDraftBusy, setIsDraftBusy] = useState(false);
   const [isInputsSheetOpen, setIsInputsSheetOpen] = useState(false);
   const [isIrisSheetOpen, setIsIrisSheetOpen] = useState(false);
+  const [isSheetUiReady, setIsSheetUiReady] = useState(false);
   const [irisSessionState, setIrisSessionState] = useState<OperationStudioIrisSessionState | null>(null);
   const [irisMessages, setIrisMessages] = useState<MessageInfo[]>([]);
   const [irisError, setIrisError] = useState<string | null>(null);
@@ -488,6 +489,10 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   );
   const initialStudioIrisContextKeyRef = useRef(studioIrisContextKey);
   const irisSessionId = irisSessionState?.sessionId ?? null;
+
+  useEffect(() => {
+    setIsSheetUiReady(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1597,79 +1602,83 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         </ResizablePanel>
       </ResizablePanelGroup>
 
-      <PreviewInputsSheet
-        disableUpdatePreview={!selectedOperation && !selectedDraft}
-        draftPreviewPartySummary={draftPreviewPartySummary}
-        isOpen={isInputsSheetOpen}
-        lunafreyaJobOptions={loaderData.lunafreyaJobOptions}
-        lunafreyaSkillOptions={loaderData.lunafreyaSkillOptions}
-        onRestoreDefaults={handleRestoreDefaults}
-        onUpdatePreview={() => {
-          handleUpdatePreview();
-          setIsInputsSheetOpen(false);
-        }}
-        onClose={() => setIsInputsSheetOpen(false)}
-        onPartyModeChange={(value) => {
-          setPartyMode(value);
-          setPreviewWorkers(resolvePreviewWorkers(value, previewWorkers));
-        }}
-        onSelectedLunafreyaJobIdChange={setSelectedLunafreyaJobId}
-        onSelectedLunafreyaSkillIdsChange={setSelectedLunafreyaSkillIds}
-        onTargetValueChange={(nextTargetValue) => {
-          const nextContextKey = buildOperationStudioIrisContextKey({
-            scope,
-            targetValue: nextTargetValue,
-          });
-          if (!requestIrisContextTransition(nextContextKey)) {
-            return;
-          }
+      {isSheetUiReady ? (
+        <>
+          <PreviewInputsSheet
+            disableUpdatePreview={!selectedOperation && !selectedDraft}
+            draftPreviewPartySummary={draftPreviewPartySummary}
+            isOpen={isInputsSheetOpen}
+            lunafreyaJobOptions={loaderData.lunafreyaJobOptions}
+            lunafreyaSkillOptions={loaderData.lunafreyaSkillOptions}
+            onRestoreDefaults={handleRestoreDefaults}
+            onUpdatePreview={() => {
+              handleUpdatePreview();
+              setIsInputsSheetOpen(false);
+            }}
+            onClose={() => setIsInputsSheetOpen(false)}
+            onPartyModeChange={(value) => {
+              setPartyMode(value);
+              setPreviewWorkers(resolvePreviewWorkers(value, previewWorkers));
+            }}
+            onSelectedLunafreyaJobIdChange={setSelectedLunafreyaJobId}
+            onSelectedLunafreyaSkillIdsChange={setSelectedLunafreyaSkillIds}
+            onTargetValueChange={(nextTargetValue) => {
+              const nextContextKey = buildOperationStudioIrisContextKey({
+                scope,
+                targetValue: nextTargetValue,
+              });
+              if (!requestIrisContextTransition(nextContextKey)) {
+                return;
+              }
 
-          setTargetValue(nextTargetValue);
-        }}
-        onTaskInstructionChange={setTaskInstruction}
-        onTogglePreviewWorker={(workerId) => {
-          setPreviewWorkers((currentPreviewWorkers) =>
-            currentPreviewWorkers.includes(workerId)
-              ? currentPreviewWorkers.filter((worker) => worker !== workerId)
-              : [...currentPreviewWorkers, workerId],
-          );
-        }}
-        onUserMessageChange={setUserMessage}
-        partyMode={partyMode}
-        previewWorkers={previewWorkers}
-        scope={scope}
-        selectedEntryDescription={selectedEntryDescription}
-        selectedEntryLabel={selectedEntryLabel}
-        selectedLunafreyaJobId={selectedLunafreyaJobId}
-        selectedLunafreyaSkillIds={selectedLunafreyaSkillIds}
-        showPartyModeControls={showPartyModeControls}
-        showWorkerTaskSeedControl={showWorkerTaskSeedControl}
-        targetOptions={targetOptions}
-        targetValue={targetValue}
-        taskInstruction={taskInstruction}
-        userMessage={userMessage}
-      />
+              setTargetValue(nextTargetValue);
+            }}
+            onTaskInstructionChange={setTaskInstruction}
+            onTogglePreviewWorker={(workerId) => {
+              setPreviewWorkers((currentPreviewWorkers) =>
+                currentPreviewWorkers.includes(workerId)
+                  ? currentPreviewWorkers.filter((worker) => worker !== workerId)
+                  : [...currentPreviewWorkers, workerId],
+              );
+            }}
+            onUserMessageChange={setUserMessage}
+            partyMode={partyMode}
+            previewWorkers={previewWorkers}
+            scope={scope}
+            selectedEntryDescription={selectedEntryDescription}
+            selectedEntryLabel={selectedEntryLabel}
+            selectedLunafreyaJobId={selectedLunafreyaJobId}
+            selectedLunafreyaSkillIds={selectedLunafreyaSkillIds}
+            showPartyModeControls={showPartyModeControls}
+            showWorkerTaskSeedControl={showWorkerTaskSeedControl}
+            targetOptions={targetOptions}
+            targetValue={targetValue}
+            taskInstruction={taskInstruction}
+            userMessage={userMessage}
+          />
 
-      <IrisAuthoringSheet
-        autoFollowKey={irisRenderSnapshot.autoFollowKey}
-        composerDraftKey={`operation-studio:iris:${irisSessionId ?? studioIrisContextKey}`}
-        conversationSummary={irisConversationSummary}
-        error={irisError}
-        isLoading={isIrisLoading}
-        isOpen={isIrisSheetOpen}
-        isSending={isIrisSending}
-        onClose={() => setIsIrisSheetOpen(false)}
-        onNewSession={() => resetIrisConversation(studioIrisContextKey)}
-        onSend={handleIrisPromptSend}
-        renderedMessages={irisRenderSnapshot.renderedMessages}
-        scopeLabel={PROJECT_SCOPE_LABELS[scope]}
-        scrollSignal={irisRenderSnapshot.scrollSignal}
-        selectedEntryLabel={selectedEntryLabel}
-        sessionId={irisSessionId}
-        sessionStatus={irisSessionStatus}
-        streamingMessage={irisRenderSnapshot.streamingMessage}
-        targetLabel={selectedTargetLabel}
-      />
+          <IrisAuthoringSheet
+            autoFollowKey={irisRenderSnapshot.autoFollowKey}
+            composerDraftKey={`operation-studio:iris:${irisSessionId ?? studioIrisContextKey}`}
+            conversationSummary={irisConversationSummary}
+            error={irisError}
+            isLoading={isIrisLoading}
+            isOpen={isIrisSheetOpen}
+            isSending={isIrisSending}
+            onClose={() => setIsIrisSheetOpen(false)}
+            onNewSession={() => resetIrisConversation(studioIrisContextKey)}
+            onSend={handleIrisPromptSend}
+            renderedMessages={irisRenderSnapshot.renderedMessages}
+            scopeLabel={PROJECT_SCOPE_LABELS[scope]}
+            scrollSignal={irisRenderSnapshot.scrollSignal}
+            selectedEntryLabel={selectedEntryLabel}
+            sessionId={irisSessionId}
+            sessionStatus={irisSessionStatus}
+            streamingMessage={irisRenderSnapshot.streamingMessage}
+            targetLabel={selectedTargetLabel}
+          />
+        </>
+      ) : null}
     </PageContainer>
   );
 };
