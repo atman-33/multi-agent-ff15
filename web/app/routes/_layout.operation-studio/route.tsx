@@ -16,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ProjectEntry } from "@/lib/project-config.server";
 import { readRegisteredProjects } from "@/lib/project-config.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
@@ -1353,35 +1352,12 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     <PageContainer className="max-w-none gap-4 overflow-hidden bg-transparent px-4 text-slate-100" size="wide">
       <div className="border-border/50 border-b pb-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <TooltipProvider delayDuration={150}>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Badge className="gap-1.5 text-white" variant="default">
-                <Sparkles className="h-3.5 w-3.5" />
-                Operation Studio
-              </Badge>
-              <Badge className="font-medium uppercase tracking-wide text-emerald-200" variant="outline">
-                {PROJECT_SCOPE_LABELS[scope]}
-              </Badge>
-              <Badge className="max-w-[24rem] min-w-0" variant="outline">
-                <span className="truncate">{selectedTargetLabel}</span>
-              </Badge>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className="max-w-[24rem] min-w-0" variant="outline">
-                    <span className="truncate">{selectedEntryLabel}</span>
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-96 text-xs leading-relaxed">
-                  {selectedEntryLabel}
-                </TooltipContent>
-              </Tooltip>
-              <Badge className="font-medium uppercase tracking-wide text-emerald-200" variant="outline">
-                {appliedPreviewPartySummary}
-              </Badge>
-              {selectedStepNumber ? <Badge variant="outline">Step {selectedStepNumber}</Badge> : null}
-              {selectedNodeBadge ? <Badge variant="outline">{selectedNodeBadge}</Badge> : null}
-            </div>
-          </TooltipProvider>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Badge className="gap-1.5 text-white" variant="default">
+              <Sparkles className="h-3.5 w-3.5" />
+              Operation Studio
+            </Badge>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <ToggleGroup
