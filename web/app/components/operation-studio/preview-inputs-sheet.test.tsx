@@ -39,14 +39,15 @@ describe("preview-inputs-sheet", () => {
       <PreviewInputsSheet
         draftPreviewPartySummary="Solo preview"
         isOpen={true}
-        onApplyPreview={() => undefined}
         onClose={() => undefined}
         onPartyModeChange={() => undefined}
+        onRestoreDefaults={() => undefined}
         onSelectedLunafreyaJobIdChange={() => undefined}
         onSelectedLunafreyaSkillIdsChange={() => undefined}
         onTargetValueChange={() => undefined}
         onTaskInstructionChange={() => undefined}
         onTogglePreviewWorker={() => undefined}
+        onUpdatePreview={() => undefined}
         onUserMessageChange={() => undefined}
         partyMode="full"
         previewWorkers={[]}
@@ -77,14 +78,15 @@ describe("preview-inputs-sheet", () => {
         isOpen={true}
         lunafreyaJobOptions={[{ id: "job-1", label: "Strategist" }]}
         lunafreyaSkillOptions={[{ id: "skill-1", label: "oracle-notes" }]}
-        onApplyPreview={() => undefined}
         onClose={() => undefined}
         onPartyModeChange={() => undefined}
+        onRestoreDefaults={() => undefined}
         onSelectedLunafreyaJobIdChange={() => undefined}
         onSelectedLunafreyaSkillIdsChange={() => undefined}
         onTargetValueChange={() => undefined}
         onTaskInstructionChange={() => undefined}
         onTogglePreviewWorker={() => undefined}
+        onUpdatePreview={() => undefined}
         onUserMessageChange={() => undefined}
         partyMode="custom"
         previewWorkers={["ignis"]}

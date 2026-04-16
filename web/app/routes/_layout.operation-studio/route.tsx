@@ -769,7 +769,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     void navigate(query ? `/operation-studio?${query}` : "/operation-studio");
   };
 
-  const handleGenerate = () => {
+  const handleUpdatePreview = () => {
     if (selectedDraft) {
       void refreshDraftArtifacts(selectedDraft);
       return;
@@ -787,7 +787,16 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     });
   };
 
-  const handleReset = () => {
+  const handleRestoreDefaults = () => {
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Restore default preview inputs and clear the current preview context?",
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     const operation = loaderData.operations[0]?.value ?? "";
     resetIrisConversation(buildOperationStudioIrisContextKey({ scope: "noctis_team", targetValue: "builtin" }));
     setScope("noctis_team");
@@ -1416,13 +1425,9 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
               <Settings2 className="h-4 w-4" />
               Preview Inputs
             </Button>
-            <Button onClick={handleReset} size="sm" variant="outline">
+            <Button onClick={handleUpdatePreview} size="sm">
               <RefreshCw className="h-4 w-4" />
-              Reset
-            </Button>
-            <Button onClick={handleGenerate} size="sm">
-              <Wrench className="h-4 w-4" />
-              Regenerate
+              Update Preview
             </Button>
           </div>
         </div>
@@ -1593,13 +1598,14 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       </ResizablePanelGroup>
 
       <PreviewInputsSheet
-        disableApplyPreview={!selectedOperation && !selectedDraft}
+        disableUpdatePreview={!selectedOperation && !selectedDraft}
         draftPreviewPartySummary={draftPreviewPartySummary}
         isOpen={isInputsSheetOpen}
         lunafreyaJobOptions={loaderData.lunafreyaJobOptions}
         lunafreyaSkillOptions={loaderData.lunafreyaSkillOptions}
-        onApplyPreview={() => {
-          handleGenerate();
+        onRestoreDefaults={handleRestoreDefaults}
+        onUpdatePreview={() => {
+          handleUpdatePreview();
           setIsInputsSheetOpen(false);
         }}
         onClose={() => setIsInputsSheetOpen(false)}

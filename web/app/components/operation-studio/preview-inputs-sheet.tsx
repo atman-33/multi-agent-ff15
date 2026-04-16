@@ -53,19 +53,20 @@ interface LunafreyaFacetOption {
 }
 
 interface PreviewInputsSheetProps {
-  disableApplyPreview?: boolean;
+  disableUpdatePreview?: boolean;
   draftPreviewPartySummary: string;
   isOpen: boolean;
   lunafreyaJobOptions?: LunafreyaFacetOption[];
   lunafreyaSkillOptions?: LunafreyaFacetOption[];
-  onApplyPreview: () => void;
   onClose: () => void;
   onPartyModeChange: (partyMode: PreviewPartyMode) => void;
+  onRestoreDefaults: () => void;
   onSelectedLunafreyaJobIdChange: (jobId: string | null) => void;
   onSelectedLunafreyaSkillIdsChange: (skillIds: string[]) => void;
   onTargetValueChange: (targetValue: string) => void;
   onTaskInstructionChange: (taskInstruction: string) => void;
   onTogglePreviewWorker: (workerId: WorkerAgentId) => void;
+  onUpdatePreview: () => void;
   onUserMessageChange: (userMessage: string) => void;
   partyMode: PreviewPartyMode;
   previewWorkers: WorkerAgentId[];
@@ -83,19 +84,20 @@ interface PreviewInputsSheetProps {
 }
 
 export function PreviewInputsSheet({
-  disableApplyPreview = false,
+  disableUpdatePreview = false,
   draftPreviewPartySummary,
   isOpen,
   lunafreyaJobOptions = [],
   lunafreyaSkillOptions = [],
-  onApplyPreview,
   onClose,
   onPartyModeChange,
+  onRestoreDefaults,
   onSelectedLunafreyaJobIdChange,
   onSelectedLunafreyaSkillIdsChange,
   onTargetValueChange,
   onTaskInstructionChange,
   onTogglePreviewWorker,
+  onUpdatePreview,
   onUserMessageChange,
   partyMode,
   previewWorkers,
@@ -124,7 +126,7 @@ export function PreviewInputsSheet({
         <SheetHeader className="border-slate-800/70 border-b bg-white/2 pb-4 text-left">
           <SheetTitle className="text-slate-50">Preview Inputs</SheetTitle>
           <SheetDescription className="text-slate-400">
-            Adjust scope, authoring target, and synthetic inputs used to regenerate the selected operation preview.
+            Adjust scope, authoring target, and synthetic inputs used to update the selected operation preview.
           </SheetDescription>
         </SheetHeader>
 
@@ -256,13 +258,23 @@ export function PreviewInputsSheet({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-slate-800/70 border-t pt-4">
-          <Button onClick={onClose} type="button" variant="outline">
-            Close
+        <div className="flex items-center justify-between gap-2 border-slate-800/70 border-t pt-4">
+          <Button
+            className="border-amber-700/40 text-amber-100 hover:bg-amber-500/10 hover:text-amber-50"
+            onClick={onRestoreDefaults}
+            type="button"
+            variant="outline"
+          >
+            Restore Defaults
           </Button>
-          <Button disabled={disableApplyPreview} onClick={onApplyPreview} type="button">
-            Apply Preview
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={onClose} type="button" variant="outline">
+              Close
+            </Button>
+            <Button disabled={disableUpdatePreview} onClick={onUpdatePreview} type="button">
+              Update Preview
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
