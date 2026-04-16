@@ -1362,7 +1362,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
           <div className="flex flex-wrap items-center gap-2">
             <ToggleGroup
               aria-label="Operation Studio scope"
-              className="gap-0 rounded-full border border-slate-700/70 bg-slate-950/40 p-1"
+              className="gap-0 rounded-full border border-slate-700/60 bg-slate-950/25 p-1"
               onValueChange={(nextScope) => {
                 if (!isProjectScope(nextScope) || nextScope === scope) {
                   return;
@@ -1398,7 +1398,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
                 <ToggleGroupItem
                   key={option}
                   aria-label={PROJECT_SCOPE_LABELS[option]}
-                  className="rounded-none border-0 px-3.5 text-slate-300 shadow-none hover:bg-slate-800/70 hover:text-slate-100 focus-visible:z-10 data-[state=on]:bg-slate-100 data-[state=on]:text-slate-950 data-[state=on]:shadow-sm first:rounded-l-full last:rounded-r-full"
+                  className="rounded-none border-0 px-3.5 text-slate-300 shadow-none hover:bg-slate-900/70 hover:text-slate-100 focus-visible:z-10 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90 first:rounded-l-full last:rounded-r-full"
                   value={option}
                 >
                   {PROJECT_SCOPE_LABELS[option]}
