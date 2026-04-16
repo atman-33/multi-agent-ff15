@@ -1,6 +1,5 @@
 import {
   Activity,
-  Bug,
   CheckCircle2,
   Cpu,
   Crown,
@@ -80,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/reports", icon: FileText, label: "Reports", end: true },
       { to: "/projects", icon: FolderGit2, label: "Projects", end: true },
       { to: "/skills", icon: CheckCircle2, label: "Skills", end: true },
+      { to: "/operation-studio", icon: Sparkles, label: "Operation Studio", end: true },
     ],
   },
   {
@@ -98,7 +98,6 @@ const NAV_GROUPS: NavGroup[] = [
     id: "debug",
     label: "Debug",
     items: [
-      { to: "/operation-debug", icon: Bug, label: "Operation Debug", end: true },
       { to: "/loading-lab", icon: Rabbit, label: "Loading Lab", end: true },
     ],
   },
