@@ -140,25 +140,27 @@ export function PreviewInputsSheet({
               ) : null}
             </div>
 
-            <div className="space-y-2 rounded-lg border border-fuchsia-700/40 bg-fuchsia-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
-              <label className="font-medium text-sm" htmlFor="authoring-target">
+            <div className="space-y-3 rounded-lg border border-fuchsia-700/40 bg-fuchsia-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
+              <label className="block font-medium text-sm" htmlFor="authoring-target">
                 Authoring Target
               </label>
-              <Select onValueChange={onTargetValueChange} value={targetValue}>
-                <SelectTrigger
-                  className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500"
-                  id="authoring-target"
-                >
-                  <SelectValue placeholder="Select authoring target" />
-                </SelectTrigger>
-                <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
-                  {targetOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="mt-2">
+                <Select onValueChange={onTargetValueChange} value={targetValue}>
+                  <SelectTrigger
+                    className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500"
+                    id="authoring-target"
+                  >
+                    <SelectValue placeholder="Select authoring target" />
+                  </SelectTrigger>
+                  <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
+                    {targetOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <p className="text-fuchsia-100 text-xs">Preview, catalog, and apply destination stay bound to this target.</p>
             </div>
 
@@ -174,32 +176,34 @@ export function PreviewInputsSheet({
             ) : null}
 
             {showPartyModeControls ? (
-              <div className="space-y-2 rounded-lg border border-emerald-700/40 bg-emerald-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
-                <label className="font-medium text-sm" htmlFor="party-mode">
+              <div className="space-y-3 rounded-lg border border-emerald-700/40 bg-emerald-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
+                <label className="block font-medium text-sm" htmlFor="party-mode">
                   Party Mode
                 </label>
-                <Select
-                  onValueChange={(value) => {
-                    if (value === "full" || value === "solo" || value === "custom") {
-                      onPartyModeChange(value);
-                    }
-                  }}
-                  value={partyMode}
-                >
-                  <SelectTrigger
-                    className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500"
-                    id="party-mode"
+                <div className="mt-2">
+                  <Select
+                    onValueChange={(value) => {
+                      if (value === "full" || value === "solo" || value === "custom") {
+                        onPartyModeChange(value);
+                      }
+                    }}
+                    value={partyMode}
                   >
-                    <SelectValue placeholder="Select preview party mode" />
-                  </SelectTrigger>
-                  <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
-                    {PREVIEW_PARTY_MODE_OPTIONS.map((option) => (
-                      <SelectItem className="text-slate-100 focus:bg-slate-800/80 focus:text-slate-100" key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger
+                      className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500"
+                      id="party-mode"
+                    >
+                      <SelectValue placeholder="Select preview party mode" />
+                    </SelectTrigger>
+                    <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
+                      {PREVIEW_PARTY_MODE_OPTIONS.map((option) => (
+                        <SelectItem className="text-slate-100 focus:bg-slate-800/80 focus:text-slate-100" key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <p className="text-slate-300 text-xs">
                   {PREVIEW_PARTY_MODE_OPTIONS.find((option) => option.value === partyMode)?.description}
                 </p>
@@ -228,31 +232,35 @@ export function PreviewInputsSheet({
               </div>
             ) : null}
 
-            <div className="space-y-2 rounded-lg border border-blue-700/40 bg-blue-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
-              <label className="font-medium text-sm" htmlFor="user-message">
+            <div className="space-y-3 rounded-lg border border-blue-700/40 bg-blue-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
+              <label className="block font-medium text-sm" htmlFor="user-message">
                 User Message
               </label>
-              <Textarea
-                className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm"
-                id="user-message"
-                onChange={(event) => onUserMessageChange(event.target.value)}
-                rows={6}
-                value={userMessage}
-              />
+              <div className="mt-2">
+                <Textarea
+                  className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm"
+                  id="user-message"
+                  onChange={(event) => onUserMessageChange(event.target.value)}
+                  rows={6}
+                  value={userMessage}
+                />
+              </div>
             </div>
 
             {showWorkerTaskSeedControl ? (
-              <div className="space-y-2 rounded-lg border border-amber-700/40 bg-amber-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
-                <label className="font-medium text-sm" htmlFor="task-instruction">
+              <div className="space-y-3 rounded-lg border border-amber-700/40 bg-amber-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
+                <label className="block font-medium text-sm" htmlFor="task-instruction">
                   Worker Task Seed
                 </label>
-                <Textarea
-                  className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm"
-                  id="task-instruction"
-                  onChange={(event) => onTaskInstructionChange(event.target.value)}
-                  rows={6}
-                  value={taskInstruction}
-                />
+                <div className="mt-2">
+                  <Textarea
+                    className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm"
+                    id="task-instruction"
+                    onChange={(event) => onTaskInstructionChange(event.target.value)}
+                    rows={6}
+                    value={taskInstruction}
+                  />
+                </div>
               </div>
             ) : null}
           </div>

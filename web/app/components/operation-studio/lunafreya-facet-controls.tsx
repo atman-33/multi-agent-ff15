@@ -32,28 +32,30 @@ export function LunafreyaFacetControls({
   return (
     <div className="space-y-3 rounded-lg border border-cyan-700/40 bg-cyan-500/10 p-3 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm">
       <div className="space-y-2">
-        <label className="font-medium text-sm" htmlFor="lunafreya-job">
+        <label className="block font-medium text-sm" htmlFor="lunafreya-job">
           Lunafreya Job
         </label>
-        <Select
-          onValueChange={(value) => onSelectedJobIdChange(value === "__default__" ? null : value)}
-          value={selectedJobId ?? "__default__"}
-        >
-          <SelectTrigger
-            className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500"
-            id="lunafreya-job"
+        <div className="mt-2">
+          <Select
+            onValueChange={(value) => onSelectedJobIdChange(value === "__default__" ? null : value)}
+            value={selectedJobId ?? "__default__"}
           >
-            <SelectValue placeholder="Select Lunafreya job" />
-          </SelectTrigger>
-          <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
-            <SelectItem value="__default__">Default (Lunafreya Autonomous)</SelectItem>
-            {jobOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger
+              className="border-slate-700/70 bg-slate-950/55 text-slate-100 backdrop-blur-sm data-placeholder:text-slate-500"
+              id="lunafreya-job"
+            >
+              <SelectValue placeholder="Select Lunafreya job" />
+            </SelectTrigger>
+            <SelectContent className="border-slate-700/70 bg-slate-900/85 text-slate-100 backdrop-blur-xl">
+              <SelectItem value="__default__">Default (Lunafreya Autonomous)</SelectItem>
+              {jobOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">
