@@ -26,15 +26,17 @@ vi.mock("@/components/ui/popover", () => ({
     children,
     collisionPadding: _collisionPadding,
     onOpenAutoFocus: _onOpenAutoFocus,
+    portalContainer,
     sideOffset: _sideOffset,
     ...props
   }: {
     children: ReactNode;
     collisionPadding?: number;
     onOpenAutoFocus?: (event: Event) => void;
+    portalContainer?: HTMLElement | null;
     sideOffset?: number;
   }) => (
-    <div data-slot="popover-content" {...props}>
+    <div data-portal-container={portalContainer ? "set" : "unset"} data-slot="popover-content" {...props}>
       {children}
     </div>
   ),
@@ -98,5 +100,31 @@ describe("CompactModelVariantPicker", () => {
 
     expect(markup).not.toContain("Open variants for Grok Code Fast 1");
     expect(markup).not.toContain("Explicit variants");
+  });
+
+  it("forwards an explicit portal container to its popover content", () => {
+    const portalContainer = {} as HTMLElement;
+    const markup = renderToStaticMarkup(
+      <CompactModelVariantPicker
+        ariaLabel="Select model"
+        emptyLabel="Model"
+        modelItems={[
+          {
+            providerID: "github-copilot",
+            providerName: "GitHub Copilot",
+            modelID: "gpt-5.4",
+            modelName: "GPT-5.4",
+          },
+        ]}
+        onSelect={() => undefined}
+        portalContainer={portalContainer}
+        selectedModel={null}
+        variantsByModel={{
+          "github-copilot/gpt-5.4": ["high"],
+        }}
+      />
+    );
+
+    expect(markup).toContain('data-portal-container="set"');
   });
 });

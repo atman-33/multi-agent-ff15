@@ -25,6 +25,7 @@ type CompactModelVariantPickerProps = {
   emptyLabel: string;
   modelItems: ModelCatalogItem[];
   onSelect: (model: ModelSelection) => void;
+  portalContainer?: HTMLElement | null;
   selectedModel: ModelSelection | null;
   showProviderName?: boolean;
   triggerClassName?: string;
@@ -41,6 +42,7 @@ export function CompactModelVariantPicker({
   emptyLabel,
   modelItems,
   onSelect,
+  portalContainer = null,
   selectedModel,
   showProviderName = true,
   triggerClassName,
@@ -195,6 +197,7 @@ export function CompactModelVariantPicker({
       <PopoverContent
         align={contentAlign}
         className={cn("w-[min(30rem,92vw)] p-0", contentClassName)}
+        portalContainer={portalContainer}
         side={contentSide}
       >
         <div className="border-border/60 border-b px-2 py-2">
@@ -320,6 +323,7 @@ export function CompactModelVariantPicker({
                       }}
                       onMouseLeave={() => scheduleVariantClose(itemKey)}
                       onOpenAutoFocus={(event) => event.preventDefault()}
+                      portalContainer={portalContainer}
                       side="right"
                       sideOffset={10}
                     >

@@ -20,9 +20,18 @@ vi.mock("@/components/compact-model-variant-picker", () => ({
 }));
 
 vi.mock("@/components/chat/prompt-composer", () => ({
-  PromptComposer: ({ helperText, placeholder }: { helperText?: ReactNode; placeholder?: string }) => (
-    <div>
+  PromptComposer: ({
+    footerEnd,
+    helperText,
+    placeholder,
+  }: {
+    footerEnd?: ReactNode;
+    helperText?: ReactNode;
+    placeholder?: string;
+  }) => (
+    <div data-prompt-composer="true">
       <div>{placeholder}</div>
+      <div data-prompt-composer-footer-end="true">{footerEnd}</div>
       <div>{helperText}</div>
     </div>
   ),
@@ -204,7 +213,7 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain("drop-shadow(0 0 6px rgba(56, 189, 248, 0.3))");
   });
 
-  it("renders an Iris-specific model picker near the composer", () => {
+  it("renders the Iris-specific model picker immediately before the send control area", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
@@ -229,10 +238,38 @@ describe("iris-authoring-sheet", () => {
       />,
     );
 
-    expect(markup).toContain("Iris Model");
-    expect(markup).toContain("Model changes apply on the next Iris turn.");
+    expect(markup).toContain('data-prompt-composer-footer-end="true"');
     expect(markup).toContain('data-model-picker="Select model for iris"');
     expect(markup).toContain("openai/gpt-5.4:thinking");
+    expect(markup).not.toContain("Model changes apply on the next Iris turn.");
+  });
+
+  it("does not repeat the studio context in the composer footer", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="operation-studio:iris:builtin"
+        conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
+        renderedMessages={[]}
+        scopeLabel="Noctis Team"
+        scrollSignal="none"
+        selectedModel={null}
+        selectedEntryLabel="Default (Autonomous)"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Builtin · No project"
+      />,
+    );
+
+    expect(markup).not.toContain("Studio context:");
   });
 
   it("renders existing conversation messages when a Studio-scoped session already exists", () => {

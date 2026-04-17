@@ -1,5 +1,5 @@
 import { Cpu } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
@@ -139,6 +139,7 @@ export function IrisAuthoringSheet({
   streamingMessage,
   targetLabel,
 }: IrisAuthoringSheetProps) {
+  const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const statusLabel = buildStatusLabel({
@@ -180,7 +181,7 @@ export function IrisAuthoringSheet({
         onClose();
       }
     }} open={isOpen}>
-      <SheetContent className="flex h-full flex-col gap-0 overflow-hidden border-slate-800/70 bg-slate-950/92 p-0 text-slate-100 backdrop-blur-xl sm:max-w-2xl" side="right">
+      <SheetContent className="flex h-full flex-col gap-0 overflow-hidden border-slate-800/70 bg-slate-950/92 p-0 text-slate-100 backdrop-blur-xl sm:max-w-2xl" ref={sheetContentRef} side="right">
         <SheetHeader className="border-slate-800/70 border-b bg-white/2 px-5 py-4 text-left">
           <div className="flex flex-wrap items-start justify-between gap-4 pr-12">
             <div className="flex min-w-0 items-start gap-3">
@@ -216,40 +217,26 @@ export function IrisAuthoringSheet({
             contentClassName="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-3 overflow-x-hidden px-1"
             footer={
               <div className="border-slate-800/70 border-t bg-slate-950/90 px-4 py-3">
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                      Iris Model
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      Model changes apply on the next Iris turn.
-                    </p>
-                  </div>
-                  <CompactModelVariantPicker
-                    ariaLabel="Select model for iris"
-                    contentAlign="end"
-                    contentSide="top"
-                    emptyLabel="Select model"
-                    modelItems={modelItems}
-                    onSelect={onSelectedModelChange}
-                    selectedModel={selectedModel}
-                    triggerClassName={cn(
-                      "h-9 w-full rounded-md border border-slate-700/60 bg-slate-900/70 px-2 text-xs sm:w-80",
-                      selectedModel
-                        ? "text-slate-100 hover:bg-slate-900"
-                        : "text-slate-400 hover:bg-slate-900"
-                    )}
-                    triggerIcon={<Cpu className="h-3.5 w-3.5 shrink-0" />}
-                    variantsByModel={variantsByModel}
-                  />
-                </div>
                 <PromptComposer
                   disabled={isLoading || isSending || isSessionStatusActive(sessionStatus)}
                   draftKey={composerDraftKey}
-                  helperText={
-                    <span className="text-xs text-slate-400">
-                      Studio context: {conversationSummary}
-                    </span>
+                  footerEnd={
+                    <CompactModelVariantPicker
+                      ariaLabel="Select model for iris"
+                      contentAlign="start"
+                      contentSide="top"
+                      emptyLabel="Model"
+                      modelItems={modelItems}
+                      onSelect={onSelectedModelChange}
+                      portalContainer={sheetContentRef.current}
+                      selectedModel={selectedModel}
+                      triggerClassName={cn(
+                        "h-8 w-full px-2 text-xs sm:w-72",
+                        selectedModel ? "text-foreground" : "text-muted-foreground"
+                      )}
+                      triggerIcon={<Cpu className="h-3.5 w-3.5 shrink-0" />}
+                      variantsByModel={variantsByModel}
+                    />
                   }
                   onSend={(parts) => onSend(parts)}
                   placeholder="Ask Iris to revise the selected operation"
