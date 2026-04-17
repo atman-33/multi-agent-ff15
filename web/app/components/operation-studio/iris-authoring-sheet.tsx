@@ -139,7 +139,7 @@ export function IrisAuthoringSheet({
     }} open={isOpen}>
       <SheetContent className="flex h-full flex-col gap-0 overflow-hidden border-slate-800/70 bg-slate-950/92 p-0 text-slate-100 backdrop-blur-xl sm:max-w-2xl" side="right">
         <SheetHeader className="border-slate-800/70 border-b bg-white/2 px-5 py-4 text-left">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4 pr-12">
             <div className="flex min-w-0 items-start gap-3">
               <IrisPortrait size="header" />
               <div className="min-w-0 space-y-2">
@@ -159,9 +159,11 @@ export function IrisAuthoringSheet({
               </div>
             </div>
 
-            <Button onClick={onNewSession} size="sm" type="button" variant="outline">
-              New Session
-            </Button>
+            <div className="shrink-0 self-start">
+              <Button onClick={onNewSession} size="sm" type="button" variant="outline">
+                New Session
+              </Button>
+            </div>
           </div>
         </SheetHeader>
 

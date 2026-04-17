@@ -99,6 +99,33 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain("/images/iris.png");
   });
 
+  it("reserves space for the sheet close button so the New Session action does not overlap it", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="operation-studio:iris:builtin"
+        conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        renderedMessages={[]}
+        scopeLabel="Noctis Team"
+        scrollSignal="none"
+        selectedEntryLabel="Default (Autonomous)"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Builtin · No project"
+      />,
+    );
+
+    expect(markup).toContain("flex flex-wrap items-start justify-between gap-4 pr-12");
+    expect(markup).toContain("shrink-0 self-start");
+  });
+
   it("renders circular framed Iris portraits with ambient glow in the header and empty state", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
