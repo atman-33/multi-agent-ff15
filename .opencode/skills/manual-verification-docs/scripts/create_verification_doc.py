@@ -72,40 +72,41 @@ def build_content(title: str, file_name: str) -> str:
 
 ## Preconditions
 
-1. Start the target environment.
-2. Confirm the required test data, permissions, and configuration values.
-3. Prepare how to inspect the relevant screens, APIs, and logs.
+- [ ] Target environment is running.
+- [ ] Required test data, permissions, and configuration values are prepared.
+- [ ] Relevant screens, APIs, and logs can be inspected.
 
-## Verification Scenarios
+## Verification Checklist
 
 ### 1. Happy Path
 
-- Objective:
-- Steps:
-  1.
-  2.
-  3.
-- Expected results:
-  -
-  -
+- [ ] Primary user flow works end to end.
+    Expected result:
+    Evidence / notes:
+
+- [ ] Success feedback appears after the main action.
+    Expected result:
+    Evidence / notes:
 
 ### 2. Edge Cases / Input Variations
 
-- Objective:
-- Steps:
-  1.
-  2.
-- Expected results:
-  -
+- [ ] Boundary input values are handled correctly.
+    Expected result:
+    Evidence / notes:
+
+- [ ] Invalid or incomplete input is rejected safely.
+    Expected result:
+    Evidence / notes:
 
 ### 3. Error Handling / Permissions
 
-- Objective:
-- Steps:
-  1.
-  2.
-- Expected results:
-  -
+- [ ] Error handling is visible and understandable.
+    Expected result:
+    Evidence / notes:
+
+- [ ] Permission rules are enforced correctly.
+    Expected result:
+    Evidence / notes:
 
 ## Observation Notes
 
@@ -123,7 +124,7 @@ def build_content(title: str, file_name: str) -> str:
 
 - Verified by:
 - Verified on:
-- Result:
+- Overall result:
 - Notes:
 """
 

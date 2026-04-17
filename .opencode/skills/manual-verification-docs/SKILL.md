@@ -1,6 +1,6 @@
 ---
 name: manual-verification-docs
-description: Organize post-implementation manual verification steps and expected results into a dated Markdown report. Use when the user asks for verification steps, acceptance checks, expected outcomes, or manual test notes after implementation.
+description: Organize post-implementation manual verification steps and expected results into a checklist-oriented dated Markdown report. Use when the user asks for verification steps, acceptance checks, expected outcomes, or manual test notes after implementation.
 ---
 
 # Manual Verification Docs
@@ -16,7 +16,7 @@ Create a human-friendly manual verification guide for AI-agent changes and store
 python3 .opencode/skills/manual-verification-docs/scripts/create_verification_doc.py --slug <topic> --title "<verification target>"
 ```
 
-3. Fill in the generated `docs/reports/YYYYMMDD-*.md` file with prerequisites, steps, expected results, and open items.
+3. Fill in the generated `docs/reports/YYYYMMDD-*.md` file with checklist items, expected results, evidence notes, and open items.
 4. Share the created file path with the user and confirm that no important scenarios are missing.
 
 ## Workflow
@@ -36,7 +36,8 @@ python3 .opencode/skills/manual-verification-docs/scripts/create_verification_do
 ### 3. Make the guide concrete
 
 - Document startup steps, required data, permissions, and configuration values in the prerequisites section.
-- For each scenario, include the objective, steps, and expected results.
+- For each scenario, create checklist items that a user can mark off one by one.
+- Under every checklist item, include the expected result and an evidence or notes field.
 - Make every expected result observable and specific.
 - Record unverified items or known constraints at the end.
 
@@ -50,7 +51,9 @@ python3 .opencode/skills/manual-verification-docs/scripts/create_verification_do
 
 - Write every file in this skill and every generated verification document in English.
 - Describe reproducible verification steps, not implementation internals.
-- Include a matching expected result for every procedure.
+- Use checklist items for actionable verification work.
+- Include a matching expected result for every checklist item.
+- Leave space for evidence, notes, or blockers under each checklist item.
 - Place the output in `docs/reports/`.
 - Create a new dated file even when regenerating on the same day.
 
