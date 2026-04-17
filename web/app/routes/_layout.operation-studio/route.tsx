@@ -1536,26 +1536,26 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
         <ResizablePanel defaultSize={45} minSize={28}>
           <section className="flex h-full min-w-0 flex-col overflow-hidden bg-slate-900/25 backdrop-blur-sm">
-            <div className="flex min-h-16 items-center justify-between border-slate-800/70 border-b bg-white/2 px-4">
+            <div className="flex h-12 items-center justify-between gap-2 border-slate-800/70 border-b bg-white/2 px-3">
               <h2 className="font-semibold text-sm text-slate-50">Prompt Details</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {selectedDraft ? (
                   <>
-                    <Button disabled={isDraftBusy} onClick={() => void handleApplyDraft()} size="sm">
+                    <Button className="h-8 px-2.5" disabled={isDraftBusy} onClick={() => void handleApplyDraft()} size="sm">
                       <Wrench className="h-4 w-4" />
                       Apply Draft
                     </Button>
-                    <Button disabled={isDraftBusy} onClick={handleDiscardDraft} size="sm" variant="outline">
+                    <Button className="h-8 px-2.5" disabled={isDraftBusy} onClick={handleDiscardDraft} size="sm" variant="outline">
                       Discard
                     </Button>
                   </>
                 ) : (
-                  <Button disabled={!loaderData.preview?.operation} onClick={handleCreateDraft} size="sm" variant="outline">
+                  <Button className="h-8 px-2.5" disabled={!loaderData.preview?.operation} onClick={handleCreateDraft} size="sm" variant="outline">
                     <Bot className="h-4 w-4" />
                     Create Draft
                   </Button>
                 )}
-                <Button onClick={handleOpenIrisSheet} size="sm" variant={isIrisSheetOpen ? "default" : "outline"}>
+                <Button className="h-8 px-2.5" onClick={handleOpenIrisSheet} size="sm" variant={isIrisSheetOpen ? "default" : "outline"}>
                   <Sparkles className="h-4 w-4" />
                   Ask Iris
                 </Button>

@@ -78,7 +78,7 @@ export function FlowBrowserPane({
 }: FlowBrowserPaneProps) {
   return (
     <section className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800/70 border-r bg-slate-900/20 backdrop-blur-sm">
-      <div className="flex min-h-16 items-center border-slate-800/70 border-b bg-white/2 px-4">
+      <div className="flex h-12 items-center border-slate-800/70 border-b bg-white/2 px-3">
         <h2 className="font-semibold text-sm text-slate-50">Flow</h2>
       </div>
 

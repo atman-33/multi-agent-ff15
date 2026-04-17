@@ -27,9 +27,9 @@ export function OperationListPane({
 }: OperationListPaneProps) {
   return (
     <aside className="flex h-full min-w-0 flex-col overflow-hidden border-slate-800/70 border-r bg-slate-900/25 backdrop-blur-sm">
-      <div className="flex min-h-16 items-center justify-between gap-3 border-slate-800/70 border-b bg-white/2 px-4">
+      <div className="flex h-12 items-center justify-between gap-2 border-slate-800/70 border-b bg-white/2 px-3">
         <h2 className="font-semibold text-sm text-slate-50">Operations</h2>
-        <div className="rounded-full border border-slate-700/70 bg-slate-950/50 px-2.5 py-1 font-mono text-[10px] text-slate-400 uppercase tracking-wide backdrop-blur-sm">
+        <div className="rounded-full border border-slate-700/70 bg-slate-950/50 px-2 py-0.5 font-mono text-[10px] text-slate-400 uppercase tracking-wide backdrop-blur-sm">
           {operations.length}
         </div>
       </div>
