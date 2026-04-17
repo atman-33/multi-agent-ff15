@@ -10,12 +10,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { getAgentTheme } from "@/lib/agent-theme";
 import type {
   SessionChatScrollSignal,
 } from "@/lib/session-chat-rendering-orchestration";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status";
 import type { PromptPart } from "@/lib/prompt-parts";
+
+const IRIS_PORTRAIT_SRC = "/images/iris.png";
 
 interface IrisAuthoringSheetProps {
   autoFollowKey: string | null;
@@ -59,6 +62,48 @@ function buildStatusLabel(input: {
   return "New Session";
 }
 
+function IrisPortrait({ size }: { size: "header" | "empty" }) {
+  const theme = getAgentTheme("iris");
+  const frameSizeClass = size === "empty" ? "h-20 w-20" : "h-14 w-14";
+  const glowSizeClass = size === "empty" ? "h-14 w-14 blur-2xl" : "h-10 w-10 blur-xl";
+  const frameShadow = size === "empty"
+    ? `0 0 26px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`
+    : `0 0 18px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`;
+  const imageGlowFilter = [
+    `drop-shadow(0 0 3px ${theme?.ring ?? "rgba(125, 211, 252, 0.68)"})`,
+    `drop-shadow(0 0 6px ${theme?.glow ?? "rgba(56, 189, 248, 0.3)"})`,
+  ].join(" ");
+
+  return (
+    <div className={`relative flex shrink-0 items-center justify-center ${frameSizeClass}`}>
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute rounded-full ${glowSizeClass}`}
+        style={{
+          background: theme
+            ? `radial-gradient(circle, ${theme.glow} 0%, ${theme.glowSoft} 68%, rgba(0,0,0,0) 100%)`
+            : "radial-gradient(circle, rgba(56,189,248,0.3) 0%, rgba(56,189,248,0.18) 68%, rgba(0,0,0,0) 100%)",
+        }}
+      />
+      <div
+        className={`relative z-10 flex ${frameSizeClass} items-center justify-center rounded-full border p-1 ring-1 ring-white/6`}
+        style={{
+          borderColor: theme?.ring ?? "rgba(125, 211, 252, 0.68)",
+          background: theme?.portraitBg ?? "rgba(13, 24, 34, 0.96)",
+          boxShadow: frameShadow,
+        }}
+      >
+        <img
+          alt="Iris portrait"
+          className="h-full w-full rounded-full object-cover"
+          src={IRIS_PORTRAIT_SRC}
+          style={{ filter: imageGlowFilter }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function IrisAuthoringSheet({
   autoFollowKey,
   composerDraftKey,
@@ -96,7 +141,7 @@ export function IrisAuthoringSheet({
         <SheetHeader className="border-slate-800/70 border-b bg-white/2 px-5 py-4 text-left">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
-              <img alt="Iris portrait" className="h-14 w-14 rounded-2xl border border-cyan-300/20 object-cover shadow-lg" src="/images/iris.png" />
+              <IrisPortrait size="header" />
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <SheetTitle className="text-slate-50">Iris</SheetTitle>
@@ -153,7 +198,7 @@ export function IrisAuthoringSheet({
             {() =>
               renderedMessages.length === 0 && !streamingMessage ? (
                 <div className="flex min-h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center text-slate-400">
-                  <img alt="Iris portrait" className="h-20 w-20 rounded-3xl border border-cyan-300/15 object-cover shadow-lg" src="/images/iris.png" />
+                  <IrisPortrait size="empty" />
                   <div className="space-y-1">
                     <p className="font-medium text-slate-200 text-sm">Start a Studio-scoped conversation.</p>
                     <p className="text-xs leading-6">Iris can help revise {selectedEntryLabel}, suggest new steps, or explain the current prompt flow.</p>

@@ -1,6 +1,6 @@
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
 
-export type ThemedAgentId = "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto";
+export type ThemedAgentId = "noctis" | "lunafreya" | "iris" | "ignis" | "gladiolus" | "prompto";
 
 export interface AgentTheme {
   accent: string;
@@ -36,6 +36,17 @@ const AGENT_THEMES: Record<ThemedAgentId, AgentTheme> = {
     ring: "rgba(255, 255, 255, 0.78)",
     glow: "rgba(244, 246, 252, 0.34)",
     glowSoft: "rgba(230, 232, 239, 0.2)",
+  },
+  iris: {
+    accent: "#38bdf8",
+    accentStrong: "#7dd3fc",
+    text: "#e0f2fe",
+    surface: "rgba(56, 189, 248, 0.12)",
+    surfaceStrong: "rgba(56, 189, 248, 0.18)",
+    portraitBg: "rgba(13, 24, 34, 0.96)",
+    ring: "rgba(125, 211, 252, 0.68)",
+    glow: "rgba(56, 189, 248, 0.3)",
+    glowSoft: "rgba(56, 189, 248, 0.2)",
   },
   ignis: {
     accent: "#2f6b52",
@@ -80,6 +91,10 @@ export function getAgentTheme(agentId: string | null | undefined): AgentTheme | 
   const normalizedAgentId = agentId.trim().toLowerCase();
   if (normalizedAgentId === "lunafreya") {
     return AGENT_THEMES.lunafreya;
+  }
+
+  if (normalizedAgentId === "iris") {
+    return AGENT_THEMES.iris;
   }
 
   const normalized = normalizeBanterAgentId(normalizedAgentId);

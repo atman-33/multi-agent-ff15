@@ -99,6 +99,61 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain("/images/iris.png");
   });
 
+  it("renders circular framed Iris portraits with ambient glow in the header and empty state", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="operation-studio:iris:builtin"
+        conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        renderedMessages={[]}
+        scopeLabel="Noctis Team"
+        scrollSignal="none"
+        selectedEntryLabel="Default (Autonomous)"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Builtin · No project"
+      />,
+    );
+
+    expect(markup).toContain("rounded-full border p-1 ring-1 ring-white/6");
+    expect(markup).toContain("box-shadow:0 0 18px rgba(56, 189, 248, 0.2)");
+    expect(markup).toContain("box-shadow:0 0 26px rgba(56, 189, 248, 0.2)");
+  });
+
+  it("applies image-level glow to the circular Iris portraits", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="operation-studio:iris:builtin"
+        conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        renderedMessages={[]}
+        scopeLabel="Noctis Team"
+        scrollSignal="none"
+        selectedEntryLabel="Default (Autonomous)"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Builtin · No project"
+      />,
+    );
+
+    expect(markup).toContain("drop-shadow(0 0 3px rgba(125, 211, 252, 0.68))");
+    expect(markup).toContain("drop-shadow(0 0 6px rgba(56, 189, 248, 0.3))");
+  });
+
   it("renders existing conversation messages when a Studio-scoped session already exists", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
