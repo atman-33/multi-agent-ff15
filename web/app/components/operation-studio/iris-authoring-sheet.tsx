@@ -1,5 +1,5 @@
 import { Cpu } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
@@ -117,6 +117,13 @@ function IrisPortrait({ size }: { size: "header" | "empty" }) {
   );
 }
 
+export function resolveSheetPortalContainer(
+  currentContainer: HTMLDivElement | null,
+  nextContainer: HTMLDivElement | null,
+): HTMLDivElement | null {
+  return currentContainer === nextContainer ? currentContainer : nextContainer;
+}
+
 export function IrisAuthoringSheet({
   autoFollowKey,
   composerDraftKey,
@@ -139,7 +146,7 @@ export function IrisAuthoringSheet({
   streamingMessage,
   targetLabel,
 }: IrisAuthoringSheetProps) {
-  const sheetContentRef = useRef<HTMLDivElement | null>(null);
+  const [sheetContentElement, setSheetContentElement] = useState<HTMLDivElement | null>(null);
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const statusLabel = buildStatusLabel({
@@ -149,6 +156,9 @@ export function IrisAuthoringSheet({
     sessionStatus,
   });
   const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
+  const handleSheetContentRef = useCallback((node: HTMLDivElement | null) => {
+    setSheetContentElement((current) => resolveSheetPortalContainer(current, node));
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -181,7 +191,7 @@ export function IrisAuthoringSheet({
         onClose();
       }
     }} open={isOpen}>
-      <SheetContent className="flex h-full flex-col gap-0 overflow-hidden border-slate-800/70 bg-slate-950/92 p-0 text-slate-100 backdrop-blur-xl sm:max-w-2xl" ref={sheetContentRef} side="right">
+      <SheetContent className="flex h-full flex-col gap-0 overflow-hidden border-slate-800/70 bg-slate-950/92 p-0 text-slate-100 backdrop-blur-xl sm:max-w-2xl" ref={handleSheetContentRef} side="right">
         <SheetHeader className="border-slate-800/70 border-b bg-white/2 px-5 py-4 text-left">
           <div className="flex flex-wrap items-start justify-between gap-4 pr-12">
             <div className="flex min-w-0 items-start gap-3">
@@ -228,7 +238,7 @@ export function IrisAuthoringSheet({
                       emptyLabel="Model"
                       modelItems={modelItems}
                       onSelect={onSelectedModelChange}
-                      portalContainer={sheetContentRef.current}
+                      portalContainer={sheetContentElement}
                       selectedModel={selectedModel}
                       triggerClassName={cn(
                         "h-8 w-full px-2 text-xs sm:w-72",

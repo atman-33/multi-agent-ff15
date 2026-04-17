@@ -147,6 +147,7 @@ export function CompactModelVariantPicker({
   }, [emptyLabel, selectedItem, showProviderName]);
 
   const selectedModelKey = getModelKey(selectedModel);
+  const variantCollisionBoundary = portalContainer ? [portalContainer] : undefined;
 
   const clearVariantCloseTimer = () => {
     if (variantCloseTimerRef.current) {
@@ -196,7 +197,7 @@ export function CompactModelVariantPicker({
 
       <PopoverContent
         align={contentAlign}
-        className={cn("w-[min(30rem,92vw)] p-0", contentClassName)}
+        className={cn("w-[min(25rem,92vw)] p-0", contentClassName)}
         portalContainer={portalContainer}
         side={contentSide}
       >
@@ -310,6 +311,7 @@ export function CompactModelVariantPicker({
                     <PopoverContent
                       align="start"
                       className="w-60 p-1 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2"
+                      collisionBoundary={variantCollisionBoundary}
                       collisionPadding={12}
                       onFocusCapture={() => {
                         clearVariantCloseTimer();

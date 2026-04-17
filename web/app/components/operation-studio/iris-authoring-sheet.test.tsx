@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
-import { IrisAuthoringSheet } from "./iris-authoring-sheet";
+import { IrisAuthoringSheet, resolveSheetPortalContainer } from "./iris-authoring-sheet";
 
 vi.mock("@/components/compact-model-variant-picker", () => ({
   CompactModelVariantPicker: ({
@@ -94,6 +94,16 @@ function createRenderedMessage(overrides: Partial<RenderedSessionMessage> = {}):
 }
 
 describe("iris-authoring-sheet", () => {
+  it("returns the attached sheet content element as the popover portal container", () => {
+    const currentContainer = { dataset: { current: "true" } } as unknown as HTMLDivElement;
+    const nextContainer = { dataset: { next: "true" } } as unknown as HTMLDivElement;
+
+    expect(resolveSheetPortalContainer(null, nextContainer)).toBe(nextContainer);
+    expect(resolveSheetPortalContainer(currentContainer, nextContainer)).toBe(nextContainer);
+    expect(resolveSheetPortalContainer(nextContainer, nextContainer)).toBe(nextContainer);
+    expect(resolveSheetPortalContainer(nextContainer, null)).toBeNull();
+  });
+
   it("renders the Iris portrait and session controls inside the right-side sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet

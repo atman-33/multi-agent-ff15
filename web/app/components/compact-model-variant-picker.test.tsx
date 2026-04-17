@@ -24,19 +24,29 @@ vi.mock("@/components/ui/popover", () => ({
   ),
   PopoverContent: ({
     children,
+    collisionBoundary,
     collisionPadding: _collisionPadding,
     onOpenAutoFocus: _onOpenAutoFocus,
     portalContainer,
+    side,
     sideOffset: _sideOffset,
     ...props
   }: {
     children: ReactNode;
+    collisionBoundary?: HTMLElement | HTMLElement[];
     collisionPadding?: number;
     onOpenAutoFocus?: (event: Event) => void;
     portalContainer?: HTMLElement | null;
+    side?: string;
     sideOffset?: number;
   }) => (
-    <div data-portal-container={portalContainer ? "set" : "unset"} data-slot="popover-content" {...props}>
+    <div
+      data-collision-boundary={collisionBoundary ? "set" : "unset"}
+      data-portal-container={portalContainer ? "set" : "unset"}
+      data-side={side}
+      data-slot="popover-content"
+      {...props}
+    >
       {children}
     </div>
   ),
@@ -68,7 +78,8 @@ describe("CompactModelVariantPicker", () => {
 
     expect(markup).toContain("GPT-5.4");
     expect(markup).toContain("GitHub Copilot");
-  expect(markup).toContain('data-slot="popover-trigger"');
+    expect(markup).toContain('data-slot="popover-trigger"');
+    expect(markup).toContain("w-[min(25rem,92vw)]");
     expect(markup).not.toContain("github-copilot / gpt-5.4");
     expect(markup).toContain("Open variants for GPT-5.4");
     expect(markup).toContain("Explicit variants");
@@ -126,5 +137,7 @@ describe("CompactModelVariantPicker", () => {
     );
 
     expect(markup).toContain('data-portal-container="set"');
+    expect(markup).toContain('data-collision-boundary="set"');
+    expect(markup).toContain('data-side="right"');
   });
 });
