@@ -4,6 +4,21 @@ import { describe, expect, it, vi } from "vitest";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 import { IrisAuthoringSheet } from "./iris-authoring-sheet";
 
+vi.mock("@/components/compact-model-variant-picker", () => ({
+  CompactModelVariantPicker: ({
+    ariaLabel,
+    selectedModel,
+  }: {
+    ariaLabel: string;
+    selectedModel: { providerID: string; modelID: string; variant?: string } | null;
+  }) => (
+    <div data-model-picker={ariaLabel}>
+      {selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : "none"}
+      {selectedModel?.variant ? `:${selectedModel.variant}` : ""}
+    </div>
+  ),
+}));
+
 vi.mock("@/components/chat/prompt-composer", () => ({
   PromptComposer: ({ helperText, placeholder }: { helperText?: ReactNode; placeholder?: string }) => (
     <div>
@@ -82,9 +97,11 @@ describe("iris-authoring-sheet", () => {
         onClose={() => undefined}
         onNewSession={() => undefined}
         onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
         renderedMessages={[]}
         scopeLabel="Noctis Team"
         scrollSignal="none"
+        selectedModel={null}
         selectedEntryLabel="Default (Autonomous)"
         sessionId={null}
         sessionStatus={null}
@@ -111,9 +128,11 @@ describe("iris-authoring-sheet", () => {
         onClose={() => undefined}
         onNewSession={() => undefined}
         onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
         renderedMessages={[]}
         scopeLabel="Noctis Team"
         scrollSignal="none"
+        selectedModel={null}
         selectedEntryLabel="Default (Autonomous)"
         sessionId={null}
         sessionStatus={null}
@@ -138,9 +157,11 @@ describe("iris-authoring-sheet", () => {
         onClose={() => undefined}
         onNewSession={() => undefined}
         onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
         renderedMessages={[]}
         scopeLabel="Noctis Team"
         scrollSignal="none"
+        selectedModel={null}
         selectedEntryLabel="Default (Autonomous)"
         sessionId={null}
         sessionStatus={null}
@@ -166,9 +187,11 @@ describe("iris-authoring-sheet", () => {
         onClose={() => undefined}
         onNewSession={() => undefined}
         onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
         renderedMessages={[]}
         scopeLabel="Noctis Team"
         scrollSignal="none"
+        selectedModel={null}
         selectedEntryLabel="Default (Autonomous)"
         sessionId={null}
         sessionStatus={null}
@@ -179,6 +202,37 @@ describe("iris-authoring-sheet", () => {
 
     expect(markup).toContain("drop-shadow(0 0 3px rgba(125, 211, 252, 0.68))");
     expect(markup).toContain("drop-shadow(0 0 6px rgba(56, 189, 248, 0.3))");
+  });
+
+  it("renders an Iris-specific model picker near the composer", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="operation-studio:iris:builtin"
+        conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
+        renderedMessages={[]}
+        scopeLabel="Noctis Team"
+        scrollSignal="none"
+        selectedModel={{ providerID: "openai", modelID: "gpt-5.4", variant: "thinking" }}
+        selectedEntryLabel="Default (Autonomous)"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Builtin · No project"
+      />,
+    );
+
+    expect(markup).toContain("Iris Model");
+    expect(markup).toContain("Model changes apply on the next Iris turn.");
+    expect(markup).toContain('data-model-picker="Select model for iris"');
+    expect(markup).toContain("openai/gpt-5.4:thinking");
   });
 
   it("renders existing conversation messages when a Studio-scoped session already exists", () => {
@@ -193,9 +247,11 @@ describe("iris-authoring-sheet", () => {
         onClose={() => undefined}
         onNewSession={() => undefined}
         onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
         renderedMessages={[createRenderedMessage()]}
         scopeLabel="Lunafreya"
         scrollSignal="tail-append"
+        selectedModel={null}
         selectedEntryLabel="lunafreya-autonomous"
         sessionId="session-iris-1"
         sessionStatus="idle"

@@ -84,7 +84,12 @@ vi.mock("@/lib/operation-studio/preview-engine.server", () => ({
   buildOperationStudioPreviewBundle: buildOperationStudioPreviewBundleMock,
 }));
 
-import { loader, OperationStudioPage } from "./route";
+import {
+  buildOperationStudioIrisPromptPayload,
+  buildOperationStudioIrisStartPayload,
+  loader,
+  OperationStudioPage,
+} from "./route";
 
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const tempRoots: string[] = [];
@@ -356,5 +361,39 @@ describe("operation-studio route", () => {
     expect(markup).toContain("YAML");
     expect(markup).toContain("Default (Autonomous)");
     expect(markup).toContain('data-operation-value="builtin:ja:noctis-autonomous.yaml"');
+  });
+
+  it("builds Iris request payloads with a fixed iris agent and the selected model", () => {
+    const selectedModel = {
+      providerID: "openai",
+      modelID: "gpt-5.4",
+      variant: "thinking",
+    };
+
+    expect(
+      buildOperationStudioIrisStartPayload({
+        contextProjectIds: ["alpha"],
+        executionProjectId: "alpha",
+        model: selectedModel,
+        parts: [{ type: "text", text: "Revise this operation." }],
+      }),
+    ).toEqual({
+      agent: "iris",
+      contextProjectIds: ["alpha"],
+      executionProjectId: "alpha",
+      model: selectedModel,
+      parts: [{ type: "text", text: "Revise this operation." }],
+    });
+
+    expect(
+      buildOperationStudioIrisPromptPayload({
+        model: selectedModel,
+        parts: [{ type: "text", text: "Explain the current prompt flow." }],
+      }),
+    ).toEqual({
+      agent: "iris",
+      model: selectedModel,
+      parts: [{ type: "text", text: "Explain the current prompt flow." }],
+    });
   });
 });

@@ -1,3 +1,6 @@
+import { Cpu } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
@@ -11,12 +14,20 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getAgentTheme } from "@/lib/agent-theme";
+import {
+  flattenProviderModels,
+  type ModelCatalogItem,
+  type OpencodeProvider,
+  type OpencodeProvidersResponse,
+} from "@/lib/opencode-provider-catalog";
 import type {
   SessionChatScrollSignal,
 } from "@/lib/session-chat-rendering-orchestration";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status";
 import type { PromptPart } from "@/lib/prompt-parts";
+import type { ModelSelection } from "@/lib/types/mission";
+import { cn } from "@/lib/utils";
 
 const IRIS_PORTRAIT_SRC = "/images/iris.png";
 
@@ -31,9 +42,11 @@ interface IrisAuthoringSheetProps {
   onClose: () => void;
   onNewSession: () => void;
   onSend: (parts: PromptPart[]) => Promise<unknown> | undefined;
+  onSelectedModelChange: (model: ModelSelection) => void;
   renderedMessages: RenderedSessionMessage[];
   scopeLabel: string;
   scrollSignal: SessionChatScrollSignal;
+  selectedModel: ModelSelection | null;
   selectedEntryLabel: string;
   sessionId: string | null;
   sessionStatus: SessionStatus | null;
@@ -115,21 +128,51 @@ export function IrisAuthoringSheet({
   onClose,
   onNewSession,
   onSend,
+  onSelectedModelChange,
   renderedMessages,
   scopeLabel,
   scrollSignal,
+  selectedModel,
   selectedEntryLabel,
   sessionId,
   sessionStatus,
   streamingMessage,
   targetLabel,
 }: IrisAuthoringSheetProps) {
+  const [providers, setProviders] = useState<OpencodeProvider[]>([]);
+  const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const statusLabel = buildStatusLabel({
     isLoading,
     isSending,
     sessionId,
     sessionStatus,
   });
+  const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProviders = async () => {
+      const response = await fetch("/api/providers").catch(() => null);
+      if (!response?.ok || !isMounted) {
+        return;
+      }
+
+      const data = (await response.json()) as OpencodeProvidersResponse;
+      if (!isMounted) {
+        return;
+      }
+
+      setProviders(data.providers ?? []);
+      setVariantsByModel(data.variantsByModel ?? {});
+    };
+
+    void loadProviders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <Sheet onOpenChange={(open) => {
@@ -173,6 +216,33 @@ export function IrisAuthoringSheet({
             contentClassName="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-3 overflow-x-hidden px-1"
             footer={
               <div className="border-slate-800/70 border-t bg-slate-950/90 px-4 py-3">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                      Iris Model
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Model changes apply on the next Iris turn.
+                    </p>
+                  </div>
+                  <CompactModelVariantPicker
+                    ariaLabel="Select model for iris"
+                    contentAlign="end"
+                    contentSide="top"
+                    emptyLabel="Select model"
+                    modelItems={modelItems}
+                    onSelect={onSelectedModelChange}
+                    selectedModel={selectedModel}
+                    triggerClassName={cn(
+                      "h-9 w-full rounded-md border border-slate-700/60 bg-slate-900/70 px-2 text-xs sm:w-80",
+                      selectedModel
+                        ? "text-slate-100 hover:bg-slate-900"
+                        : "text-slate-400 hover:bg-slate-900"
+                    )}
+                    triggerIcon={<Cpu className="h-3.5 w-3.5 shrink-0" />}
+                    variantsByModel={variantsByModel}
+                  />
+                </div>
                 <PromptComposer
                   disabled={isLoading || isSending || isSessionStatusActive(sessionStatus)}
                   draftKey={composerDraftKey}

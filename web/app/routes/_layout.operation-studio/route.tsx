@@ -9,6 +9,7 @@ import { PreviewTabs } from "@/components/operation-studio/preview-tabs";
 import { PageContainer } from "@/components/page-container";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
+import { useChatStore } from "@/stores/chat-store";
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ import { PROJECT_SCOPE_LABELS, type ProjectScope } from "@/lib/project-scopes";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
 import { isSessionStatusActive } from "@/lib/session-status";
-import type { WorkerAgentId } from "@/lib/types/mission";
+import type { ModelSelection, WorkerAgentId } from "@/lib/types/mission";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import type { Route } from "./+types/route";
 
@@ -166,6 +167,32 @@ function resolveOperationStudioIrisExecutionContext(targetValue: string): {
   return {
     contextProjectIds: [],
     executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
+  };
+}
+
+export function buildOperationStudioIrisStartPayload(input: {
+  contextProjectIds: string[];
+  executionProjectId: string;
+  model: ModelSelection | null;
+  parts: PromptPart[];
+}) {
+  return {
+    agent: "iris",
+    contextProjectIds: input.contextProjectIds,
+    executionProjectId: input.executionProjectId,
+    model: input.model ?? undefined,
+    parts: input.parts,
+  };
+}
+
+export function buildOperationStudioIrisPromptPayload(input: {
+  model: ModelSelection | null;
+  parts: PromptPart[];
+}) {
+  return {
+    agent: "iris",
+    model: input.model ?? undefined,
+    parts: input.parts,
   };
 }
 
@@ -452,6 +479,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 
 export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
+  const selectedIrisModel = useChatStore((state) => state.agentModels.iris ?? null);
+  const setAgentModel = useChatStore((state) => state.setAgentModel);
   const [scope, setScope] = useState<ProjectScope>(loaderData.scope);
   const [targetValue, setTargetValue] = useState(loaderData.targetValue);
   const [selectedOperation, setSelectedOperation] = useState(loaderData.selectedOperation ?? "");
@@ -1121,12 +1150,14 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         const response = await fetch("/api/opencode/session/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            agent: "iris",
-            contextProjectIds: executionContext.contextProjectIds,
-            executionProjectId: executionContext.executionProjectId,
-            parts: promptParts,
-          }),
+          body: JSON.stringify(
+            buildOperationStudioIrisStartPayload({
+              contextProjectIds: executionContext.contextProjectIds,
+              executionProjectId: executionContext.executionProjectId,
+              model: selectedIrisModel,
+              parts: promptParts,
+            }),
+          ),
         });
         const payload = (await response.json().catch(() => null)) as
           | { error?: string; session?: { id?: string } }
@@ -1153,10 +1184,12 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       const response = await fetch(`/api/session/${irisSessionId}/prompt`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agent: "iris",
-          parts: promptParts,
-        }),
+        body: JSON.stringify(
+          buildOperationStudioIrisPromptPayload({
+            model: selectedIrisModel,
+            parts: promptParts,
+          }),
+        ),
       });
 
       if (!response.ok) {
@@ -1203,6 +1236,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     targetValue,
     taskInstruction,
     userMessage,
+    selectedIrisModel,
   ]);
 
   const handleOpenIrisSheet = useCallback(() => {
@@ -1363,20 +1397,23 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   }, [selectedStep]);
 
   return (
-    <PageContainer className="max-w-none gap-4 overflow-hidden bg-transparent px-4 text-slate-100" size="wide">
-      <div className="border-border/50 border-b pb-3">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <PageContainer
+      className="max-w-none gap-3 overflow-hidden bg-transparent px-4 py-3 text-slate-100 sm:py-4"
+      size="wide"
+    >
+      <div className="border-border/50 border-b pb-2">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge className="gap-1.5 text-white" variant="default">
               <Sparkles className="h-3.5 w-3.5" />
               Operation Studio
             </Badge>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <ToggleGroup
               aria-label="Operation Studio scope"
-              className="gap-0 rounded-full border border-slate-700/60 bg-slate-950/25 p-1"
+              className="gap-0 rounded-full border border-slate-700/60 bg-slate-950/25 p-0.5"
               onValueChange={(nextScope) => {
                 if (!isProjectScope(nextScope) || nextScope === scope) {
                   return;
@@ -1412,7 +1449,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
                 <ToggleGroupItem
                   key={option}
                   aria-label={PROJECT_SCOPE_LABELS[option]}
-                  className="rounded-none border-0 px-3.5 text-slate-300 shadow-none hover:bg-slate-900/70 hover:text-slate-100 focus-visible:z-10 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90 first:rounded-l-full last:rounded-r-full"
+                  className="h-8 rounded-none border-0 px-3 text-slate-300 shadow-none hover:bg-slate-900/70 hover:text-slate-100 focus-visible:z-10 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90 first:rounded-l-full last:rounded-r-full"
                   value={option}
                 >
                   {PROJECT_SCOPE_LABELS[option]}
@@ -1420,6 +1457,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
               ))}
             </ToggleGroup>
             <Button
+              className="h-8 px-2.5"
               onClick={() => {
                 setIsIrisSheetOpen(false);
                 setIsInputsSheetOpen(true);
@@ -1430,7 +1468,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
               <Settings2 className="h-4 w-4" />
               Preview Inputs
             </Button>
-            <Button onClick={handleUpdatePreview} size="sm">
+            <Button className="h-8 px-2.5" onClick={handleUpdatePreview} size="sm">
               <RefreshCw className="h-4 w-4" />
               Update Preview
             </Button>
@@ -1668,9 +1706,11 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
             onClose={() => setIsIrisSheetOpen(false)}
             onNewSession={() => resetIrisConversation(studioIrisContextKey)}
             onSend={handleIrisPromptSend}
+            onSelectedModelChange={(model) => setAgentModel("iris", model)}
             renderedMessages={irisRenderSnapshot.renderedMessages}
             scopeLabel={PROJECT_SCOPE_LABELS[scope]}
             scrollSignal={irisRenderSnapshot.scrollSignal}
+            selectedModel={selectedIrisModel}
             selectedEntryLabel={selectedEntryLabel}
             sessionId={irisSessionId}
             sessionStatus={irisSessionStatus}
