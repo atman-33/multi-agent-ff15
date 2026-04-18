@@ -76,21 +76,18 @@ function buildStatusLabel(input: {
 
 function IrisPortrait({ size }: { size: "header" | "empty" | "message" }) {
   const theme = getAgentTheme("iris");
+  const isMessagePortrait = size === "message";
   const frameSizeClass = size === "empty"
     ? "h-20 w-20"
-    : size === "message"
+    : isMessagePortrait
       ? "h-8 w-8"
       : "h-14 w-14";
   const glowSizeClass = size === "empty"
     ? "h-14 w-14 blur-2xl"
-    : size === "message"
-      ? "h-6 w-6 blur-lg"
-      : "h-10 w-10 blur-xl";
+    : "h-10 w-10 blur-xl";
   const frameShadow = size === "empty"
     ? `0 0 26px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`
-    : size === "message"
-      ? `0 0 12px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`
-      : `0 0 18px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`;
+    : `0 0 18px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`;
   const imageGlowFilter = [
     `drop-shadow(0 0 3px ${theme?.ring ?? "rgba(125, 211, 252, 0.68)"})`,
     `drop-shadow(0 0 6px ${theme?.glow ?? "rgba(56, 189, 248, 0.3)"})`,
@@ -98,21 +95,23 @@ function IrisPortrait({ size }: { size: "header" | "empty" | "message" }) {
 
   return (
     <div className={`relative flex shrink-0 items-center justify-center ${frameSizeClass}`}>
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute rounded-full ${glowSizeClass}`}
-        style={{
-          background: theme
-            ? `radial-gradient(circle, ${theme.glow} 0%, ${theme.glowSoft} 68%, rgba(0,0,0,0) 100%)`
-            : "radial-gradient(circle, rgba(56,189,248,0.3) 0%, rgba(56,189,248,0.18) 68%, rgba(0,0,0,0) 100%)",
-        }}
-      />
+      {isMessagePortrait ? null : (
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute rounded-full ${glowSizeClass}`}
+          style={{
+            background: theme
+              ? `radial-gradient(circle, ${theme.glow} 0%, ${theme.glowSoft} 68%, rgba(0,0,0,0) 100%)`
+              : "radial-gradient(circle, rgba(56,189,248,0.3) 0%, rgba(56,189,248,0.18) 68%, rgba(0,0,0,0) 100%)",
+          }}
+        />
+      )}
       <div
         className={`relative z-10 flex ${frameSizeClass} items-center justify-center rounded-full border p-1 ring-1 ring-white/6`}
         style={{
           borderColor: theme?.ring ?? "rgba(125, 211, 252, 0.68)",
           background: theme?.portraitBg ?? "rgba(13, 24, 34, 0.96)",
-          boxShadow: frameShadow,
+          boxShadow: isMessagePortrait ? undefined : frameShadow,
         }}
       >
         <img

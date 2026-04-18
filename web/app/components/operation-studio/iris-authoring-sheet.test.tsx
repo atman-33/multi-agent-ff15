@@ -355,6 +355,9 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain("/images/iris.png");
     expect(markup).toContain("Ask Iris to revise the selected operation");
     expect(markup).toContain("lunafreya-autonomous");
+    expect(markup.match(/drop-shadow\(0 0 3px rgba\(125, 211, 252, 0.68\)\)/g)).toHaveLength(2);
+    expect(markup).not.toContain("box-shadow:0 0 12px rgba(56, 189, 248, 0.2)");
+    expect(markup).not.toContain("h-6 w-6 blur-lg");
   });
 
   it("shows a route-local Iris dots bubble in the conversation body before streaming text arrives", () => {
