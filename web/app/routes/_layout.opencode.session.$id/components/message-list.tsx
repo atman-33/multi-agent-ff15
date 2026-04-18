@@ -1,5 +1,6 @@
+import { SessionMessageList } from "@/components/chat/session-message-list";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
-import MessageBubble from "./message-bubble";
+import MessageDetailSheet from "./message-detail-sheet";
 
 type Props = {
   renderedMessages: RenderedSessionMessage[];
@@ -19,24 +20,28 @@ const MessageList = ({
   onToggleDetailEntry,
 }: Props) => {
   return (
-    <div className="space-y-3">
-      {renderedMessages.map((message) => (
-        <MessageBubble
-          detailsExpanded={isConversationUnitExpanded(message.conversationUnitId)}
-          expandedDetailEntries={getExpandedDetailEntries(message.conversationUnitId)}
-          key={message.conversationUnitId}
-          message={message}
-          onToggleDetail={onToggleDetailEntry}
-          onToggleDetails={onToggleConversationUnit}
-        />
-      ))}
-      {streamingMessage ? (
-        <MessageBubble
-          message={streamingMessage}
-          showCursor={true}
-        />
-      ) : null}
-    </div>
+    <SessionMessageList
+      getExpandedDetailEntries={getExpandedDetailEntries}
+      isConversationUnitExpanded={isConversationUnitExpanded}
+      onToggleConversationUnit={onToggleConversationUnit}
+      onToggleDetailEntry={onToggleDetailEntry}
+      renderDetailSheet={({ message, onOpenChange, open }) =>
+        open ? (
+          <MessageDetailSheet
+            content={message.messageDisplay.displayContent}
+            messageDisplay={message.messageDisplay}
+            messageRole={message.role}
+            onOpenChange={onOpenChange}
+            open={open}
+            parts={message.parts}
+            rawTextContent={message.detailRawText}
+            senderLabel={message.senderLabel}
+          />
+        ) : null
+      }
+      renderedMessages={renderedMessages}
+      streamingMessage={streamingMessage}
+    />
   );
 };
 

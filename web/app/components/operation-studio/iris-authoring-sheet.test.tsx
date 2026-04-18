@@ -47,6 +47,48 @@ vi.mock("@/components/chat/thread-frame", () => ({
   ),
 }));
 
+vi.mock("@/components/chat/session-message-list", () => ({
+  SessionMessageList: ({
+    renderedMessages,
+    renderAvatar,
+    renderDetailSheet,
+    streamingMessage,
+  }: {
+    renderedMessages: RenderedSessionMessage[];
+    renderAvatar?: (message: RenderedSessionMessage) => ReactNode;
+    renderDetailSheet?: (args: {
+      message: RenderedSessionMessage;
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    }) => ReactNode;
+    streamingMessage: RenderedSessionMessage | null;
+  }) => (
+    <div data-session-message-list="true">
+      {renderedMessages.map((message) => (
+        <article key={message.conversationUnitId}>
+          <div>{message.messageDisplay.displayContent}</div>
+          <div>{renderAvatar ? renderAvatar(message) : null}</div>
+          <div>{renderDetailSheet ? "detail-sheet" : null}</div>
+        </article>
+      ))}
+      {streamingMessage ? (
+        <section data-streaming-message="true">
+          {streamingMessage.senderLabel}:{streamingMessage.messageDisplay.displayContent || "cursor"}
+        </section>
+      ) : <section data-streaming-message="false" />}
+    </div>
+  ),
+}));
+
+vi.mock("@/hooks/use-conversation-unit-inspectability", () => ({
+  useConversationUnitInspectability: () => ({
+    getExpandedDetailEntries: () => ({}),
+    isConversationUnitExpanded: () => false,
+    toggleConversationUnit: () => undefined,
+    toggleDetailEntry: () => undefined,
+  }),
+}));
+
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
 }));
@@ -307,8 +349,66 @@ describe("iris-authoring-sheet", () => {
       />,
     );
 
+    expect(markup).toContain('data-session-message-list="true"');
     expect(markup).toContain("I can help revise this operation.");
+    expect(markup).toContain("detail-sheet");
+    expect(markup).toContain("/images/iris.png");
     expect(markup).toContain("Ask Iris to revise the selected operation");
     expect(markup).toContain("lunafreya-autonomous");
+  });
+
+  it("shows a route-local Iris dots bubble in the conversation body before streaming text arrives", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey="tail:message-1"
+        composerDraftKey="operation-studio:iris:project-alpha"
+        conversationSummary="Lunafreya · Project Alpha · lunafreya-autonomous"
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
+        renderedMessages={[createRenderedMessage({
+          id: "user-1",
+          conversationUnitId: "user-1",
+          role: "user",
+          sender: "user",
+          senderLabel: "User",
+          kind: "user_message",
+          content: "Please revise this step.",
+          detailContent: "Please revise this step.",
+          rawText: "Please revise this step.",
+          parts: [{ type: "text", text: "Please revise this step." }],
+          detailRawText: "Please revise this step.",
+          messageDisplay: {
+            displayContent: "Please revise this step.",
+            promptContextSections: [],
+            promptContextSource: null,
+            rawWorkflowPrompt: null,
+            rawPromptPayload: null,
+            reportDetails: null,
+            selectionAdjustment: null,
+            resolvedSender: "user",
+            resolvedSenderIsUser: true,
+            resolvedSenderLabel: "User",
+            workflowPresentation: null,
+          },
+        })]}
+        scopeLabel="Lunafreya"
+        scrollSignal="tail-append"
+        selectedModel={null}
+        selectedEntryLabel="lunafreya-autonomous"
+        sessionId="session-iris-1"
+        sessionStatus="busy"
+        streamingMessage={null}
+        targetLabel="Project · Alpha"
+      />,
+    );
+
+    expect(markup).toContain('data-streaming-message="false"');
+    expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]");
+    expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]");
   });
 });

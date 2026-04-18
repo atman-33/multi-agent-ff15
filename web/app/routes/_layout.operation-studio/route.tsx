@@ -44,12 +44,20 @@ import {
   startNewOperationStudioIrisSession,
   type OperationStudioIrisSessionState,
 } from "@/lib/operation-studio/iris-session";
+import {
+  buildOperationStudioIrisStreamingText,
+  createOperationStudioIrisOptimisticMessage,
+  mergeOperationStudioIrisStreamingState,
+  shouldClearOperationStudioIrisOptimisticMessage,
+  shouldUseOperationStudioIrisPollingFallback,
+  type OperationStudioIrisOptimisticMessage,
+} from "@/lib/operation-studio/iris-live-thread";
 import { buildOperationStudioPreviewBundle } from "@/lib/operation-studio/preview-engine.server";
 import type { OperationOption } from "@/lib/operation-presentation";
 import { PROJECT_SCOPE_LABELS, type ProjectScope } from "@/lib/project-scopes";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
-import { isSessionStatusActive } from "@/lib/session-status";
+import { mergeMessageInfoText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import type { ModelSelection, WorkerAgentId } from "@/lib/types/mission";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import type { Route } from "./+types/route";
@@ -506,10 +514,16 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const [isSheetUiReady, setIsSheetUiReady] = useState(false);
   const [irisSessionState, setIrisSessionState] = useState<OperationStudioIrisSessionState | null>(null);
   const [irisMessages, setIrisMessages] = useState<MessageInfo[]>([]);
+  const [irisOptimisticMessage, setIrisOptimisticMessage] =
+    useState<OperationStudioIrisOptimisticMessage | null>(null);
   const [irisError, setIrisError] = useState<string | null>(null);
   const [isIrisLoading, setIsIrisLoading] = useState(false);
   const [isIrisSending, setIsIrisSending] = useState(false);
+  const [irisStreamingContent, setIrisStreamingContent] = useState("");
+  const [isIrisLiveUnavailable, setIsIrisLiveUnavailable] = useState(false);
   const irisLoadRequestIdRef = useRef(0);
+  const irisEventSourceRef = useRef<EventSource | null>(null);
+  const irisStreamingMessageIdRef = useRef<string | null>(null);
   const appliedPreviewWorkersKey = loaderData.previewWorkers.join(",");
   const lastAppliedPreviewWorkersKeyRef = useRef(appliedPreviewWorkersKey);
   const studioIrisContextKey = useMemo(
@@ -623,8 +637,12 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     irisLoadRequestIdRef.current += 1;
     setIrisSessionState(startNewOperationStudioIrisSession({ contextKey: nextContextKey }));
     setIrisMessages([]);
+    setIrisOptimisticMessage(null);
     setIrisError(null);
     setIsIrisLoading(false);
+    setIrisStreamingContent("");
+    setIsIrisLiveUnavailable(false);
+    irisStreamingMessageIdRef.current = null;
   }, []);
 
   const requestIrisContextTransition = useCallback((nextContextKey: string): boolean => {
@@ -674,7 +692,18 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         return;
       }
 
-      setIrisMessages(payload?.messages ?? []);
+      const nextMessages = payload?.messages ?? [];
+      setIrisMessages(nextMessages);
+      setIrisOptimisticMessage((current) =>
+        shouldClearOperationStudioIrisOptimisticMessage(current, nextMessages.length) ? null : current,
+      );
+      if (
+        irisStreamingMessageIdRef.current &&
+        nextMessages.some((message) => message.info.id === irisStreamingMessageIdRef.current)
+      ) {
+        irisStreamingMessageIdRef.current = null;
+        setIrisStreamingContent("");
+      }
       setIrisError(null);
     } catch (error) {
       if (requestId !== irisLoadRequestIdRef.current) {
@@ -703,8 +732,12 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     if (!irisSessionId) {
       irisLoadRequestIdRef.current += 1;
       setIrisMessages([]);
+      setIrisOptimisticMessage(null);
       setIrisError(null);
       setIsIrisLoading(false);
+      setIrisStreamingContent("");
+      setIsIrisLiveUnavailable(false);
+      irisStreamingMessageIdRef.current = null;
       return;
     }
 
@@ -712,18 +745,105 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   }, [irisSessionId, loadIrisMessages]);
 
   useEffect(() => {
-    if (!irisSessionId || !isSessionStatusActive(irisSessionStatus)) {
+    if (!irisSessionId || typeof window === "undefined") {
+      return;
+    }
+
+    setIsIrisLiveUnavailable(false);
+
+    const source = new EventSource(`/api/session/${irisSessionId}/events`);
+    irisEventSourceRef.current = source;
+
+    source.onmessage = (event) => {
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(event.data as string) as Record<string, unknown>;
+      } catch {
+        return;
+      }
+
+      const textPartEvent = parseSessionTextPartEvent(parsed);
+      if (textPartEvent && (!textPartEvent.sessionId || textPartEvent.sessionId === irisSessionId)) {
+        if (textPartEvent.messageId) {
+          let matchedExistingMessage = false;
+          setIrisMessages((current) =>
+            current.map((message) => {
+              if (message.info.id !== textPartEvent.messageId) {
+                return message;
+              }
+
+              matchedExistingMessage = true;
+              return mergeMessageInfoText(message, textPartEvent.text);
+            }),
+          );
+
+          if (matchedExistingMessage) {
+            irisStreamingMessageIdRef.current = null;
+            setIrisStreamingContent("");
+            return;
+          }
+        }
+
+        const previousStreamingMessageId = irisStreamingMessageIdRef.current;
+        irisStreamingMessageIdRef.current = textPartEvent.messageId;
+        setIrisStreamingContent((current) =>
+          mergeOperationStudioIrisStreamingState({
+            currentContent: current,
+            currentMessageId: previousStreamingMessageId,
+            nextMessageId: textPartEvent.messageId,
+            nextText: textPartEvent.text,
+          }).content,
+        );
+        return;
+      }
+
+      const type = typeof parsed.type === "string" ? parsed.type : null;
+      if (type === "session.idle") {
+        irisStreamingMessageIdRef.current = null;
+        setIrisStreamingContent("");
+      }
+    };
+
+    source.onerror = () => {
+      setIsIrisLiveUnavailable(true);
+      source.close();
+      if (irisEventSourceRef.current === source) {
+        irisEventSourceRef.current = null;
+      }
+    };
+
+    return () => {
+      source.close();
+      if (irisEventSourceRef.current === source) {
+        irisEventSourceRef.current = null;
+      }
+    };
+  }, [irisSessionId]);
+
+  useEffect(() => {
+    if (
+      !shouldUseOperationStudioIrisPollingFallback({
+        isLiveUnavailable: isIrisLiveUnavailable,
+        sessionId: irisSessionId,
+        sessionStatus: irisSessionStatus,
+      })
+    ) {
+      return;
+    }
+
+    const activeIrisSessionId = irisSessionId;
+    if (!activeIrisSessionId) {
       return;
     }
 
     const interval = window.setInterval(() => {
-      void loadIrisMessages(irisSessionId);
+      void loadIrisMessages(activeIrisSessionId);
     }, 2500);
 
     return () => {
       window.clearInterval(interval);
     };
-  }, [irisSessionId, irisSessionStatus, loadIrisMessages]);
+  }, [irisSessionId, irisSessionStatus, isIrisLiveUnavailable, loadIrisMessages]);
 
   const visibleDrafts = useMemo(
     () => drafts.filter((draft) => draft.scope === scope && draft.targetValue === targetValue),
@@ -1114,11 +1234,15 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     [scope, selectedEntryLabel, selectedTargetLabel],
   );
   const irisPresentationMessages = useMemo(
-    () => toSessionPresentationMessages(irisMessages),
-    [irisMessages],
+    () => {
+      const messages = toSessionPresentationMessages(irisMessages);
+      return irisOptimisticMessage ? [...messages, irisOptimisticMessage.message] : messages;
+    },
+    [irisMessages, irisOptimisticMessage],
   );
   const irisRenderSnapshot = useSessionChatRenderSnapshot({
     messages: irisPresentationMessages,
+    streamingText: buildOperationStudioIrisStreamingText(irisStreamingContent),
   });
 
   const handleIrisPromptSend = useCallback(async (parts: PromptPart[]) => {
@@ -1143,6 +1267,16 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
     setIrisError(null);
     setIsIrisSending(true);
+    setIrisStreamingContent("");
+    setIsIrisLiveUnavailable(false);
+    irisStreamingMessageIdRef.current = null;
+    setIrisOptimisticMessage(
+      createOperationStudioIrisOptimisticMessage({
+        baselineMessageCount: irisMessages.length,
+        parts,
+        timestamp: new Date(nowIso),
+      }),
+    );
 
     try {
       if (!irisSessionId) {
@@ -1212,6 +1346,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       void loadIrisMessages(irisSessionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      setIrisOptimisticMessage(null);
       setIrisError(message);
       throw error;
     } finally {
@@ -1237,6 +1372,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     taskInstruction,
     userMessage,
     selectedIrisModel,
+    irisMessages.length,
   ]);
 
   const handleOpenIrisSheet = useCallback(() => {

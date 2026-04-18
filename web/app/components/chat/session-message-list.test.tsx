@@ -2,11 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
-import MessageList from "./message-list";
 
-vi.mock("@/components/chat/session-message-bubble", () => ({
+vi.mock("./session-message-bubble", () => ({
   SessionMessageBubble: ({
     message,
+    showCursor,
   }: {
     message: {
       id: string;
@@ -15,8 +15,9 @@ vi.mock("@/components/chat/session-message-bubble", () => ({
       parts: Array<{ type: string }>;
       messageDisplay: { displayContent: string };
     };
+    showCursor?: boolean;
   }) => (
-    <article data-message-id={message.id}>
+    <article data-message-id={message.id} data-show-cursor={showCursor ? "true" : "false"}>
       <h2>{message.senderLabel}</h2>
       <p>{message.messageDisplay.displayContent}</p>
       <span>{message.parts.filter((part) => part.type === "tool").length}</span>
@@ -25,8 +26,10 @@ vi.mock("@/components/chat/session-message-bubble", () => ({
   ),
 }));
 
-describe("message-list", () => {
-  it("renders grouped Noctis replies as one displayed message with merged intermediate details", () => {
+import { SessionMessageList } from "./session-message-list";
+
+describe("session-message-list", () => {
+  it("renders grouped conversation units and an in-progress streaming unit through the shared bubble component", () => {
     const snapshot = buildSessionChatRenderSnapshot({
       messages: toSessionPresentationMessages([
         {
@@ -48,9 +51,15 @@ describe("message-list", () => {
           parts: [{ type: "text", text: "了解。今、みんなに聞いている。" }],
         },
       ]),
+      streamingText: {
+        content: "進行中の返信",
+        fallbackSender: "iris",
+        fallbackSenderLabel: "Iris",
+      },
     });
+
     const markup = renderToStaticMarkup(
-      <MessageList
+      <SessionMessageList
         getExpandedDetailEntries={() => ({})}
         isConversationUnitExpanded={() => false}
         onToggleConversationUnit={() => undefined}
@@ -60,9 +69,10 @@ describe("message-list", () => {
       />,
     );
 
-    expect(markup.match(/data-message-id=/g)?.length ?? 0).toBe(1);
+    expect(markup.match(/data-message-id=/g)?.length ?? 0).toBe(2);
     expect(markup).toContain("了解。今、みんなに聞いている。");
     expect(markup).toContain(">1</span>");
-    expect(markup).toContain("Noctis");
+    expect(markup).toContain("進行中の返信");
+    expect(markup).toContain('data-show-cursor="true"');
   });
 });

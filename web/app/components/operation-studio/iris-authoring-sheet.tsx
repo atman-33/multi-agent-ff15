@@ -2,10 +2,12 @@ import { Cpu } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
+import { SessionMessageList } from "@/components/chat/session-message-list";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
-import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
+import { buildMessageInspectabilityBoundary } from "@/lib/message-inspectability-state";
 import {
   Sheet,
   SheetContent,
@@ -28,6 +30,7 @@ import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status"
 import type { PromptPart } from "@/lib/prompt-parts";
 import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
+import { IrisMessageDetailSheet } from "./iris-message-detail-sheet";
 
 const IRIS_PORTRAIT_SRC = "/images/iris.png";
 
@@ -54,10 +57,6 @@ interface IrisAuthoringSheetProps {
   targetLabel: string;
 }
 
-function getDisplayedMessageContent(message: RenderedSessionMessage): string {
-  return message.messageDisplay.displayContent || message.content || message.detailRawText;
-}
-
 function buildStatusLabel(input: {
   isLoading: boolean;
   isSending: boolean;
@@ -75,13 +74,23 @@ function buildStatusLabel(input: {
   return "New Session";
 }
 
-function IrisPortrait({ size }: { size: "header" | "empty" }) {
+function IrisPortrait({ size }: { size: "header" | "empty" | "message" }) {
   const theme = getAgentTheme("iris");
-  const frameSizeClass = size === "empty" ? "h-20 w-20" : "h-14 w-14";
-  const glowSizeClass = size === "empty" ? "h-14 w-14 blur-2xl" : "h-10 w-10 blur-xl";
+  const frameSizeClass = size === "empty"
+    ? "h-20 w-20"
+    : size === "message"
+      ? "h-8 w-8"
+      : "h-14 w-14";
+  const glowSizeClass = size === "empty"
+    ? "h-14 w-14 blur-2xl"
+    : size === "message"
+      ? "h-6 w-6 blur-lg"
+      : "h-10 w-10 blur-xl";
   const frameShadow = size === "empty"
     ? `0 0 26px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`
-    : `0 0 18px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`;
+    : size === "message"
+      ? `0 0 12px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`
+      : `0 0 18px ${theme?.glowSoft ?? "rgba(56, 189, 248, 0.2)"}`;
   const imageGlowFilter = [
     `drop-shadow(0 0 3px ${theme?.ring ?? "rgba(125, 211, 252, 0.68)"})`,
     `drop-shadow(0 0 6px ${theme?.glow ?? "rgba(56, 189, 248, 0.3)"})`,
@@ -124,6 +133,21 @@ export function resolveSheetPortalContainer(
   return currentContainer === nextContainer ? currentContainer : nextContainer;
 }
 
+function IrisPendingBubble() {
+  return (
+    <div className="flex items-end gap-2">
+      <IrisPortrait size="message" />
+      <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
+        <div className="flex gap-1.5">
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function IrisAuthoringSheet({
   autoFollowKey,
   composerDraftKey,
@@ -156,6 +180,32 @@ export function IrisAuthoringSheet({
     sessionStatus,
   });
   const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
+  const inspectability = useConversationUnitInspectability(
+    useMemo(
+      () => renderedMessages.map((message) => buildMessageInspectabilityBoundary(message)),
+      [renderedMessages],
+    ),
+  );
+  const isSessionActive = isSessionStatusActive(sessionStatus);
+  const renderIrisAvatar = useCallback(
+    (message: RenderedSessionMessage) =>
+      message.messageDisplay.resolvedSenderIsUser ? null : <IrisPortrait size="message" />,
+    [],
+  );
+  const renderIrisDetailSheet = useCallback(
+    ({
+      message,
+      onOpenChange,
+      open,
+    }: {
+      message: RenderedSessionMessage;
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    }) => (
+      <IrisMessageDetailSheet message={message} onOpenChange={onOpenChange} open={open} />
+    ),
+    [],
+  );
   const handleSheetContentRef = useCallback((node: HTMLDivElement | null) => {
     setSheetContentElement((current) => resolveSheetPortalContainer(current, node));
   }, []);
@@ -265,7 +315,7 @@ export function IrisAuthoringSheet({
             scrollSignal={scrollSignal}
           >
             {() =>
-              renderedMessages.length === 0 && !streamingMessage ? (
+              renderedMessages.length === 0 && !streamingMessage && !isSessionActive ? (
                 <div className="flex min-h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center text-slate-400">
                   <IrisPortrait size="empty" />
                   <div className="space-y-1">
@@ -275,47 +325,17 @@ export function IrisAuthoringSheet({
                 </div>
               ) : (
                 <>
-                  {renderedMessages.map((message) => {
-                    const content = getDisplayedMessageContent(message);
-                    const isUser = message.messageDisplay.resolvedSenderIsUser;
-                    return (
-                      <div
-                        className={isUser ? "flex justify-end" : "flex justify-start"}
-                        key={message.conversationUnitId}
-                      >
-                        <div
-                          className={isUser
-                            ? "max-w-[84%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/12 px-4 py-3 text-sm text-foreground"
-                            : "max-w-[84%] rounded-2xl rounded-bl-md border border-slate-700/70 bg-white/6 px-4 py-3 text-sm text-slate-100"
-                          }
-                        >
-                          <div className="mb-1 font-mono text-[10px] uppercase tracking-widest text-slate-400">
-                            {message.senderLabel}
-                          </div>
-                          {isUser ? (
-                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{content}</p>
-                          ) : (
-                            <div className="markdown-body text-sm leading-6">
-                              <MessageMarkdown>{content}</MessageMarkdown>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {streamingMessage ? (
-                    <div className="flex justify-start">
-                      <div className="max-w-[84%] rounded-2xl rounded-bl-md border border-slate-700/70 bg-white/6 px-4 py-3 text-sm text-slate-100">
-                        <div className="mb-1 font-mono text-[10px] uppercase tracking-widest text-slate-400">
-                          {streamingMessage.senderLabel}
-                        </div>
-                        <div className="markdown-body text-sm leading-6">
-                          <MessageMarkdown>{getDisplayedMessageContent(streamingMessage)}</MessageMarkdown>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
+                  <SessionMessageList
+                    getExpandedDetailEntries={inspectability.getExpandedDetailEntries}
+                    isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
+                    onToggleConversationUnit={inspectability.toggleConversationUnit}
+                    onToggleDetailEntry={inspectability.toggleDetailEntry}
+                    renderAvatar={renderIrisAvatar}
+                    renderDetailSheet={renderIrisDetailSheet}
+                    renderedMessages={renderedMessages}
+                    streamingMessage={streamingMessage}
+                  />
+                  {isSessionActive ? <IrisPendingBubble /> : null}
                 </>
               )
             }
