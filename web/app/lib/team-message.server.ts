@@ -136,7 +136,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     }
 
     const sessionResult = await client.session.create({
-      directory: executionRoot.executionRoot,
+      directory: executionRoot.sessionHostRoot,
       title: `mission:${missionId}`,
     });
 
@@ -155,7 +155,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
   }
 
   const sessionResult = await client.session.create({
-    directory: executionRoot.executionRoot,
+    directory: executionRoot.sessionHostRoot,
     title: `mission:${missionId}:${toAgent}`,
   });
 

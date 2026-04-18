@@ -151,7 +151,7 @@ describe("execution workspace sessions", () => {
   it("uses the mission execution workspace for worker dispatch sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
-    const { missionId, workspacePath } = createExecutionMission(root);
+    const { missionId } = createExecutionMission(root);
     sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis" } });
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-worker" } });
 
@@ -163,7 +163,7 @@ describe("execution workspace sessions", () => {
 
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: workspacePath,
+        directory: root,
         title: `mission:${missionId}:ignis`,
       }),
     );
@@ -243,7 +243,7 @@ describe("execution workspace sessions", () => {
 
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: join(root, "external-alpha"),
+        directory: root,
         title: `mission:${missionId}:ignis`,
       }),
     );
@@ -252,7 +252,7 @@ describe("execution workspace sessions", () => {
   it("uses the mission execution workspace for team-message worker sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
-    const { missionId, workspacePath } = createExecutionMission(root);
+    const { missionId } = createExecutionMission(root);
     sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis" } });
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-message" } });
 
@@ -265,7 +265,7 @@ describe("execution workspace sessions", () => {
 
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: workspacePath,
+        directory: root,
         title: `mission:${missionId}:ignis`,
       }),
     );
@@ -324,7 +324,7 @@ describe("execution workspace sessions", () => {
 
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: join(root, "external-alpha"),
+        directory: root,
         title: `mission:${missionId}:ignis`,
       }),
     );

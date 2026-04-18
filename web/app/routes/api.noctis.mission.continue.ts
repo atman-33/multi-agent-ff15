@@ -104,7 +104,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     let sessionId = mission.noctisSessionId;
     if (!sessionId) {
       const sessionResult = await client.session.create({
-        directory: executionRoot.executionRoot,
+        directory: executionRoot.sessionHostRoot,
         title: `mission:${missionId}`,
       });
 

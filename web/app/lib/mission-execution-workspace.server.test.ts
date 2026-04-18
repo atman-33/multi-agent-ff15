@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildMissionExecutionBranchName,
   resolveExecutionBaseBranch,
+  resolveManagedMissionStartRoots,
   resolveExecutionWorkspaceBaseDir,
   resolveMissionWorkspacePath,
 } from "./mission-execution-workspace.server";
@@ -74,5 +75,47 @@ describe("mission-execution-workspace.server", () => {
       "release",
     );
     expect(resolveExecutionBaseBranch({ rootPath: repoRoot })).toBe("trunk");
+  });
+
+  it("separates the managed session host root from the execution target root", () => {
+    const executionProject = {
+      id: "alpha",
+      name: "Alpha Project",
+      rootPath: "/tmp/external-alpha",
+      serenaProject: "alpha",
+      instructionFiles: [],
+    };
+
+    expect(
+      resolveManagedMissionStartRoots({
+        appRoot: "/tmp/multi-agent-ff15",
+        executionProject,
+        executionTargetMode: "execution_project",
+      }),
+    ).toMatchObject({
+      sessionHostRoot: "/tmp/multi-agent-ff15",
+      executionRoot: "/tmp/external-alpha",
+      executionTargetMode: "execution_project",
+      recreated: false,
+    });
+
+    expect(
+      resolveManagedMissionStartRoots({
+        appRoot: "/tmp/multi-agent-ff15",
+        executionProject,
+        executionTargetMode: "mission_workspace",
+        executionWorkspace: {
+          workspacePath: "/tmp/.worktrees/alpha/mission-123",
+          workspaceStatus: "ready",
+        },
+      }),
+    ).toMatchObject({
+      sessionHostRoot: "/tmp/multi-agent-ff15",
+      executionRoot: "/tmp/.worktrees/alpha/mission-123",
+      executionTargetMode: "mission_workspace",
+      workspacePath: "/tmp/.worktrees/alpha/mission-123",
+      workspaceStatus: "ready",
+      recreated: false,
+    });
   });
 });

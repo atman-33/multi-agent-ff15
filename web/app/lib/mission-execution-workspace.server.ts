@@ -182,17 +182,44 @@ export function resolveExecutionProject(
   return project;
 }
 
-export function resolveMissionExecutionRoot(options: {
-  appRoot: string;
-  mission: Pick<Mission, "executionProjectId" | "executionTargetMode" | "branch" | "workspacePath">;
-}): {
+export interface ManagedMissionRootResolution {
+  sessionHostRoot: string;
   executionProject: RegisteredProjectDefinition;
   executionRoot: string;
   executionTargetMode: "mission_workspace" | "execution_project";
   recreated: boolean;
   workspacePath?: string;
   workspaceStatus?: "ready";
-} {
+}
+
+export function resolveManagedMissionStartRoots(options: {
+  appRoot: string;
+  executionProject: RegisteredProjectDefinition;
+  executionTargetMode: "mission_workspace" | "execution_project";
+  executionWorkspace?: {
+    workspacePath: string;
+    workspaceStatus: "ready";
+  } | null;
+}): ManagedMissionRootResolution {
+  return {
+    sessionHostRoot: options.appRoot,
+    executionProject: options.executionProject,
+    executionRoot: options.executionWorkspace?.workspacePath ?? options.executionProject.rootPath,
+    executionTargetMode: options.executionTargetMode,
+    recreated: false,
+    ...(options.executionWorkspace
+      ? {
+          workspacePath: options.executionWorkspace.workspacePath,
+          workspaceStatus: options.executionWorkspace.workspaceStatus,
+        }
+      : {}),
+  };
+}
+
+export function resolveMissionExecutionRoot(options: {
+  appRoot: string;
+  mission: Pick<Mission, "executionProjectId" | "executionTargetMode" | "branch" | "workspacePath">;
+}): ManagedMissionRootResolution {
   const executionProjectId = options.mission.executionProjectId;
   if (!executionProjectId) {
     throw new Error("Mission requires an execution project before it can be resumed.");
@@ -210,6 +237,7 @@ export function resolveMissionExecutionRoot(options: {
     }
 
     return {
+      sessionHostRoot: options.appRoot,
       executionProject,
       executionRoot: executionProject.rootPath,
       executionTargetMode,
@@ -229,6 +257,7 @@ export function resolveMissionExecutionRoot(options: {
   });
 
   return {
+    sessionHostRoot: options.appRoot,
     executionProject: executionWorkspace.executionProject,
     executionRoot: executionWorkspace.workspacePath,
     executionTargetMode,

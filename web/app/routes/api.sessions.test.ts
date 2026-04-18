@@ -72,7 +72,8 @@ afterEach(() => {
 
 describe("api.sessions", () => {
   it("returns managed session ownership and effective execution summaries", async () => {
-    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
 
     const missionId = `mission-${crypto.randomUUID()}`;
     missionIds.push(missionId);
@@ -90,16 +91,22 @@ describe("api.sessions", () => {
     sessionListMock.mockResolvedValue({
       data: [
         {
+          id: "session-noctis",
+          title: `mission:${missionId}`,
+          directory: root,
+          time: { created: 1, updated: 2 },
+        },
+        {
           id: "session-ignis",
           title: `mission:${missionId}:ignis`,
-          directory: "/tmp/managed",
-          time: { created: 1, updated: 2 },
+          directory: root,
+          time: { created: 3, updated: 4 },
         },
         {
           id: "session-generic",
           title: "Generic Session",
           directory: "/tmp/generic",
-          time: { created: 3, updated: 4 },
+          time: { created: 5, updated: 6 },
         },
       ],
     });
@@ -111,6 +118,16 @@ describe("api.sessions", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       sessions: [
+        expect.objectContaining({
+          id: "session-noctis",
+          executionSummary: "Alpha Project + Beta Project",
+          managedSession: {
+            missionId,
+            missionTitle: "Managed Mission",
+            ownerAgent: "noctis",
+            ownerLabel: "Noctis",
+          },
+        }),
         expect.objectContaining({
           id: "session-ignis",
           executionSummary: "Alpha Project + Beta Project",
