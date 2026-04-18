@@ -119,6 +119,36 @@ afterEach(() => {
 });
 
 describe("api.noctis.missions.$missionId.runtime", () => {
+  it("returns shell-only runtime payload without duplicated session history", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-shell-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Shell mission",
+      objective: "Verify shell-only runtime payload",
+    });
+
+    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle" } });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      primaryMessages?: unknown;
+      noctisMessages?: unknown;
+      primarySessionId: string | null;
+      sessionStatuses: Record<string, string>;
+    }>(response);
+
+    expect(data.primarySessionId).toBe("session-noctis");
+    expect(data.primaryMessages).toBeUndefined();
+    expect(data.noctisMessages).toBeUndefined();
+    expect(data.sessionStatuses["session-noctis"]).toBe("idle");
+    expect(sessionMessagesMock).not.toHaveBeenCalled();
+  });
+
   it("returns derived workflow progress for the active mission workflow", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

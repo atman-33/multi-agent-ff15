@@ -174,15 +174,12 @@ export type MissionResumePayload = {
 };
 
 type MissionRuntimeSnapshot = MissionResumePayload & {
-  contextUsageByAgent: Record<
-    "noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto",
-    AgentContextUsage | null
+  contextUsageByAgent: Partial<
+    Record<"noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto", AgentContextUsage | null>
   >;
-  banterTimeline: BanterTimelineEntry[];
+  banterTimeline?: BanterTimelineEntry[];
   delegationLedger: DelegationLedger;
   sessionStatuses: Record<string, SessionStatus>;
-  primaryMessages?: MessageInfo[];
-  noctisMessages: MessageInfo[];
 };
 
 function getMissionPrimarySessionIdFromPayload(
@@ -520,8 +517,6 @@ export function useAgentSession({
   const activeMissionIdRef = useRef<string | null>(activeMissionId);
   const noctisSessionIdRef = useRef<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
-  const lastIncomingNoctisMessageIdRef = useRef<string | null>(null);
-  const hasHydratedRuntimeRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
   const idleTimerRef = useRef<number | null>(null);
@@ -863,8 +858,6 @@ export function useAgentSession({
     setWorkerSessionIds(initialWorkerSessionIds);
     setDelegationLedger(null);
     streamingMessageIdRef.current = null;
-    lastIncomingNoctisMessageIdRef.current = null;
-    hasHydratedRuntimeRef.current = false;
     hasHydratedNoctisSettledRef.current = false;
     lastNoctisSettledRef.current = false;
     setIsStreaming(false);
@@ -886,9 +879,20 @@ export function useAgentSession({
   }, []);
 
   const syncSessionMessages = useCallback(
-    async (sessionId: string, options?: { trackStreamingMessage?: boolean }) => {
+    async (
+      sessionId: string,
+      options?: { preserveStreaming?: boolean; trackStreamingMessage?: boolean },
+    ) => {
       const nextMessages = await loadSessionMessages(sessionId, primaryAgentId);
-      setSessionMessages(nextMessages.length > 0 ? nextMessages : initialMessages);
+      setSessionMessages((current) => {
+        if (nextMessages.length === 0) {
+          return options?.preserveStreaming ? current : initialMessages;
+        }
+
+        return options?.preserveStreaming
+          ? mergeRuntimeSessionMessages(current, nextMessages, primaryAgentId)
+          : nextMessages;
+      });
 
       if (!options?.trackStreamingMessage) {
         return;
@@ -1142,7 +1146,7 @@ export function useAgentSession({
   );
 
   const applyMissionRuntimeSnapshot = useCallback(
-    (runtime: MissionRuntimeSnapshot, options?: { preserveStreaming?: boolean }) => {
+    (runtime: MissionRuntimeSnapshot) => {
       missionIdRef.current = runtime.missionId;
       setActiveOperationState(runtime.operationState ?? null);
       setWorkflowProgress(runtime.workflowProgress ?? null);
@@ -1170,6 +1174,9 @@ export function useAgentSession({
         streamingMessageIdRef.current = null;
         if (nextPrimarySessionId) {
           subscribeToSession(nextPrimarySessionId);
+          void syncSessionMessages(nextPrimarySessionId, { preserveStreaming: true }).catch(
+            () => undefined,
+          );
         } else {
           eventSourceRef.current?.close();
           eventSourceRef.current = null;
@@ -1232,48 +1239,17 @@ export function useAgentSession({
         const nextStatus = runtime.sessionStatuses[sessionId];
         setServerSessionState(sessionId, nextStatus ?? "idle");
       }
-
-      const nextMessages = toSessionChatMessages(
-        runtime.primaryMessages ?? runtime.noctisMessages,
-        primaryAgentId,
-      );
-      const latestIncomingMessage = [...nextMessages]
-        .reverse()
-        .find((message) => message.sender !== primaryAgentId);
-
-      if (!hasHydratedRuntimeRef.current) {
-        lastIncomingNoctisMessageIdRef.current = latestIncomingMessage?.id ?? null;
-        hasHydratedRuntimeRef.current = true;
-      } else if (
-        latestIncomingMessage?.id &&
-        latestIncomingMessage.id !== lastIncomingNoctisMessageIdRef.current &&
-        nextPrimarySessionId
-      ) {
-        lastIncomingNoctisMessageIdRef.current = latestIncomingMessage.id;
-        setOptimisticSessionState(nextPrimarySessionId, "busy", 4000);
-      }
-
-      if (nextMessages.length > 0) {
-        setSessionMessages((current) =>
-          options?.preserveStreaming
-            ? mergeRuntimeSessionMessages(current, nextMessages, primaryAgentId)
-            : nextMessages
-        );
-      } else if (!options?.preserveStreaming) {
-        setSessionMessages(initialMessages);
-      }
     },
     [
       clearPendingMissionSession,
-      initialMessages,
       isLunafreyaSurface,
       isStreaming,
       pendingMissionSessionId,
       persistAmbientBanter,
       primaryAgentId,
-      setOptimisticSessionState,
       setServerSessionState,
       subscribeToSession,
+      syncSessionMessages,
       syncPersistedBanterTimeline,
     ]
   );
@@ -1308,13 +1284,12 @@ export function useAgentSession({
           return;
         }
 
-        applyMissionRuntimeSnapshot(runtime, { preserveStreaming: true });
+        applyMissionRuntimeSnapshot(runtime);
       } catch {
         // Ignore transient mission runtime failures.
       }
     };
 
-    void refreshMissionRuntime();
     const intervalId = window.setInterval(refreshMissionRuntime, 2000);
 
     return () => {
@@ -1328,8 +1303,6 @@ export function useAgentSession({
       if (!activeMissionId) {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
-        lastIncomingNoctisMessageIdRef.current = null;
-        hasHydratedRuntimeRef.current = false;
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
         banterTimelineMissionIdRef.current = null;
@@ -1401,13 +1374,18 @@ export function useAgentSession({
         sessionStatusRef.current = null;
         clearProgressBanter();
 
-          const runtime = await loadMissionRuntimeSnapshot(activeMissionId, missionRouteBase);
-        applyMissionRuntimeSnapshot(runtime, { preserveStreaming: false });
+        const runtime = await loadMissionRuntimeSnapshot(activeMissionId, missionRouteBase);
+        applyMissionRuntimeSnapshot(runtime);
+
+        const primarySessionId = getMissionPrimarySessionIdFromPayload(runtime);
+        if (primarySessionId) {
+          await syncSessionMessages(primarySessionId);
+        } else {
+          setSessionMessages(initialMessages);
+        }
       } catch {
         missionIdRef.current = null;
         noctisSessionIdRef.current = null;
-        lastIncomingNoctisMessageIdRef.current = null;
-        hasHydratedRuntimeRef.current = false;
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
         setNoctisSessionId(null);
@@ -1439,6 +1417,7 @@ export function useAgentSession({
     initialMessageInfos,
     initialMissionData,
     applyMissionRuntimeSnapshot,
+    syncSessionMessages,
     missionRouteBase,
     primaryAgentId,
     replaceServerSessionStates,

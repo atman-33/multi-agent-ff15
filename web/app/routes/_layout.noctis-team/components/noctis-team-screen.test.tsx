@@ -422,6 +422,43 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("workflow-progress:3/5:waiting_for_report:review");
   });
 
+  it("keeps Noctis shell panels visible while chat history is still loading", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+    agentSessionStateMock.mockReturnValue({
+      messages: [],
+      banterEntries: [{ id: "banter-1" }],
+      latestBanterEntryId: "banter-1",
+      partyMembers: [{ id: "ignis" }],
+      speakingAgentId: null,
+      isStartingMission: false,
+      isSessionActive: false,
+      isStreaming: false,
+      isLoadingHistory: true,
+      availableOperations: [],
+      selectedOperation: null,
+      activeOperationState: null,
+      workflowProgress: null,
+      activityLog: [],
+      primaryContextUsage: null,
+      isOperationSelectionLocked: true,
+      setSelectedOperation: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(),
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("party-status-panel");
+    expect(markup).toContain("banter-log");
+    expect(markup).toContain("mission-output-browser");
+  });
+
   it("renders the Lunafreya surface without workflow or party chrome", () => {
     paramsMock.mockReturnValue({ id: "mission-luna" });
     agentSessionStateMock.mockReturnValue({

@@ -341,4 +341,25 @@ describe("chat-area", () => {
     expect(markup).not.toContain("Radio Incoming");
     expect(markup).not.toContain("Outputs");
   });
+
+  it("shows an explicit loading state while mission history is still hydrating", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={true}
+        isLoadingHistory={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Loading Session History");
+    expect(markup).toContain("Refreshing the sanitized transcript for this mission.");
+  });
 });

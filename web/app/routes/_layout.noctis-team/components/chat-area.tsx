@@ -73,6 +73,7 @@ export interface ChatMessage {
 interface ChatAreaProps {
   messages: ChatMessage[];
   isResponding: boolean;
+  isLoadingHistory?: boolean;
   isStartingMission?: boolean;
   isSessionActive?: boolean;
   isStreaming?: boolean;
@@ -486,6 +487,7 @@ MessageBubble.displayName = "MessageBubble";
 
 export const ChatArea = ({
   messages,
+  isLoadingHistory = false,
   isStartingMission = false,
   isSessionActive = false,
   isStreaming = false,
@@ -623,6 +625,21 @@ export const ChatArea = ({
           </p>
         </div>
       </div>
+    </div>
+  ) : null;
+  const historyLoadingCallout = isLoadingHistory ? (
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      className="rounded-xl border border-sky-400/20 bg-sky-400/8 px-3 py-2.5"
+      role="status"
+    >
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-100/80">
+        Loading Session History
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-foreground/80">
+        Refreshing the sanitized transcript for this mission.
+      </p>
     </div>
   ) : null;
   const workflowSelector = (
@@ -858,6 +875,8 @@ export const ChatArea = ({
     >
       {() => (
         <>
+          {historyLoadingCallout}
+
           {renderSnapshot.renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&

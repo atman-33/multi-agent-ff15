@@ -1104,6 +1104,7 @@ export function NoctisTeamScreen({
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
               isResponding={isMissionStartPending || isSessionActive || isLoadingHistory}
+              isLoadingHistory={isLoadingHistory}
               isStartingMission={isMissionStartPending}
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}

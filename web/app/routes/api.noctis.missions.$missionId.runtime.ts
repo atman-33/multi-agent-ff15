@@ -1,4 +1,5 @@
-import { buildMissionRuntimePayload, missionMatchesSurface } from "@/lib/mission-api.server";
+import { missionMatchesSurface } from "@/lib/mission-api.server";
+import { buildMissionSurfaceHydrationPayload } from "@/lib/mission-surface-hydration.server";
 import { getMission } from "@/lib/mission-store";
 import type { Route } from "./+types/api.noctis.missions.$missionId.runtime";
 
@@ -14,7 +15,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
   }
 
   try {
-    return Response.json(await buildMissionRuntimePayload(mission));
+    return Response.json(await buildMissionSurfaceHydrationPayload(mission));
   } catch {
     return Response.json({ error: "OpenCode server not available" }, { status: 503 });
   }
