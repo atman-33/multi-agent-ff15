@@ -41,6 +41,7 @@ export function loader({ request, params }: { request: Request; params: { missio
       filePath: output.filePath,
       filename: output.filename,
       frontmatter: output.frontmatter,
+      metadata: output.metadata ?? null,
       rawContent: output.rawContent,
       step: output.step,
       tags: output.tags,

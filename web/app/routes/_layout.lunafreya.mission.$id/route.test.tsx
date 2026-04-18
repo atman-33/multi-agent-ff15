@@ -1,6 +1,16 @@
-import type { ReactNode } from "react";
+// @vitest-environment jsdom
+
+import { act, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { matchMock, navigateMock, paramsMock, sheetSpy } = vi.hoisted(() => ({
+  matchMock: vi.fn(),
+  navigateMock: vi.fn(),
+  paramsMock: vi.fn(),
+  sheetSpy: vi.fn(),
+}));
 
 vi.mock("react-router", async () => {
   const actual = await vi.importActual<typeof import("react-router")>("react-router");
@@ -8,9 +18,19 @@ vi.mock("react-router", async () => {
   return {
     ...actual,
     Outlet: () => <div>nested-route</div>,
-    useNavigate: () => vi.fn(),
+    useMatch: () => matchMock(),
+    useNavigate: () => navigateMock,
+    useParams: () => paramsMock(),
   };
 });
+
+vi.mock("@/components/ui/sheet", () => ({
+  Sheet: ({ children, onOpenChange, open }: { children: ReactNode; onOpenChange?: (open: boolean) => void; open?: boolean }) => {
+    sheetSpy({ onOpenChange, open });
+    return open ? <div>{children}</div> : null;
+  },
+  SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 
 vi.mock("sonner", () => ({
   toast: {
@@ -22,6 +42,38 @@ import { LunafreyaMissionPage } from "./route";
 
 const TestPage = LunafreyaMissionPage as unknown as (props: { loaderData: unknown }) => ReactNode;
 
+let container: HTMLDivElement;
+let root: Root | null;
+
+async function renderPage(loaderData: { exists: boolean; requestedMissionId: string | null }) {
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(<TestPage loaderData={loaderData} />);
+  });
+}
+
+beforeEach(() => {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = null;
+  matchMock.mockReset();
+  navigateMock.mockReset();
+  paramsMock.mockReset();
+  sheetSpy.mockReset();
+  matchMock.mockReturnValue(null);
+  paramsMock.mockReturnValue({ id: "mission-luna" });
+});
+
+afterEach(async () => {
+  if (root) {
+    await act(async () => {
+      root?.unmount();
+    });
+  }
+  container.remove();
+  vi.useRealTimers();
+});
+
 describe("lunafreya mission route", () => {
   it("renders only nested mission detail content when the mission exists", () => {
     const markup = renderToStaticMarkup(
@@ -30,5 +82,42 @@ describe("lunafreya mission route", () => {
 
     expect(markup).toContain("nested-route");
     expect(markup).not.toContain("screen:");
+  });
+
+  it("closes the output detail sheet before navigating back to the mission page", async () => {
+    vi.useFakeTimers();
+    matchMock.mockReturnValue({
+      params: {
+        filename: "research-brief.md",
+        id: "mission-luna",
+        step: "research",
+        taskId: "step_research_1",
+      },
+    });
+
+    await renderPage({ exists: true, requestedMissionId: "mission-luna" });
+
+    const initialProps = sheetSpy.mock.calls.at(-1)?.[0] as
+      | { onOpenChange?: (open: boolean) => void; open?: boolean }
+      | undefined;
+
+    expect(initialProps?.open).toBe(true);
+
+    act(() => {
+      initialProps?.onOpenChange?.(false);
+    });
+
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith("/lunafreya/mission/mission-luna");
   });
 });

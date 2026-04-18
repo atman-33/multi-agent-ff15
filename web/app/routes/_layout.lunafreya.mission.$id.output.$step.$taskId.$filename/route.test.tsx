@@ -24,9 +24,9 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
 }));
 
-import { NoctisTeamMissionOutputDetailRoute } from "./route";
+import { LunafreyaMissionOutputDetailRoute } from "./route";
 
-const TestRoute = NoctisTeamMissionOutputDetailRoute as unknown as (props: {
+const TestRoute = LunafreyaMissionOutputDetailRoute as unknown as (props: {
   loaderData: {
     filename: string;
     missionId: string;
@@ -69,7 +69,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe("noctis-team mission output detail route", () => {
+describe("lunafreya mission output detail route", () => {
   it("loads the selected mission output after the detail route mounts", async () => {
     let resolveResponse: ((value: { json: () => Promise<Record<string, unknown>>; ok: boolean; status: number }) => void) | null = null;
 
@@ -81,38 +81,45 @@ describe("noctis-team mission output detail route", () => {
     );
 
     await renderRoute({
-      filename: "news-run-plan.md",
-      missionId: "mission-123",
-      step: "prepare-run",
-      taskId: "step_prepare-run_1",
+      filename: "research-brief.md",
+      missionId: "mission-luna",
+      step: "research",
+      taskId: "step_research_1",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/missions/mission-123/output?step=prepare-run&taskId=step_prepare-run_1&file=news-run-plan.md",
+      "/api/missions/mission-luna/output?step=research&taskId=step_research_1&file=research-brief.md",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(previewSpy.mock.calls.at(-1)?.[0]).toMatchObject({
       loading: true,
       previewLabel: "Mission output",
-      title: "news-run-plan.md",
+      title: "research-brief.md",
     });
 
     await act(async () => {
       resolveResponse?.({
         json: async () => ({
-          author: "Noctis",
-          content: "# Plan\n\nDetails.",
+          author: "Lunafreya",
+          content: "# Research brief\n\nSignal.",
           date: "2026-04-09T00:00:00.000Z",
           displayMode: "markdown",
-          filePath: "/tmp/news-run-plan.md",
-          filename: "news-run-plan.md",
+          filePath: "/tmp/research-brief.md",
+          filename: "research-brief.md",
           frontmatter: null,
-          metadata: null,
-          rawContent: "# Plan\n\nDetails.",
-          step: "prepare-run",
+          metadata: {
+            capturedAt: "2026-04-09T00:00:01.000Z",
+            lunafreyaFacetSnapshot: {
+              selectedJobId: "job:research",
+              selectedJobLabel: "Research",
+              selectedSkillLabels: ["Competitive Scan"],
+            },
+          },
+          rawContent: "# Research brief\n\nSignal.",
+          step: "research",
           tags: [],
-          taskId: "step_prepare-run_1",
-          title: "News run plan",
+          taskId: "step_research_1",
+          title: "Research brief",
         }),
         ok: true,
         status: 200,
@@ -121,10 +128,10 @@ describe("noctis-team mission output detail route", () => {
     });
 
     expect(previewSpy.mock.calls.at(-1)?.[0]).toMatchObject({
-      author: "Noctis",
-      content: "# Plan\n\nDetails.",
+      author: "Lunafreya",
+      content: "# Research brief\n\nSignal.",
       loading: false,
-      title: "News run plan",
+      title: "Research brief",
     });
   });
 });

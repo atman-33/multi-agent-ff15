@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createMission, deleteMission, getMissionOutputFilePath } from "@/lib/mission-store";
+import {
+  createMission,
+  deleteMission,
+  getMissionOutputFilePath,
+  setMissionOutputMetadata,
+} from "@/lib/mission-store";
 import { loader as outputLoader } from "./api.missions.$missionId.output";
 import { loader as outputsLoader } from "./api.missions.$missionId.outputs";
 
@@ -137,6 +142,21 @@ describe("api.missions.$missionId.output", () => {
         "Details.",
       ].join("\n"),
     });
+    setMissionOutputMetadata(missionId, {
+      step: "spec-planning",
+      taskId: "step_spec-planning_1",
+      filename: "spec-plan.md",
+      metadata: {
+        capturedAt: "2026-04-05T00:00:01.000Z",
+        lunafreyaFacetSnapshot: {
+          selectedJobId: "job:research",
+          selectedJobLabel: "Research",
+          selectedSkillIds: ["competitive-scan"],
+          selectedSkillLabels: ["Competitive Scan"],
+          updatedAt: "2026-04-05T00:00:01.000Z",
+        },
+      },
+    });
 
     const response = await outputLoader({
       request: new Request(
@@ -157,6 +177,16 @@ describe("api.missions.$missionId.output", () => {
       frontmatter: {
         title: "Spec plan",
         date: "2026-04-05T00:00:00.000Z",
+      },
+      metadata: {
+        capturedAt: "2026-04-05T00:00:01.000Z",
+        lunafreyaFacetSnapshot: {
+          selectedJobId: "job:research",
+          selectedJobLabel: "Research",
+          selectedSkillIds: ["competitive-scan"],
+          selectedSkillLabels: ["Competitive Scan"],
+          updatedAt: "2026-04-05T00:00:01.000Z",
+        },
       },
     });
   });
