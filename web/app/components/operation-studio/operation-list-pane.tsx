@@ -54,7 +54,7 @@ export function OperationListPane({
                     <button
                       aria-pressed={isActive}
                       className={cn(
-                        "w-full rounded-xl border p-3 text-left transition-colors backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
+                        "w-full cursor-pointer rounded-xl border p-3 text-left transition-colors backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
                         isActive
                           ? "border-fuchsia-400/70 bg-fuchsia-500/12 ring-1 ring-fuchsia-400/35"
                           : "border-fuchsia-800/60 bg-fuchsia-950/25 hover:border-fuchsia-700/70 hover:bg-fuchsia-950/35",
@@ -99,7 +99,7 @@ export function OperationListPane({
                   <button
                     aria-pressed={isActive}
                     className={cn(
-                      "w-full rounded-xl border p-3 text-left transition-colors backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
+                      "w-full cursor-pointer rounded-xl border p-3 text-left transition-colors backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
                       isActive
                         ? "border-blue-400/70 bg-blue-500/12 ring-1 ring-blue-400/35 shadow-[0_10px_30px_rgba(37,99,235,0.14)]"
                         : "border-slate-700/70 bg-slate-950/40 hover:border-slate-600/80 hover:bg-slate-900/55",
