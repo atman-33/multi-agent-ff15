@@ -178,9 +178,44 @@ type MissionRuntimeSnapshot = MissionResumePayload & {
     Record<"noctis" | "lunafreya" | "ignis" | "gladiolus" | "prompto", AgentContextUsage | null>
   >;
   banterTimeline?: BanterTimelineEntry[];
-  delegationLedger: DelegationLedger;
+  delegationLedger: DelegationLedger | null;
   sessionStatuses: Record<string, SessionStatus>;
 };
+
+function normalizeDelegationLedger(
+  missionId: string,
+  delegationLedger: DelegationLedger | null | undefined,
+): DelegationLedger {
+  return delegationLedger ?? {
+    missionId,
+    activeTasks: [],
+    completedSummaries: {},
+  };
+}
+
+export type MissionTranscriptPhase = "idle" | "loading" | "ready" | "empty" | "error";
+
+type MissionTranscriptState = {
+  errorMessage: string | null;
+  missionId: string | null;
+  phase: MissionTranscriptPhase;
+};
+
+function createMissionTranscriptState(
+  missionId: string | null,
+  phase: MissionTranscriptPhase,
+  errorMessage: string | null = null,
+): MissionTranscriptState {
+  return {
+    errorMessage,
+    missionId,
+    phase,
+  };
+}
+
+function resolveMissionTranscriptPhase(messages: ChatMessage[]): MissionTranscriptPhase {
+  return messages.length > 0 ? "ready" : "empty";
+}
 
 function getMissionPrimarySessionIdFromPayload(
   payload: Pick<MissionResumePayload, "primarySessionId" | "sessions">,
@@ -397,6 +432,86 @@ async function loadSessionMessages(
   return convertedMessages;
 }
 
+function getInitialTranscriptMessages(
+  activeMissionId: string | null,
+  initialMissionData: MissionResumePayload | null | undefined,
+  initialMessageInfos: MessageInfo[] | null | undefined,
+  initialMessages: ChatMessage[],
+  primaryAgentId: MissionPrimaryAgentId,
+): ChatMessage[] {
+  if (
+    activeMissionId &&
+    initialMissionData?.missionId === activeMissionId &&
+    Array.isArray(initialMessageInfos) &&
+    initialMessageInfos.length > 0
+  ) {
+    const preloadedMessages = toSessionChatMessages(initialMessageInfos, primaryAgentId);
+    return preloadedMessages.length > 0 ? preloadedMessages : [];
+  }
+
+  return activeMissionId ? [] : initialMessages;
+}
+
+function getInitialTranscriptState(
+  activeMissionId: string | null,
+  initialMissionData: MissionResumePayload | null | undefined,
+  initialMessageInfos: MessageInfo[] | null | undefined,
+  initialMessages: ChatMessage[],
+  primaryAgentId: MissionPrimaryAgentId,
+): MissionTranscriptState {
+  if (!activeMissionId) {
+    return createMissionTranscriptState(null, "idle");
+  }
+
+  const nextMessages = getInitialTranscriptMessages(
+    activeMissionId,
+    initialMissionData,
+    initialMessageInfos,
+    initialMessages,
+    primaryAgentId,
+  );
+
+  if (nextMessages.length === 0) {
+    return createMissionTranscriptState(activeMissionId, "loading");
+  }
+
+  return createMissionTranscriptState(
+    activeMissionId,
+    resolveMissionTranscriptPhase(nextMessages),
+  );
+}
+
+function getVisibleMissionMessages(
+  activeMissionId: string | null,
+  sessionMessages: ChatMessage[],
+  transcriptState: MissionTranscriptState,
+): ChatMessage[] {
+  if (!activeMissionId) {
+    return sessionMessages;
+  }
+
+  if (transcriptState.missionId !== activeMissionId || transcriptState.phase !== "ready") {
+    return [];
+  }
+
+  return sessionMessages;
+}
+
+function getVisibleTranscriptState(
+  activeMissionId: string | null,
+  transcriptState: MissionTranscriptState,
+): MissionTranscriptState {
+  if (!activeMissionId) {
+    return createMissionTranscriptState(null, "idle");
+  }
+
+  if (transcriptState.missionId !== activeMissionId) {
+    return createMissionTranscriptState(activeMissionId, "loading");
+  }
+
+  return transcriptState;
+}
+
 export interface UseAgentSessionOptions {
   activeMissionId: string | null;
   surfaceId?: MissionSurfaceId;
@@ -416,6 +531,8 @@ export interface UseAgentSessionReturn {
   latestBanterEntryId: string | null;
   speakingAgentId: string | null;
   partyMembers: PartyMember[];
+  historyErrorMessage: string | null;
+  historyPhase: MissionTranscriptPhase;
   isStartingMission: boolean;
   isSessionActive: boolean;
   isStreaming: boolean;
@@ -484,7 +601,15 @@ export function useAgentSession({
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? toWorkerSessionIds(initialMissionData.sessions)
       : createInitialWorkerSessionIds();
-  const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(initialMessages);
+  const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>(() =>
+    getInitialTranscriptMessages(
+      activeMissionId,
+      initialMissionData,
+      initialMessageInfos,
+      initialMessages,
+      primaryAgentId,
+    )
+  );
   const [availableOperations, setAvailableOperations] = useState<OperationOption[]>([]);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [activeOperationState, setActiveOperationState] = useState<OperationState | null>(null);
@@ -511,7 +636,15 @@ export function useAgentSession({
     useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStartingMission, setIsStartingMission] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [transcriptState, setTranscriptState] = useState<MissionTranscriptState>(() =>
+    getInitialTranscriptState(
+      activeMissionId,
+      initialMissionData,
+      initialMessageInfos,
+      initialMessages,
+      primaryAgentId,
+    )
+  );
 
   const missionIdRef = useRef<string | null>(null);
   const activeMissionIdRef = useRef<string | null>(activeMissionId);
@@ -528,7 +661,17 @@ export function useAgentSession({
   const lastWorkerSessionStatesRef = useRef<Record<WorkerMemberId, SessionStatus | null>>(
     createInitialWorkerSessionStates()
   );
-  const messages = sessionMessages;
+  const messages = useMemo(
+    () => getVisibleMissionMessages(activeMissionId, sessionMessages, transcriptState),
+    [activeMissionId, sessionMessages, transcriptState]
+  );
+  const visibleTranscriptState = useMemo(
+    () => getVisibleTranscriptState(activeMissionId, transcriptState),
+    [activeMissionId, transcriptState]
+  );
+  const isLoadingHistory =
+    activeMissionId !== null &&
+    visibleTranscriptState.phase === "loading";
   const sessionStatusRef = useRef<SessionStatus | null>(null);
   const pendingActiveResolversRef = useRef<Map<string, Array<() => void>>>(new Map());
   const progressTimersRef = useRef<
@@ -858,6 +1001,24 @@ export function useAgentSession({
     setWorkerSessionIds(initialWorkerSessionIds);
     setDelegationLedger(null);
     streamingMessageIdRef.current = null;
+    setSessionMessages(
+      getInitialTranscriptMessages(
+        activeMissionId,
+        initialMissionData,
+        initialMessageInfos,
+        initialMessages,
+        primaryAgentId,
+      )
+    );
+    setTranscriptState(
+      getInitialTranscriptState(
+        activeMissionId,
+        initialMissionData,
+        initialMessageInfos,
+        initialMessages,
+        primaryAgentId,
+      )
+    );
     hasHydratedNoctisSettledRef.current = false;
     lastNoctisSettledRef.current = false;
     setIsStreaming(false);
@@ -867,7 +1028,16 @@ export function useAgentSession({
       ? (useChatStore.getState().sessionStates[initialNoctisSessionId] ?? null)
       : null;
     setPartyRuntime(createInitialPartyRuntimeState());
-  }, [activeMissionId, closeWorkerEventSources, initialNoctisSessionId, initialWorkerSessionIds]);
+  }, [
+    activeMissionId,
+    closeWorkerEventSources,
+    initialMessageInfos,
+    initialMessages,
+    initialMissionData,
+    initialNoctisSessionId,
+    initialWorkerSessionIds,
+    primaryAgentId,
+  ]);
 
   const scheduleIdleReset = useCallback(() => {
     if (idleTimerRef.current) {
@@ -881,7 +1051,11 @@ export function useAgentSession({
   const syncSessionMessages = useCallback(
     async (
       sessionId: string,
-      options?: { preserveStreaming?: boolean; trackStreamingMessage?: boolean },
+      options?: {
+        missionId?: string | null;
+        preserveStreaming?: boolean;
+        trackStreamingMessage?: boolean;
+      },
     ) => {
       const nextMessages = await loadSessionMessages(sessionId, primaryAgentId);
       setSessionMessages((current) => {
@@ -893,6 +1067,15 @@ export function useAgentSession({
           ? mergeRuntimeSessionMessages(current, nextMessages, primaryAgentId)
           : nextMessages;
       });
+
+      const transcriptMissionId =
+        options?.missionId ?? missionIdRef.current ?? activeMissionIdRef.current;
+      setTranscriptState(
+        createMissionTranscriptState(
+          transcriptMissionId,
+          resolveMissionTranscriptPhase(nextMessages),
+        )
+      );
 
       if (!options?.trackStreamingMessage) {
         return;
@@ -963,7 +1146,7 @@ export function useAgentSession({
         scheduleIdleReset();
       }
 
-        const update = isLunafreyaSurface ? null : eventToPartyUpdate(event);
+      const update = isLunafreyaSurface ? null : eventToPartyUpdate(event);
       if (update) {
         setPartyRuntime((prev) => applyPartyRuntimeUpdate(prev, update));
         if (update.cue && update.speakerAgent) {
@@ -1063,8 +1246,8 @@ export function useAgentSession({
             sessionStatusRef.current = nextStatus;
             resolvePendingActive(noctisSessionIdRef.current, nextStatus);
             if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
-                clearProgressBanter(primaryAgentId);
-                handleAgentEvent({ type: "task.retrying", agentId: primaryAgentId });
+              clearProgressBanter(primaryAgentId);
+              handleAgentEvent({ type: "task.retrying", agentId: primaryAgentId });
             }
             lastSessionStateRef.current = nextStatus;
           }
@@ -1080,7 +1263,7 @@ export function useAgentSession({
     [
       clearProgressBanter,
       handleAgentEvent,
-        primaryAgentId,
+      primaryAgentId,
       resolvePendingActive,
       setServerSessionState,
       syncSessionMessages,
@@ -1147,6 +1330,8 @@ export function useAgentSession({
 
   const applyMissionRuntimeSnapshot = useCallback(
     (runtime: MissionRuntimeSnapshot) => {
+      const delegationLedger = normalizeDelegationLedger(runtime.missionId, runtime.delegationLedger);
+
       missionIdRef.current = runtime.missionId;
       setActiveOperationState(runtime.operationState ?? null);
       setWorkflowProgress(runtime.workflowProgress ?? null);
@@ -1161,7 +1346,7 @@ export function useAgentSession({
         isSessionStatusActive(optimisticPrimaryStatus) ||
         pendingMissionSessionId === nextPrimarySessionId ||
         isStreaming;
-      const hasActiveDelegation = runtime.delegationLedger.activeTasks.some(
+      const hasActiveDelegation = delegationLedger.activeTasks.some(
         (task) => task.status === "pending" || task.status === "running"
       );
       const isPrimarySettled = !shouldPreservePrimaryActive && !hasActiveDelegation;
@@ -1169,17 +1354,30 @@ export function useAgentSession({
       clearPendingMissionSession(runtime.missionId);
 
       if (noctisSessionIdRef.current !== nextPrimarySessionId) {
+        const transcriptMissionId = runtime.missionId ?? activeMissionIdRef.current;
         noctisSessionIdRef.current = nextPrimarySessionId;
         setNoctisSessionId(nextPrimarySessionId);
         streamingMessageIdRef.current = null;
         if (nextPrimarySessionId) {
+          setSessionMessages([]);
+          setTranscriptState(createMissionTranscriptState(transcriptMissionId, "loading"));
           subscribeToSession(nextPrimarySessionId);
-          void syncSessionMessages(nextPrimarySessionId, { preserveStreaming: true }).catch(
-            () => undefined,
-          );
+          void syncSessionMessages(nextPrimarySessionId, {
+            missionId: transcriptMissionId,
+          }).catch(() => {
+            setTranscriptState(
+              createMissionTranscriptState(
+                transcriptMissionId,
+                "error",
+                "Unable to load mission transcript.",
+              )
+            );
+          });
         } else {
           eventSourceRef.current?.close();
           eventSourceRef.current = null;
+          setSessionMessages([]);
+          setTranscriptState(createMissionTranscriptState(transcriptMissionId, "empty"));
         }
       } else {
         setNoctisSessionId((current) => current ?? nextPrimarySessionId);
@@ -1191,7 +1389,7 @@ export function useAgentSession({
           ? current
           : nextWorkerSessionIds;
       });
-      setDelegationLedger(runtime.delegationLedger);
+      setDelegationLedger(delegationLedger);
       syncPersistedBanterTimeline(runtime.banterTimeline ?? []);
       if (!hasHydratedNoctisSettledRef.current) {
         hasHydratedNoctisSettledRef.current = true;
@@ -1316,6 +1514,7 @@ export function useAgentSession({
         setContextUsageByAgent(createInitialContextUsageByAgent());
         streamingMessageIdRef.current = null;
         setSessionMessages(initialMessages);
+        setTranscriptState(createMissionTranscriptState(null, "idle"));
         clearBanterEntries();
         setPartyRuntime(createInitialPartyRuntimeState());
         setIsStreaming(false);
@@ -1330,7 +1529,6 @@ export function useAgentSession({
         return;
       }
 
-      setIsLoadingHistory(true);
       try {
         if (banterTimelineMissionIdRef.current !== activeMissionId) {
           clearBanterEntries();
@@ -1341,9 +1539,12 @@ export function useAgentSession({
           initialMissionData?.missionId === activeMissionId &&
           Array.isArray(initialMessageInfos) &&
           initialMessageInfos.length > 0;
+        const initialPrimarySessionId =
+          initialMissionData?.missionId === activeMissionId
+            ? getMissionPrimarySessionIdFromPayload(initialMissionData)
+            : null;
 
         if (initialMissionData?.missionId === activeMissionId) {
-          const initialPrimarySessionId = getMissionPrimarySessionIdFromPayload(initialMissionData);
           missionIdRef.current = initialMissionData.missionId;
           clearPendingMissionSession(initialMissionData.missionId);
           noctisSessionIdRef.current = initialPrimarySessionId;
@@ -1360,7 +1561,13 @@ export function useAgentSession({
               initialMessageInfos ?? [],
               primaryAgentId,
             );
-            setSessionMessages(preloadedMessages.length > 0 ? preloadedMessages : initialMessages);
+            setSessionMessages(preloadedMessages);
+            setTranscriptState(
+              createMissionTranscriptState(
+                activeMissionId,
+                resolveMissionTranscriptPhase(preloadedMessages),
+              )
+            );
           }
           if (initialPrimarySessionId) {
             subscribeToSession(initialPrimarySessionId);
@@ -1379,9 +1586,18 @@ export function useAgentSession({
 
         const primarySessionId = getMissionPrimarySessionIdFromPayload(runtime);
         if (primarySessionId) {
-          await syncSessionMessages(primarySessionId);
+          const shouldHydrateHistory = !(
+            hasPreloadedMessages &&
+            initialPrimarySessionId === primarySessionId
+          );
+
+          if (shouldHydrateHistory) {
+            setTranscriptState(createMissionTranscriptState(activeMissionId, "loading"));
+            await syncSessionMessages(primarySessionId, { missionId: activeMissionId });
+          }
         } else {
-          setSessionMessages(initialMessages);
+          setSessionMessages([]);
+          setTranscriptState(createMissionTranscriptState(activeMissionId, "empty"));
         }
       } catch {
         missionIdRef.current = null;
@@ -1396,13 +1612,18 @@ export function useAgentSession({
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
         setContextUsageByAgent(createInitialContextUsageByAgent());
-        setSessionMessages(initialMessages);
+        setSessionMessages([]);
+        setTranscriptState(
+          createMissionTranscriptState(
+            activeMissionId,
+            "error",
+            "Unable to load mission transcript.",
+          )
+        );
         sessionStatusRef.current = null;
         clearProgressBanter();
         replaceServerSessionStates({});
         closeWorkerEventSources();
-      } finally {
-        setIsLoadingHistory(false);
       }
     };
 
@@ -1427,6 +1648,13 @@ export function useAgentSession({
   const send = useCallback(
     async (parts: PromptPart[]) => {
       const text = stringifyPromptParts(parts);
+      if (
+        activeMissionId &&
+        visibleTranscriptState.phase === "loading"
+      ) {
+        return null;
+      }
+
       const userMessage: ChatMessage = {
         id: createId(),
         sender: "user",
@@ -1596,12 +1824,14 @@ export function useAgentSession({
       }
     },
     [
+      activeMissionId,
       clearProgressBanter,
       handleAgentEvent,
       isLunafreyaSurface,
       missionContinueEndpoint,
       missionStartEndpoint,
       primaryAgentId,
+      visibleTranscriptState,
       selectedOperation,
       selectedLunafreyaJobId,
       selectedLunafreyaSkillIds,
@@ -1631,12 +1861,19 @@ export function useAgentSession({
         throw new Error(`abort failed: ${response.status}`);
       }
 
-      const nextMessages = await loadSessionMessages(sessionId, primaryAgentId).catch(() => null);
+          const nextMessages = await loadSessionMessages(sessionId, primaryAgentId).catch(() => null);
 
       if (nextMessages && nextMessages.length > 0) {
         setSessionMessages(nextMessages);
+        setTranscriptState(
+          createMissionTranscriptState(
+            activeMissionIdRef.current,
+            resolveMissionTranscriptPhase(nextMessages),
+          )
+        );
       } else {
-        setSessionMessages(initialMessages);
+        setSessionMessages([]);
+        setTranscriptState(createMissionTranscriptState(activeMissionIdRef.current, "empty"));
       }
 
       streamingMessageIdRef.current = null;
@@ -1665,7 +1902,7 @@ export function useAgentSession({
       };
       setSessionMessages((prev) => [...prev, errorMessage]);
     }
-  }, [clearProgressBanter, initialMessages, primaryAgentId, setServerSessionState]);
+  }, [clearProgressBanter, primaryAgentId, setServerSessionState]);
 
   return {
     messages,
@@ -1673,6 +1910,8 @@ export function useAgentSession({
     latestBanterEntryId,
     speakingAgentId,
     partyMembers,
+    historyErrorMessage: visibleTranscriptState.errorMessage,
+    historyPhase: visibleTranscriptState.phase,
     isStartingMission,
     isSessionActive,
     isStreaming,

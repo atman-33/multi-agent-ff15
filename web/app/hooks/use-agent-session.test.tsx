@@ -1,0 +1,420 @@
+// @vitest-environment jsdom
+
+import { act, useEffect } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import { useChatStore } from "@/stores/chat-store";
+import {
+  type MissionResumePayload,
+  useAgentSession,
+  withMissionStartPending,
+} from "./use-agent-session";
+
+type MockResponse = Pick<Response, "json" | "ok" | "status">;
+
+type HookProbeSnapshot = {
+  historyPhase: string;
+  isLoadingHistory: boolean;
+  messages: string[];
+};
+
+class MockEventSource {
+  static instances: MockEventSource[] = [];
+
+  onerror: ((this: EventSource, ev: Event) => unknown) | null = null;
+  onmessage: ((this: EventSource, ev: MessageEvent<string>) => unknown) | null = null;
+  readonly url: string;
+
+  constructor(url: string) {
+    this.url = url;
+    MockEventSource.instances.push(this);
+  }
+
+  close(): void {
+    // No-op for tests.
+  }
+}
+
+function createJsonResponse(data: unknown, init?: { ok?: boolean; status?: number }): MockResponse {
+  return {
+    ok: init?.ok ?? true,
+    status: init?.status ?? 200,
+    json: async () => data,
+  };
+}
+
+function createDeferredResponse() {
+  let resolveRef: ((response: MockResponse) => void) | undefined;
+  let rejectRef: ((error?: unknown) => void) | undefined;
+  const promise = new Promise<MockResponse>((nextResolve, nextReject) => {
+    resolveRef = nextResolve;
+    rejectRef = nextReject;
+  });
+
+  const resolve = (response: MockResponse) => {
+    if (!resolveRef) {
+      throw new Error("Deferred response was not initialized.");
+    }
+    resolveRef(response);
+  };
+
+  const reject = (error?: unknown) => {
+    if (!rejectRef) {
+      throw new Error("Deferred response was not initialized.");
+    }
+    rejectRef(error);
+  };
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+}
+
+function createMission(overrides: Partial<MissionResumePayload> = {}): MissionResumePayload {
+  return {
+    missionId: overrides.missionId ?? "mission-1",
+    title: overrides.title ?? "Mission",
+    createdAt: overrides.createdAt ?? "2026-04-19T00:00:00.000Z",
+    updatedAt: overrides.updatedAt ?? "2026-04-19T00:00:00.000Z",
+    status: overrides.status ?? "active",
+    surfaceId: overrides.surfaceId ?? "noctis_team",
+    primaryAgentId: overrides.primaryAgentId ?? "noctis",
+    primarySessionId: overrides.primarySessionId ?? "session-1",
+    executionProjectId: overrides.executionProjectId ?? "core-repo",
+    executionTargetMode: overrides.executionTargetMode ?? "execution_project",
+    contextProjectIds: overrides.contextProjectIds ?? [],
+    sessions: overrides.sessions ?? {
+      primary: overrides.primarySessionId ?? "session-1",
+      noctis: overrides.primarySessionId ?? "session-1",
+      ignis: null,
+      gladiolus: null,
+      prompto: null,
+    },
+    operationState: overrides.operationState ?? null,
+    workflowProgress: overrides.workflowProgress ?? null,
+    activityLog: overrides.activityLog ?? [],
+    ...overrides,
+  };
+}
+
+function createRuntimePayload(mission: MissionResumePayload) {
+  return {
+    ...mission,
+    banterTimeline: [],
+    contextUsageByAgent: {},
+    delegationLedger: null,
+    sessionStatuses: mission.primarySessionId ? { [mission.primarySessionId]: "idle" } : {},
+  };
+}
+
+function createAssistantMessage(id: string, text: string): MessageInfo {
+  return {
+    info: {
+      id,
+      role: "assistant",
+      time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+    },
+    parts: [{ type: "text", text }],
+  };
+}
+
+async function flushEffects(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+async function waitFor(predicate: () => boolean, attempts = 10): Promise<void> {
+  for (let index = 0; index < attempts; index += 1) {
+    await flushEffects();
+    if (predicate()) {
+      return;
+    }
+  }
+
+  throw new Error("Condition was not met before timeout.");
+}
+
+function resetChatStore(): void {
+  useChatStore.setState({
+    agentModels: {},
+    currentSessionId: null,
+    optimisticSessionStates: {},
+    pendingMissionSessions: {},
+    selectedAgent: null,
+    selectedModel: null,
+    serverSessionStates: {},
+    sessionDrafts: {},
+    sessionStates: {},
+    streamingContent: "",
+    streamingMessageId: null,
+    workingParty: {
+      ignis: true,
+      gladiolus: true,
+      prompto: true,
+    },
+  });
+}
+
+function HookProbe({
+  activeMissionId,
+  initialMessageInfos,
+  initialMissionData,
+  onSnapshot,
+}: {
+  activeMissionId: string | null;
+  initialMessageInfos?: MessageInfo[] | null;
+  initialMissionData?: MissionResumePayload | null;
+  onSnapshot: (snapshot: HookProbeSnapshot) => void;
+}) {
+  const state = useAgentSession({
+    activeMissionId,
+    initialMessageInfos,
+    initialMissionData,
+  });
+
+  useEffect(() => {
+    onSnapshot({
+      historyPhase: state.historyPhase,
+      isLoadingHistory: state.isLoadingHistory,
+      messages: state.messages.map((message) => message.content),
+    });
+  }, [onSnapshot, state.historyPhase, state.isLoadingHistory, state.messages]);
+
+  return null;
+}
+
+describe("withMissionStartPending", () => {
+  it("clears pending after a successful mission start", async () => {
+    const setPending = vi.fn();
+
+    const result = await withMissionStartPending(setPending, async () => "mission-1");
+
+    expect(result).toBe("mission-1");
+    expect(setPending.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("clears pending after a failed mission start", async () => {
+    const setPending = vi.fn();
+
+    await expect(
+      withMissionStartPending(setPending, async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+
+    expect(setPending.mock.calls).toEqual([[true], [false]]);
+  });
+});
+
+describe("useAgentSession", () => {
+  let container: HTMLDivElement;
+  let root: Root | null;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = null;
+    MockEventSource.instances = [];
+    resetChatStore();
+    vi.stubGlobal("EventSource", MockEventSource);
+  });
+
+  afterEach(async () => {
+    if (root) {
+      await act(async () => {
+        root?.unmount();
+      });
+    }
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("suppresses the previous mission transcript while the next mission transcript is still loading", async () => {
+    const missionOne = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const missionTwo = createMission({ missionId: "mission-2", primarySessionId: "session-2" });
+    const deferredSessionTwo = createDeferredResponse();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(missionOne));
+      }
+
+      if (url === "/api/noctis/missions/mission-2/runtime") {
+        return createJsonResponse(createRuntimePayload(missionTwo));
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({
+          messages: [createAssistantMessage("message-1", "Mission one reply")],
+        });
+      }
+
+      if (url === "/api/session/session-2") {
+        return deferredSessionTwo.promise;
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+    const missionOnePreloadedMessages = [
+      createAssistantMessage("message-1", "Mission one reply"),
+    ];
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <HookProbe
+          activeMissionId="mission-1"
+          initialMessageInfos={missionOnePreloadedMessages}
+          initialMissionData={missionOne}
+          onSnapshot={(snapshot) => {
+            latestSnapshot = snapshot;
+          }}
+        />,
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission one reply"],
+    });
+
+    await act(async () => {
+      root?.render(
+        <HookProbe
+          activeMissionId="mission-2"
+          initialMissionData={missionTwo}
+          onSnapshot={(snapshot) => {
+            latestSnapshot = snapshot;
+          }}
+        />,
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "loading");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "loading",
+      isLoadingHistory: true,
+      messages: [],
+    });
+
+    deferredSessionTwo.resolve(
+      createJsonResponse({ messages: [createAssistantMessage("message-2", "Mission two reply")] }),
+    );
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission two reply"],
+    });
+  });
+
+  it("treats a preloaded active mission transcript as ready immediately", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <HookProbe
+          activeMissionId="mission-1"
+          initialMessageInfos={[createAssistantMessage("message-1", "Mission one reply")]}
+          initialMissionData={mission}
+          onSnapshot={(snapshot) => {
+            latestSnapshot = snapshot;
+          }}
+        />,
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission one reply"],
+    });
+  });
+
+  it("preserves the current transcript on same-mission rerenders", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <HookProbe
+          activeMissionId="mission-1"
+          initialMessageInfos={[createAssistantMessage("message-1", "Mission one reply")]}
+          initialMissionData={mission}
+          onSnapshot={(snapshot) => {
+            latestSnapshot = snapshot;
+          }}
+        />,
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      root?.render(
+        <HookProbe
+          activeMissionId="mission-1"
+          initialMissionData={mission}
+          onSnapshot={(snapshot) => {
+            latestSnapshot = snapshot;
+          }}
+        />,
+      );
+    });
+    await flushEffects();
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission one reply"],
+    });
+  });
+});

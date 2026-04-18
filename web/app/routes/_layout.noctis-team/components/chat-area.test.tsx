@@ -346,6 +346,7 @@ describe("chat-area", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
         messages={[]}
+        historyPhase="loading"
         isResponding={true}
         isLoadingHistory={true}
         missionExecutionLabel="Core Repo"
@@ -361,5 +362,52 @@ describe("chat-area", () => {
 
     expect(markup).toContain("Loading Session History");
     expect(markup).toContain("Refreshing the sanitized transcript for this mission.");
+    expect(markup).toContain("send-disabled");
+    expect(markup).toContain("Loading mission transcript...");
+  });
+
+  it("shows an explicit empty state when the mission transcript resolves without messages", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="empty"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("No Session History Yet");
+    expect(markup).toContain("This mission has not produced a transcript yet.");
+    expect(markup).toContain("send-enabled");
+  });
+
+  it("shows a transcript error state distinct from an empty transcript", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyErrorMessage="Unable to load mission transcript."
+        historyPhase="error"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Transcript Load Failed");
+    expect(markup).toContain("Unable to load mission transcript.");
+    expect(markup).not.toContain("No Session History Yet");
   });
 });

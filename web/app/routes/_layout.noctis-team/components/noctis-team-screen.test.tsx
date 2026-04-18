@@ -110,6 +110,8 @@ vi.mock("./chat-area", () => ({
     missionActionLabel,
     isStartingMission,
     showAbortAction,
+    historyErrorMessage,
+    historyPhase,
     workflowProgress,
     showWorkflowSelector,
     primaryAgentId,
@@ -127,6 +129,8 @@ vi.mock("./chat-area", () => ({
     missionActionLabel?: string | null;
     isStartingMission?: boolean;
     showAbortAction?: boolean;
+    historyErrorMessage?: string | null;
+    historyPhase?: string | null;
     showWorkflowSelector?: boolean;
     primaryAgentId?: string | null;
     headerTitle?: string | null;
@@ -142,6 +146,8 @@ vi.mock("./chat-area", () => ({
       <div>chat-area</div>
       <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
+      <div>{`history-phase:${historyPhase ?? "none"}`}</div>
+      {historyErrorMessage ? <div>{`history-error:${historyErrorMessage}`}</div> : null}
       <div>{`workflow-selector:${showWorkflowSelector === false ? "no" : "yes"}`}</div>
       <div>{`primary-agent:${primaryAgentId ?? "none"}`}</div>
       {headerTitle ? <div>{`header:${headerTitle}`}</div> : null}
@@ -259,6 +265,8 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "idle",
       isStartingMission: false,
       isSessionActive: false,
       isStreaming: false,
@@ -338,6 +346,8 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "idle",
       isStartingMission: true,
       isSessionActive: true,
       isStreaming: false,
@@ -430,6 +440,8 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: "banter-1",
       partyMembers: [{ id: "ignis" }],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "loading",
       isStartingMission: false,
       isSessionActive: false,
       isStreaming: false,
@@ -456,6 +468,7 @@ describe("noctis-team-screen", () => {
 
     expect(markup).toContain("party-status-panel");
     expect(markup).toContain("banter-log");
+    expect(markup).toContain("history-phase:loading");
     expect(markup).toContain("mission-output-browser");
   });
 
@@ -467,6 +480,8 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "loading",
       isStartingMission: false,
       isSessionActive: false,
       isStreaming: false,
@@ -510,6 +525,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("workflow-selector:no");
+    expect(markup).toContain("history-phase:loading");
     expect(markup).toContain("primary-agent:lunafreya");
     expect(markup).toContain("header:Oracle Mission Surface");
     expect(markup).toContain("composer-status:Solo mission surface");

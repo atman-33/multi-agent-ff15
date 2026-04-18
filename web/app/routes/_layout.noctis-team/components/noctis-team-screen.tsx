@@ -222,6 +222,8 @@ export function NoctisTeamScreen({
     latestBanterEntryId,
     partyMembers,
     speakingAgentId,
+    historyErrorMessage,
+    historyPhase,
     isStartingMission,
     isSessionActive,
     isStreaming,
@@ -1104,6 +1106,8 @@ export function NoctisTeamScreen({
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
               isResponding={isMissionStartPending || isSessionActive || isLoadingHistory}
+              historyErrorMessage={historyErrorMessage}
+              historyPhase={historyPhase}
               isLoadingHistory={isLoadingHistory}
               isStartingMission={isMissionStartPending}
               isSessionActive={isSessionActive}

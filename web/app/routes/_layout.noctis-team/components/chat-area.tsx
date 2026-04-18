@@ -22,6 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
+import type { MissionTranscriptPhase } from "@/hooks/use-agent-session";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
 import {
@@ -72,6 +73,8 @@ export interface ChatMessage {
 
 interface ChatAreaProps {
   messages: ChatMessage[];
+  historyErrorMessage?: string | null;
+  historyPhase?: MissionTranscriptPhase;
   isResponding: boolean;
   isLoadingHistory?: boolean;
   isStartingMission?: boolean;
@@ -487,6 +490,8 @@ MessageBubble.displayName = "MessageBubble";
 
 export const ChatArea = ({
   messages,
+  historyErrorMessage = null,
+  historyPhase = "idle",
   isLoadingHistory = false,
   isStartingMission = false,
   isSessionActive = false,
@@ -525,6 +530,9 @@ export const ChatArea = ({
   startingMissionDescription = "Preparing mission and briefing Noctis.",
 }: ChatAreaProps) => {
   const isMissionStartPending = isStartingMission && showExecutionProjectSelector;
+  const isTranscriptLoading = historyPhase === "loading";
+  const isTranscriptEmpty = historyPhase === "empty";
+  const isTranscriptError = historyPhase === "error";
   const presentationMessages = useMemo(
     () => messages.map(toSessionPresentationMessage),
     [messages],
@@ -642,6 +650,26 @@ export const ChatArea = ({
       </p>
     </div>
   ) : null;
+  const historyEmptyCallout = isTranscriptEmpty ? (
+    <div className="rounded-xl border border-border/60 bg-background/40 px-3 py-2.5" role="status">
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
+        No Session History Yet
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-foreground/75">
+        This mission has not produced a transcript yet.
+      </p>
+    </div>
+  ) : null;
+  const historyErrorCallout = isTranscriptError ? (
+    <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5" role="alert">
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-destructive/90">
+        Transcript Load Failed
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-foreground/80">
+        {historyErrorMessage ?? "Unable to load the mission transcript right now."}
+      </p>
+    </div>
+  ) : null;
   const workflowSelector = (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -702,7 +730,7 @@ export const ChatArea = ({
         <PromptComposer
           onSend={onSend}
           onAbort={onAbort}
-          disableSendAction={isMissionStartPending}
+          disableSendAction={isMissionStartPending || isTranscriptLoading}
           showAbortAction={showAbortAction}
           topSlot={
             showExecutionProjectSelector ? (
@@ -866,7 +894,11 @@ export const ChatArea = ({
               <span className="truncate">{composerSummary}</span>
             </div>
           }
-          placeholder={composerPlaceholder ?? `Send a message to ${primaryAgentLabel}`}
+          placeholder={
+            isTranscriptLoading
+              ? "Loading mission transcript..."
+              : (composerPlaceholder ?? `Send a message to ${primaryAgentLabel}`)
+          }
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />
       }
@@ -876,6 +908,8 @@ export const ChatArea = ({
       {() => (
         <>
           {historyLoadingCallout}
+          {historyErrorCallout}
+          {historyEmptyCallout}
 
           {renderSnapshot.renderedMessages.map((message, index) => {
             const isLastNoctis =

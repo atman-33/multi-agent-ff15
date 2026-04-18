@@ -3,13 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "clean:legacy-build": "node -e \"require('node:fs').rmSync('build', { recursive: true, force: true })\"",
     "build": "react-router build",
     "dev": "react-router dev",
     "format": "biome format --write .",
     "lint": "biome lint .",
+    "predev": "npm run clean:legacy-build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "react-router-serve ../runtime/web-build/server/index.js",
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
@@ -58,6 +60,7 @@
     "@types/node": "^22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.0.2",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "tailwindcss-animate": "^1.0.7",
