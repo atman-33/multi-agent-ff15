@@ -93,6 +93,30 @@ Hello from User.
     expect(resolved.rawPromptPayload).toContain("Hello from User.");
   });
 
+  it("hides Ask Iris operation studio context while preserving only the user-authored text as visible content", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: `
+<operation-studio-context>
+scope: Noctis Team
+authoring_target: Builtin · No project
+selected_entry: github-issue-openspec-dev
+</operation-studio-context>
+
+元気？
+      `.trim(),
+      fallbackSender: "user",
+      fallbackSenderLabel: "User",
+    });
+
+    expect(resolved.displayContent).toBe("元気？");
+    expect(resolved.promptContextSource).toBe("injected");
+    expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
+      "operation-studio-context",
+    ]);
+    expect(resolved.rawPromptPayload).toContain("<operation-studio-context>");
+    expect(resolved.rawPromptPayload).toContain("元気？");
+  });
+
   it("omits raw prompt payload when persisted raw text matches visible body", () => {
     const resolved = resolveSessionMessageDisplay({
       rawText: "Plain visible reply.",

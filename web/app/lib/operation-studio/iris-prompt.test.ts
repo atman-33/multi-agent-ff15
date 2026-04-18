@@ -20,12 +20,27 @@ describe("operation-studio iris-prompt", () => {
       userMessage: "Investigate the current issue.",
     });
 
-    expect(text).toContain("<operation_studio_context>");
+    expect(text).toContain("<operation-studio-context>");
     expect(text).toContain("scope: Noctis Team");
     expect(text).toContain("authoring_target: Builtin · No project");
     expect(text).toContain("selected_entry: Default (Autonomous)");
     expect(text).toContain("selected_preview_step: Step 2 · plan");
     expect(text).toContain("preview_party: Full party preview · All workers available");
+  });
+
+  it("formats the Studio context as hidden prompt context without a visible instruction suffix", () => {
+    const text = buildOperationStudioIrisContextText({
+      scopeLabel: "Noctis Team",
+      selectedEntryLabel: "github-issue-openspec-dev",
+      targetLabel: "Builtin · No project",
+    });
+
+    expect(text).toContain("<operation-studio-context>");
+    expect(text).toContain("</operation-studio-context>");
+    expect(text).not.toContain("<operation_studio_context>");
+    expect(text).not.toContain(
+      "Use this as the current Operation Studio context when you suggest revisions or explain the selected operation.",
+    );
   });
 
   it("prepends the current Studio context ahead of the user-authored prompt parts", () => {

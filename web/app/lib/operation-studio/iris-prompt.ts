@@ -28,7 +28,7 @@ export function buildOperationStudioIrisContextText(
   input: OperationStudioIrisContextInput,
 ): string {
   const lines = [
-    "<operation_studio_context>",
+    "<operation-studio-context>",
     `scope: ${input.scopeLabel}`,
     `authoring_target: ${input.targetLabel}`,
     `selected_entry: ${input.selectedEntryLabel}`,
@@ -51,11 +51,7 @@ export function buildOperationStudioIrisContextText(
   );
   appendContextLine(lines, "user_message_seed", input.userMessage ?? null);
   appendContextLine(lines, "worker_task_seed", input.taskInstruction ?? null);
-  lines.push("</operation_studio_context>");
-  lines.push("");
-  lines.push(
-    "Use this as the current Operation Studio context when you suggest revisions or explain the selected operation.",
-  );
+  lines.push("</operation-studio-context>");
 
   return lines.join("\n");
 }
