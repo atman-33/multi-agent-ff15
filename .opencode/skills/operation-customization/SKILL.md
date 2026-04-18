@@ -1,6 +1,6 @@
 ---
 name: operation-customization
-description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, skills, policies, or output-contracts, or when diagnosing operation routing, prompt composition, instruction placeholders such as output or setting placeholders, source-aware operation refs, and debug-preview behavior.'
+description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, skills, policies, or output-contracts, or when diagnosing operation routing, prompt composition, instruction placeholders such as output, setting, or root placeholders, source-aware operation refs, and debug-preview behavior.'
 argument-hint: 'Describe the operation or facet files to create or change, whether the workflow lives under builtins or projects, the target language or project id, and whether you need authoring only or diagnostics too.'
 ---
 
@@ -14,7 +14,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Extend or refactor an existing operation step flow
 - Add or revise `steps[].delegation` for Noctis-owned autonomous flows
 - Create or revise `jobs`, `instructions`, `skills`, `policies`, or `output-contracts` facets under builtin or project facet trees
-- Diagnose operation prompt, routing, report transport, source-aware catalog, or instruction placeholder failures such as `output(...)` or `setting(...)`
+- Diagnose operation prompt, routing, report transport, source-aware catalog, or instruction placeholder failures such as `output(...)`, `setting(...)`, or `root(...)`
 
 ## Workflow
 
@@ -30,7 +30,7 @@ Create or revise operation workflows for this repository without breaking the ru
 7. Run the bundled validator on every created or modified workflow YAML:
    - `node .opencode/skills/operation-customization/scripts/validate-operation-yaml.mjs <path-to-operation.yaml>`
    - You may pass multiple files or an operations directory.
-8. Validate any runtime-specific concerns that the script cannot prove, such as `output(...)` and `setting(...)` placeholders, debug-preview behavior, and delegated child-task return paths.
+8. Validate any runtime-specific concerns that the script cannot prove, such as `output(...)`, `setting(...)`, and `root(...)` placeholders, debug-preview behavior, and delegated child-task return paths.
 9. Summarize created or changed files, workflow assumptions, validator results, and any unresolved ambiguity.
 
 ## Critical Parser Trap

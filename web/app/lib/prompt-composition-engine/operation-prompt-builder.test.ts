@@ -1,9 +1,10 @@
+import { execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getMissionOutputFilePath } from "@/lib/mission-store";
+import { createMission, deleteMission, getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { loadOperationFromFile } from "@/lib/operation-definition/operation-loader";
 import { resolveDelegatedWorkerFacets, resolveStepFacets } from "@/lib/operation-definition/facet-loader";
@@ -16,6 +17,7 @@ import {
 } from "./operation-prompt-builder";
 
 const tempDirs: string[] = [];
+const missionIds: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const CANONICAL_SPEC_PLAN_CONTRACT = [
   "## Format",
@@ -191,6 +193,237 @@ function createSettingsPlaceholderPromptFixture(language: string): string {
   );
 
   return operationFilePath;
+}
+
+function createRootPlaceholderPromptFixture(placeholder: string): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-root-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "root-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: root-placeholder-operation",
+      "description: Root placeholder prompt builder fixture",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    instruction:",
+      `      inline: Write the report under ${placeholder}/docs/reports/.`,
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Finish the review.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
+function registerTestProject(root: string, projectId: string, projectRoot: string): void {
+  mkdirSync(projectRoot, { recursive: true });
+
+  const projectDir = join(root, "projects", projectId);
+  mkdirSync(projectDir, { recursive: true });
+  writeFileSync(
+    join(projectDir, "project.yaml"),
+    [
+      `id: ${projectId}`,
+      `name: ${projectId}`,
+      `root_path: ${projectRoot}`,
+      `serena_project: ${projectId}`,
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
+function createExecutionRootPlaceholderPromptFixture(placeholder: string): {
+  operationFilePath: string;
+  projectId: string;
+  projectRoot: string;
+} {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-execution-root-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+
+  const projectId = "execution-project";
+  const projectRoot = join(root, "tmp", projectId);
+  registerTestProject(root, projectId, projectRoot);
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "execution-root-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: execution-root-placeholder-operation",
+      "description: Execution root placeholder prompt builder fixture",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    instruction:",
+      `      inline: Inspect files under ${placeholder}.`,
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Finish the review.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return { operationFilePath, projectId, projectRoot };
+}
+
+function createTestMissionRecord(
+  id: string,
+  options?: Parameters<typeof createMission>[2],
+): string {
+  missionIds.push(id);
+  createMission(id, `${id}-session`, options);
+  return id;
+}
+
+function initializeGitRepository(root: string): void {
+  writeFileSync(join(root, "README.md"), "fixture\n", "utf-8");
+  execSync("git init -b main", { cwd: root, stdio: "ignore" });
+  execSync("git add README.md", { cwd: root, stdio: "ignore" });
+  execSync(
+    "git -c user.name=Test -c user.email=test@example.com commit -m init",
+    { cwd: root, stdio: "ignore" },
+  );
+}
+
+function createRoutedWorkerRootPlaceholderFixture(placeholder: string): {
+  operationFilePath: string;
+  projectId: string;
+  projectRoot: string;
+} {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-worker-root-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+
+  const projectId = "worker-execution-project";
+  const projectRoot = join(root, "tmp", projectId);
+  registerTestProject(root, projectId, projectRoot);
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "routed-worker-root-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: routed-worker-root-placeholder-operation",
+      "description: Routed worker root placeholder fixture",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Plan the work.",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      `      inline: Write worker notes for ${placeholder}.`,
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return { operationFilePath, projectId, projectRoot };
+}
+
+function createDelegatedWorkerRootPlaceholderFixture(placeholder: string): {
+  operationFilePath: string;
+  projectId: string;
+  projectRoot: string;
+  workspacePath: string;
+} {
+  const root = mkdtempSync(
+    join(tmpdir(), "multi-agent-ff15-operation-delegated-root-placeholder-"),
+  );
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+
+  const projectId = "delegated-execution-project";
+  const projectRoot = join(root, "tmp", projectId);
+  registerTestProject(root, projectId, projectRoot);
+  initializeGitRepository(projectRoot);
+
+  const workspacePath = join(root, "workspaces", "delegated-execution-project");
+  mkdirSync(workspacePath, { recursive: true });
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "delegated-worker-root-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: delegated-worker-root-placeholder-operation",
+      "description: Delegated worker root placeholder fixture",
+      "initial_step: autonomous",
+      "steps:",
+      "  - name: autonomous",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Coordinate the work.",
+      "    delegation:",
+      "      allowed_workers:",
+      "        - ignis",
+      "      worker_job:",
+      "        inline: Delegated reviewer",
+      "      worker_instruction:",
+      `        inline: Write delegated findings for ${placeholder}.`,
+      "      worker_skills: []",
+      "      worker_policies: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return { operationFilePath, projectId, projectRoot, workspacePath };
 }
 
 function createRoutedWorkerSettingsPlaceholderFixture(language: string): string {
@@ -407,6 +640,13 @@ afterEach(() => {
     delete process.env.MULTI_AGENT_FF15_ROOT;
   } else {
     process.env.MULTI_AGENT_FF15_ROOT = originalRootEnv;
+  }
+
+  while (missionIds.length > 0) {
+    const missionId = missionIds.pop();
+    if (missionId) {
+      deleteMission(missionId);
+    }
   }
 
   while (tempDirs.length > 0) {
@@ -767,6 +1007,60 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain('{{ setting("language", "name") }}');
   });
 
+  it("resolves app root placeholders in activation prompts", () => {
+    const operation = loadOperationFromFile(
+      createRootPlaceholderPromptFixture('{{ root("app_root") }}'),
+    );
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-root-app-activation",
+      taskId: "task-root-app-activation",
+    });
+
+    expect(prompt).toContain(`${process.env.MULTI_AGENT_FF15_ROOT}/docs/reports/`);
+    expect(prompt).not.toContain('{{ root("app_root") }}');
+  });
+
+  it("resolves execution root placeholders for direct-execution missions", () => {
+    const fixture = createExecutionRootPlaceholderPromptFixture('{{ root("execution_root") }}');
+    const operation = loadOperationFromFile(fixture.operationFilePath);
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+    const missionId = createTestMissionRecord("mission-root-execution-project", {
+      executionProjectId: fixture.projectId,
+      executionTargetMode: "execution_project",
+    });
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId,
+      taskId: "task-root-execution-project",
+    });
+
+    expect(prompt).toContain(fixture.projectRoot);
+    expect(prompt).not.toContain(process.env.MULTI_AGENT_FF15_ROOT ?? "");
+    expect(prompt).not.toContain('{{ root("execution_root") }}');
+  });
+
   it("resolves language settings placeholders in routed worker prompts", () => {
     const operation = loadOperationFromFile(createRoutedWorkerSettingsPlaceholderFixture("en"));
     const step = operation.steps.find((candidate) => candidate.name === "implement");
@@ -790,6 +1084,36 @@ describe("operation prompt builder", () => {
 
     expect(prompt).toContain("Write the worker notes in english.");
     expect(prompt).not.toContain('{{ setting("language", "name") }}');
+  });
+
+  it("resolves execution root placeholders in routed worker prompts", () => {
+    const fixture = createRoutedWorkerRootPlaceholderFixture('{{ root("execution_root") }}');
+    const operation = loadOperationFromFile(fixture.operationFilePath);
+    const step = operation.steps.find((candidate) => candidate.name === "implement");
+
+    if (!step) {
+      throw new Error("implement step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+    operationState.currentStep = "implement";
+    const missionId = createTestMissionRecord("mission-root-worker", {
+      executionProjectId: fixture.projectId,
+      executionTargetMode: "execution_project",
+    });
+    const prompt = buildAugmentedInstruction({
+      step,
+      operation,
+      operationState,
+      facets,
+      missionId,
+      agentId: step.agent,
+      taskId: "task-root-worker",
+    });
+
+    expect(prompt).toContain(fixture.projectRoot);
+    expect(prompt).not.toContain('{{ root("execution_root") }}');
   });
 
   it("resolves language settings placeholders in delegated worker prompts", () => {
@@ -818,6 +1142,42 @@ describe("operation prompt builder", () => {
 
     expect(prompt).toContain("Write delegated findings in es.");
     expect(prompt).not.toContain('{{ setting("language", "name") }}');
+  });
+
+  it("resolves execution root placeholders in delegated worker prompts for workspace missions", () => {
+    const fixture = createDelegatedWorkerRootPlaceholderFixture('{{ root("execution_root") }}');
+    const operation = loadOperationFromFile(fixture.operationFilePath);
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("autonomous step not found");
+    }
+
+    const facets = resolveDelegatedWorkerFacets(operation, step, "ja");
+    const operationState = createOperationState(
+      operation.name,
+      operation.initial_step,
+      buildBuiltinOperationRef("ja", basename(operation.sourcePath)),
+    );
+    const missionId = createTestMissionRecord("mission-root-delegated", {
+      executionProjectId: fixture.projectId,
+      executionTargetMode: "mission_workspace",
+      branch: "mission/test-workspace",
+      workspacePath: fixture.workspacePath,
+    });
+    const prompt = buildDelegatedWorkerInstruction({
+      taskPrompt: "Review this change.",
+      step,
+      agentId: "ignis",
+      operation,
+      operationState,
+      facets,
+      missionId,
+    });
+
+    expect(prompt).toContain(fixture.workspacePath);
+    expect(prompt).not.toContain(fixture.projectRoot);
+    expect(prompt).not.toContain('{{ root("execution_root") }}');
   });
 
   it("fails prompt generation for unsupported setting placeholder keys", () => {
@@ -868,5 +1228,55 @@ describe("operation prompt builder", () => {
         taskId: "task-settings-invalid-syntax",
       }),
     ).toThrow(/invalid setting placeholder syntax/i);
+  });
+
+  it("fails prompt generation for unsupported root placeholder scopes", () => {
+    const operation = loadOperationFromFile(
+      createRootPlaceholderPromptFixture('{{ root("session_host_root") }}'),
+    );
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+
+    expect(() =>
+      buildActivationInstruction({
+        operation,
+        step,
+        operationState,
+        facets,
+        missionId: "mission-root-invalid-scope",
+        taskId: "task-root-invalid-scope",
+      }),
+    ).toThrow(/unsupported root placeholder scope/i);
+  });
+
+  it("fails prompt generation for malformed root placeholders", () => {
+    const operation = loadOperationFromFile(
+      createRootPlaceholderPromptFixture('{{ root("app_root", "extra") }}'),
+    );
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+
+    expect(() =>
+      buildActivationInstruction({
+        operation,
+        step,
+        operationState,
+        facets,
+        missionId: "mission-root-invalid-syntax",
+        taskId: "task-root-invalid-syntax",
+      }),
+    ).toThrow(/invalid root placeholder syntax/i);
   });
 });
