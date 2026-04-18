@@ -360,10 +360,12 @@ describe("chat-area", () => {
       />,
     );
 
-    expect(markup).toContain("Loading Session History");
-    expect(markup).toContain("Refreshing the sanitized transcript for this mission.");
+    expect(markup).toContain("transcript-loading-capsule");
+    expect(markup).toContain("transcript-loading-dot transcript-loading-dot-1");
+    expect(markup).toContain("transcript-loading-dot transcript-loading-dot-3");
+    expect(markup).not.toContain("Loading Session History");
+    expect(markup).not.toContain("Refreshing the sanitized transcript for this mission.");
     expect(markup).toContain("send-disabled");
-    expect(markup).toContain("Loading mission transcript...");
   });
 
   it("shows an explicit empty state when the mission transcript resolves without messages", () => {

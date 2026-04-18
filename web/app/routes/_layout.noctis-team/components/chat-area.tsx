@@ -636,18 +636,19 @@ export const ChatArea = ({
     </div>
   ) : null;
   const historyLoadingCallout = isLoadingHistory ? (
-    <div
-      aria-atomic="true"
-      aria-live="polite"
-      className="rounded-xl border border-sky-400/20 bg-sky-400/8 px-3 py-2.5"
-      role="status"
-    >
-      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-100/80">
-        Loading Session History
-      </p>
-      <p className="mt-1 text-xs leading-relaxed text-foreground/80">
-        Refreshing the sanitized transcript for this mission.
-      </p>
+    <div aria-atomic="true" aria-live="polite" className="flex justify-center py-4" role="status">
+      <div
+        aria-busy="true"
+        className="transcript-loading-capsule relative inline-flex items-center justify-center px-2 py-2"
+      >
+        <div className="transcript-loading-glow absolute inset-[-0.9rem]" aria-hidden="true" />
+        <div className="relative flex items-center gap-3.5" aria-hidden="true">
+          <span className="transcript-loading-dot transcript-loading-dot-1" />
+          <span className="transcript-loading-dot transcript-loading-dot-2" />
+          <span className="transcript-loading-dot transcript-loading-dot-3" />
+        </div>
+        <span className="sr-only">Loading mission transcript</span>
+      </div>
     </div>
   ) : null;
   const historyEmptyCallout = isTranscriptEmpty ? (
@@ -894,11 +895,7 @@ export const ChatArea = ({
               <span className="truncate">{composerSummary}</span>
             </div>
           }
-          placeholder={
-            isTranscriptLoading
-              ? "Loading mission transcript..."
-              : (composerPlaceholder ?? `Send a message to ${primaryAgentLabel}`)
-          }
+          placeholder={composerPlaceholder ?? `Send a message to ${primaryAgentLabel}`}
           helperText="Enter sends · Shift+Enter adds a new line · @ files · / skills"
         />
       }
