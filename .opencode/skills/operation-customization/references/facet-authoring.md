@@ -33,6 +33,7 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Prefer numbered actions, explicit references, blocking conditions, and completion criteria.
 - Do not ask for routine User-facing progress updates unless the workflow explicitly requires checkpoints, approvals, or interactive monitoring.
 - Put step-specific placeholder usage or command references here.
+- Supported dynamic placeholders in instructions currently include `{{ output("<step>", "latest", "<artifact>") }}` for prior workflow artifacts and `{{ setting("language", "name") }}` for configured report-language wording.
 
 ## skills
 

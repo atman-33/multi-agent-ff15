@@ -1,6 +1,6 @@
 ---
 name: operation-customization
-description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, skills, policies, or output-contracts, or when diagnosing operation routing, prompt composition, output placeholders, source-aware operation refs, and debug-preview behavior.'
+description: 'Create or customize repository operations and facet files. Use when adding or editing builtin or project-authored workflow YAML, jobs, instructions, skills, policies, or output-contracts, or when diagnosing operation routing, prompt composition, instruction placeholders such as output or setting placeholders, source-aware operation refs, and debug-preview behavior.'
 argument-hint: 'Describe the operation or facet files to create or change, whether the workflow lives under builtins or projects, the target language or project id, and whether you need authoring only or diagnostics too.'
 ---
 
@@ -14,7 +14,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Extend or refactor an existing operation step flow
 - Add or revise `steps[].delegation` for Noctis-owned autonomous flows
 - Create or revise `jobs`, `instructions`, `skills`, `policies`, or `output-contracts` facets under builtin or project facet trees
-- Diagnose operation prompt, routing, report transport, source-aware catalog, or output placeholder failures
+- Diagnose operation prompt, routing, report transport, source-aware catalog, or instruction placeholder failures such as `output(...)` or `setting(...)`
 
 ## Workflow
 
@@ -30,7 +30,7 @@ Create or revise operation workflows for this repository without breaking the ru
 7. Run the bundled validator on every created or modified workflow YAML:
    - `node .opencode/skills/operation-customization/scripts/validate-operation-yaml.mjs <path-to-operation.yaml>`
    - You may pass multiple files or an operations directory.
-8. Validate any runtime-specific concerns that the script cannot prove, such as placeholders, debug-preview behavior, and delegated child-task return paths.
+8. Validate any runtime-specific concerns that the script cannot prove, such as `output(...)` and `setting(...)` placeholders, debug-preview behavior, and delegated child-task return paths.
 9. Summarize created or changed files, workflow assumptions, validator results, and any unresolved ambiguity.
 
 ## Critical Parser Trap
@@ -61,7 +61,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Which operation should be created or changed?
 - Is this a standard routed workflow or a rules-less autonomous delegation flow?
 - Which step owners and transitions are expected?
-- Are there required outputs or placeholders that downstream steps will consume?
+- Are there required outputs or instruction placeholders that downstream steps will consume?
 - Which facet content must be reusable across workflows?
 
 ## Guardrails
@@ -73,7 +73,7 @@ Create or revise operation workflows for this repository without breaking the ru
 - Prefer adapting neighboring repository patterns over inventing new structures.
 - Keep same-name builtin and project workflows as separate candidates; do not document or implement name-based collapsing.
 - For `facets/skills/<skill-name>/SKILL.md`, keep frontmatter `name` in lowercase kebab-case and match the enclosing `<skill-name>` directory.
-- Treat unresolved placeholders, legacy schema fields, and malformed output contracts as blocking.
+- Treat unresolved or unsupported instruction placeholders, legacy schema fields, and malformed output contracts as blocking.
 - Do not skip the validator for "small" workflow edits. A one-line rule change can still break catalog loading for the whole language tree.
 - When runtime behavior changes, inspect both live-path and debug-preview implications before finishing.
 - If the workflow is internal-only, keep the internal operation name out of normal user-facing operation lists.

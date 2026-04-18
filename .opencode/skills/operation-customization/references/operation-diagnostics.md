@@ -1,6 +1,6 @@
 # Operation Diagnostics Reference
 
-Read this file when the task involves routing, prompt composition, report transport, output placeholders, or debug-preview mismatches.
+Read this file when the task involves routing, prompt composition, report transport, instruction placeholders, or debug-preview mismatches.
 
 ## Triage Flow
 
@@ -32,6 +32,8 @@ Read this file when the task involves routing, prompt composition, report transp
 ## Diagnostic Guardrails
 
 - Placeholder failures are real composition failures, not soft warnings.
+- Supported instruction placeholders currently include mission-scoped `output(...)` references and approved settings placeholders such as `{{ setting("language", "name") }}`.
+- Unsupported setting keys or modes must fail in the same prompt-composition path as malformed output placeholders.
 - Plain operation names are display data. Runtime, selectors, and preview resolution use source-aware `operationRef` values.
 - Message-based auto activation should fail closed when multiple catalog entries share the same visible workflow name.
 - In operation-debug, project filtering narrows project-authored workflows only; builtin workflows remain visible.

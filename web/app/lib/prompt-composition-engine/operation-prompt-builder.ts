@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getAgentLabel, isWorkerAgentId } from "@/lib/agent-identity";
+import { readAppConfig } from "@/lib/app-config.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import { buildSkillsCatalog, mergeSkillEntries } from "@/lib/skill-catalog.server";
 import type { ResolvedSkillEntry } from "@/lib/operation-definition/types";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
@@ -25,6 +27,8 @@ import {
 
 const OUTPUT_PLACEHOLDER_PATTERN =
   /\{\{\s*output\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const SETTING_PLACEHOLDER_PATTERN =
+  /\{\{\s*setting\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
 
 export function describeStepRole(jobSource: ContentSource | undefined, fallbackName?: string): string {
   if (!jobSource) {
@@ -171,6 +175,28 @@ function resolveOutputPlaceholderPath(input: {
   return outputPath;
 }
 
+function resolveSettingPlaceholderValue(key: string, mode: string): string {
+  if (key !== "language") {
+    throw new Error(`Unsupported setting placeholder key \"${key}\".`);
+  }
+
+  if (mode !== "name") {
+    throw new Error(`Unsupported setting placeholder mode \"${mode}\" for key \"${key}\".`);
+  }
+
+  const language = readAppConfig(getProjectRoot()).language;
+
+  if (language === "ja") {
+    return "japanese";
+  }
+
+  if (language === "en") {
+    return "english";
+  }
+
+  return language;
+}
+
 function resolveInstructionPlaceholders(input: {
   content: string;
   operation: OperationDefinition;
@@ -181,7 +207,7 @@ function resolveInstructionPlaceholders(input: {
     return input.content;
   }
 
-  const resolved = input.content.replace(
+  const outputResolved = input.content.replace(
     OUTPUT_PLACEHOLDER_PATTERN,
     (_match, stepName: string, selector: string, fileName: string) =>
       resolveOutputPlaceholderPath({
@@ -194,9 +220,20 @@ function resolveInstructionPlaceholders(input: {
       }),
   );
 
+  const resolved = outputResolved.replace(
+    SETTING_PLACEHOLDER_PATTERN,
+    (_match, key: string, mode: string) => resolveSettingPlaceholderValue(key, mode),
+  );
+
   if (resolved.includes("{{ output(")) {
     throw new Error(
       'Invalid output placeholder syntax. Use {{ output("step", "selector", "file") }}.',
+    );
+  }
+
+  if (resolved.includes("{{ setting(")) {
+    throw new Error(
+      'Invalid setting placeholder syntax. Use {{ setting("key", "mode") }}.',
     );
   }
 

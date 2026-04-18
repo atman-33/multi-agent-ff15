@@ -20,7 +20,7 @@ steps:
         5. change 名が決まったら、その内容に対応する feature branch を `feature/<change-name>` を基本形として `origin/main` から作成し、そこへ切り替える。すでに対応する branch が execution workspace に存在する場合はそれを再利用してよい。
         6. OpenSpec artifact の作成手順は `.opencode/command/opsx-ff.md` を使う。branch 名と OpenSpec change 名は同じ意図の名前にそろえる。
         7. design を書く前に `.opencode/skills/improve-codebase-architecture/SKILL.md` を読み、deep module と boundary-first の観点を設計に反映する。
-        8. `config/settings.yaml` を読み、生成する OpenSpec artifact は設定された `language` で記述する。
+        8. 生成する OpenSpec artifact の本文は `{{ setting("language", "name") }}` で記述する。
         9. OpenSpec の参照先と作成先は current workspace に固定せず、`<tooling-context>` の `openspec_root` を project root として扱い、その配下の `openspec/` を使う。`activate_project` がある場合は、その active project に対応する `openspec_root` を優先する。
         10. artifact 作成後は change 名と change path を明示して User に確認を依頼し、明示的な承認が出るまで次 step に進まない。
     skills:
@@ -64,7 +64,7 @@ steps:
 
         1. `.opencode/command/opsx-verify.md` に従って review する。コードは変更しない。
         2. `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読み、`change_name` / `change_path` を verification 対象として解決する。`change_path` が無ければ `<tooling-context>` の `openspec_root` 配下の `openspec/changes/<change_name>/` を使う。
-        3. 要件、tasks、design との整合を検証し、出力は `code-review` output contract の形式に合わせる。
+        3. 要件、tasks、design との整合を検証し、出力は `code-review` output contract の形式に合わせ、review report の本文は `{{ setting("language", "name") }}` で記述する。
         4. blocking または critical の指摘があれば、実装 step に戻せるように不足・不整合を具体的に記録する。
     policies:
       - file: ../facets/policies/coding-standards.md
@@ -92,7 +92,7 @@ steps:
         1. `.opencode/skills/manual-verification-docs/SKILL.md` の workflow と scaffold を使い、User 向けの動作確認ドキュメントを作成する。
         2. 対象 scope は実装差分、`{{ output("spec-planning", "latest", "spec-plan.md") }}` の change 情報、必要なら `{{ output("review", "latest", "code-review.md") }}` の指摘から決める。
         3. 生成先は `<tooling-context>` の `openspec_root` を project root とみなした `docs/reports/` とする。
-        4. skill の構成ルールは使うが、生成するドキュメント本文の言語は `config/settings.yaml` の `language` に合わせる。
+        4. skill の構成ルールは使うが、生成するドキュメント本文は `{{ setting("language", "name") }}` で記述する。
         5. 作成後は生成したファイル path、対象 scope、主要シナリオを要約して報告する。
     rules:
       - condition: Manual verification document created

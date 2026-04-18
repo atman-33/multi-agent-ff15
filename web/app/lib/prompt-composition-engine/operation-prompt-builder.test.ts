@@ -6,10 +6,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { loadOperationFromFile } from "@/lib/operation-definition/operation-loader";
-import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
+import { resolveDelegatedWorkerFacets, resolveStepFacets } from "@/lib/operation-definition/facet-loader";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import type { WorkerAgentId } from "@/lib/types/mission";
-import { buildActivationInstruction } from "./operation-prompt-builder";
+import {
+  buildActivationInstruction,
+  buildAugmentedInstruction,
+  buildDelegatedWorkerInstruction,
+} from "./operation-prompt-builder";
 
 const tempDirs: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
@@ -81,7 +85,13 @@ function createInlinePromptFixture(): string {
       "      inline: Implement the approved plan",
       "    rules:",
       "      - condition: Done",
-      "        next: COMPLETE",
+          "        next: COMPLETE",
+          "  - name: implement",
+          "    agent: ignis",
+          "    instruction:",
+          "      inline: Finish the review.",
+          "    rules:",
+          "      - condition: Done",
       "",
     ].join("\n"),
     "utf-8",
@@ -129,6 +139,177 @@ function createPlaceholderPromptFixture(selector: string): string {
       "      inline: Implementer role",
       "    instruction:",
       `      inline: Read {{ output("spec-planning", "${selector}", "spec-plan.md") }} before coding.`,
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
+function createSettingsPlaceholderPromptFixture(language: string): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-settings-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+  writeFileSync(join(root, "config", "settings.yaml"), `language: ${language}\n`, "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "settings-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: settings-placeholder-operation",
+      "description: Settings placeholder prompt builder fixture",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    instruction:",
+      '      inline: Write the review report in {{ setting("language", "name") }}.',
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Finish the review.",
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
+function createRoutedWorkerSettingsPlaceholderFixture(language: string): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-worker-settings-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+  writeFileSync(join(root, "config", "settings.yaml"), `language: ${language}\n`, "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "routed-worker-settings-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: routed-worker-settings-placeholder-operation",
+      "description: Routed worker settings placeholder fixture",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Plan the work.",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      '      inline: Write the worker notes in {{ setting("language", "name") }}.',
+      "    rules:",
+      "      - condition: Done",
+      "        next: COMPLETE",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
+function createDelegatedWorkerSettingsPlaceholderFixture(language: string): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-delegated-settings-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+  writeFileSync(join(root, "config", "settings.yaml"), `language: ${language}\n`, "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "delegated-worker-settings-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: delegated-worker-settings-placeholder-operation",
+      "description: Delegated worker settings placeholder fixture",
+      "initial_step: autonomous",
+      "steps:",
+      "  - name: autonomous",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Coordinate the work.",
+      "    delegation:",
+      "      allowed_workers:",
+      "        - ignis",
+      "      worker_job:",
+      "        inline: Delegated reviewer",
+      "      worker_instruction:",
+      '        inline: Write delegated findings in {{ setting("language", "name") }}.',
+      "      worker_skills: []",
+      "      worker_policies: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  return operationFilePath;
+}
+
+function createInvalidSettingsPlaceholderFixture(placeholder: string, language = "ja"): string {
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-invalid-settings-placeholder-"));
+  tempDirs.push(root);
+  process.env.MULTI_AGENT_FF15_ROOT = root;
+
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  mkdirSync(join(root, "config"), { recursive: true });
+  writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
+  writeFileSync(join(root, "config", "settings.yaml"), `language: ${language}\n`, "utf-8");
+
+  const operationDir = join(root, "builtins", "ja", "operations");
+  mkdirSync(operationDir, { recursive: true });
+
+  const operationFilePath = join(operationDir, "invalid-settings-placeholder-operation.yaml");
+  writeFileSync(
+    operationFilePath,
+    [
+      "name: invalid-settings-placeholder-operation",
+      "description: Invalid settings placeholder fixture",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    instruction:",
+      `      inline: Resolve ${placeholder} before finishing.`,
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Finish the review.",
       "    rules:",
       "      - condition: Done",
       "        next: COMPLETE",
@@ -561,5 +742,131 @@ describe("operation prompt builder", () => {
     expect(prompt).not.toContain("<job>");
     expect(prompt).not.toContain("<reference-files>");
     expect(prompt).not.toContain("<instruction>");
+  });
+
+  it("resolves language settings placeholders in activation prompts", () => {
+    const operation = loadOperationFromFile(createSettingsPlaceholderPromptFixture("ja"));
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+    const prompt = buildActivationInstruction({
+      operation,
+      step,
+      operationState,
+      facets,
+      missionId: "mission-settings-activation",
+      taskId: "task-settings-activation",
+    });
+
+    expect(prompt).toContain("Write the review report in japanese.");
+    expect(prompt).not.toContain('{{ setting("language", "name") }}');
+  });
+
+  it("resolves language settings placeholders in routed worker prompts", () => {
+    const operation = loadOperationFromFile(createRoutedWorkerSettingsPlaceholderFixture("en"));
+    const step = operation.steps.find((candidate) => candidate.name === "implement");
+
+    if (!step) {
+      throw new Error("implement step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+    operationState.currentStep = "implement";
+    const prompt = buildAugmentedInstruction({
+      step,
+      operation,
+      operationState,
+      facets,
+      missionId: "mission-settings-worker",
+      agentId: step.agent,
+      taskId: "task-settings-worker",
+    });
+
+    expect(prompt).toContain("Write the worker notes in english.");
+    expect(prompt).not.toContain('{{ setting("language", "name") }}');
+  });
+
+  it("resolves language settings placeholders in delegated worker prompts", () => {
+    const operation = loadOperationFromFile(createDelegatedWorkerSettingsPlaceholderFixture("es"));
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("autonomous step not found");
+    }
+
+    const facets = resolveDelegatedWorkerFacets(operation, step, "ja");
+    const operationState = createOperationState(
+      operation.name,
+      operation.initial_step,
+      buildBuiltinOperationRef("ja", basename(operation.sourcePath)),
+    );
+    const prompt = buildDelegatedWorkerInstruction({
+      taskPrompt: "Review this change.",
+      step,
+      agentId: "ignis",
+      operation,
+      operationState,
+      facets,
+      missionId: "mission-settings-delegated",
+    });
+
+    expect(prompt).toContain("Write delegated findings in es.");
+    expect(prompt).not.toContain('{{ setting("language", "name") }}');
+  });
+
+  it("fails prompt generation for unsupported setting placeholder keys", () => {
+    const operation = loadOperationFromFile(
+      createInvalidSettingsPlaceholderFixture('{{ setting("shared_skills_root", "name") }}'),
+    );
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+
+    expect(() =>
+      buildActivationInstruction({
+        operation,
+        step,
+        operationState,
+        facets,
+        missionId: "mission-settings-invalid-key",
+        taskId: "task-settings-invalid-key",
+      }),
+    ).toThrow(/unsupported setting placeholder key/i);
+  });
+
+  it("fails prompt generation for malformed setting placeholders", () => {
+    const operation = loadOperationFromFile(
+      createInvalidSettingsPlaceholderFixture('{{ setting("language") }}'),
+    );
+    const step = operation.steps[0];
+
+    if (!step) {
+      throw new Error("review step not found");
+    }
+
+    const facets = resolveStepFacets(operation, step, "ja");
+    const operationState = createTestOperationState(operation);
+
+    expect(() =>
+      buildActivationInstruction({
+        operation,
+        step,
+        operationState,
+        facets,
+        missionId: "mission-settings-invalid-syntax",
+        taskId: "task-settings-invalid-syntax",
+      }),
+    ).toThrow(/invalid setting placeholder syntax/i);
   });
 });

@@ -48,8 +48,9 @@ steps:
         # <Implementation step title>
 
         1. Read `{{ output("plan", "latest", "<plan-output>.md") }}` before starting.
-        2. <Implement the required change.>
-        3. If blocked, report why and include the recommended next action.
+        2. If the step output language must follow app settings, say so with `{{ setting("language", "name") }}` instead of asking the agent to read `config/settings.yaml` manually.
+        3. <Implement the required change.>
+        4. If blocked, report why and include the recommended next action.
     policies:
       - file: ../facets/policies/<policy-file>.md
     rules:
