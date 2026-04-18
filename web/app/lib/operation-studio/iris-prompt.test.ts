@@ -44,7 +44,38 @@ describe("operation-studio iris-prompt", () => {
   });
 
   it("prepends the current Studio context ahead of the user-authored prompt parts", () => {
-    const parts: PromptPart[] = [{ type: "text", text: "Please suggest a cleaner worker handoff." }];
+    const parts: PromptPart[] = [
+      { type: "file", path: "docs/worker-handoff.md" },
+      { type: "text", text: "Please suggest a cleaner worker handoff." },
+    ];
+
+    const result = prependOperationStudioIrisContext(
+      {
+        scopeLabel: "Lunafreya",
+        selectedEntryLabel: "lunafreya-autonomous",
+        targetLabel: "Project · Alpha",
+      },
+      parts,
+    );
+
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({ type: "text" });
+    expect(result[0]?.type).toBe("text");
+    if (result[0]?.type === "text") {
+      expect(result[0].text).toContain("scope: Lunafreya");
+      expect(result[0].text).toContain("selected_entry: lunafreya-autonomous");
+    }
+    expect(result[1]).toEqual(parts[0]);
+    expect(result[2]?.type).toBe("text");
+    if (result[2]?.type === "text") {
+      expect(result[2].text).toContain('<user-request from="user" to="iris">');
+      expect(result[2].text).toContain("Please suggest a cleaner worker handoff.");
+      expect(result[2].text).toContain("</user-request>");
+    }
+  });
+
+  it("keeps file-only prompts as file parts without adding an empty user-request wrapper", () => {
+    const parts: PromptPart[] = [{ type: "file", path: "docs/worker-handoff.md" }];
 
     const result = prependOperationStudioIrisContext(
       {
@@ -56,12 +87,6 @@ describe("operation-studio iris-prompt", () => {
     );
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ type: "text" });
-    expect(result[0]?.type).toBe("text");
-    if (result[0]?.type === "text") {
-      expect(result[0].text).toContain("scope: Lunafreya");
-      expect(result[0].text).toContain("selected_entry: lunafreya-autonomous");
-    }
     expect(result[1]).toEqual(parts[0]);
   });
 });

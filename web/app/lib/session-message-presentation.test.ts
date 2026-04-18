@@ -93,7 +93,7 @@ Hello from User.
     expect(resolved.rawPromptPayload).toContain("Hello from User.");
   });
 
-  it("hides Ask Iris operation studio context while preserving only the user-authored text as visible content", () => {
+  it("shows Ask Iris user-request content while keeping operation studio context in prompt details", () => {
     const resolved = resolveSessionMessageDisplay({
       rawText: `
 <operation-studio-context>
@@ -102,18 +102,22 @@ authoring_target: Builtin · No project
 selected_entry: github-issue-openspec-dev
 </operation-studio-context>
 
+<user-request from="user" to="iris">
 元気？
+</user-request>
       `.trim(),
       fallbackSender: "user",
       fallbackSenderLabel: "User",
     });
 
     expect(resolved.displayContent).toBe("元気？");
-    expect(resolved.promptContextSource).toBe("injected");
+    expect(resolved.promptContextSource).toBe("workflow");
     expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
       "operation-studio-context",
     ]);
+    expect(resolved.resolvedSenderLabel).toBe("User");
     expect(resolved.rawPromptPayload).toContain("<operation-studio-context>");
+    expect(resolved.rawPromptPayload).toContain('<user-request from="user" to="iris">');
     expect(resolved.rawPromptPayload).toContain("元気？");
   });
 
