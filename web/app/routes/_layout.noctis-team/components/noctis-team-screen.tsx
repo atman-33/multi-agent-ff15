@@ -68,9 +68,10 @@ import {
   MissionOutputBrowser,
 } from "./mission-output-browser";
 import {
+  buildMissionOutputDetailKey,
   buildMissionOutputDetailPath,
   buildMissionPath,
-  hasMissionOutputDetailRoute,
+  resolveMissionOutputDetailActive,
   resolveMissionInspectorTab,
 } from "./output-detail-routing";
 import { PartyStatusPanel } from "./party-status-panel";
@@ -91,6 +92,7 @@ export interface NoctisTeamScreenProps {
   language?: AppLanguage;
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
+  visualOutputDetailActive?: boolean;
 }
 
 export function NoctisTeamScreen({
@@ -99,6 +101,7 @@ export function NoctisTeamScreen({
   language = "other",
   initialMissionData,
   initialMessageInfos,
+  visualOutputDetailActive,
 }: NoctisTeamScreenProps) {
   const surface = getMissionSurface(
     requestedSurfaceId ??
@@ -120,11 +123,14 @@ export function NoctisTeamScreen({
   const routeOutputTaskId = outputDetailMatch?.params.taskId ?? null;
   const routeOutputFilename = outputDetailMatch?.params.filename ?? null;
   const effectiveMissionId = activeMissionId ?? routeMissionId;
-  const outputDetailActive = hasMissionOutputDetailRoute({
+  const outputDetailActive = resolveMissionOutputDetailActive(
+    {
     step: routeOutputStep,
     taskId: routeOutputTaskId,
     filename: routeOutputFilename,
-  });
+    },
+    visualOutputDetailActive,
+  );
 
   useEffect(() => {
     if (!effectiveMissionId) {
@@ -312,14 +318,13 @@ export function NoctisTeamScreen({
     !missionDetail?.workspacePath ||
     missionDetail.workspaceStatus !== "ready" ||
     isDeletingWorkspace;
-  const selectedOutputKey =
-    outputDetailActive && routeOutputStep && routeOutputTaskId && routeOutputFilename
-      ? getMissionOutputKey({
-          step: routeOutputStep,
-          taskId: routeOutputTaskId,
-          filename: routeOutputFilename,
-        })
-      : null;
+  const selectedOutputKey = outputDetailActive
+    ? buildMissionOutputDetailKey({
+        step: routeOutputStep,
+        taskId: routeOutputTaskId,
+        filename: routeOutputFilename,
+      })
+    : null;
 
   useEffect(() => {
     if (outputDetailActive) {

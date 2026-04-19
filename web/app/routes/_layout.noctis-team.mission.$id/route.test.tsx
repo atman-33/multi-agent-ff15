@@ -5,11 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { matchMock, navigateMock, paramsMock, sheetSpy } = vi.hoisted(() => ({
-  matchMock: vi.fn(),
+const { navigateMock } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
-  paramsMock: vi.fn(),
-  sheetSpy: vi.fn(),
 }));
 
 vi.mock("react-router", async () => {
@@ -18,19 +15,9 @@ vi.mock("react-router", async () => {
   return {
     ...actual,
     Outlet: () => <div>nested-route</div>,
-    useMatch: () => matchMock(),
     useNavigate: () => navigateMock,
-    useParams: () => paramsMock(),
   };
 });
-
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children, onOpenChange, open }: { children: ReactNode; onOpenChange?: (open: boolean) => void; open?: boolean }) => {
-    sheetSpy({ onOpenChange, open });
-    return open ? <div>{children}</div> : null;
-  },
-  SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
 
 vi.mock("sonner", () => ({
   toast: {
@@ -56,12 +43,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = null;
-  matchMock.mockReset();
   navigateMock.mockReset();
-  paramsMock.mockReset();
-  sheetSpy.mockReset();
-  matchMock.mockReturnValue(null);
-  paramsMock.mockReturnValue({ id: "mission-123" });
 });
 
 afterEach(async () => {
@@ -84,40 +66,9 @@ describe("noctis-team mission route", () => {
     expect(markup).not.toContain("screen:");
   });
 
-  it("closes the output detail sheet before navigating back to the mission page", async () => {
-    vi.useFakeTimers();
-    matchMock.mockReturnValue({
-      params: {
-        filename: "news-run-plan.md",
-        id: "mission-123",
-        step: "prepare-run",
-        taskId: "step_prepare-run_1",
-      },
-    });
+  it("redirects back to the surface root when the mission is missing", async () => {
+    await renderPage({ exists: false, requestedMissionId: "mission-123" });
 
-    await renderPage({ exists: true, requestedMissionId: "mission-123" });
-
-    const initialProps = sheetSpy.mock.calls.at(-1)?.[0] as
-      | { onOpenChange?: (open: boolean) => void; open?: boolean }
-      | undefined;
-
-    expect(initialProps?.open).toBe(true);
-
-    act(() => {
-      initialProps?.onOpenChange?.(false);
-    });
-
-    expect(navigateMock).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(299);
-    });
-    expect(navigateMock).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-
-    expect(navigateMock).toHaveBeenCalledWith("/noctis-team/mission/mission-123");
+    expect(navigateMock).toHaveBeenCalledWith("/noctis-team", { replace: true });
   });
 });

@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { paramsMock, navigateMock } = vi.hoisted(() => ({
+const { matchMock, paramsMock, navigateMock } = vi.hoisted(() => ({
+  matchMock: vi.fn(),
   navigateMock: vi.fn(),
   paramsMock: vi.fn<() => { id?: string | undefined }>(),
 }));
@@ -17,6 +18,7 @@ vi.mock("react-router", async () => {
       return params.id ? <div>nested-route</div> : null;
     },
     useLocation: () => ({ state: null }),
+    useMatch: () => matchMock(),
     useNavigate: () => navigateMock,
     useParams: () => paramsMock(),
   };
@@ -38,6 +40,7 @@ const TestPage = LunafreyaPage as unknown as (props: { loaderData: unknown }) =>
 
 describe("lunafreya layout route", () => {
   it("renders the Lunafreya root screen when no mission route is active", () => {
+    matchMock.mockReturnValue(null);
     paramsMock.mockReturnValue({});
 
     const markup = renderToStaticMarkup(<TestPage loaderData={{ language: "other" }} />);
@@ -47,6 +50,7 @@ describe("lunafreya layout route", () => {
   });
 
   it("keeps the Lunafreya mission surface screen mounted when a mission URL is active", () => {
+    matchMock.mockReturnValue(null);
     paramsMock.mockReturnValue({ id: "mission-luna" });
 
     const markup = renderToStaticMarkup(<TestPage loaderData={{ language: "other" }} />);
