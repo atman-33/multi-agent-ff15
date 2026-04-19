@@ -57,7 +57,7 @@ describe("use-sheet-transition", () => {
     vi.useRealTimers();
   });
 
-  it("hides visual detail state immediately while delaying close completion until the animation ends", async () => {
+  it("hides visual detail state immediately and falls back to timeout completion when animation end is unavailable", async () => {
     vi.useFakeTimers();
 
     const closeCompleteSpy = vi.fn();
@@ -95,7 +95,7 @@ describe("use-sheet-transition", () => {
     expect(closeCompleteSpy).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(299);
+      vi.advanceTimersByTime(599);
     });
 
     expect(closeCompleteSpy).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe("use-sheet-transition", () => {
     expect(getSnapshot().isSheetOpen).toBe(false);
 
     act(() => {
-      vi.advanceTimersByTime(300);
+      vi.advanceTimersByTime(600);
     });
 
     expect(closeCompleteSpy).toHaveBeenCalledTimes(1);
@@ -200,5 +200,82 @@ describe("use-sheet-transition", () => {
     });
 
     expect(closeCompleteSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps close lock active until the route key actually changes", async () => {
+    const closeCompleteSpy = vi.fn();
+    let latestSnapshot: HookSnapshot | null = null;
+    const getSnapshot = (): HookSnapshot => {
+      if (!latestSnapshot) {
+        throw new Error("Hook snapshot was not captured.");
+      }
+
+      return latestSnapshot;
+    };
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeKey: "mission-output:step-1:task-1:file.md",
+          onCloseComplete: closeCompleteSpy,
+          onSnapshot: (snapshot: HookSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    act(() => {
+      getSnapshot().handleOpenChange(false);
+    });
+
+    const target = {
+      getAttribute: (name: string) => (name === "data-state" ? "closed" : null),
+    };
+
+    act(() => {
+      getSnapshot().handleContentAnimationEnd({
+        currentTarget: target,
+        target,
+      });
+    });
+
+    expect(closeCompleteSpy).toHaveBeenCalledTimes(1);
+    expect(getSnapshot().isVisualRouteActive).toBe(false);
+    expect(getSnapshot().isSheetOpen).toBe(false);
+
+    act(() => {
+      getSnapshot().handleOpenChange(true);
+    });
+
+    expect(getSnapshot().isSheetOpen).toBe(false);
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeKey: null,
+          onCloseComplete: closeCompleteSpy,
+          onSnapshot: (snapshot: HookSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeKey: "mission-output:step-1:task-1:file.md",
+          onCloseComplete: closeCompleteSpy,
+          onSnapshot: (snapshot: HookSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    expect(getSnapshot().isSheetOpen).toBe(true);
+    expect(getSnapshot().isVisualRouteActive).toBe(true);
   });
 });

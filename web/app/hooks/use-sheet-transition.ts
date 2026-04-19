@@ -24,6 +24,7 @@ export function useSheetTransition({
 }: SheetTransitionOptions): SheetTransitionState {
   const closeTimeoutRef = useRef<number | null>(null);
   const closingKeyRef = useRef<string | null>(null);
+  const closeCommittedRef = useRef(false);
   const isClosingRef = useRef(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -42,6 +43,7 @@ export function useSheetTransition({
 
   const reopen = useCallback(() => {
     clearCloseTimeout();
+    closeCommittedRef.current = false;
     closingKeyRef.current = null;
     setClosingState(false);
     setIsSheetOpen(true);
@@ -52,11 +54,14 @@ export function useSheetTransition({
       return;
     }
 
+    if (closeCommittedRef.current) {
+      return;
+    }
+
     clearCloseTimeout();
-    closingKeyRef.current = null;
-    setClosingState(false);
+    closeCommittedRef.current = true;
     onCloseComplete();
-  }, [clearCloseTimeout, onCloseComplete, setClosingState]);
+  }, [clearCloseTimeout, onCloseComplete]);
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -74,13 +79,16 @@ export function useSheetTransition({
       }
 
       clearCloseTimeout();
+      closeCommittedRef.current = false;
       closingKeyRef.current = activeKey;
       setClosingState(true);
       setIsSheetOpen(false);
+      // Use timeout as a safety net only; animationend should usually finalize first.
+      const closeFallbackMs = closeDurationMs * 2;
       closeTimeoutRef.current = window.setTimeout(() => {
         closeTimeoutRef.current = null;
         finalizeClose();
-      }, closeDurationMs);
+      }, closeFallbackMs);
     },
     [activeKey, clearCloseTimeout, closeDurationMs, finalizeClose, reopen, setClosingState],
   );
@@ -90,11 +98,12 @@ export function useSheetTransition({
       currentTarget: { getAttribute: (name: string) => string | null };
       target: unknown;
     }) => {
+      const state = event.currentTarget.getAttribute("data-state");
       if (event.target !== event.currentTarget) {
         return;
       }
 
-      if (event.currentTarget.getAttribute("data-state") !== "closed") {
+      if (state !== "closed") {
         return;
       }
 
@@ -106,6 +115,7 @@ export function useSheetTransition({
   useEffect(() => {
     if (!activeKey) {
       clearCloseTimeout();
+      closeCommittedRef.current = false;
       closingKeyRef.current = null;
       setClosingState(false);
       setIsSheetOpen(false);
