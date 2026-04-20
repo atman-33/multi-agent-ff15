@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 WEB_PORT=13000
 WEB_URL="http://localhost:${WEB_PORT}"
 WEB_LOG="runtime/logs/web.log"
-BUILD_OUTPUT="runtime/web-build/server/index.js"
+BUILD_OUTPUT="web/build/server/index.js"
 RUN_BUILD=false
 
 log_info() {
@@ -150,7 +150,7 @@ stop_existing_server() {
     local existing_cmd
     existing_cmd="$(ps -p "$existing_pid" -o args= 2>/dev/null || true)"
 
-    if echo "$existing_cmd" | grep -qiE 'react-router-serve|node.*runtime/web-build/server/index.js|npm --prefix web run start|npm run web:start'; then
+    if echo "$existing_cmd" | grep -qiE 'react-router-serve|node.*(web/)?build/server/index.js|npm --prefix web run start|npm run web:start'; then
         log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${existing_pid})..."
         kill "$existing_pid" 2>/dev/null || true
         sleep 1
