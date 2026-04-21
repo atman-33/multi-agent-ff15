@@ -30,6 +30,7 @@ import {
 import { getSessionStatusForId } from "@/lib/session-status";
 import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
+import { useChatStore } from "@/stores/chat-store";
 import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
 import { ProjectIrisSheet } from "./components/project-iris-sheet";
 import type { Route } from "./+types/route";
@@ -171,6 +172,10 @@ const formatPath = (path: string): string => {
 };
 
 export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderData }) => {
+  const selectedProjectIrisModel = useChatStore(
+    (state) => state.agentModels[PROJECT_IRIS_AGENT_ID] ?? null,
+  );
+  const setAgentModel = useChatStore((state) => state.setAgentModel);
   const [serverData, setServerData] = useState<ProjectsApiData | null>(loaderData?.initialData ?? null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(loaderData?.initialFetchError ?? null);
@@ -188,8 +193,6 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
     useState<SessionChatRenderSnapshot | null>(null);
   const [isProjectIrisLoading, setIsProjectIrisLoading] = useState(false);
   const [isProjectIrisSending, setIsProjectIrisSending] = useState(false);
-  const [selectedProjectIrisModel, setSelectedProjectIrisModel] =
-    useState<ModelSelection | null>(null);
   const { vscodePreferences, updateVSCodePreference } = useVSCodePreferences();
   const projectManageSkill = loaderData?.projectManageSkill ?? null;
   const projectIrisSessionId = projectIrisSessionState.sessionId;
@@ -479,7 +482,7 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
         isSending={isProjectIrisSending}
         onClose={() => setIsProjectIrisSheetOpen(false)}
         onNewSession={handleNewProjectIrisSession}
-        onSelectedModelChange={(model) => setSelectedProjectIrisModel(model)}
+        onSelectedModelChange={(model) => setAgentModel(PROJECT_IRIS_AGENT_ID, model)}
         onSend={handleSendProjectIrisPrompt}
         renderSnapshot={projectIrisRenderSnapshot}
         selectedModel={selectedProjectIrisModel}

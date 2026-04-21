@@ -3,11 +3,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
+
+const { chatStoreStateMock, projectIrisSheetPropsSpy, setAgentModelMock } = vi.hoisted(() => ({
+  chatStoreStateMock: vi.fn(),
+  projectIrisSheetPropsSpy: vi.fn(),
+  setAgentModelMock: vi.fn(),
+}));
 
 vi.mock("@/components/workspace-launch-actions", () => ({
   WorkspaceLaunchActions: ({ path }: { path: string }) => <div data-workspace-launch-actions={path} />,
+}));
+
+vi.mock("@/stores/chat-store", () => ({
+  useChatStore: (
+    selector: (state: {
+      agentModels: {
+        iris?: { providerID: string; modelID: string; variant?: string } | null;
+      };
+      setAgentModel: typeof setAgentModelMock;
+    }) => unknown,
+  ) => selector(chatStoreStateMock()),
 }));
 
 vi.mock("@/hooks/use-vscode-preferences", () => ({
@@ -15,6 +32,21 @@ vi.mock("@/hooks/use-vscode-preferences", () => ({
     vscodePreferences: {},
     updateVSCodePreference: () => undefined,
   }),
+}));
+
+vi.mock("./components/project-iris-sheet", () => ({
+  ProjectIrisSheet: (props: {
+    onSelectedModelChange: (model: { providerID: string; modelID: string; variant?: string }) => void;
+    selectedModel: { providerID: string; modelID: string; variant?: string } | null;
+  }) => {
+    projectIrisSheetPropsSpy(props);
+
+    return (
+      <div>
+        {`project-iris-model:${props.selectedModel ? `${props.selectedModel.providerID}/${props.selectedModel.modelID}` : "none"}${props.selectedModel?.variant ? `:${props.selectedModel.variant}` : ""}`}
+      </div>
+    );
+  },
 }));
 
 import { loader, normalizeProjectIrisHistoryMessages, ProjectsPage } from "./route";
@@ -75,6 +107,17 @@ afterEach(() => {
       rmSync(root, { force: true, recursive: true });
     }
   }
+});
+
+beforeEach(() => {
+  projectIrisSheetPropsSpy.mockReset();
+  setAgentModelMock.mockReset();
+  chatStoreStateMock.mockReturnValue({
+    agentModels: {
+      iris: null,
+    },
+    setAgentModel: setAgentModelMock,
+  });
 });
 
 describe("projects route", () => {
@@ -205,5 +248,56 @@ describe("projects route", () => {
     expect(snapshot.renderedMessages).toHaveLength(1);
     expect(snapshot.renderedMessages[0]?.messageDisplay.displayContent).toBe("Hello from Iris");
     expect(snapshot.renderedMessages[0]?.senderLabel).toBe("Iris");
+  });
+
+  it("reads the persisted Iris model from chat store and writes updates back through setAgentModel", () => {
+    chatStoreStateMock.mockReturnValue({
+      agentModels: {
+        iris: {
+          providerID: "openai",
+          modelID: "gpt-5.4",
+          variant: "thinking",
+        },
+      },
+      setAgentModel: setAgentModelMock,
+    });
+
+    const markup = renderToStaticMarkup(
+      <TestPage
+        loaderData={{
+          initialData: {
+            projects: [],
+          },
+          initialFetchError: null,
+          projectManageSkill: {
+            available: true,
+            error: null,
+            filePath: "/home/atman/repos/multi-agent-ff15/.opencode/skills/project-manage/SKILL.md",
+            promptContext: "<reference-files>project-manage</reference-files>",
+          },
+        }}
+      />,
+    );
+
+    expect(markup).toContain("project-iris-model:openai/gpt-5.4:thinking");
+
+    const sheetProps = projectIrisSheetPropsSpy.mock.calls.at(-1)?.[0];
+    expect(sheetProps?.selectedModel).toEqual({
+      providerID: "openai",
+      modelID: "gpt-5.4",
+      variant: "thinking",
+    });
+
+    sheetProps?.onSelectedModelChange({
+      providerID: "github-copilot",
+      modelID: "gpt-5.4",
+      variant: "balanced",
+    });
+
+    expect(setAgentModelMock).toHaveBeenCalledWith("iris", {
+      providerID: "github-copilot",
+      modelID: "gpt-5.4",
+      variant: "balanced",
+    });
   });
 });
