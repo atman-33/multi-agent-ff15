@@ -31,7 +31,7 @@ import { getSessionStatusForId } from "@/lib/session-status";
 import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import { ProjectIrisSheet } from "./components/project-iris-sheet";
 import type { Route } from "./+types/route";
 

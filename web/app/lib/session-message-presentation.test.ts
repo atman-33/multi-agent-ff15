@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import {
   buildRenderedSessionMessages,
   resolveSessionMessageDisplay,

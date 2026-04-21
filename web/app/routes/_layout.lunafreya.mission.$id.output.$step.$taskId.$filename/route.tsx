@@ -4,71 +4,16 @@ import { MarkdownDocumentSheetPreview } from "@/components/markdown-document-she
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
 import { getLunafreyaJobDisplayLabel } from "@/lib/lunafreya-prompt-context";
-import type { MissionOutputMetadata } from "@/lib/types/mission";
+import {
+  createOutputDocumentState,
+  isAbortError,
+  loadMissionOutputDocument,
+  type MissionOutputDocumentState,
+  type MissionOutputLoaderData,
+} from "@/lib/mission-output-detail";
 import type { Route } from "./+types/route";
 
-type LoaderData = {
-  filename: string;
-  missionId: string;
-  step: string;
-  taskId: string;
-};
-
-type OutputDocumentState = {
-  author: string;
-  content: string;
-  date: string;
-  displayMode: "markdown" | "metadata-only" | "empty";
-  error: string | null;
-  filePath: string;
-  frontmatter: Record<string, unknown> | null;
-  metadata?: MissionOutputMetadata | null;
-  loading: boolean;
-  rawContent: string;
-  tags: string[];
-  title: string;
-};
-
-type OutputRouteResponse = Partial<
-  Omit<OutputDocumentState, "error" | "loading"> & { error?: string | null }
->;
-
-function createOutputDocumentState(
-  filename: string,
-  overrides: Partial<OutputDocumentState> = {},
-): OutputDocumentState {
-  return {
-    author: "",
-    content: "",
-    date: "",
-    displayMode: "empty",
-    error: null,
-    filePath: "",
-    frontmatter: null,
-    loading: false,
-    metadata: null,
-    rawContent: "",
-    tags: [],
-    title: filename || "Mission output",
-    ...overrides,
-  };
-}
-
-function buildMissionOutputRequestPath(loaderData: LoaderData): string {
-  const query = new URLSearchParams({
-    file: loaderData.filename,
-    step: loaderData.step,
-    taskId: loaderData.taskId,
-  });
-
-  return `/api/missions/${encodeURIComponent(loaderData.missionId)}/output?${query.toString()}`;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError";
-}
-
-export const loader = ({ params }: Route.LoaderArgs): LoaderData => ({
+export const loader = ({ params }: Route.LoaderArgs): MissionOutputLoaderData => ({
   filename: params.filename ?? "",
   missionId: params.id ?? "",
   step: params.step ?? "",
@@ -76,7 +21,7 @@ export const loader = ({ params }: Route.LoaderArgs): LoaderData => ({
 });
 
 export const LunafreyaMissionOutputDetailRoute = ({ loaderData }: Route.ComponentProps) => {
-  const [document, setDocument] = useState<OutputDocumentState>(() =>
+  const [document, setDocument] = useState<MissionOutputDocumentState>(() =>
     createOutputDocumentState(loaderData.filename, {
       loading: Boolean(
         loaderData.missionId && loaderData.step && loaderData.taskId && loaderData.filename,
@@ -102,45 +47,14 @@ export const LunafreyaMissionOutputDetailRoute = ({ loaderData }: Route.Componen
       }),
     );
 
-    void (async () => {
-      try {
-        const response = await fetch(buildMissionOutputRequestPath(loaderData), {
-          signal: abortController.signal,
-        });
-        const data = (await response.json().catch(() => ({}))) as OutputRouteResponse;
-
-        if (!response.ok) {
-          throw new Error(
-            typeof data.error === "string" ? data.error : `Unable to load output (${response.status})`,
-          );
-        }
-
-        setDocument(
-          createOutputDocumentState(loaderData.filename, {
-            author: typeof data.author === "string" ? data.author : "",
-            content: typeof data.content === "string" ? data.content : "",
-            date: typeof data.date === "string" ? data.date : "",
-            displayMode:
-              data.displayMode === "markdown" ||
-              data.displayMode === "metadata-only" ||
-              data.displayMode === "empty"
-                ? data.displayMode
-                : "empty",
-            filePath: typeof data.filePath === "string" ? data.filePath : "",
-            frontmatter:
-              data.frontmatter && typeof data.frontmatter === "object" && !Array.isArray(data.frontmatter)
-                ? data.frontmatter
-                : null,
-            loading: false,
-            metadata: data.metadata ?? null,
-            rawContent: typeof data.rawContent === "string" ? data.rawContent : "",
-            tags: Array.isArray(data.tags)
-              ? data.tags.filter((tag): tag is string => typeof tag === "string")
-              : [],
-            title: typeof data.title === "string" && data.title.trim() ? data.title : loaderData.filename,
-          }),
-        );
-      } catch (error) {
+    void loadMissionOutputDocument({
+      loaderData,
+      signal: abortController.signal,
+    })
+      .then((nextDocument) => {
+        setDocument(nextDocument);
+      })
+      .catch((error) => {
         if (isAbortError(error)) {
           return;
         }
@@ -150,8 +64,7 @@ export const LunafreyaMissionOutputDetailRoute = ({ loaderData }: Route.Componen
             error: error instanceof Error ? error.message : String(error),
           }),
         );
-      }
-    })();
+      });
 
     return () => {
       abortController.abort();

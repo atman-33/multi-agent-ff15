@@ -1,5 +1,5 @@
 import type { BanterTimelineEntry } from "@/lib/types/mission";
-import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
+import type { BanterEntry } from "@/lib/noctis-team-ui-types";
 
 import { createBanterRevealQueue } from "./reveal-queue";
 import { createLiteralBanterTemplate } from "./runtime";

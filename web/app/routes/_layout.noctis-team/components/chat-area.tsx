@@ -36,6 +36,7 @@ import {
   getOperationDisplayLabel,
   type OperationOption,
 } from "@/lib/operation-presentation";
+import type { ChatMessage } from "@/lib/noctis-team-ui-types";
 import { INTERNAL_AUTONOMOUS_OPERATION_NAME } from "@/lib/operation-runtime/constants";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type {
@@ -45,31 +46,15 @@ import type {
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type {
   ActivityActorId,
-  MissionActivityKind,
   MissionExecutionTargetMode,
   MissionWorkflowProgress,
   OperationState,
   OperationStatus,
 } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
-import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
 import { useChatStore } from "@/stores/chat-store";
 import MessageDetailSheet from "./message-detail-sheet";
 import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-parts";
-
-export interface ChatMessage {
-  id: string;
-  sender: ActivityActorId;
-  actor: ActivityActorId;
-  speaker: ActivityActorId;
-  kind: MissionActivityKind;
-  content: string;
-  detailContent?: string;
-  rawText?: string;
-  parts?: MessagePart[];
-  timestamp: Date;
-  source: "session" | "activity";
-}
 
 interface ChatAreaProps {
   messages: ChatMessage[];

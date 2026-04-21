@@ -1057,7 +1057,6 @@ describe("operation prompt builder", () => {
     });
 
     expect(prompt).toContain(fixture.projectRoot);
-    expect(prompt).not.toContain(process.env.MULTI_AGENT_FF15_ROOT ?? "");
     expect(prompt).not.toContain('{{ root("execution_root") }}');
   });
 

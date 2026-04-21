@@ -57,7 +57,7 @@ import type {
 import { isMissionSummaryRunning } from "@/lib/mission-list-running-state";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import { BanterLog } from "./banter-log";
 import { ChatArea } from "./chat-area";
 import { LunafreyaStatusPanel, type LunafreyaFacetOption } from "./lunafreya-status-panel";

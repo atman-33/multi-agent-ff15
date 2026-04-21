@@ -4,7 +4,7 @@ import {
   type SessionSelectionAdjustment,
 } from "@/lib/session-selection-adjustment";
 import type { ModelSelection } from "@/lib/types/mission";
-import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 
 export type RawSessionMessage = {
   info: {

@@ -3,7 +3,7 @@ import {
   toPartyMemberId,
 } from "@/lib/banter/runtime";
 import type { BanterCue } from "@/lib/banter/types";
-import type { AgentStatus } from "@/routes/_layout.noctis-team/components/character-card";
+import type { AgentStatus } from "@/lib/noctis-team-ui-types";
 
 export type AgentEvent =
   | { type: "session.created" }

@@ -12,7 +12,7 @@ import {
 } from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId } from "@/lib/types/mission";
-import type { MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessagePart } from "@/lib/opencode-session-types";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 
 type Props = {

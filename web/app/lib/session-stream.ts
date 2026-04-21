@@ -1,4 +1,4 @@
-import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 
 type RawEvent = {
   type?: unknown;

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { act, useEffect } from "react";
+import { act, createElement, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import { useChatStore } from "@/stores/chat-store";
 import {
   type MissionResumePayload,
@@ -221,6 +221,7 @@ describe("useAgentSession", () => {
     MockEventSource.instances = [];
     resetChatStore();
     vi.stubGlobal("EventSource", MockEventSource);
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   });
 
   afterEach(async () => {
@@ -267,21 +268,19 @@ describe("useAgentSession", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     let latestSnapshot: HookProbeSnapshot | null = null;
-    const missionOnePreloadedMessages = [
-      createAssistantMessage("message-1", "Mission one reply"),
-    ];
+    const missionOnePreloadedMessages = [createAssistantMessage("message-1", "Mission one reply")];
 
     root = createRoot(container);
     await act(async () => {
       root?.render(
-        <HookProbe
-          activeMissionId="mission-1"
-          initialMessageInfos={missionOnePreloadedMessages}
-          initialMissionData={missionOne}
-          onSnapshot={(snapshot) => {
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: missionOnePreloadedMessages,
+          initialMissionData: missionOne,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
-          }}
-        />,
+          },
+        }),
       );
     });
     await waitFor(() => latestSnapshot?.historyPhase === "ready");
@@ -294,13 +293,13 @@ describe("useAgentSession", () => {
 
     await act(async () => {
       root?.render(
-        <HookProbe
-          activeMissionId="mission-2"
-          initialMissionData={missionTwo}
-          onSnapshot={(snapshot) => {
+        createElement(HookProbe, {
+          activeMissionId: "mission-2",
+          initialMissionData: missionTwo,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
-          }}
-        />,
+          },
+        }),
       );
     });
     await waitFor(() => latestSnapshot?.historyPhase === "loading");
@@ -345,14 +344,14 @@ describe("useAgentSession", () => {
     root = createRoot(container);
     await act(async () => {
       root?.render(
-        <HookProbe
-          activeMissionId="mission-1"
-          initialMessageInfos={[createAssistantMessage("message-1", "Mission one reply")]}
-          initialMissionData={mission}
-          onSnapshot={(snapshot) => {
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
-          }}
-        />,
+          },
+        }),
       );
     });
     await waitFor(() => latestSnapshot?.historyPhase === "ready");
@@ -377,6 +376,12 @@ describe("useAgentSession", () => {
         return createJsonResponse(createRuntimePayload(mission));
       }
 
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({
+          messages: [createAssistantMessage("message-1", "Mission one reply")],
+        });
+      }
+
       throw new Error(`Unhandled fetch: ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -386,27 +391,27 @@ describe("useAgentSession", () => {
     root = createRoot(container);
     await act(async () => {
       root?.render(
-        <HookProbe
-          activeMissionId="mission-1"
-          initialMessageInfos={[createAssistantMessage("message-1", "Mission one reply")]}
-          initialMissionData={mission}
-          onSnapshot={(snapshot) => {
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
-          }}
-        />,
+          },
+        }),
       );
     });
     await waitFor(() => latestSnapshot?.historyPhase === "ready");
 
     await act(async () => {
       root?.render(
-        <HookProbe
-          activeMissionId="mission-1"
-          initialMissionData={mission}
-          onSnapshot={(snapshot) => {
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
-          }}
-        />,
+          },
+        }),
       );
     });
     await flushEffects();

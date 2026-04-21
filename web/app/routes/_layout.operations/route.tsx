@@ -64,7 +64,7 @@ import type { PromptPart } from "@/lib/prompt-parts";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
 import { mergeMessageInfoText, parseSessionTextPartEvent } from "@/lib/session-stream";
 import type { ModelSelection, WorkerAgentId } from "@/lib/types/mission";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import type { Route } from "./+types/route";
 
 const PREVIEW_WORKER_LABELS: Record<WorkerAgentId, string> = {

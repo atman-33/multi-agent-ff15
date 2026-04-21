@@ -1,126 +1,60 @@
-// @vitest-environment jsdom
-
-import { act, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const { fetchMock, previewSpy } = vi.hoisted(() => ({
-  fetchMock: vi.fn(),
-  previewSpy: vi.fn(),
-}));
-
-vi.mock("@/components/markdown-document-sheet-preview", () => ({
-  MarkdownDocumentSheetPreview: (props: Record<string, unknown>) => {
-    previewSpy(props);
-    return <section>{props.loading ? "loading" : String(props.title ?? "")}</section>;
-  },
-}));
-
-vi.mock("@/components/ui/sheet", () => ({
-  SheetClose: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock("@/components/ui/button", () => ({
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-}));
-
-import { NoctisTeamMissionOutputDetailRoute } from "./route";
-
-const TestRoute = NoctisTeamMissionOutputDetailRoute as unknown as (props: {
-  loaderData: {
-    filename: string;
-    missionId: string;
-    step: string;
-    taskId: string;
-  };
-}) => ReactNode;
-
-let container: HTMLDivElement;
-let root: Root | null;
-
-async function renderRoute(loaderData: {
-  filename: string;
-  missionId: string;
-  step: string;
-  taskId: string;
-}) {
-  root = createRoot(container);
-  await act(async () => {
-    root?.render(<TestRoute loaderData={loaderData} />);
-  });
-}
-
-beforeEach(() => {
-  container = document.createElement("div");
-  document.body.appendChild(container);
-  root = null;
-  fetchMock.mockReset();
-  previewSpy.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
-});
-
-afterEach(async () => {
-  if (root) {
-    await act(async () => {
-      root?.unmount();
-    });
-  }
-  container.remove();
-  vi.unstubAllGlobals();
-});
+import { describe, expect, it, vi } from "vitest";
+import {
+  buildMissionOutputRequestPath,
+  loadMissionOutputDocument,
+} from "@/lib/mission-output-detail";
 
 describe("noctis-team mission output detail route", () => {
-  it("loads the selected mission output after the detail route mounts", async () => {
-    let resolveResponse: ((value: { json: () => Promise<Record<string, unknown>>; ok: boolean; status: number }) => void) | null = null;
-
-    fetchMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveResponse = resolve;
-        }),
+  it("builds the selected mission output request path", () => {
+    expect(
+      buildMissionOutputRequestPath({
+        filename: "news-run-plan.md",
+        missionId: "mission-123",
+        step: "prepare-run",
+        taskId: "step_prepare-run_1",
+      }),
+    ).toBe(
+      "/api/missions/mission-123/output?file=news-run-plan.md&step=prepare-run&taskId=step_prepare-run_1",
     );
+  });
 
-    await renderRoute({
-      filename: "news-run-plan.md",
-      missionId: "mission-123",
-      step: "prepare-run",
-      taskId: "step_prepare-run_1",
+  it("loads and normalizes the selected mission output document", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({
+        author: "Noctis",
+        content: "# Plan\n\nDetails.",
+        date: "2026-04-09T00:00:00.000Z",
+        displayMode: "markdown",
+        filePath: "/tmp/news-run-plan.md",
+        filename: "news-run-plan.md",
+        frontmatter: null,
+        metadata: null,
+        rawContent: "# Plan\n\nDetails.",
+        step: "prepare-run",
+        tags: [],
+        taskId: "step_prepare-run_1",
+        title: "News run plan",
+      }),
+      ok: true,
+      status: 200,
+    });
+
+    const document = await loadMissionOutputDocument({
+      fetchImpl: fetchMock as typeof fetch,
+      loaderData: {
+        filename: "news-run-plan.md",
+        missionId: "mission-123",
+        step: "prepare-run",
+        taskId: "step_prepare-run_1",
+      },
+      signal: new AbortController().signal,
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/missions/mission-123/output?step=prepare-run&taskId=step_prepare-run_1&file=news-run-plan.md",
+      "/api/missions/mission-123/output?file=news-run-plan.md&step=prepare-run&taskId=step_prepare-run_1",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    expect(previewSpy.mock.calls.at(-1)?.[0]).toMatchObject({
-      loading: true,
-      previewLabel: "Mission output",
-      title: "news-run-plan.md",
-    });
-
-    await act(async () => {
-      resolveResponse?.({
-        json: async () => ({
-          author: "Noctis",
-          content: "# Plan\n\nDetails.",
-          date: "2026-04-09T00:00:00.000Z",
-          displayMode: "markdown",
-          filePath: "/tmp/news-run-plan.md",
-          filename: "news-run-plan.md",
-          frontmatter: null,
-          metadata: null,
-          rawContent: "# Plan\n\nDetails.",
-          step: "prepare-run",
-          tags: [],
-          taskId: "step_prepare-run_1",
-          title: "News run plan",
-        }),
-        ok: true,
-        status: 200,
-      });
-      await Promise.resolve();
-    });
-
-    expect(previewSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+    expect(document).toMatchObject({
       author: "Noctis",
       content: "# Plan\n\nDetails.",
       loading: false,

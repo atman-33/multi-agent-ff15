@@ -13,7 +13,7 @@ import {
 } from "@/lib/session-selection-adjustment";
 import { getActivityActorLabel, parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
-import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 
 export type SessionPresentationMessage = {
   id: string;

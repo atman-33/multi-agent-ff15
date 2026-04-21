@@ -25,26 +25,15 @@ import {
   isWorkingPartyMemberId,
   normalizeWorkingPartyMemberId,
 } from "@/lib/noctis-working-party";
-import type { AgentContextUsage, ModelSelection } from "@/lib/types/mission";
+import type { PartyMember } from "@/lib/noctis-team-ui-types";
+import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
-import type { AgentStatus } from "./character-card";
 import { CharacterCard } from "./character-card";
 
 const PRESET_AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto"] as const;
 
 type PresetAgentId = (typeof PRESET_AGENT_IDS)[number];
-
-export interface PartyMember {
-  contextUsage?: AgentContextUsage | null;
-  id: string;
-  name: string;
-  role: string;
-  imageSrc: string;
-  status: AgentStatus;
-  detail?: string;
-  progress?: number;
-}
 
 type ModelPreset = {
   id: string;

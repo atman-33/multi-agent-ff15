@@ -34,11 +34,9 @@ import type {
   MissionExecutionTargetMode,
   OperationState,
 } from "@/lib/types/mission";
-import type { BanterEntry } from "@/routes/_layout.noctis-team/components/banter-log";
-import type { ChatMessage } from "@/routes/_layout.noctis-team/components/chat-area";
-import { extractText } from "@/routes/_layout.noctis-team/components/message-parts";
-import type { PartyMember } from "@/routes/_layout.noctis-team/components/party-status-panel";
-import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import { extractText } from "@/lib/chat-message-parts";
+import type { BanterEntry, ChatMessage, PartyMember } from "@/lib/noctis-team-ui-types";
+import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 import { useChatStore } from "@/stores/chat-store";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
