@@ -42,26 +42,26 @@ import { joinXmlSections } from "@/lib/prompt-composition-engine/prompt-xml";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type { AgentId, WorkerAgentId, WorkflowNext } from "@/lib/types/mission";
 
-export interface OperationStudioSavedPreviewSource {
+export interface OperationsSavedPreviewSource {
   kind: "saved";
   operationRef: string;
 }
 
-export interface OperationStudioDraftPreviewSource {
+export interface OperationsDraftPreviewSource {
   kind: "draft";
   draftId: string;
   operation: OperationDefinition;
   operationRef?: string | null;
 }
 
-export type OperationStudioPreviewSource =
-  | OperationStudioSavedPreviewSource
-  | OperationStudioDraftPreviewSource;
+export type OperationsPreviewSource =
+  | OperationsSavedPreviewSource
+  | OperationsDraftPreviewSource;
 
-interface BuildOperationStudioPreviewBundleInput {
+interface BuildOperationsPreviewBundleInput {
   missionId?: string;
   lunafreyaPromptExtension?: string | null;
-  source: OperationStudioPreviewSource;
+  source: OperationsPreviewSource;
   userMessage?: string;
   previewAllowedWorkers?: readonly WorkerAgentId[];
   reportMessage?: string;
@@ -312,7 +312,7 @@ function buildStepSummary(stepName: string, from: string, to: string, decisionSu
 }
 
 function buildDraftPreviewBundle(
-  input: BuildOperationStudioPreviewBundleInput & { source: OperationStudioDraftPreviewSource },
+  input: BuildOperationsPreviewBundleInput & { source: OperationsDraftPreviewSource },
 ): OperationDebugBundle {
   const root = getProjectRoot();
   const operation = input.source.operation;
@@ -830,8 +830,8 @@ function buildDraftPreviewBundle(
   };
 }
 
-export function buildOperationStudioPreviewBundle(
-  input: BuildOperationStudioPreviewBundleInput,
+export function buildOperationsPreviewBundle(
+  input: BuildOperationsPreviewBundleInput,
 ): OperationDebugBundle {
   if (input.source.kind === "saved") {
     return buildDraftPreviewBundle({
@@ -845,7 +845,7 @@ export function buildOperationStudioPreviewBundle(
     });
   }
 
-  return buildDraftPreviewBundle(input as BuildOperationStudioPreviewBundleInput & {
-    source: OperationStudioDraftPreviewSource;
+  return buildDraftPreviewBundle(input as BuildOperationsPreviewBundleInput & {
+    source: OperationsDraftPreviewSource;
   });
 }

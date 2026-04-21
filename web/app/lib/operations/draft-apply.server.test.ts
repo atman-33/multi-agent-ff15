@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadOperationFromFile, loadOperationFromText } from "@/lib/operation-definition/operation-loader";
 import type { OperationDefinition } from "@/lib/operation-definition/types";
-import { applyOperationStudioDraft, planOperationStudioDraftApply } from "./draft-apply.server";
+import { applyOperationsDraft, planOperationsDraftApply } from "./draft-apply.server";
 
 const tempRoots: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 
 function createTempRoot(language = "ja"): string {
-  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-studio-"));
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operations-"));
   tempRoots.push(root);
   mkdirSync(join(root, "builtins", language, "operations"), { recursive: true });
   mkdirSync(join(root, "config"), { recursive: true });
@@ -85,7 +85,7 @@ describe("draft-apply.server", () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
-    const plan = planOperationStudioDraftApply({
+    const plan = planOperationsDraftApply({
       target: { kind: "builtin", projectId: null },
       operation: createOperationDefinition(root, "studio-plan"),
     });
@@ -122,7 +122,7 @@ describe("draft-apply.server", () => {
       "utf-8",
     );
 
-    const result = applyOperationStudioDraft({
+    const result = applyOperationsDraft({
       sourceOperationRef: "builtin:en:saved-flow.yaml",
       target: { kind: "builtin", projectId: null },
       operation: createOperationDefinition(root, "renamed-flow"),
@@ -149,7 +149,7 @@ describe("draft-apply.server", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeProjectDefinition(root, "alpha");
 
-    const result = applyOperationStudioDraft({
+    const result = applyOperationsDraft({
       target: { kind: "project", projectId: "alpha" },
       operation: createOperationDefinition(root, "project-review"),
     });

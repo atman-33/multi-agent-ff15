@@ -227,19 +227,19 @@ Hello from User
     ]);
   });
 
-  it("extracts operation studio context as injected prompt context", () => {
+  it("extracts operations context as injected prompt context", () => {
     expect(
       parseInjectedPromptContextSections(`
-<operation-studio-context>
+<operations-context>
 scope: Noctis Team
 selected_entry: github-issue-openspec-dev
-</operation-studio-context>
+</operations-context>
       `),
     ).toEqual([
       {
-        key: "operation-studio-context:0",
-        tagName: "operation-studio-context",
-        label: "Operation Studio Context",
+        key: "operations-context:0",
+        tagName: "operations-context",
+        label: "Operations Context",
         content: "scope: Noctis Team\nselected_entry: github-issue-openspec-dev",
         preview: "scope: Noctis Team selected_entry: github-issue-openspec-dev",
         source: "injected",

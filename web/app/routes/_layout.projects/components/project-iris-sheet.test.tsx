@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectIrisSheet } from "./project-iris-sheet";
 
-vi.mock("@/components/operation-studio/iris-authoring-sheet", () => ({
+vi.mock("@/components/operations/iris-authoring-sheet", () => ({
   IrisAuthoringSheet: ({
     composerHelperText,
     composerPlaceholder,

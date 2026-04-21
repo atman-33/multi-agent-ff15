@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import type { OperationDefinition } from "@/lib/operation-definition/types";
-import { buildOperationStudioPreviewBundle } from "./preview-engine.server";
+import { buildOperationsPreviewBundle } from "./preview-engine.server";
 
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const tempRoots: string[] = [];
 
 function createTempRoot(language: string): string {
-  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-studio-preview-"));
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operations-preview-"));
   tempRoots.push(root);
 
   mkdirSync(join(root, "scripts"), { recursive: true });
@@ -59,13 +59,13 @@ afterEach(() => {
   }
 });
 
-describe("operation-studio preview engine", () => {
+describe("operations preview engine", () => {
   it("builds a preview bundle from a saved operation source", () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeOperation(root, "ja", "saved-flow", "Saved operation preview.");
 
-    const bundle = buildOperationStudioPreviewBundle({
+    const bundle = buildOperationsPreviewBundle({
       source: {
         kind: "saved",
         operationRef: buildBuiltinOperationRef("ja", "saved-flow.yaml"),
@@ -101,7 +101,7 @@ describe("operation-studio preview engine", () => {
       ],
     };
 
-    const bundle = buildOperationStudioPreviewBundle({
+    const bundle = buildOperationsPreviewBundle({
       source: {
         kind: "draft",
         draftId: "draft-1",
@@ -120,7 +120,7 @@ describe("operation-studio preview engine", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeOperation(root, "ja", "saved-flow", "Saved operation preview.");
 
-    const bundle = buildOperationStudioPreviewBundle({
+    const bundle = buildOperationsPreviewBundle({
       source: {
         kind: "draft",
         draftId: "draft-lunafreya",

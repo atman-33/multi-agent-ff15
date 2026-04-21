@@ -65,7 +65,7 @@ describe("app layout navigation", () => {
     const markup = renderToStaticMarkup(<TestLayout loaderData={{}} />);
 
     expect(markup).toContain("Skills");
-    expect(markup.indexOf("Skills")).toBeLessThan(markup.indexOf("Operation Studio"));
+    expect(markup.indexOf("Skills")).toBeLessThan(markup.indexOf("Operations"));
     expect(markup).toContain("Config");
     expect(markup).toContain("Server Monitor");
     expect(markup).not.toContain("OMO Config");

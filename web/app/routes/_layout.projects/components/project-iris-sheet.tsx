@@ -1,4 +1,4 @@
-import { IrisAuthoringSheet } from "@/components/operation-studio/iris-authoring-sheet";
+import { IrisAuthoringSheet } from "@/components/operations/iris-authoring-sheet";
 import type { PromptPart } from "@/lib/prompt-parts";
 import type {
   SessionChatRenderSnapshot,

@@ -16,7 +16,7 @@ const PROMPT_CONTEXT_SECTION_LABELS: Record<string, string> = {
   instruction: "Instruction",
   "delegation-guidance": "Delegation Guidance",
   "workspace-context": "Workspace Context",
-  "operation-studio-context": "Operation Studio Context",
+  "operations-context": "Operations Context",
   "tooling-context": "Tooling Context",
   handoff: "Handoff",
   task: "Task",
@@ -33,7 +33,7 @@ const PROMPT_CONTEXT_SECTION_LABELS: Record<string, string> = {
 
 const INJECTED_PROMPT_CONTEXT_TAG_NAMES = new Set([
   "workspace-context",
-  "operation-studio-context",
+  "operations-context",
   "tooling-context",
   "delegation-context",
 ]);

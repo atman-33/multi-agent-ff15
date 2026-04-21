@@ -3,16 +3,16 @@ import type { SessionPresentationMessage } from "@/lib/session-message-presentat
 import { mergeStreamingText } from "@/lib/session-stream";
 import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status";
 
-export type OperationStudioIrisOptimisticMessage = {
+export type OperationsIrisOptimisticMessage = {
   baselineMessageCount: number;
   message: SessionPresentationMessage;
 };
 
-export function createOperationStudioIrisOptimisticMessage(input: {
+export function createOperationsIrisOptimisticMessage(input: {
   baselineMessageCount: number;
   parts: PromptPart[];
   timestamp?: Date;
-}): OperationStudioIrisOptimisticMessage {
+}): OperationsIrisOptimisticMessage {
   const timestamp = input.timestamp ?? new Date();
   const content = stringifyPromptParts(input.parts);
 
@@ -34,8 +34,8 @@ export function createOperationStudioIrisOptimisticMessage(input: {
   };
 }
 
-export function shouldClearOperationStudioIrisOptimisticMessage(
-  optimisticMessage: OperationStudioIrisOptimisticMessage | null,
+export function shouldClearOperationsIrisOptimisticMessage(
+  optimisticMessage: OperationsIrisOptimisticMessage | null,
   authoritativeMessageCount: number,
 ): boolean {
   if (!optimisticMessage) {
@@ -45,7 +45,7 @@ export function shouldClearOperationStudioIrisOptimisticMessage(
   return authoritativeMessageCount > optimisticMessage.baselineMessageCount;
 }
 
-export function buildOperationStudioIrisStreamingText(content: string): {
+export function buildOperationsIrisStreamingText(content: string): {
   content: string;
   fallbackSender: "iris";
   fallbackSenderLabel: "Iris";
@@ -61,7 +61,7 @@ export function buildOperationStudioIrisStreamingText(content: string): {
   };
 }
 
-export function mergeOperationStudioIrisStreamingState(input: {
+export function mergeOperationsIrisStreamingState(input: {
   currentContent: string;
   currentMessageId: string | null;
   nextMessageId: string | null;
@@ -79,7 +79,7 @@ export function mergeOperationStudioIrisStreamingState(input: {
   };
 }
 
-export function shouldUseOperationStudioIrisPollingFallback(input: {
+export function shouldUseOperationsIrisPollingFallback(input: {
   sessionId: string | null;
   sessionStatus: SessionStatus | null;
   isLiveUnavailable: boolean;

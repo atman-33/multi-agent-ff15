@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CopyablePromptBlock } from "@/components/operation-studio/copyable-prompt-block";
+import { CopyablePromptBlock } from "@/components/operations/copyable-prompt-block";
 import type { FlowStepPreview } from "@/lib/operation-debug/debug-preview.server";
 
 interface PreviewTabsProps {

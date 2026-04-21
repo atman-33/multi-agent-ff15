@@ -1,7 +1,7 @@
 import { buildTextSection } from "@/lib/prompt-composition-engine/prompt-xml";
 import type { PromptPart } from "@/lib/prompt-parts";
 
-interface OperationStudioIrisContextInput {
+interface OperationsIrisContextInput {
   draftPreviewPartySummary?: string | null;
   lunafreyaJobLabel?: string | null;
   lunafreyaSkillLabels?: string[];
@@ -25,7 +25,7 @@ function appendContextLine(lines: string[], label: string, value: string | null 
   lines.push(`${label}: ${normalized}`);
 }
 
-function buildOperationStudioIrisUserRequestText(parts: PromptPart[]): string | null {
+function buildOperationsIrisUserRequestText(parts: PromptPart[]): string | null {
   const text = parts
     .filter((part): part is Extract<PromptPart, { type: "text" }> => part.type === "text")
     .map((part) => part.text)
@@ -42,11 +42,11 @@ function buildOperationStudioIrisUserRequestText(parts: PromptPart[]): string | 
   });
 }
 
-export function buildOperationStudioIrisContextText(
-  input: OperationStudioIrisContextInput,
+export function buildOperationsIrisContextText(
+  input: OperationsIrisContextInput,
 ): string {
   const lines = [
-    "<operation-studio-context>",
+    "<operations-context>",
     `scope: ${input.scopeLabel}`,
     `authoring_target: ${input.targetLabel}`,
     `selected_entry: ${input.selectedEntryLabel}`,
@@ -69,17 +69,17 @@ export function buildOperationStudioIrisContextText(
   );
   appendContextLine(lines, "user_message_seed", input.userMessage ?? null);
   appendContextLine(lines, "worker_task_seed", input.taskInstruction ?? null);
-  lines.push("</operation-studio-context>");
+  lines.push("</operations-context>");
 
   return lines.join("\n");
 }
 
-export function prependOperationStudioIrisContext(
-  context: OperationStudioIrisContextInput,
+export function prependOperationsIrisContext(
+  context: OperationsIrisContextInput,
   parts: PromptPart[],
   pinnedSkillPromptContext: string | null = null,
 ): PromptPart[] {
-  const userRequestText = buildOperationStudioIrisUserRequestText(parts);
+  const userRequestText = buildOperationsIrisUserRequestText(parts);
   const promptParts: PromptPart[] = [];
   let userRequestInserted = false;
 
@@ -110,7 +110,7 @@ export function prependOperationStudioIrisContext(
   return [
     {
       type: "text",
-      text: buildOperationStudioIrisContextText(context),
+      text: buildOperationsIrisContextText(context),
     },
     ...(pinnedSkillPromptContext
       ? [

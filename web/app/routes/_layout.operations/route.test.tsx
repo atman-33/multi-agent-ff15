@@ -6,8 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 
-const { buildOperationStudioPreviewBundleMock } = vi.hoisted(() => ({
-  buildOperationStudioPreviewBundleMock: vi.fn(() => ({ flowSteps: [] })),
+const { buildOperationsPreviewBundleMock } = vi.hoisted(() => ({
+  buildOperationsPreviewBundleMock: vi.fn(() => ({ flowSteps: [] })),
 }));
 
 vi.mock("react-router", async () => {
@@ -76,19 +76,19 @@ vi.mock("@/components/ui/textarea", () => ({
   Textarea: ({ value }: { value?: string }) => <textarea defaultValue={value} readOnly />,
 }));
 
-vi.mock("@/components/operation-studio/copyable-prompt-block", () => ({
+vi.mock("@/components/operations/copyable-prompt-block", () => ({
   CopyablePromptBlock: ({ value }: { value: string }) => <pre>{value}</pre>,
 }));
 
-vi.mock("@/lib/operation-studio/preview-engine.server", () => ({
-  buildOperationStudioPreviewBundle: buildOperationStudioPreviewBundleMock,
+vi.mock("@/lib/operations/preview-engine.server", () => ({
+  buildOperationsPreviewBundle: buildOperationsPreviewBundleMock,
 }));
 
 import {
-  buildOperationStudioIrisPromptPayload,
-  buildOperationStudioIrisStartPayload,
+  buildOperationsIrisPromptPayload,
+  buildOperationsIrisStartPayload,
   loader,
-  OperationStudioPage,
+  OperationsPage,
 } from "./route";
 
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
@@ -98,7 +98,7 @@ function createTempRoot(
   language: string,
   options: { includeOperationCustomizationSkill?: boolean } = {},
 ): string {
-  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-studio-route-"));
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operations-route-"));
   tempRoots.push(root);
 
   mkdirSync(join(root, "scripts"), { recursive: true });
@@ -196,7 +196,7 @@ afterEach(() => {
     }
   }
 
-  buildOperationStudioPreviewBundleMock.mockClear();
+  buildOperationsPreviewBundleMock.mockClear();
 
   if (originalRootEnv === undefined) {
     delete process.env.MULTI_AGENT_FF15_ROOT;
@@ -205,7 +205,7 @@ afterEach(() => {
   }
 });
 
-describe("operation-studio route", () => {
+describe("operations route", () => {
   it("defaults to Noctis Team builtin authoring and previews the first saved operation", async () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -214,7 +214,7 @@ describe("operation-studio route", () => {
     writeOperation(root, "ja", "openspec-dev", "OpenSpec delivery flow.");
 
     const loaderData = await loader({
-      request: new Request("http://localhost/operation-studio"),
+      request: new Request("http://localhost/operations"),
     } as never);
 
     expect(loaderData.scope).toBe("noctis_team");
@@ -230,7 +230,7 @@ describe("operation-studio route", () => {
       "builtin:ja:openspec-dev.yaml",
     ]);
     expect(loaderData.selectedOperation).toBe("builtin:ja:noctis-autonomous.yaml");
-    expect(buildOperationStudioPreviewBundleMock).toHaveBeenCalledWith(
+    expect(buildOperationsPreviewBundleMock).toHaveBeenCalledWith(
       expect.objectContaining({
         source: {
           kind: "saved",
@@ -249,7 +249,7 @@ describe("operation-studio route", () => {
     writeProjectOperation(root, "alpha", "repo-review", "Alpha review flow.");
 
     const loaderData = await loader({
-      request: new Request("http://localhost/operation-studio?target=project%3Aalpha"),
+      request: new Request("http://localhost/operations?target=project%3Aalpha"),
     } as never);
 
     expect(loaderData.targetValue).toBe("project:alpha");
@@ -270,7 +270,7 @@ describe("operation-studio route", () => {
     writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
 
     const loaderData = await loader({
-      request: new Request("http://localhost/operation-studio"),
+      request: new Request("http://localhost/operations"),
     } as never);
 
     expect(loaderData.operationCustomizationSkill).toEqual({
@@ -345,7 +345,7 @@ describe("operation-studio route", () => {
 
     const loaderData = await loader({
       request: new Request(
-        "http://localhost/operation-studio?scope=lunafreya&target=project%3Aalpha&operation=builtin%3Aja%3Alunafreya-autonomous.yaml&lunafreyaJob=project%3Aalpha%3Ajobs%2Fdomain-role.md&lunafreyaSkills=project%3Aalpha%3Askills%2Fdomain-notes",
+        "http://localhost/operations?scope=lunafreya&target=project%3Aalpha&operation=builtin%3Aja%3Alunafreya-autonomous.yaml&lunafreyaJob=project%3Aalpha%3Ajobs%2Fdomain-role.md&lunafreyaSkills=project%3Aalpha%3Askills%2Fdomain-notes",
       ),
     } as never);
 
@@ -359,14 +359,14 @@ describe("operation-studio route", () => {
       "builtin:ja:skills/oracle-notes",
       "project:alpha:skills/domain-notes",
     ]);
-    expect(buildOperationStudioPreviewBundleMock).toHaveBeenCalledWith(
+    expect(buildOperationsPreviewBundleMock).toHaveBeenCalledWith(
       expect.objectContaining({
         lunafreyaPromptExtension: expect.stringContaining("Project-specific job."),
       }),
     );
   });
 
-  it("renders the Operation Studio heading while preserving operation refs in the list", () => {
+  it("renders the Operations heading while preserving operation refs in the list", () => {
     const props = {
       loaderData: {
         activeStepId: "",
@@ -403,11 +403,11 @@ describe("operation-studio route", () => {
       },
       matches: [] as never[],
       params: {},
-    } as unknown as Parameters<typeof OperationStudioPage>[0];
+    } as unknown as Parameters<typeof OperationsPage>[0];
 
-    const markup = renderToStaticMarkup(<OperationStudioPage {...props} />);
+    const markup = renderToStaticMarkup(<OperationsPage {...props} />);
 
-    expect(markup).toContain("Operation Studio");
+    expect(markup).toContain("Operations");
     expect(markup).toContain("Draft");
     expect(markup).toContain("New Draft");
     expect(markup).toContain("YAML");
@@ -423,7 +423,7 @@ describe("operation-studio route", () => {
     };
 
     expect(
-      buildOperationStudioIrisStartPayload({
+      buildOperationsIrisStartPayload({
         contextProjectIds: ["alpha"],
         executionProjectId: "alpha",
         model: selectedModel,
@@ -438,7 +438,7 @@ describe("operation-studio route", () => {
     });
 
     expect(
-      buildOperationStudioIrisPromptPayload({
+      buildOperationsIrisPromptPayload({
         model: selectedModel,
         parts: [{ type: "text", text: "Explain the current prompt flow." }],
       }),

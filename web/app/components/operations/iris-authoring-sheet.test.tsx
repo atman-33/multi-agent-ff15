@@ -152,7 +152,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
         isLoading={false}
         isOpen={true}
@@ -183,7 +183,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
         isLoading={false}
         isOpen={true}
@@ -212,7 +212,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
         isLoading={false}
         isOpen={true}
@@ -242,7 +242,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
         isLoading={false}
         isOpen={true}
@@ -271,7 +271,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
         isLoading={false}
         isOpen={true}
@@ -302,7 +302,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         conversationSummary="Noctis Team · Builtin · Default (Autonomous)"
         isLoading={false}
         isOpen={true}
@@ -330,7 +330,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey="tail:message-1"
-        composerDraftKey="operation-studio:iris:project-alpha"
+        composerDraftKey="operations:iris:project-alpha"
         conversationSummary="Lunafreya · Project Alpha · lunafreya-autonomous"
         isLoading={false}
         isOpen={true}
@@ -366,7 +366,7 @@ describe("iris-authoring-sheet", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey="tail:message-1"
-        composerDraftKey="operation-studio:iris:project-alpha"
+        composerDraftKey="operations:iris:project-alpha"
         conversationSummary="Lunafreya · Project Alpha · lunafreya-autonomous"
         isLoading={false}
         isOpen={true}
@@ -457,11 +457,11 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain('data-disabled="true"');
   });
 
-  it("supports Operation Studio unavailable copy and disables the composer when the pinned skill is unavailable", () => {
+  it("supports Operations unavailable copy and disables the composer when the pinned skill is unavailable", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey={null}
-        composerDraftKey="operation-studio:iris:builtin"
+        composerDraftKey="operations:iris:builtin"
         composerHelperText="Pinned operation-customization skill is unavailable."
         conversationSummary="Noctis Team · Builtin · No project · Default (Autonomous)"
         description="Operation authoring assistant for the current selection."

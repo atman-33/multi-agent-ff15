@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildOperationStudioIrisContextKey,
-  createOperationStudioIrisSessionState,
-  loadOperationStudioIrisSessionState,
-  OPERATION_STUDIO_IRIS_STORAGE_KEY,
-  persistOperationStudioIrisSessionState,
-  shouldPromptForOperationStudioIrisReset,
-  startNewOperationStudioIrisSession,
+  buildOperationsIrisContextKey,
+  createOperationsIrisSessionState,
+  loadOperationsIrisSessionState,
+  OPERATIONS_IRIS_STORAGE_KEY,
+  persistOperationsIrisSessionState,
+  shouldPromptForOperationsIrisReset,
+  startNewOperationsIrisSession,
 } from "./iris-session";
 
-describe("operation-studio iris-session", () => {
+describe("operations iris-session", () => {
   it("restores a valid persisted Iris session state from storage", () => {
     const storage = {
       getItem: (key: string) =>
-        key === OPERATION_STUDIO_IRIS_STORAGE_KEY
+        key === OPERATIONS_IRIS_STORAGE_KEY
           ? JSON.stringify({
               contextKey: "noctis_team::builtin",
               sessionId: "session-iris-1",
@@ -22,7 +22,7 @@ describe("operation-studio iris-session", () => {
           : null,
     };
 
-    expect(loadOperationStudioIrisSessionState(storage)).toEqual({
+    expect(loadOperationsIrisSessionState(storage)).toEqual({
       contextKey: "noctis_team::builtin",
       sessionId: "session-iris-1",
       updatedAt: "2026-04-16T10:00:00.000Z",
@@ -38,8 +38,8 @@ describe("operation-studio iris-session", () => {
         writtenValue = value;
       },
     };
-    const state = createOperationStudioIrisSessionState({
-      contextKey: buildOperationStudioIrisContextKey({
+    const state = createOperationsIrisSessionState({
+      contextKey: buildOperationsIrisContextKey({
         scope: "lunafreya",
         targetValue: "project:alpha",
       }),
@@ -47,9 +47,9 @@ describe("operation-studio iris-session", () => {
       updatedAt: "2026-04-16T11:00:00.000Z",
     });
 
-    persistOperationStudioIrisSessionState(storage, state);
+    persistOperationsIrisSessionState(storage, state);
 
-    expect(writtenKey).toBe(OPERATION_STUDIO_IRIS_STORAGE_KEY);
+    expect(writtenKey).toBe(OPERATIONS_IRIS_STORAGE_KEY);
     expect(writtenValue).toBe(
       JSON.stringify({
         contextKey: "lunafreya::project:alpha",
@@ -61,8 +61,8 @@ describe("operation-studio iris-session", () => {
 
   it("prompts for a new session only when a different context has an active Iris conversation", () => {
     expect(
-      shouldPromptForOperationStudioIrisReset({
-        currentState: createOperationStudioIrisSessionState({
+      shouldPromptForOperationsIrisReset({
+        currentState: createOperationsIrisSessionState({
           contextKey: "noctis_team::builtin",
           sessionId: "session-iris-1",
           updatedAt: "2026-04-16T10:00:00.000Z",
@@ -72,8 +72,8 @@ describe("operation-studio iris-session", () => {
     ).toBe(true);
 
     expect(
-      shouldPromptForOperationStudioIrisReset({
-        currentState: createOperationStudioIrisSessionState({
+      shouldPromptForOperationsIrisReset({
+        currentState: createOperationsIrisSessionState({
           contextKey: "noctis_team::builtin",
           sessionId: null,
           updatedAt: "2026-04-16T10:00:00.000Z",
@@ -83,8 +83,8 @@ describe("operation-studio iris-session", () => {
     ).toBe(false);
 
     expect(
-      shouldPromptForOperationStudioIrisReset({
-        currentState: createOperationStudioIrisSessionState({
+      shouldPromptForOperationsIrisReset({
+        currentState: createOperationsIrisSessionState({
           contextKey: "noctis_team::builtin",
           sessionId: "session-iris-1",
           updatedAt: "2026-04-16T10:00:00.000Z",
@@ -96,7 +96,7 @@ describe("operation-studio iris-session", () => {
 
   it("starts a new session without deleting the current Studio context", () => {
     expect(
-      startNewOperationStudioIrisSession({
+      startNewOperationsIrisSession({
         contextKey: "lunafreya::project:alpha",
         nowIso: "2026-04-16T12:00:00.000Z",
       }),

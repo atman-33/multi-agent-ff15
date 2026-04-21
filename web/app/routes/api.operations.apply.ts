@@ -1,11 +1,9 @@
 import type { OperationDefinition } from "@/lib/operation-definition/types";
-import {
-  planOperationStudioDraftApply,
-} from "@/lib/operation-studio/draft-apply.server";
-import { parseOperationStudioAuthoringTarget } from "@/lib/operation-studio/catalog.server";
-import type { Route } from "./+types/api.operation-studio.plan";
+import { parseOperationsAuthoringTarget } from "@/lib/operations/catalog.server";
+import { applyOperationsDraft } from "@/lib/operations/draft-apply.server";
+import type { Route } from "./+types/api.operations.apply";
 
-type PlanRequestBody = {
+type ApplyRequestBody = {
   operation?: unknown;
   sourceOperationRef?: unknown;
   targetValue?: unknown;
@@ -31,23 +29,23 @@ export const action = async ({ request }: Route.ActionArgs) => {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const body = (await request.json().catch(() => null)) as PlanRequestBody | null;
+  const body = (await request.json().catch(() => null)) as ApplyRequestBody | null;
   if (!body || !isOperationDefinition(body.operation)) {
     return Response.json({ error: "Missing operation draft" }, { status: 400 });
   }
 
   try {
     const targetValue = typeof body.targetValue === "string" ? body.targetValue.trim() : "builtin";
-    const plan = planOperationStudioDraftApply({
+    const result = applyOperationsDraft({
       operation: body.operation,
       sourceOperationRef:
         typeof body.sourceOperationRef === "string" && body.sourceOperationRef.trim().length > 0
           ? body.sourceOperationRef.trim()
           : undefined,
-      target: parseOperationStudioAuthoringTarget(targetValue),
+      target: parseOperationsAuthoringTarget(targetValue),
     });
 
-    return Response.json(plan);
+    return Response.json(result);
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : String(error) },

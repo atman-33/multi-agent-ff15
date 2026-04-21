@@ -1,9 +1,9 @@
-import { parseOperationStudioAuthoringTarget, resolveOperationStudioLunafreyaFacetCatalog } from "@/lib/operation-studio/catalog.server";
+import { parseOperationsAuthoringTarget, resolveOperationsLunafreyaFacetCatalog } from "@/lib/operations/catalog.server";
 import type { OperationDefinition } from "@/lib/operation-definition/types";
-import { buildOperationStudioPreviewBundle } from "@/lib/operation-studio/preview-engine.server";
+import { buildOperationsPreviewBundle } from "@/lib/operations/preview-engine.server";
 import type { ProjectScope } from "@/lib/project-scopes";
 import type { WorkerAgentId } from "@/lib/types/mission";
-import type { Route } from "./+types/api.operation-studio.preview";
+import type { Route } from "./+types/api.operations.preview";
 
 type PreviewRequestBody = {
   scope?: unknown;
@@ -54,12 +54,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const targetValue = typeof body?.targetValue === "string" ? body.targetValue.trim() : "builtin";
   const lunafreyaFacets =
     scope === "lunafreya"
-      ? resolveOperationStudioLunafreyaFacetCatalog({
+      ? resolveOperationsLunafreyaFacetCatalog({
           selectedJobId: typeof body?.selectedJobId === "string" ? body.selectedJobId.trim() : undefined,
           selectedSkillIds: Array.isArray(body?.selectedSkillIds)
             ? body.selectedSkillIds.filter((value): value is string => typeof value === "string")
             : [],
-          target: parseOperationStudioAuthoringTarget(targetValue),
+          target: parseOperationsAuthoringTarget(targetValue),
         })
       : null;
 
@@ -70,7 +70,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     return Response.json(
-      buildOperationStudioPreviewBundle({
+      buildOperationsPreviewBundle({
         source: {
           kind: "saved",
           operationRef,
@@ -90,7 +90,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     return Response.json(
-      buildOperationStudioPreviewBundle({
+      buildOperationsPreviewBundle({
         source: {
           kind: "draft",
           draftId,

@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { OperationOption } from "@/lib/operation-presentation";
-import type { OperationStudioDraftRecord } from "@/lib/operation-studio/draft-store";
+import type { OperationsDraftRecord } from "@/lib/operations/draft-store";
 import { cn } from "@/lib/utils";
 
 interface OperationListPaneProps {
-  drafts: OperationStudioDraftRecord[];
+  drafts: OperationsDraftRecord[];
   onCreateBlankDraft: () => void;
   onSelectDraft: (draftId: string) => void;
   onSelectOperation: (operationValue: string) => void;

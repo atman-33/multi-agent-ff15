@@ -1,16 +1,16 @@
 import type { ProjectScope } from "@/lib/project-scopes";
 
-export const OPERATION_STUDIO_IRIS_STORAGE_KEY = "operation-studio:iris-session:v1";
+export const OPERATIONS_IRIS_STORAGE_KEY = "operations:iris-session:v1";
 
-export interface OperationStudioIrisSessionState {
+export interface OperationsIrisSessionState {
   contextKey: string;
   sessionId: string | null;
   updatedAt: string;
 }
 
-function isOperationStudioIrisSessionState(
+function isOperationsIrisSessionState(
   value: unknown,
-): value is OperationStudioIrisSessionState {
+): value is OperationsIrisSessionState {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -23,16 +23,16 @@ function isOperationStudioIrisSessionState(
   );
 }
 
-export function buildOperationStudioIrisContextKey(input: {
+export function buildOperationsIrisContextKey(input: {
   scope: ProjectScope;
   targetValue: string;
 }): string {
   return `${input.scope}::${input.targetValue.trim() || "builtin"}`;
 }
 
-export function createOperationStudioIrisSessionState(
-  input: OperationStudioIrisSessionState,
-): OperationStudioIrisSessionState {
+export function createOperationsIrisSessionState(
+  input: OperationsIrisSessionState,
+): OperationsIrisSessionState {
   return {
     contextKey: input.contextKey,
     sessionId: input.sessionId,
@@ -40,31 +40,31 @@ export function createOperationStudioIrisSessionState(
   };
 }
 
-export function loadOperationStudioIrisSessionState(
+export function loadOperationsIrisSessionState(
   storage: Pick<Storage, "getItem">,
-): OperationStudioIrisSessionState | null {
+): OperationsIrisSessionState | null {
   try {
-    const raw = storage.getItem(OPERATION_STUDIO_IRIS_STORAGE_KEY);
+    const raw = storage.getItem(OPERATIONS_IRIS_STORAGE_KEY);
     if (!raw) {
       return null;
     }
 
     const parsed = JSON.parse(raw) as unknown;
-    return isOperationStudioIrisSessionState(parsed) ? parsed : null;
+    return isOperationsIrisSessionState(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-export function persistOperationStudioIrisSessionState(
+export function persistOperationsIrisSessionState(
   storage: Pick<Storage, "setItem">,
-  state: OperationStudioIrisSessionState,
+  state: OperationsIrisSessionState,
 ): void {
-  storage.setItem(OPERATION_STUDIO_IRIS_STORAGE_KEY, JSON.stringify(state));
+  storage.setItem(OPERATIONS_IRIS_STORAGE_KEY, JSON.stringify(state));
 }
 
-export function shouldPromptForOperationStudioIrisReset(input: {
-  currentState: OperationStudioIrisSessionState | null;
+export function shouldPromptForOperationsIrisReset(input: {
+  currentState: OperationsIrisSessionState | null;
   nextContextKey: string;
 }): boolean {
   if (!input.currentState?.sessionId) {
@@ -74,10 +74,10 @@ export function shouldPromptForOperationStudioIrisReset(input: {
   return input.currentState.contextKey !== input.nextContextKey;
 }
 
-export function startNewOperationStudioIrisSession(input: {
+export function startNewOperationsIrisSession(input: {
   contextKey: string;
   nowIso?: string;
-}): OperationStudioIrisSessionState {
+}): OperationsIrisSessionState {
   return {
     contextKey: input.contextKey,
     sessionId: null,

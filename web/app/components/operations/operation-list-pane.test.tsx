@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { OperationStudioDraftRecord } from "@/lib/operation-studio/draft-store";
+import type { OperationsDraftRecord } from "@/lib/operations/draft-store";
 import { OperationListPane } from "./operation-list-pane";
 
 vi.mock("@/components/ui/badge", () => ({
@@ -23,7 +23,7 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-function createDraft(): OperationStudioDraftRecord {
+function createDraft(): OperationsDraftRecord {
   return {
     id: "draft-restored",
     sourceOperationRef: "builtin:ja:noctis-autonomous.yaml",

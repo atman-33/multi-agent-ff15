@@ -4,7 +4,7 @@ import {
 import {
   OPERATION_CUSTOMIZATION_UNAVAILABLE_ERROR,
   type OperationCustomizationSkillAvailability,
-} from "@/lib/operation-studio/operation-customization-skill";
+} from "@/lib/operations/operation-customization-skill";
 
 export function resolveOperationCustomizationSkill(
   root: string,

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { OperationDefinition } from "@/lib/operation-definition/types";
 import {
-  loadOperationStudioDrafts,
-  replaceOperationStudioDraft,
+  loadOperationsDrafts,
+  replaceOperationsDraft,
   STORAGE_KEY,
-  type OperationStudioDraftRecord,
+  type OperationsDraftRecord,
 } from "./draft-store";
 
-function createDraft(overrides: Partial<OperationStudioDraftRecord> = {}): OperationStudioDraftRecord {
+function createDraft(overrides: Partial<OperationsDraftRecord> = {}): OperationsDraftRecord {
   return {
     id: overrides.id ?? "draft-1",
     sourceOperationRef: overrides.sourceOperationRef ?? "builtin:ja:noctis-autonomous.yaml",
@@ -44,7 +44,7 @@ describe("drafts.client", () => {
           : null,
     };
 
-    const drafts = loadOperationStudioDrafts(storage);
+    const drafts = loadOperationsDrafts(storage);
 
     expect(drafts).toHaveLength(1);
     expect(drafts[0]?.id).toBe("draft-restored");
@@ -55,13 +55,13 @@ describe("drafts.client", () => {
       getItem: () => "{not-json",
     };
 
-    expect(loadOperationStudioDrafts(storage)).toEqual([]);
+    expect(loadOperationsDrafts(storage)).toEqual([]);
   });
 
   it("keeps one draft slot per saved source candidate", () => {
     const current = [createDraft({ id: "draft-old" })];
 
-    const next = replaceOperationStudioDraft(
+    const next = replaceOperationsDraft(
       current,
       createDraft({
         id: "draft-new",
@@ -81,7 +81,7 @@ describe("drafts.client", () => {
   it("keeps independent drafts for different sources", () => {
     const current = [createDraft({ id: "draft-old" })];
 
-    const next = replaceOperationStudioDraft(
+    const next = replaceOperationsDraft(
       current,
       createDraft({
         id: "draft-project",

@@ -14,19 +14,18 @@ import {
   type OperationOption,
 } from "@/lib/operation-presentation";
 import type { ProjectScope } from "@/lib/project-scopes";
-import { parseOperationStudioAuthoringTarget } from "./authoring-target";
 import type {
-  OperationStudioAuthoringTarget,
-  OperationStudioCatalogOptions,
+  OperationsAuthoringTarget,
+  OperationsCatalogOptions,
 } from "./types";
 
 function listBuiltinLanguages(language: string): string[] {
   return language === "en" ? ["en"] : [language, "en"];
 }
 
-export { parseOperationStudioAuthoringTarget } from "./authoring-target";
+export { parseOperationsAuthoringTarget } from "./authoring-target";
 
-function resolveProjectFilterId(target: OperationStudioAuthoringTarget): string | undefined {
+function resolveProjectFilterId(target: OperationsAuthoringTarget): string | undefined {
   return target.kind === "project" ? target.projectId : undefined;
 }
 
@@ -63,8 +62,8 @@ function normalizeSelectedSkillIds(
   return normalized;
 }
 
-export function listOperationStudioOperationOptions(
-  options: OperationStudioCatalogOptions,
+export function listOperationsOperationOptions(
+  options: OperationsCatalogOptions,
 ): OperationOption[] {
   const language = readOperationLanguage();
   const builtinLanguages = listBuiltinLanguages(language);
@@ -81,7 +80,7 @@ export function listOperationStudioOperationOptions(
     .sort(compareOperationOptions);
 }
 
-export interface OperationStudioLunafreyaFacetCatalog {
+export interface OperationsLunafreyaFacetCatalog {
   jobOptions: LunafreyaFacetCatalogEntry[];
   skillOptions: LunafreyaFacetCatalogEntry[];
   promptExtension: string | null;
@@ -92,12 +91,12 @@ export interface OperationStudioLunafreyaFacetCatalog {
   selection: ResolvedLunafreyaFacetSelection["selection"];
 }
 
-export function resolveOperationStudioLunafreyaFacetCatalog(input: {
+export function resolveOperationsLunafreyaFacetCatalog(input: {
   root?: string;
   selectedJobId?: string;
   selectedSkillIds?: readonly string[];
-  target: OperationStudioAuthoringTarget;
-}): OperationStudioLunafreyaFacetCatalog {
+  target: OperationsAuthoringTarget;
+}): OperationsLunafreyaFacetCatalog {
   const language = readOperationLanguage();
   const builtinLanguages = listBuiltinLanguages(language);
   const executionProjectId = resolveProjectFilterId(input.target);
@@ -138,8 +137,8 @@ export function resolveOperationStudioLunafreyaFacetCatalog(input: {
   };
 }
 
-export function resolveOperationStudioProjectContext(
-  target: OperationStudioAuthoringTarget,
+export function resolveOperationsProjectContext(
+  target: OperationsAuthoringTarget,
 ): { projectId: string | null; scope: ProjectScope } {
   return {
     projectId: target.kind === "project" ? target.projectId : null,

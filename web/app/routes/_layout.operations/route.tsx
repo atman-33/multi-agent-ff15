@@ -1,11 +1,11 @@
 import { Bot, RefreshCw, Send, Settings2, Sparkles, Wrench } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { FlowBrowserPane } from "@/components/operation-studio/flow-browser-pane";
-import { IrisAuthoringSheet } from "@/components/operation-studio/iris-authoring-sheet";
-import { OperationListPane } from "@/components/operation-studio/operation-list-pane";
-import { PreviewInputsSheet } from "@/components/operation-studio/preview-inputs-sheet";
-import { PreviewTabs } from "@/components/operation-studio/preview-tabs";
+import { FlowBrowserPane } from "@/components/operations/flow-browser-pane";
+import { IrisAuthoringSheet } from "@/components/operations/iris-authoring-sheet";
+import { OperationListPane } from "@/components/operations/operation-list-pane";
+import { PreviewInputsSheet } from "@/components/operations/preview-inputs-sheet";
+import { PreviewTabs } from "@/components/operations/preview-tabs";
 import { PageContainer } from "@/components/page-container";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
@@ -24,40 +24,40 @@ import { WORKING_PARTY_MEMBER_IDS } from "@/lib/noctis-working-party";
 import type { PreviewPartyMode } from "@/lib/operation-debug/debug-preview.server";
 import type { OperationDefinition } from "@/lib/operation-definition/types";
 import {
-  listOperationStudioOperationOptions,
-  resolveOperationStudioLunafreyaFacetCatalog,
-} from "@/lib/operation-studio/catalog.server";
-import { parseOperationStudioAuthoringTarget } from "@/lib/operation-studio/authoring-target";
+  listOperationsOperationOptions,
+  resolveOperationsLunafreyaFacetCatalog,
+} from "@/lib/operations/catalog.server";
+import { parseOperationsAuthoringTarget } from "@/lib/operations/authoring-target";
 import {
-  loadOperationStudioDrafts,
-  persistOperationStudioDrafts,
-  removeOperationStudioDraft,
-  replaceOperationStudioDraft,
-  type OperationStudioDraftRecord,
-} from "@/lib/operation-studio/draft-store";
-import { prependOperationStudioIrisContext } from "@/lib/operation-studio/iris-prompt";
+  loadOperationsDrafts,
+  persistOperationsDrafts,
+  removeOperationsDraft,
+  replaceOperationsDraft,
+  type OperationsDraftRecord,
+} from "@/lib/operations/draft-store";
+import { prependOperationsIrisContext } from "@/lib/operations/iris-prompt";
 import {
-  buildOperationStudioIrisContextKey,
-  loadOperationStudioIrisSessionState,
-  persistOperationStudioIrisSessionState,
-  shouldPromptForOperationStudioIrisReset,
-  startNewOperationStudioIrisSession,
-  type OperationStudioIrisSessionState,
-} from "@/lib/operation-studio/iris-session";
+  buildOperationsIrisContextKey,
+  loadOperationsIrisSessionState,
+  persistOperationsIrisSessionState,
+  shouldPromptForOperationsIrisReset,
+  startNewOperationsIrisSession,
+  type OperationsIrisSessionState,
+} from "@/lib/operations/iris-session";
 import {
-  buildOperationStudioIrisStreamingText,
-  createOperationStudioIrisOptimisticMessage,
-  mergeOperationStudioIrisStreamingState,
-  shouldClearOperationStudioIrisOptimisticMessage,
-  shouldUseOperationStudioIrisPollingFallback,
-  type OperationStudioIrisOptimisticMessage,
-} from "@/lib/operation-studio/iris-live-thread";
+  buildOperationsIrisStreamingText,
+  createOperationsIrisOptimisticMessage,
+  mergeOperationsIrisStreamingState,
+  shouldClearOperationsIrisOptimisticMessage,
+  shouldUseOperationsIrisPollingFallback,
+  type OperationsIrisOptimisticMessage,
+} from "@/lib/operations/iris-live-thread";
 import {
   OPERATION_CUSTOMIZATION_UNAVAILABLE_ERROR,
   type OperationCustomizationSkillAvailability,
-} from "@/lib/operation-studio/operation-customization-skill";
-import { resolveOperationCustomizationSkill } from "@/lib/operation-studio/operation-customization-skill.server";
-import { buildOperationStudioPreviewBundle } from "@/lib/operation-studio/preview-engine.server";
+} from "@/lib/operations/operation-customization-skill";
+import { resolveOperationCustomizationSkill } from "@/lib/operations/operation-customization-skill.server";
+import { buildOperationsPreviewBundle } from "@/lib/operations/preview-engine.server";
 import type { OperationOption } from "@/lib/operation-presentation";
 import { PROJECT_SCOPE_LABELS, type ProjectScope } from "@/lib/project-scopes";
 import type { PromptPart } from "@/lib/prompt-parts";
@@ -165,11 +165,11 @@ function operationNeedsWorkerTaskSeed(operation?: OperationDefinition | null): b
   );
 }
 
-function resolveOperationStudioIrisExecutionContext(targetValue: string): {
+function resolveOperationsIrisExecutionContext(targetValue: string): {
   contextProjectIds: string[];
   executionProjectId: string;
 } {
-  const target = parseOperationStudioAuthoringTarget(targetValue);
+  const target = parseOperationsAuthoringTarget(targetValue);
   if (target.kind === "project") {
     return {
       contextProjectIds: [],
@@ -183,7 +183,7 @@ function resolveOperationStudioIrisExecutionContext(targetValue: string): {
   };
 }
 
-export function buildOperationStudioIrisStartPayload(input: {
+export function buildOperationsIrisStartPayload(input: {
   contextProjectIds: string[];
   executionProjectId: string;
   model: ModelSelection | null;
@@ -198,7 +198,7 @@ export function buildOperationStudioIrisStartPayload(input: {
   };
 }
 
-export function buildOperationStudioIrisPromptPayload(input: {
+export function buildOperationsIrisPromptPayload(input: {
   model: ModelSelection | null;
   parts: PromptPart[];
 }) {
@@ -230,7 +230,7 @@ type LoaderData = {
   userMessage: string;
   operations: OperationOption[];
   operationCustomizationSkill: OperationCustomizationSkillAvailability;
-  preview: ReturnType<typeof buildOperationStudioPreviewBundle> | null;
+  preview: ReturnType<typeof buildOperationsPreviewBundle> | null;
   projects: ProjectEntry[];
   scope: ProjectScope;
   selectedLunafreyaJobId: string | null;
@@ -336,7 +336,7 @@ function createBlankDraftOperation(scope: ProjectScope, name = "new-operation"):
   return {
     sourcePath: `/drafts/${name}.yaml`,
     name,
-    description: "New Operation Studio draft",
+    description: "New Operations draft",
     initial_step: "plan",
     jobs: {},
     instructions: {},
@@ -364,7 +364,7 @@ async function requestDraftPlan(input: {
   sourceOperationRef?: string | null;
   targetValue: string;
 }): Promise<PlanResponse> {
-  const response = await fetch("/api/operation-studio/plan", {
+  const response = await fetch("/api/operations/plan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -379,7 +379,7 @@ async function requestDraftPlan(input: {
 }
 
 async function requestDraftPreview(input: {
-  draft: OperationStudioDraftRecord;
+  draft: OperationsDraftRecord;
   previewAllowedWorkers: WorkerAgentId[];
   scope: ProjectScope;
   selectedLunafreyaJobId: string | null;
@@ -388,7 +388,7 @@ async function requestDraftPreview(input: {
   targetValue: string;
   userMessage: string;
 }): Promise<LoaderData["preview"]> {
-  const response = await fetch("/api/operation-studio/preview", {
+  const response = await fetch("/api/operations/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -423,8 +423,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     ? (url.searchParams.get("scope") as ProjectScope)
     : "noctis_team";
   const targetValue = url.searchParams.get("target")?.trim() || "builtin";
-  const target = parseOperationStudioAuthoringTarget(targetValue);
-  const operations = listOperationStudioOperationOptions({
+  const target = parseOperationsAuthoringTarget(targetValue);
+  const operations = listOperationsOperationOptions({
     scope,
     target,
   });
@@ -447,7 +447,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   );
   const lunafreyaFacets =
     scope === "lunafreya"
-      ? resolveOperationStudioLunafreyaFacetCatalog({
+      ? resolveOperationsLunafreyaFacetCatalog({
           selectedJobId: url.searchParams.get("lunafreyaJob")?.trim() || undefined,
           selectedSkillIds: parseSelectionList(url.searchParams.get("lunafreyaSkills")),
           target,
@@ -455,7 +455,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       : null;
 
   const preview = selectedOperation
-    ? buildOperationStudioPreviewBundle({
+    ? buildOperationsPreviewBundle({
         ...(lunafreyaFacets ? { lunafreyaPromptExtension: lunafreyaFacets.promptExtension } : {}),
         userMessage,
         source: {
@@ -493,7 +493,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   } satisfies LoaderData;
 };
 
-export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
+export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
   const navigate = useNavigate();
   const selectedIrisModel = useChatStore((state) => state.agentModels.iris ?? null);
   const setAgentModel = useChatStore((state) => state.setAgentModel);
@@ -512,7 +512,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const [previewWorkers, setPreviewWorkers] = useState(loaderData.previewWorkers);
   const [userMessage, setUserMessage] = useState(loaderData.userMessage);
   const [taskInstruction, setTaskInstruction] = useState(loaderData.taskInstruction);
-  const [drafts, setDrafts] = useState<OperationStudioDraftRecord[]>([]);
+  const [drafts, setDrafts] = useState<OperationsDraftRecord[]>([]);
   const [draftPreview, setDraftPreview] = useState<LoaderData["preview"] | null>(null);
   const [activePlan, setActivePlan] = useState<PlanResponse | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -520,10 +520,10 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const [isInputsSheetOpen, setIsInputsSheetOpen] = useState(false);
   const [isIrisSheetOpen, setIsIrisSheetOpen] = useState(false);
   const [isSheetUiReady, setIsSheetUiReady] = useState(false);
-  const [irisSessionState, setIrisSessionState] = useState<OperationStudioIrisSessionState | null>(null);
+  const [irisSessionState, setIrisSessionState] = useState<OperationsIrisSessionState | null>(null);
   const [irisMessages, setIrisMessages] = useState<MessageInfo[]>([]);
   const [irisOptimisticMessage, setIrisOptimisticMessage] =
-    useState<OperationStudioIrisOptimisticMessage | null>(null);
+    useState<OperationsIrisOptimisticMessage | null>(null);
   const [irisError, setIrisError] = useState<string | null>(null);
   const [isIrisLoading, setIsIrisLoading] = useState(false);
   const [isIrisSending, setIsIrisSending] = useState(false);
@@ -535,11 +535,11 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const irisStreamingMessageIdRef = useRef<string | null>(null);
   const appliedPreviewWorkersKey = loaderData.previewWorkers.join(",");
   const lastAppliedPreviewWorkersKeyRef = useRef(appliedPreviewWorkersKey);
-  const studioIrisContextKey = useMemo(
-    () => buildOperationStudioIrisContextKey({ scope, targetValue }),
+  const operationsIrisContextKey = useMemo(
+    () => buildOperationsIrisContextKey({ scope, targetValue }),
     [scope, targetValue],
   );
-  const initialStudioIrisContextKeyRef = useRef(studioIrisContextKey);
+  const initialOperationsIrisContextKeyRef = useRef(operationsIrisContextKey);
   const irisSessionId = irisSessionState?.sessionId ?? null;
 
   useEffect(() => {
@@ -551,7 +551,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       return;
     }
 
-    setDrafts(loadOperationStudioDrafts(window.localStorage));
+    setDrafts(loadOperationsDrafts(window.localStorage));
   }, []);
 
   useEffect(() => {
@@ -559,7 +559,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       return;
     }
 
-    persistOperationStudioDrafts(window.localStorage, drafts);
+    persistOperationsDrafts(window.localStorage, drafts);
   }, [drafts]);
 
   useEffect(() => {
@@ -567,9 +567,9 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       return;
     }
 
-    const restoredState = loadOperationStudioIrisSessionState(window.localStorage);
+    const restoredState = loadOperationsIrisSessionState(window.localStorage);
     setIrisSessionState(
-      restoredState ?? startNewOperationStudioIrisSession({ contextKey: initialStudioIrisContextKeyRef.current }),
+      restoredState ?? startNewOperationsIrisSession({ contextKey: initialOperationsIrisContextKeyRef.current }),
     );
   }, []);
 
@@ -578,7 +578,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       return;
     }
 
-    persistOperationStudioIrisSessionState(window.localStorage, irisSessionState);
+    persistOperationsIrisSessionState(window.localStorage, irisSessionState);
   }, [irisSessionState]);
 
   useEffect(() => {
@@ -631,11 +631,11 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const syncIrisContextState = useCallback((nextContextKey: string) => {
     setIrisSessionState((current) => {
       if (!current) {
-        return startNewOperationStudioIrisSession({ contextKey: nextContextKey });
+        return startNewOperationsIrisSession({ contextKey: nextContextKey });
       }
 
       if (!current.sessionId && current.contextKey !== nextContextKey) {
-        return startNewOperationStudioIrisSession({ contextKey: nextContextKey });
+        return startNewOperationsIrisSession({ contextKey: nextContextKey });
       }
 
       return current;
@@ -644,7 +644,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
   const resetIrisConversation = useCallback((nextContextKey: string) => {
     irisLoadRequestIdRef.current += 1;
-    setIrisSessionState(startNewOperationStudioIrisSession({ contextKey: nextContextKey }));
+    setIrisSessionState(startNewOperationsIrisSession({ contextKey: nextContextKey }));
     setIrisMessages([]);
     setIrisOptimisticMessage(null);
     setIrisError(null);
@@ -656,7 +656,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
   const requestIrisContextTransition = useCallback((nextContextKey: string): boolean => {
     if (
-      shouldPromptForOperationStudioIrisReset({
+      shouldPromptForOperationsIrisReset({
         currentState: irisSessionState,
         nextContextKey,
       })
@@ -679,8 +679,8 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   }, [irisSessionState, resetIrisConversation, syncIrisContextState]);
 
   useEffect(() => {
-    syncIrisContextState(studioIrisContextKey);
-  }, [studioIrisContextKey, syncIrisContextState]);
+    syncIrisContextState(operationsIrisContextKey);
+  }, [operationsIrisContextKey, syncIrisContextState]);
 
   const loadIrisMessages = useCallback(async (sessionId: string) => {
     const requestId = irisLoadRequestIdRef.current + 1;
@@ -704,7 +704,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       const nextMessages = payload?.messages ?? [];
       setIrisMessages(nextMessages);
       setIrisOptimisticMessage((current) =>
-        shouldClearOperationStudioIrisOptimisticMessage(current, nextMessages.length) ? null : current,
+        shouldClearOperationsIrisOptimisticMessage(current, nextMessages.length) ? null : current,
       );
       if (
         irisStreamingMessageIdRef.current &&
@@ -796,7 +796,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         const previousStreamingMessageId = irisStreamingMessageIdRef.current;
         irisStreamingMessageIdRef.current = textPartEvent.messageId;
         setIrisStreamingContent((current) =>
-          mergeOperationStudioIrisStreamingState({
+          mergeOperationsIrisStreamingState({
             currentContent: current,
             currentMessageId: previousStreamingMessageId,
             nextMessageId: textPartEvent.messageId,
@@ -831,7 +831,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
   useEffect(() => {
     if (
-      !shouldUseOperationStudioIrisPollingFallback({
+      !shouldUseOperationsIrisPollingFallback({
         isLiveUnavailable: isIrisLiveUnavailable,
         sessionId: irisSessionId,
         sessionStatus: irisSessionStatus,
@@ -929,7 +929,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     }
 
     const query = params.toString();
-    void navigate(query ? `/operation-studio?${query}` : "/operation-studio");
+    void navigate(query ? `/operations?${query}` : "/operations");
   };
 
   const handleUpdatePreview = () => {
@@ -961,7 +961,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     }
 
     const operation = loaderData.operations[0]?.value ?? "";
-    resetIrisConversation(buildOperationStudioIrisContextKey({ scope: "noctis_team", targetValue: "builtin" }));
+    resetIrisConversation(buildOperationsIrisContextKey({ scope: "noctis_team", targetValue: "builtin" }));
     setScope("noctis_team");
     setTargetValue("builtin");
     setSelectedDraftId(null);
@@ -976,10 +976,10 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     setTaskInstruction("Execute the current step according to the workflow context.");
     setIsInputsSheetOpen(false);
     setIsIrisSheetOpen(false);
-    void navigate("/operation-studio");
+    void navigate("/operations");
   };
 
-  const refreshDraftArtifacts = useCallback(async (draft: OperationStudioDraftRecord) => {
+  const refreshDraftArtifacts = useCallback(async (draft: OperationsDraftRecord) => {
     setIsDraftBusy(true);
     setDraftError(null);
 
@@ -1029,7 +1029,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const handleCreateDraft = () => {
     const sourceRef = selectedOperation || null;
     const operation = loaderData.preview?.operation ?? createBlankDraftOperation(scope);
-    const nextDraft: OperationStudioDraftRecord = {
+    const nextDraft: OperationsDraftRecord = {
       id: crypto.randomUUID(),
       operation: {
         ...operation,
@@ -1041,13 +1041,13 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       updatedAt: new Date().toISOString(),
     };
 
-    const nextDrafts = replaceOperationStudioDraft(drafts, nextDraft);
+    const nextDrafts = replaceOperationsDraft(drafts, nextDraft);
     setDrafts(nextDrafts);
     setSelectedDraftId(nextDraft.id);
   };
 
   const handleCreateBlankDraft = () => {
-    const nextDraft: OperationStudioDraftRecord = {
+    const nextDraft: OperationsDraftRecord = {
       id: crypto.randomUUID(),
       operation: createBlankDraftOperation(scope),
       scope,
@@ -1056,7 +1056,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       updatedAt: new Date().toISOString(),
     };
 
-    const nextDrafts = replaceOperationStudioDraft(drafts, nextDraft);
+    const nextDrafts = replaceOperationsDraft(drafts, nextDraft);
     setDrafts(nextDrafts);
     setSelectedDraftId(nextDraft.id);
   };
@@ -1073,7 +1073,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       }
     }
 
-    setDrafts((current) => removeOperationStudioDraft(current, selectedDraft.id));
+    setDrafts((current) => removeOperationsDraft(current, selectedDraft.id));
     setSelectedDraftId(null);
     setDraftPreview(null);
     setActivePlan(null);
@@ -1097,7 +1097,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
     setIsDraftBusy(true);
     try {
-      const response = await fetch("/api/operation-studio/apply", {
+      const response = await fetch("/api/operations/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1113,7 +1113,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       }
 
       const result = (await response.json()) as PlanResponse;
-      setDrafts((current) => removeOperationStudioDraft(current, selectedDraft.id));
+      setDrafts((current) => removeOperationsDraft(current, selectedDraft.id));
       setSelectedDraftId(null);
       setDraftPreview(null);
       setActivePlan(result);
@@ -1251,7 +1251,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   );
   const irisRenderSnapshot = useSessionChatRenderSnapshot({
     messages: irisPresentationMessages,
-    streamingText: buildOperationStudioIrisStreamingText(irisStreamingContent),
+    streamingText: buildOperationsIrisStreamingText(irisStreamingContent),
   });
 
   const handleIrisPromptSend = useCallback(async (parts: PromptPart[]) => {
@@ -1262,7 +1262,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
       return;
     }
 
-    const promptParts = prependOperationStudioIrisContext(
+    const promptParts = prependOperationsIrisContext(
       {
         draftPreviewPartySummary: showPartyModeControls ? draftPreviewPartySummary : null,
         lunafreyaJobLabel: selectedLunafreyaJobLabel,
@@ -1288,7 +1288,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     setIsIrisLiveUnavailable(false);
     irisStreamingMessageIdRef.current = null;
     setIrisOptimisticMessage(
-      createOperationStudioIrisOptimisticMessage({
+      createOperationsIrisOptimisticMessage({
         baselineMessageCount: irisMessages.length,
         parts,
         timestamp: new Date(nowIso),
@@ -1297,12 +1297,12 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
     try {
       if (!irisSessionId) {
-        const executionContext = resolveOperationStudioIrisExecutionContext(targetValue);
+        const executionContext = resolveOperationsIrisExecutionContext(targetValue);
         const response = await fetch("/api/opencode/session/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            buildOperationStudioIrisStartPayload({
+            buildOperationsIrisStartPayload({
               contextProjectIds: executionContext.contextProjectIds,
               executionProjectId: executionContext.executionProjectId,
               model: selectedIrisModel,
@@ -1324,7 +1324,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         }
 
         setIrisSessionState({
-          contextKey: studioIrisContextKey,
+          contextKey: operationsIrisContextKey,
           sessionId: nextSessionId,
           updatedAt: nowIso,
         });
@@ -1336,7 +1336,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          buildOperationStudioIrisPromptPayload({
+          buildOperationsIrisPromptPayload({
             model: selectedIrisModel,
             parts: promptParts,
           }),
@@ -1355,7 +1355,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
               updatedAt: nowIso,
             }
           : {
-              contextKey: studioIrisContextKey,
+              contextKey: operationsIrisContextKey,
               sessionId: irisSessionId,
               updatedAt: nowIso,
             },
@@ -1384,7 +1384,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     selectedTargetLabel,
     showPartyModeControls,
     showWorkerTaskSeedControl,
-    studioIrisContextKey,
+    operationsIrisContextKey,
     targetValue,
     taskInstruction,
     userMessage,
@@ -1394,13 +1394,13 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   ]);
 
   const handleOpenIrisSheet = useCallback(() => {
-    if (!requestIrisContextTransition(studioIrisContextKey)) {
+    if (!requestIrisContextTransition(operationsIrisContextKey)) {
       return;
     }
 
     setIsInputsSheetOpen(false);
     setIsIrisSheetOpen(true);
-  }, [requestIrisContextTransition, studioIrisContextKey]);
+  }, [requestIrisContextTransition, operationsIrisContextKey]);
 
   const facetStats = useMemo(() => {
     if (!selectedStep?.resolvedFacets) {
@@ -1560,20 +1560,20 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Badge className="gap-1.5 text-white" variant="default">
               <Sparkles className="h-3.5 w-3.5" />
-              Operation Studio
+              Operations
             </Badge>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
             <ToggleGroup
-              aria-label="Operation Studio scope"
+              aria-label="Operations scope"
               className="gap-0 rounded-full border border-slate-700/60 bg-slate-950/25 p-0.5"
               onValueChange={(nextScope) => {
                 if (!isProjectScope(nextScope) || nextScope === scope) {
                   return;
                 }
 
-                const nextContextKey = buildOperationStudioIrisContextKey({
+                const nextContextKey = buildOperationsIrisContextKey({
                   scope: nextScope,
                   targetValue,
                 });
@@ -1723,7 +1723,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base">Draft Error</CardTitle>
                       <CardDescription className="text-red-100/80">
-                        Operation Studio could not refresh the current draft artifacts.
+                        Operations could not refresh the current draft artifacts.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="text-sm text-slate-200">{draftError}</CardContent>
@@ -1815,7 +1815,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
             onSelectedLunafreyaJobIdChange={setSelectedLunafreyaJobId}
             onSelectedLunafreyaSkillIdsChange={setSelectedLunafreyaSkillIds}
             onTargetValueChange={(nextTargetValue) => {
-              const nextContextKey = buildOperationStudioIrisContextKey({
+              const nextContextKey = buildOperationsIrisContextKey({
                 scope,
                 targetValue: nextTargetValue,
               });
@@ -1857,7 +1857,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
                 : (operationCustomizationSkill.error ??
                   OPERATION_CUSTOMIZATION_UNAVAILABLE_ERROR)
             }
-            composerDraftKey={`operation-studio:iris:${irisSessionId ?? studioIrisContextKey}`}
+            composerDraftKey={`operations:iris:${irisSessionId ?? operationsIrisContextKey}`}
             conversationSummary={irisConversationSummary}
             error={irisError}
             isComposerDisabled={!operationCustomizationSkill.available}
@@ -1865,7 +1865,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
             isOpen={isIrisSheetOpen}
             isSending={isIrisSending}
             onClose={() => setIsIrisSheetOpen(false)}
-            onNewSession={() => resetIrisConversation(studioIrisContextKey)}
+            onNewSession={() => resetIrisConversation(operationsIrisContextKey)}
             onSend={handleIrisPromptSend}
             onSelectedModelChange={(model) => setAgentModel("iris", model)}
             renderedMessages={irisRenderSnapshot.renderedMessages}
@@ -1884,4 +1884,4 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   );
 };
 
-export default OperationStudioPage;
+export default OperationsPage;

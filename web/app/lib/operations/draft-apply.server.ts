@@ -29,26 +29,26 @@ import {
   getProjectAuthoringDirectory,
   readRegisteredProjectDefinition,
 } from "@/lib/project-config.server";
-import type { OperationStudioAuthoringTarget } from "./types";
+import type { OperationsAuthoringTarget } from "./types";
 
 type OperationRefParts =
   | { kind: "builtin"; language: string; fileName: string }
   | { kind: "project"; projectId: string; fileName: string };
 
-export interface OperationStudioDraftChange {
+export interface OperationsDraftChange {
   action: "write" | "delete";
   path: string;
 }
 
-export interface OperationStudioDraftApplyInput {
+export interface OperationsDraftApplyInput {
   sourceOperationRef?: string | null;
-  target: OperationStudioAuthoringTarget;
+  target: OperationsAuthoringTarget;
   operation: OperationDefinition;
   root?: string;
 }
 
-export interface OperationStudioDraftApplyPlan {
-  changes: OperationStudioDraftChange[];
+export interface OperationsDraftApplyPlan {
+  changes: OperationsDraftChange[];
   operation: OperationDefinition;
   operationName: string;
   operationRef: string;
@@ -223,7 +223,7 @@ function resolveProjectDestination(root: string, fileName: string, projectId: st
 
 function resolveDraftDestination(input: {
   sourceOperationRef?: string | null;
-  target: OperationStudioAuthoringTarget;
+  target: OperationsAuthoringTarget;
   operationName: string;
   root: string;
 }): {
@@ -286,9 +286,9 @@ function resolveDraftDestination(input: {
   };
 }
 
-export function planOperationStudioDraftApply(
-  input: OperationStudioDraftApplyInput,
-): OperationStudioDraftApplyPlan {
+export function planOperationsDraftApply(
+  input: OperationsDraftApplyInput,
+): OperationsDraftApplyPlan {
   const root = input.root ?? getProjectRoot();
   const operationName = normalizeOperationName(input.operation.name);
   const destination = resolveDraftDestination({
@@ -302,7 +302,7 @@ export function planOperationStudioDraftApply(
     name: operationName,
   });
   const validatedOperation = loadOperationFromText(yaml, destination.path);
-  const changes: OperationStudioDraftChange[] = [{ action: "write", path: destination.path }];
+  const changes: OperationsDraftChange[] = [{ action: "write", path: destination.path }];
   if (destination.priorPath) {
     changes.push({ action: "delete", path: destination.priorPath });
   }
@@ -316,11 +316,11 @@ export function planOperationStudioDraftApply(
   };
 }
 
-export function applyOperationStudioDraft(
-  input: OperationStudioDraftApplyInput,
-): OperationStudioDraftApplyPlan {
-  const plan = planOperationStudioDraftApply(input);
-  const stageDir = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-studio-apply-"));
+export function applyOperationsDraft(
+  input: OperationsDraftApplyInput,
+): OperationsDraftApplyPlan {
+  const plan = planOperationsDraftApply(input);
+  const stageDir = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operations-apply-"));
   const backups = new Map<string, { existed: boolean; content: string }>();
 
   try {

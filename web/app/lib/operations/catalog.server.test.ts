@@ -3,16 +3,16 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  listOperationStudioOperationOptions,
-  parseOperationStudioAuthoringTarget,
-  resolveOperationStudioLunafreyaFacetCatalog,
+  listOperationsOperationOptions,
+  parseOperationsAuthoringTarget,
+  resolveOperationsLunafreyaFacetCatalog,
 } from "./catalog.server";
 
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const tempRoots: string[] = [];
 
 function createTempRoot(language: string): string {
-  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-studio-catalog-"));
+  const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operations-catalog-"));
   tempRoots.push(root);
 
   mkdirSync(join(root, "scripts"), { recursive: true });
@@ -106,13 +106,13 @@ afterEach(() => {
   }
 });
 
-describe("operation-studio catalog", () => {
+describe("operations catalog", () => {
   it("normalizes builtin and project authoring targets", () => {
-    expect(parseOperationStudioAuthoringTarget("builtin")).toEqual({
+    expect(parseOperationsAuthoringTarget("builtin")).toEqual({
       kind: "builtin",
       projectId: null,
     });
-    expect(parseOperationStudioAuthoringTarget("project:alpha")).toEqual({
+    expect(parseOperationsAuthoringTarget("project:alpha")).toEqual({
       kind: "project",
       projectId: "alpha",
     });
@@ -127,9 +127,9 @@ describe("operation-studio catalog", () => {
     writeProjectOperation(root, "alpha", "repo-review", "Alpha review workflow.");
 
     expect(
-      listOperationStudioOperationOptions({
+      listOperationsOperationOptions({
         scope: "noctis_team",
-        target: parseOperationStudioAuthoringTarget("builtin"),
+        target: parseOperationsAuthoringTarget("builtin"),
       }).map((operation) => operation.value),
     ).toEqual(["builtin:ja:noctis-autonomous.yaml"]);
   });
@@ -145,9 +145,9 @@ describe("operation-studio catalog", () => {
     writeProjectOperation(root, "beta", "repo-review", "Beta review workflow.");
 
     expect(
-      listOperationStudioOperationOptions({
+      listOperationsOperationOptions({
         scope: "noctis_team",
-        target: parseOperationStudioAuthoringTarget("project:alpha"),
+        target: parseOperationsAuthoringTarget("project:alpha"),
       }).map((operation) => operation.value),
     ).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
@@ -218,8 +218,8 @@ describe("operation-studio catalog", () => {
       ].join("\n"),
     );
 
-    const resolved = resolveOperationStudioLunafreyaFacetCatalog({
-      target: parseOperationStudioAuthoringTarget("project:alpha"),
+    const resolved = resolveOperationsLunafreyaFacetCatalog({
+      target: parseOperationsAuthoringTarget("project:alpha"),
       selectedJobId: "project:alpha:jobs/domain-role.md",
       selectedSkillIds: ["project:alpha:skills/domain-notes"],
     });

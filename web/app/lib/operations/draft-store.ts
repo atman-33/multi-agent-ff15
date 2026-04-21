@@ -1,9 +1,9 @@
 import type { OperationDefinition } from "@/lib/operation-definition/types";
 import type { ProjectScope } from "@/lib/project-scopes";
 
-export const STORAGE_KEY = "operation-studio:drafts:v1";
+export const STORAGE_KEY = "operations:drafts:v1";
 
-export interface OperationStudioDraftRecord {
+export interface OperationsDraftRecord {
   id: string;
   sourceOperationRef: string | null;
   scope: ProjectScope;
@@ -27,7 +27,7 @@ function isOperationDefinition(value: unknown): value is OperationDefinition {
   );
 }
 
-function isDraftRecord(value: unknown): value is OperationStudioDraftRecord {
+function isDraftRecord(value: unknown): value is OperationsDraftRecord {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -44,7 +44,7 @@ function isDraftRecord(value: unknown): value is OperationStudioDraftRecord {
 }
 
 function buildDraftSourceKey(
-  draft: Pick<OperationStudioDraftRecord, "sourceOperationRef" | "scope" | "targetValue">,
+  draft: Pick<OperationsDraftRecord, "sourceOperationRef" | "scope" | "targetValue">,
 ): string {
   if (draft.sourceOperationRef) {
     return `source:${draft.sourceOperationRef}`;
@@ -53,7 +53,7 @@ function buildDraftSourceKey(
   return `new:${draft.scope}:${draft.targetValue}`;
 }
 
-export function loadOperationStudioDrafts(storage: Pick<Storage, "getItem">): OperationStudioDraftRecord[] {
+export function loadOperationsDrafts(storage: Pick<Storage, "getItem">): OperationsDraftRecord[] {
   try {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -71,25 +71,25 @@ export function loadOperationStudioDrafts(storage: Pick<Storage, "getItem">): Op
   }
 }
 
-export function persistOperationStudioDrafts(
+export function persistOperationsDrafts(
   storage: Pick<Storage, "setItem">,
-  drafts: OperationStudioDraftRecord[],
+  drafts: OperationsDraftRecord[],
 ): void {
   storage.setItem(STORAGE_KEY, JSON.stringify(drafts));
 }
 
-export function replaceOperationStudioDraft(
-  drafts: OperationStudioDraftRecord[],
-  nextDraft: OperationStudioDraftRecord,
-): OperationStudioDraftRecord[] {
+export function replaceOperationsDraft(
+  drafts: OperationsDraftRecord[],
+  nextDraft: OperationsDraftRecord,
+): OperationsDraftRecord[] {
   const nextKey = buildDraftSourceKey(nextDraft);
   return [nextDraft, ...drafts.filter((draft) => buildDraftSourceKey(draft) !== nextKey)]
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
-export function removeOperationStudioDraft(
-  drafts: OperationStudioDraftRecord[],
+export function removeOperationsDraft(
+  drafts: OperationsDraftRecord[],
   draftId: string,
-): OperationStudioDraftRecord[] {
+): OperationsDraftRecord[] {
   return drafts.filter((draft) => draft.id !== draftId);
 }

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { PromptPart } from "@/lib/prompt-parts";
 import {
-  buildOperationStudioIrisContextText,
-  prependOperationStudioIrisContext,
+  buildOperationsIrisContextText,
+  prependOperationsIrisContext,
 } from "./iris-prompt";
 
-describe("operation-studio iris-prompt", () => {
+describe("operations iris-prompt", () => {
   it("builds a Studio context block with scope, target, selection, and preview metadata", () => {
-    const text = buildOperationStudioIrisContextText({
+    const text = buildOperationsIrisContextText({
       draftPreviewPartySummary: "Full party preview · All workers available",
       scopeLabel: "Noctis Team",
       selectedEntryDescription: "Default conversational flow.",
@@ -20,7 +20,7 @@ describe("operation-studio iris-prompt", () => {
       userMessage: "Investigate the current issue.",
     });
 
-    expect(text).toContain("<operation-studio-context>");
+    expect(text).toContain("<operations-context>");
     expect(text).toContain("scope: Noctis Team");
     expect(text).toContain("authoring_target: Builtin · No project");
     expect(text).toContain("selected_entry: Default (Autonomous)");
@@ -29,17 +29,17 @@ describe("operation-studio iris-prompt", () => {
   });
 
   it("formats the Studio context as hidden prompt context without a visible instruction suffix", () => {
-    const text = buildOperationStudioIrisContextText({
+    const text = buildOperationsIrisContextText({
       scopeLabel: "Noctis Team",
       selectedEntryLabel: "github-issue-openspec-dev",
       targetLabel: "Builtin · No project",
     });
 
-    expect(text).toContain("<operation-studio-context>");
-    expect(text).toContain("</operation-studio-context>");
-    expect(text).not.toContain("<operation_studio_context>");
+    expect(text).toContain("<operations-context>");
+    expect(text).toContain("</operations-context>");
+    expect(text).not.toContain("<operations_context>");
     expect(text).not.toContain(
-      "Use this as the current Operation Studio context when you suggest revisions or explain the selected operation.",
+      "Use this as the current Operations context when you suggest revisions or explain the selected operation.",
     );
   });
 
@@ -49,7 +49,7 @@ describe("operation-studio iris-prompt", () => {
       { type: "text", text: "Please suggest a cleaner worker handoff." },
     ];
 
-    const result = prependOperationStudioIrisContext(
+    const result = prependOperationsIrisContext(
       {
         scopeLabel: "Lunafreya",
         selectedEntryLabel: "lunafreya-autonomous",
@@ -77,7 +77,7 @@ describe("operation-studio iris-prompt", () => {
   it("keeps file-only prompts as file parts without adding an empty user-request wrapper", () => {
     const parts: PromptPart[] = [{ type: "file", path: "docs/worker-handoff.md" }];
 
-    const result = prependOperationStudioIrisContext(
+    const result = prependOperationsIrisContext(
       {
         scopeLabel: "Lunafreya",
         selectedEntryLabel: "lunafreya-autonomous",
@@ -93,7 +93,7 @@ describe("operation-studio iris-prompt", () => {
   it("prepends the pinned skill reference after the Studio context when provided", () => {
     const parts: PromptPart[] = [{ type: "text", text: "Revise this operation." }];
 
-    const result = prependOperationStudioIrisContext(
+    const result = prependOperationsIrisContext(
       {
         scopeLabel: "Noctis Team",
         selectedEntryLabel: "noctis-autonomous",
@@ -106,7 +106,7 @@ describe("operation-studio iris-prompt", () => {
     expect(result).toHaveLength(3);
     expect(result[0]?.type).toBe("text");
     if (result[0]?.type === "text") {
-      expect(result[0].text).toContain("<operation-studio-context>");
+      expect(result[0].text).toContain("<operations-context>");
     }
     expect(result[1]).toEqual({
       type: "text",

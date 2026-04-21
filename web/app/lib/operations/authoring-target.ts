@@ -1,8 +1,8 @@
-import type { OperationStudioAuthoringTarget } from "./types";
+import type { OperationsAuthoringTarget } from "./types";
 
-export function parseOperationStudioAuthoringTarget(
+export function parseOperationsAuthoringTarget(
   rawValue: string,
-): OperationStudioAuthoringTarget {
+): OperationsAuthoringTarget {
   const value = rawValue.trim();
   if (value === "builtin") {
     return {
@@ -21,5 +21,5 @@ export function parseOperationStudioAuthoringTarget(
     }
   }
 
-  throw new Error(`Unsupported Operation Studio authoring target: ${rawValue}`);
+  throw new Error(`Unsupported Operations authoring target: ${rawValue}`);
 }
