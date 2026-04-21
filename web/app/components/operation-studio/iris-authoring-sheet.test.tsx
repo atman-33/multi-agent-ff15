@@ -456,4 +456,38 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain("Pinned project-manage skill is unavailable.");
     expect(markup).toContain('data-disabled="true"');
   });
+
+  it("supports Operation Studio unavailable copy and disables the composer when the pinned skill is unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="operation-studio:iris:builtin"
+        composerHelperText="Pinned operation-customization skill is unavailable."
+        conversationSummary="Noctis Team · Builtin · No project · Default (Autonomous)"
+        description="Operation authoring assistant for the current selection."
+        error={null}
+        isComposerDisabled={true}
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
+        renderedMessages={[]}
+        scopeLabel="Noctis Team"
+        scrollSignal="none"
+        selectedModel={null}
+        selectedEntryLabel="Default (Autonomous)"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Builtin · No project"
+      />,
+    );
+
+    expect(markup).toContain("Ask Iris to revise the selected operation");
+    expect(markup).toContain("Pinned operation-customization skill is unavailable.");
+    expect(markup).toContain('data-disabled="true"');
+  });
 });

@@ -77,6 +77,7 @@ export function buildOperationStudioIrisContextText(
 export function prependOperationStudioIrisContext(
   context: OperationStudioIrisContextInput,
   parts: PromptPart[],
+  pinnedSkillPromptContext: string | null = null,
 ): PromptPart[] {
   const userRequestText = buildOperationStudioIrisUserRequestText(parts);
   const promptParts: PromptPart[] = [];
@@ -111,6 +112,14 @@ export function prependOperationStudioIrisContext(
       type: "text",
       text: buildOperationStudioIrisContextText(context),
     },
+    ...(pinnedSkillPromptContext
+      ? [
+          {
+            type: "text" as const,
+            text: pinnedSkillPromptContext,
+          },
+        ]
+      : []),
     ...promptParts,
   ];
 }

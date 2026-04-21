@@ -52,6 +52,11 @@ import {
   shouldUseOperationStudioIrisPollingFallback,
   type OperationStudioIrisOptimisticMessage,
 } from "@/lib/operation-studio/iris-live-thread";
+import {
+  OPERATION_CUSTOMIZATION_UNAVAILABLE_ERROR,
+  type OperationCustomizationSkillAvailability,
+} from "@/lib/operation-studio/operation-customization-skill";
+import { resolveOperationCustomizationSkill } from "@/lib/operation-studio/operation-customization-skill.server";
 import { buildOperationStudioPreviewBundle } from "@/lib/operation-studio/preview-engine.server";
 import type { OperationOption } from "@/lib/operation-presentation";
 import { PROJECT_SCOPE_LABELS, type ProjectScope } from "@/lib/project-scopes";
@@ -224,6 +229,7 @@ type LoaderData = {
   previewWorkers: WorkerAgentId[];
   userMessage: string;
   operations: OperationOption[];
+  operationCustomizationSkill: OperationCustomizationSkillAvailability;
   preview: ReturnType<typeof buildOperationStudioPreviewBundle> | null;
   projects: ProjectEntry[];
   scope: ProjectScope;
@@ -412,6 +418,7 @@ async function requestDraftPreview(input: {
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const url = new URL(request.url);
+  const root = getProjectRoot();
   const scope = isProjectScope(url.searchParams.get("scope"))
     ? (url.searchParams.get("scope") as ProjectScope)
     : "noctis_team";
@@ -471,10 +478,11 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     lunafreyaJobOptions: lunafreyaFacets?.jobOptions ?? [],
     lunafreyaSkillOptions: lunafreyaFacets?.skillOptions ?? [],
     operations,
+    operationCustomizationSkill: resolveOperationCustomizationSkill(root),
     partyMode,
     preview,
     previewWorkers,
-    projects: readRegisteredProjects(getProjectRoot()),
+    projects: readRegisteredProjects(root),
     scope,
     selectedLunafreyaJobId: lunafreyaFacets?.selectedJobId ?? null,
     selectedLunafreyaSkillIds: lunafreyaFacets?.selectedSkillIds ?? [],
@@ -521,6 +529,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   const [isIrisSending, setIsIrisSending] = useState(false);
   const [irisStreamingContent, setIrisStreamingContent] = useState("");
   const [isIrisLiveUnavailable, setIsIrisLiveUnavailable] = useState(false);
+  const operationCustomizationSkill = loaderData.operationCustomizationSkill;
   const irisLoadRequestIdRef = useRef(0);
   const irisEventSourceRef = useRef<EventSource | null>(null);
   const irisStreamingMessageIdRef = useRef<string | null>(null);
@@ -1246,6 +1255,13 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
   });
 
   const handleIrisPromptSend = useCallback(async (parts: PromptPart[]) => {
+    if (!operationCustomizationSkill.available || !operationCustomizationSkill.promptContext) {
+      setIrisError(
+        operationCustomizationSkill.error ?? OPERATION_CUSTOMIZATION_UNAVAILABLE_ERROR,
+      );
+      return;
+    }
+
     const promptParts = prependOperationStudioIrisContext(
       {
         draftPreviewPartySummary: showPartyModeControls ? draftPreviewPartySummary : null,
@@ -1262,6 +1278,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
         userMessage,
       },
       parts,
+      operationCustomizationSkill.promptContext,
     );
     const nowIso = new Date().toISOString();
 
@@ -1373,6 +1390,7 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
     userMessage,
     selectedIrisModel,
     irisMessages.length,
+    operationCustomizationSkill,
   ]);
 
   const handleOpenIrisSheet = useCallback(() => {
@@ -1833,9 +1851,16 @@ export const OperationStudioPage = ({ loaderData }: Route.ComponentProps) => {
 
           <IrisAuthoringSheet
             autoFollowKey={irisRenderSnapshot.autoFollowKey}
+            composerHelperText={
+              operationCustomizationSkill.available
+                ? "Ask Iris using the canonical operation-customization skill for operation authoring."
+                : (operationCustomizationSkill.error ??
+                  OPERATION_CUSTOMIZATION_UNAVAILABLE_ERROR)
+            }
             composerDraftKey={`operation-studio:iris:${irisSessionId ?? studioIrisContextKey}`}
             conversationSummary={irisConversationSummary}
             error={irisError}
+            isComposerDisabled={!operationCustomizationSkill.available}
             isLoading={isIrisLoading}
             isOpen={isIrisSheetOpen}
             isSending={isIrisSending}

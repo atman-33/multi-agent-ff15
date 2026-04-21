@@ -89,4 +89,33 @@ describe("operation-studio iris-prompt", () => {
     expect(result).toHaveLength(2);
     expect(result[1]).toEqual(parts[0]);
   });
+
+  it("prepends the pinned skill reference after the Studio context when provided", () => {
+    const parts: PromptPart[] = [{ type: "text", text: "Revise this operation." }];
+
+    const result = prependOperationStudioIrisContext(
+      {
+        scopeLabel: "Noctis Team",
+        selectedEntryLabel: "noctis-autonomous",
+        targetLabel: "Builtin · No project",
+      },
+      parts,
+      "<reference-files>operation-customization</reference-files>",
+    );
+
+    expect(result).toHaveLength(3);
+    expect(result[0]?.type).toBe("text");
+    if (result[0]?.type === "text") {
+      expect(result[0].text).toContain("<operation-studio-context>");
+    }
+    expect(result[1]).toEqual({
+      type: "text",
+      text: "<reference-files>operation-customization</reference-files>",
+    });
+    expect(result[2]?.type).toBe("text");
+    if (result[2]?.type === "text") {
+      expect(result[2].text).toContain('<user-request from="user" to="iris">');
+      expect(result[2].text).toContain("Revise this operation.");
+    }
+  });
 });

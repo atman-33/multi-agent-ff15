@@ -94,7 +94,10 @@ import {
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const tempRoots: string[] = [];
 
-function createTempRoot(language: string): string {
+function createTempRoot(
+  language: string,
+  options: { includeOperationCustomizationSkill?: boolean } = {},
+): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-operation-studio-route-"));
   tempRoots.push(root);
 
@@ -102,6 +105,21 @@ function createTempRoot(language: string): string {
   mkdirSync(join(root, "config"), { recursive: true });
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
   writeFileSync(join(root, "config", "settings.yaml"), `language: ${language}\n`, "utf-8");
+
+  if (options.includeOperationCustomizationSkill ?? true) {
+    writeFile(
+      root,
+      ".opencode/skills/operation-customization/SKILL.md",
+      [
+        "---",
+        "name: operation-customization",
+        'description: Use this skill for operation authoring changes.',
+        "---",
+        "",
+        "# Operation Customization",
+      ].join("\n"),
+    );
+  }
 
   return root;
 }
@@ -201,6 +219,12 @@ describe("operation-studio route", () => {
 
     expect(loaderData.scope).toBe("noctis_team");
     expect(loaderData.targetValue).toBe("builtin");
+    expect(loaderData.operationCustomizationSkill).toEqual({
+      available: true,
+      error: null,
+      filePath: join(root, ".opencode", "skills", "operation-customization", "SKILL.md"),
+      promptContext: expect.stringContaining("operation-customization"),
+    });
     expect(loaderData.operations.map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
       "builtin:ja:openspec-dev.yaml",
@@ -229,10 +253,32 @@ describe("operation-studio route", () => {
     } as never);
 
     expect(loaderData.targetValue).toBe("project:alpha");
+    expect(loaderData.operationCustomizationSkill?.available).toBe(true);
+    expect(loaderData.operationCustomizationSkill?.promptContext).toContain(
+      "operation-customization",
+    );
     expect(loaderData.operations.map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
       buildProjectOperationRef("alpha", "repo-review.yaml"),
     ]);
+  });
+
+  it("reports the pinned operation-customization skill as unavailable when missing", async () => {
+    const root = createTempRoot("ja", { includeOperationCustomizationSkill: false });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
+
+    const loaderData = await loader({
+      request: new Request("http://localhost/operation-studio"),
+    } as never);
+
+    expect(loaderData.operationCustomizationSkill).toEqual({
+      available: false,
+      error: "Pinned operation-customization skill is unavailable.",
+      filePath: null,
+      promptContext: null,
+    });
   });
 
   it("loads Lunafreya facet catalogs from the bound authoring target and passes ambient context into preview", async () => {
@@ -342,6 +388,12 @@ describe("operation-studio route", () => {
         previewWorkers: ["ignis", "gladiolus", "prompto"],
         projects: [],
         scope: "noctis_team",
+        operationCustomizationSkill: {
+          available: true,
+          error: null,
+          filePath: "/home/atman/repos/multi-agent-ff15/.opencode/skills/operation-customization/SKILL.md",
+          promptContext: "<reference-files>operation-customization</reference-files>",
+        },
         selectedLunafreyaJobId: null,
         selectedLunafreyaSkillIds: [],
         selectedOperation: "builtin:ja:noctis-autonomous.yaml",

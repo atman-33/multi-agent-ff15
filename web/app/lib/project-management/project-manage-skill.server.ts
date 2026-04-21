@@ -1,42 +1,19 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { buildSkillsCatalog, normalizeFileSkillEntry } from "@/lib/skill-catalog.server";
+import {
+  buildCanonicalPinnedSkillRelativePath,
+  type PinnedSkillAvailability,
+} from "@/lib/pinned-skill";
+import { resolveCanonicalPinnedSkill } from "@/lib/pinned-skill.server";
 
-export const PROJECT_MANAGE_SKILL_RELATIVE_PATH = ".opencode/skills/project-manage/SKILL.md";
+export const PROJECT_MANAGE_SKILL_RELATIVE_PATH = buildCanonicalPinnedSkillRelativePath(
+  "project-manage",
+);
 const PROJECT_MANAGE_UNAVAILABLE_ERROR = "Pinned project-manage skill is unavailable.";
 
-export type ProjectManageSkillAvailability = {
-  available: boolean;
-  error: string | null;
-  filePath: string | null;
-  promptContext: string | null;
-};
+export type ProjectManageSkillAvailability = PinnedSkillAvailability;
 
 export function resolveProjectManageSkill(root: string): ProjectManageSkillAvailability {
-  const filePath = join(root, PROJECT_MANAGE_SKILL_RELATIVE_PATH);
-  if (!existsSync(filePath)) {
-    return {
-      available: false,
-      error: PROJECT_MANAGE_UNAVAILABLE_ERROR,
-      filePath: null,
-      promptContext: null,
-    };
-  }
-
-  try {
-    const entry = normalizeFileSkillEntry(readFileSync(filePath, "utf-8"), filePath);
-    return {
-      available: true,
-      error: null,
-      filePath,
-      promptContext: buildSkillsCatalog([entry]),
-    };
-  } catch {
-    return {
-      available: false,
-      error: PROJECT_MANAGE_UNAVAILABLE_ERROR,
-      filePath: null,
-      promptContext: null,
-    };
-  }
+  return resolveCanonicalPinnedSkill(root, {
+    skillName: "project-manage",
+    unavailableError: PROJECT_MANAGE_UNAVAILABLE_ERROR,
+  });
 }
