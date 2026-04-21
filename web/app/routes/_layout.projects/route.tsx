@@ -1,18 +1,159 @@
-import { FolderGit2, GitBranch, RefreshCw } from "lucide-react";
+import { FolderGit2, GitBranch, RefreshCw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { WorkspaceLaunchActions } from "@/components/workspace-launch-actions";
 import { Alert, AlertCircle, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageContainer } from "@/components/page-container";
+import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
 import type { ProjectRegistryEntry } from "@/hooks/use-project-registry";
 import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import type { PromptPart } from "@/lib/prompt-parts";
+import {
+  createProjectIrisSessionState,
+  loadProjectIrisSessionState,
+  persistProjectIrisSessionState,
+  startNewProjectIrisSession,
+} from "@/lib/project-management/iris-session";
+import { prependProjectIrisContext } from "@/lib/project-management/iris-prompt";
+import { resolveProjectManageSkill, type ProjectManageSkillAvailability } from "@/lib/project-management/project-manage-skill.server";
+import { readRegisteredProjects } from "@/lib/project-config.server";
+import {
+  buildSessionChatRenderSnapshot,
+  type SessionChatRenderSnapshot,
+} from "@/lib/session-chat-rendering-orchestration";
+import {
+  toSessionPresentationMessages,
+  type SessionPresentationMessage,
+} from "@/lib/session-message-presentation";
+import { getSessionStatusForId } from "@/lib/session-status";
+import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
+import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import { ProjectIrisSheet } from "./components/project-iris-sheet";
 import type { Route } from "./+types/route";
 
 interface ProjectsApiData {
   error?: string;
   projects: ProjectRegistryEntry[];
+}
+
+type ProjectsPageLoaderData = {
+  initialData?: ProjectsApiData | null;
+  initialFetchError?: string | null;
+  projectManageSkill?: ProjectManageSkillAvailability | null;
+};
+
+type ProjectIrisSessionHistoryResponse = {
+  error?: string;
+  messages?: MessageInfo[];
+};
+
+type ProjectIrisSessionStartResponse = {
+  error?: string;
+  session?: {
+    id?: string | null;
+  } | null;
+};
+
+const EMPTY_PROJECT_IRIS_SESSION_STATE = createProjectIrisSessionState({
+  sessionId: null,
+  updatedAt: "",
+});
+const PROJECT_IRIS_AGENT_ID = "iris";
+const PROJECT_IRIS_HELPER_TEXT = "Register, rename, refresh, or delete projects by chatting with Iris.";
+const PROJECT_IRIS_UNAVAILABLE_ERROR = "Pinned project-manage skill is unavailable.";
+
+export function normalizeProjectIrisHistoryMessages(
+  messages: MessageInfo[],
+): SessionPresentationMessage[] {
+  return toSessionPresentationMessages(messages);
+}
+
+async function fetchProjectIrisMessages(sessionId: string): Promise<SessionPresentationMessage[]> {
+  const response = await fetch(`/api/session/${sessionId}`);
+  const data = (await response.json().catch(() => null)) as ProjectIrisSessionHistoryResponse | null;
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? `HTTP ${response.status}`);
+  }
+
+  return normalizeProjectIrisHistoryMessages(data?.messages ?? []);
+}
+
+async function startProjectIrisSession(input: {
+  model: ModelSelection | null;
+  parts: PromptPart[];
+}): Promise<string> {
+  const response = await fetch("/api/opencode/session/start", {
+    body: JSON.stringify({
+      agent: PROJECT_IRIS_AGENT_ID,
+      ...(input.model ? { model: input.model } : {}),
+      parts: input.parts,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const data = (await response.json().catch(() => null)) as ProjectIrisSessionStartResponse | null;
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? `HTTP ${response.status}`);
+  }
+
+  const sessionId = data?.session?.id;
+  if (!sessionId) {
+    throw new Error("Session creation returned no ID");
+  }
+
+  return sessionId;
+}
+
+async function sendProjectIrisPrompt(input: {
+  model: ModelSelection | null;
+  parts: PromptPart[];
+  sessionId: string;
+}): Promise<void> {
+  const response = await fetch(`/api/session/${input.sessionId}/prompt`, {
+    body: JSON.stringify({
+      agent: PROJECT_IRIS_AGENT_ID,
+      ...(input.model ? { model: input.model } : {}),
+      parts: input.parts,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  const data = (await response.json().catch(() => null)) as { error?: string } | null;
+  throw new Error(data?.error ?? `HTTP ${response.status}`);
+}
+
+export async function loader() {
+  try {
+    const root = getProjectRoot();
+    return {
+      initialData: {
+        projects: readRegisteredProjects(root),
+      },
+      initialFetchError: null,
+      projectManageSkill: resolveProjectManageSkill(root),
+    } satisfies ProjectsPageLoaderData;
+  } catch (error) {
+    const root = getProjectRoot();
+    return {
+      initialData: null,
+      initialFetchError: String(error),
+      projectManageSkill: resolveProjectManageSkill(root),
+    } satisfies ProjectsPageLoaderData;
+  }
 }
 
 const formatPath = (path: string): string => {
@@ -29,11 +170,71 @@ const formatPath = (path: string): string => {
   return `…${path.slice(-39)}`;
 };
 
-const ProjectsPage = (_props: Route.ComponentProps) => {
-  const [serverData, setServerData] = useState<ProjectsApiData | null>(null);
+export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderData }) => {
+  const [serverData, setServerData] = useState<ProjectsApiData | null>(loaderData?.initialData ?? null);
   const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(loaderData?.initialFetchError ?? null);
+  const [isProjectIrisSheetOpen, setIsProjectIrisSheetOpen] = useState(false);
+  const [projectIrisError, setProjectIrisError] = useState<string | null>(
+    loaderData?.projectManageSkill?.available === false
+      ? loaderData.projectManageSkill.error
+      : null,
+  );
+  const [projectIrisSessionState, setProjectIrisSessionState] = useState(
+    EMPTY_PROJECT_IRIS_SESSION_STATE,
+  );
+  const [hasHydratedProjectIrisSession, setHasHydratedProjectIrisSession] = useState(false);
+  const [projectIrisRenderSnapshot, setProjectIrisRenderSnapshot] =
+    useState<SessionChatRenderSnapshot | null>(null);
+  const [isProjectIrisLoading, setIsProjectIrisLoading] = useState(false);
+  const [isProjectIrisSending, setIsProjectIrisSending] = useState(false);
+  const [selectedProjectIrisModel, setSelectedProjectIrisModel] =
+    useState<ModelSelection | null>(null);
   const { vscodePreferences, updateVSCodePreference } = useVSCodePreferences();
+  const projectManageSkill = loaderData?.projectManageSkill ?? null;
+  const projectIrisSessionId = projectIrisSessionState.sessionId;
+
+  const loadProjectIrisMessages = useCallback(
+    async (sessionId: string) => {
+      setIsProjectIrisLoading(true);
+
+      try {
+        const messages = await fetchProjectIrisMessages(sessionId);
+        setProjectIrisRenderSnapshot((current) =>
+          buildSessionChatRenderSnapshot({
+            messages,
+            previousSnapshot: current,
+          }),
+        );
+        setProjectIrisError(projectManageSkill?.available === false ? projectManageSkill.error : null);
+      } catch (error) {
+        setProjectIrisError(String(error));
+      } finally {
+        setIsProjectIrisLoading(false);
+      }
+    },
+    [projectManageSkill],
+  );
+
+  const handleProjectIrisSessionIdle = useCallback(
+    (sessionId: string) => {
+      if (sessionId !== projectIrisSessionId) {
+        return;
+      }
+
+      void loadProjectIrisMessages(sessionId);
+    },
+    [loadProjectIrisMessages, projectIrisSessionId],
+  );
+
+  const projectIrisSessionStatuses = useSessionStatusFeed({
+    enabled: Boolean(projectIrisSessionId),
+    onSessionIdle: handleProjectIrisSessionIdle,
+  });
+  const projectIrisSessionStatus = getSessionStatusForId(
+    projectIrisSessionStatuses,
+    projectIrisSessionId,
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -59,8 +260,106 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
   }, []);
 
   useEffect(() => {
+    if (loaderData?.initialData || loaderData?.initialFetchError) {
+      return;
+    }
+
     void fetchData();
-  }, [fetchData]);
+  }, [fetchData, loaderData?.initialData, loaderData?.initialFetchError]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const restored = loadProjectIrisSessionState(window.localStorage);
+    setProjectIrisSessionState(restored ?? startNewProjectIrisSession());
+    setHasHydratedProjectIrisSession(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedProjectIrisSession || typeof window === "undefined") {
+      return;
+    }
+
+    persistProjectIrisSessionState(window.localStorage, projectIrisSessionState);
+  }, [hasHydratedProjectIrisSession, projectIrisSessionState]);
+
+  useEffect(() => {
+    if (!hasHydratedProjectIrisSession) {
+      return;
+    }
+
+    if (!projectIrisSessionId) {
+      setProjectIrisRenderSnapshot(null);
+      return;
+    }
+
+    void loadProjectIrisMessages(projectIrisSessionId);
+  }, [hasHydratedProjectIrisSession, loadProjectIrisMessages, projectIrisSessionId]);
+
+  const handleOpenProjectIrisSheet = useCallback(() => {
+    setIsProjectIrisSheetOpen(true);
+  }, []);
+
+  const handleNewProjectIrisSession = useCallback(() => {
+    setProjectIrisRenderSnapshot(null);
+    setProjectIrisSessionState(startNewProjectIrisSession());
+    setProjectIrisError(projectManageSkill?.available === false ? projectManageSkill.error : null);
+  }, [projectManageSkill]);
+
+  const handleSendProjectIrisPrompt = useCallback(
+    async (parts: PromptPart[]) => {
+      if (!projectManageSkill?.available || !projectManageSkill.promptContext) {
+        setProjectIrisError(projectManageSkill?.error ?? PROJECT_IRIS_UNAVAILABLE_ERROR);
+        return;
+      }
+
+      setIsProjectIrisSending(true);
+      setProjectIrisError(null);
+
+      const promptParts = prependProjectIrisContext(
+        {
+          helperText: PROJECT_IRIS_HELPER_TEXT,
+          projectManagePromptContext: projectManageSkill.promptContext,
+        },
+        parts,
+      );
+
+      try {
+        let sessionId = projectIrisSessionId;
+        if (sessionId) {
+          await sendProjectIrisPrompt({
+            model: selectedProjectIrisModel,
+            parts: promptParts,
+            sessionId,
+          });
+        } else {
+          sessionId = await startProjectIrisSession({
+            model: selectedProjectIrisModel,
+            parts: promptParts,
+          });
+        }
+
+        const nextState = createProjectIrisSessionState({
+          sessionId,
+          updatedAt: new Date().toISOString(),
+        });
+        setProjectIrisSessionState(nextState);
+        await loadProjectIrisMessages(sessionId);
+      } catch (error) {
+        setProjectIrisError(String(error));
+      } finally {
+        setIsProjectIrisSending(false);
+      }
+    },
+    [
+      loadProjectIrisMessages,
+      projectIrisSessionId,
+      projectManageSkill,
+      selectedProjectIrisModel,
+    ],
+  );
 
   if (loading && !serverData) {
     return (
@@ -80,10 +379,16 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
           </p>
         </div>
 
-        <Button disabled={loading} onClick={() => void fetchData()} size="sm" title="Refresh" variant="outline">
-          <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")} />
-          Refresh
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button onClick={handleOpenProjectIrisSheet} size="sm" variant="outline">
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            Manage Projects with Iris
+          </Button>
+          <Button disabled={loading} onClick={() => void fetchData()} size="sm" title="Refresh" variant="outline">
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {fetchError && (
@@ -100,11 +405,25 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
         </Alert>
       )}
 
+      {projectManageSkill?.available === false && projectManageSkill.error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Project management unavailable</AlertTitle>
+          <AlertDescription>{projectManageSkill.error}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {serverData && serverData.projects.length === 0 && (
         <Card>
           <CardContent className="space-y-3 py-10 text-center">
             <FolderGit2 className="mx-auto h-9 w-9 text-muted-foreground/30" />
             <p className="font-medium text-muted-foreground text-sm">No registered projects found.</p>
+            <div>
+              <Button onClick={handleOpenProjectIrisSheet} size="sm" variant="outline">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                Manage Projects with Iris
+              </Button>
+            </div>
             <p className="text-muted-foreground/60 text-xs">Register a project via CLI:</p>
             <code className="mx-auto block w-fit rounded bg-muted px-3 py-1.5 font-mono text-xs">
               scripts/project_register.sh --id &lt;id&gt; ...
@@ -152,8 +471,29 @@ const ProjectsPage = (_props: Route.ComponentProps) => {
           })}
         </div>
       )}
+
+      <ProjectIrisSheet
+        error={projectIrisError}
+        isLoading={isProjectIrisLoading}
+        isOpen={isProjectIrisSheetOpen}
+        isSending={isProjectIrisSending}
+        onClose={() => setIsProjectIrisSheetOpen(false)}
+        onNewSession={handleNewProjectIrisSession}
+        onSelectedModelChange={(model) => setSelectedProjectIrisModel(model)}
+        onSend={handleSendProjectIrisPrompt}
+        renderSnapshot={projectIrisRenderSnapshot}
+        selectedModel={selectedProjectIrisModel}
+        sessionId={projectIrisSessionId}
+        sessionStatus={projectIrisSessionStatus}
+        skillAvailable={projectManageSkill?.available !== false}
+        skillError={projectManageSkill?.error ?? null}
+      />
     </PageContainer>
   );
 };
 
-export default ProjectsPage;
+const ProjectsRoute = (props: Route.ComponentProps) => (
+  <ProjectsPage loaderData={props.loaderData as ProjectsPageLoaderData} />
+);
+
+export default ProjectsRoute;

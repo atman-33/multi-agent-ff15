@@ -21,15 +21,17 @@ vi.mock("@/components/compact-model-variant-picker", () => ({
 
 vi.mock("@/components/chat/prompt-composer", () => ({
   PromptComposer: ({
+    disabled,
     footerEnd,
     helperText,
     placeholder,
   }: {
+    disabled?: boolean;
     footerEnd?: ReactNode;
     helperText?: ReactNode;
     placeholder?: string;
   }) => (
-    <div data-prompt-composer="true">
+    <div data-disabled={disabled ? "true" : "false"} data-prompt-composer="true">
       <div>{placeholder}</div>
       <div data-prompt-composer-footer-end="true">{footerEnd}</div>
       <div>{helperText}</div>
@@ -90,7 +92,7 @@ vi.mock("@/hooks/use-conversation-unit-inspectability", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  Button: ({ children, disabled }: { children: ReactNode; disabled?: boolean }) => <button disabled={disabled} type="button">{children}</button>,
 }));
 
 vi.mock("@/components/ui/sheet", () => ({
@@ -413,5 +415,45 @@ describe("iris-authoring-sheet", () => {
     expect(markup).toContain('data-streaming-message="false"');
     expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]");
     expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]");
+  });
+
+  it("supports Projects-specific copy and disables the composer while project-manage is unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <IrisAuthoringSheet
+        autoFollowKey={null}
+        composerDraftKey="projects:iris"
+        composerHelperText="Pinned project-manage skill is unavailable."
+        composerPlaceholder="Ask Iris to register, rename, refresh, or delete a project"
+        conversationSummary="Single shared registry conversation"
+        description="Project management assistant for the registry."
+        emptyDescription="Iris can help register, rename, refresh, or delete projects in the registry."
+        emptyTitle="Start a Projects conversation."
+        error="Pinned project-manage skill is unavailable."
+        isComposerDisabled={true}
+        isLoading={false}
+        isOpen={true}
+        isSending={false}
+        onClose={() => undefined}
+        onNewSession={() => undefined}
+        onSend={() => Promise.resolve()}
+        onSelectedModelChange={() => undefined}
+        renderedMessages={[]}
+        scopeLabel="Projects"
+        scrollSignal="none"
+        selectedModel={null}
+        selectedEntryLabel="project registry"
+        sessionId={null}
+        sessionStatus={null}
+        streamingMessage={null}
+        targetLabel="Project registry operations"
+      />,
+    );
+
+    expect(markup).toContain("Project management assistant for the registry.");
+    expect(markup).toContain("Start a Projects conversation.");
+    expect(markup).toContain("Iris can help register, rename, refresh, or delete projects in the registry.");
+    expect(markup).toContain("Ask Iris to register, rename, refresh, or delete a project");
+    expect(markup).toContain("Pinned project-manage skill is unavailable.");
+    expect(markup).toContain('data-disabled="true"');
   });
 });

@@ -1,15 +1,15 @@
 ---
 name: project-manage
-description: "(opencode-project - Skill) Registers external projects in the FF15 project registry and refreshes their metadata. Use when registering a new project, re-registering after instruction file changes, or confirming how registry-backed projects are surfaced in the UI. Triggers on: 'register project', 'refresh project metadata', 'project registry', 'project management'."
+description: "(opencode-project - Skill) Registers external projects in the FF15 project registry and manages refresh, rename, and delete workflows. Use when registering a new project, re-registering after instruction file changes, renaming a registry entry, deleting a registry entry, or confirming how registry-backed projects are surfaced in the UI. Triggers on: 'register project', 'refresh project metadata', 'rename project', 'delete project', 'project registry', 'project management'."
 metadata:
   author: multi-agent-ff15
-  version: "3.0"
+  version: "4.0"
   created: "2026-02-22"
 ---
 
 # project-manage
 
-Registers external projects in the project registry. Projects can have instruction files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` at their root; these are detected during registration and persisted in `projects/<id>/project.yaml`.
+Registers external projects in the project registry and manages the lifecycle of existing registry entries. Projects can have instruction files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` at their root; these are detected during registration and persisted in `projects/<id>/project.yaml`.
 
 Execution and context assignment no longer use a global active-project list. After registration, choose `Execution Project` and `Context Projects` from the relevant Noctis mission or OpenCode session surface.
 
@@ -66,6 +66,72 @@ scripts/project_register.sh \
 If `serena_project` is already present in the existing YAML, re-registering without `--serena-project` preserves that value.
 
 After registration, inspect the result in the Projects screen or by reading `projects/<id>/project.yaml`.
+
+---
+
+### 3. Rename or Re-Key a Registered Project
+
+Updates the registry name, the registry ID, or both while preserving the existing working tree root and any stored `serena_project` value.
+
+```bash
+scripts/project_rename.sh \
+  --id "client-x" \
+  [--new-id "client-z"] \
+  [--name "Client Z"] \
+  [--force]
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `--id` | Yes | Current registered project identifier |
+| `--new-id` | No | New project identifier when re-keying the registry entry |
+| `--name` | No | New human-readable project name |
+| `--force` | No | Skip overwrite prompts during re-registration |
+
+At least one of `--new-id` or `--name` must be provided.
+
+**Examples:**
+
+```bash
+# Rename only the display name
+scripts/project_rename.sh \
+  --id "client-x" \
+  --name "Client X Platform"
+
+# Change both the registry ID and display name
+scripts/project_rename.sh \
+  --id "client-x" \
+  --new-id "client-platform" \
+  --name "Client Platform" \
+  --force
+```
+
+After the rename, refresh the Projects page manually to see the updated registry entry.
+
+---
+
+### 4. Delete a Registered Project
+
+Removes a project from the FF15 registry only. It does **not** delete the underlying working tree.
+
+```bash
+scripts/project_delete.sh \
+  --id "client-x" \
+  [--force]
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `--id` | Yes | Registered project identifier to remove |
+| `--force` | No | Skip the confirmation prompt |
+
+**Example:**
+
+```bash
+scripts/project_delete.sh --id "client-x" --force
+```
+
+After deletion, refresh the Projects page manually to remove the entry from the list.
 
 ---
 
@@ -150,6 +216,8 @@ If `serena_project` is already present in the existing YAML, re-registering with
 
 Note: `project_register.sh` now writes YAML-safe single-quoted scalars for path-like fields. This avoids parse failures when `serena_project` contains backslashes, such as UNC paths in WSL.
 
+`project_rename.sh` reuses `project_register.sh` internally so the same instruction-file refresh and YAML-safe quoting behavior apply during rename operations.
+
 ---
 
 ## Registry vs Runtime Selection
@@ -166,6 +234,7 @@ Note: `project_register.sh` now writes YAML-safe single-quoted scalars for path-
 |-------|-------|----------|
 | Symlink detected | Project root contains symlinks | Use a real path |
 | Project not found in projects/ | Requested ID is not registered | Run project_register.sh first |
+| Rename target already exists | `--new-id` already has a registry entry | Re-run with the correct target or pass `--force` after confirming overwrite |
 | Cannot resolve path | Non-existent root path | Verify the path exists |
 | Failed to write YAML | Lock timeout | Retry; check for stale .lock files |
 
@@ -174,9 +243,10 @@ Note: `project_register.sh` now writes YAML-safe single-quoted scalars for path-
 - Starting work on a new external project
 - Onboarding multiple projects for parallel work
 - Re-registering after instruction files were added or changed
+- Renaming a registry entry or correcting its display name
+- Deleting a registry entry without touching the working tree
 - Explaining how registered projects appear in Projects / mission / session UI
 
 **Don't use when:**
-- Editing project metadata directly — edit `projects/<id>/project.yaml` manually
 - Selecting runtime execution or context for a mission/session — do that from the relevant UI surface
 - The project has no instruction files — registration still works (with a warning)

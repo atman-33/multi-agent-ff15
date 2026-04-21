@@ -37,8 +37,14 @@ const IRIS_PORTRAIT_SRC = "/images/iris.png";
 interface IrisAuthoringSheetProps {
   autoFollowKey: string | null;
   composerDraftKey: string;
+  composerHelperText?: string | null;
+  composerPlaceholder?: string;
   conversationSummary: string;
+  description?: string;
+  emptyDescription?: string;
+  emptyTitle?: string;
   error?: string | null;
+  isComposerDisabled?: boolean;
   isLoading: boolean;
   isOpen: boolean;
   isSending: boolean;
@@ -150,8 +156,14 @@ function IrisPendingBubble() {
 export function IrisAuthoringSheet({
   autoFollowKey,
   composerDraftKey,
+  composerHelperText = null,
+  composerPlaceholder = "Ask Iris to revise the selected operation",
   conversationSummary,
+  description,
+  emptyDescription,
+  emptyTitle,
   error = null,
+  isComposerDisabled = false,
   isLoading,
   isOpen,
   isSending,
@@ -186,6 +198,7 @@ export function IrisAuthoringSheet({
     ),
   );
   const isSessionActive = isSessionStatusActive(sessionStatus);
+  const composerDisabled = isLoading || isSending || isSessionActive || isComposerDisabled;
   const renderIrisAvatar = useCallback(
     (message: RenderedSessionMessage) =>
       message.messageDisplay.resolvedSenderIsUser ? null : <IrisPortrait size="message" />,
@@ -252,7 +265,7 @@ export function IrisAuthoringSheet({
                   <Badge variant="outline">{scopeLabel}</Badge>
                 </div>
                 <SheetDescription className="text-slate-400">
-                  Studio-scoped authoring assistant for {selectedEntryLabel}.
+                  {description ?? `Studio-scoped authoring assistant for ${selectedEntryLabel}.`}
                 </SheetDescription>
                 <div className="flex flex-wrap gap-2 text-xs text-slate-400">
                   <span>{targetLabel}</span>
@@ -277,7 +290,7 @@ export function IrisAuthoringSheet({
             footer={
               <div className="border-slate-800/70 border-t bg-slate-950/90 px-4 py-3">
                 <PromptComposer
-                  disabled={isLoading || isSending || isSessionStatusActive(sessionStatus)}
+                  disabled={composerDisabled}
                   draftKey={composerDraftKey}
                   footerEnd={
                     <CompactModelVariantPicker
@@ -297,8 +310,9 @@ export function IrisAuthoringSheet({
                       variantsByModel={variantsByModel}
                     />
                   }
+                  helperText={composerHelperText ?? undefined}
                   onSend={(parts) => onSend(parts)}
-                  placeholder="Ask Iris to revise the selected operation"
+                  placeholder={composerPlaceholder}
                 />
               </div>
             }
@@ -318,8 +332,12 @@ export function IrisAuthoringSheet({
                 <div className="flex min-h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center text-slate-400">
                   <IrisPortrait size="empty" />
                   <div className="space-y-1">
-                    <p className="font-medium text-slate-200 text-sm">Start a Studio-scoped conversation.</p>
-                    <p className="text-xs leading-6">Iris can help revise {selectedEntryLabel}, suggest new steps, or explain the current prompt flow.</p>
+                    <p className="font-medium text-slate-200 text-sm">
+                      {emptyTitle ?? "Start a Studio-scoped conversation."}
+                    </p>
+                    <p className="text-xs leading-6">
+                      {emptyDescription ?? `Iris can help revise ${selectedEntryLabel}, suggest new steps, or explain the current prompt flow.`}
+                    </p>
                   </div>
                 </div>
               ) : (

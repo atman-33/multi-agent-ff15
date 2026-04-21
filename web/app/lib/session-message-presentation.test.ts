@@ -121,6 +121,37 @@ selected_entry: github-issue-openspec-dev
     expect(resolved.rawPromptPayload).toContain("元気？");
   });
 
+  it("shows Projects Iris user-request content while keeping hidden project-management context in prompt details", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: `
+<projects-iris-context>
+Use the pinned project-manage skill to perform project registry work for User.
+</projects-iris-context>
+
+<reference-files>
+project-manage
+</reference-files>
+
+<user-request from="user" to="iris">
+こんにちは
+</user-request>
+      `.trim(),
+      fallbackSender: "user",
+      fallbackSenderLabel: "User",
+    });
+
+    expect(resolved.displayContent).toBe("こんにちは");
+    expect(resolved.promptContextSource).toBe("workflow");
+    expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
+      "projects-iris-context",
+      "reference-files",
+    ]);
+    expect(resolved.resolvedSenderLabel).toBe("User");
+    expect(resolved.rawPromptPayload).toContain("<projects-iris-context>");
+    expect(resolved.rawPromptPayload).toContain('<user-request from="user" to="iris">');
+    expect(resolved.rawPromptPayload).toContain("こんにちは");
+  });
+
   it("omits raw prompt payload when persisted raw text matches visible body", () => {
     const resolved = resolveSessionMessageDisplay({
       rawText: "Plain visible reply.",
