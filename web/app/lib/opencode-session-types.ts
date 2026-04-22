@@ -15,6 +15,11 @@ export type MessagePart = {
   };
 };
 
+export type MessageErrorInfo = {
+  name?: string;
+  message?: string;
+};
+
 export type MessageInfo = {
   info: {
     id: string;
@@ -22,6 +27,7 @@ export type MessageInfo = {
     agent?: string;
     model?: ModelSelection;
     parentID?: string;
+    error?: MessageErrorInfo;
     selectionAdjustment?: SessionSelectionAdjustment;
     time: {
       created: number;

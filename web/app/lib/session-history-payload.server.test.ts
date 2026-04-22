@@ -149,4 +149,40 @@ describe("session-history-payload.server", () => {
     });
     expect(sanitized[0]?.parts).toEqual([{ type: "text", text: "Adjusted reply." }]);
   });
+
+  it("preserves assistant top-level errors and renders aborted replies", () => {
+    const sanitized = sanitizeSessionMessages(
+      [
+        {
+          info: {
+            id: "assistant-2",
+            role: "assistant",
+            agent: "build",
+            providerID: "github-copilot",
+            modelID: "gpt-5.4-mini",
+            time: { created: Date.parse("2026-04-22T00:45:08.378Z") },
+            error: {
+              name: "MessageAbortedError",
+              data: {
+                message: "Aborted",
+              },
+            },
+          },
+          parts: [],
+        },
+      ],
+      {},
+    );
+
+    expect(sanitized[0]?.info.error).toEqual({
+      name: "MessageAbortedError",
+      message: "Aborted",
+    });
+
+    const rendered = buildRenderedSessionMessages(toSessionPresentationMessages(sanitized));
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.messageDisplay.displayContent).toBe("Response interrupted: Aborted");
+    expect(rendered[0]?.senderLabel).toBe("build");
+  });
 });

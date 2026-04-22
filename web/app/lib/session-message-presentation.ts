@@ -53,6 +53,11 @@ export type RenderedSessionMessage = Omit<SessionPresentationMessage, "parts"> &
   intermediateOnly?: boolean;
 };
 
+export type NormalizeSessionMessagesOptions = {
+  assistantSender?: ActivityActorId | null;
+  assistantSenderLabel?: string;
+};
+
 type PreparedSessionMessage = {
   message: SessionPresentationMessage;
   parts: MessagePart[];
@@ -95,6 +100,24 @@ function extractLooseText(parts: MessagePart[]): string {
     .map((part) => (typeof part.text === "string" ? part.text : ""))
     .join("")
     .trim();
+}
+
+function resolveAssistantErrorText(error: MessageInfo["info"]["error"] | undefined): string {
+  if (!error) {
+    return "";
+  }
+
+  const message = typeof error.message === "string" ? error.message.trim() : "";
+
+  if (error.name === "MessageAbortedError") {
+    return message ? `Response interrupted: ${message}` : "Response interrupted.";
+  }
+
+  if (message) {
+    return `Assistant error: ${message}`;
+  }
+
+  return error.name ? `Assistant error: ${error.name}` : "";
 }
 
 function getMessageParts(message: SessionPresentationMessage): MessagePart[] {
@@ -356,7 +379,10 @@ function flushPendingNoctisMessages(
   return [];
 }
 
-export function toSessionPresentationMessages(messages: MessageInfo[]): SessionPresentationMessage[] {
+export function normalizeSessionMessages(
+  messages: MessageInfo[],
+  options?: NormalizeSessionMessagesOptions,
+): SessionPresentationMessage[] {
   return messages.reduce<SessionPresentationMessage[]>((accumulator, message, index) => {
     const messageRecord = message as unknown as Record<string, unknown>;
     const info = (messageRecord.info as Record<string, unknown> | undefined) ?? {};
@@ -365,7 +391,11 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
 
     const content = extractText(parts);
     const looseText = extractLooseText(parts);
-    const fallbackContent = content || looseText;
+    const errorText =
+      rawRole === "assistant"
+        ? resolveAssistantErrorText(info.error as MessageInfo["info"]["error"] | undefined)
+        : "";
+    const fallbackContent = content || looseText || errorText;
 
     if (!fallbackContent && (rawRole !== "assistant" || parts.length === 0)) {
       return accumulator;
@@ -378,15 +408,23 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
         : `restored-${index}-${Date.now().toString(36)}`;
     const routedMessage =
       rawRole === "assistant" ? null : parseRoutedMessageEnvelope(fallbackContent);
+    const defaultAssistantSender = normalizeActivityActorId(
+      typeof info.agent === "string" ? info.agent : null,
+    );
+    const defaultAssistantSenderLabel =
+      (typeof info.agent === "string" && info.agent.trim()) || "Assistant";
+    const assistantSender = options?.assistantSender ?? defaultAssistantSender;
+    const assistantSenderLabel =
+      typeof options?.assistantSenderLabel === "string" && options.assistantSenderLabel.trim()
+        ? options.assistantSenderLabel
+        : defaultAssistantSenderLabel;
     const sender =
       rawRole === "assistant"
-        ? normalizeActivityActorId(
-            typeof info.agent === "string" ? info.agent : null,
-          )
+        ? assistantSender
         : (routedMessage?.speaker ?? "user");
     const senderLabel =
       rawRole === "assistant"
-        ? (typeof info.agent === "string" && info.agent.trim()) || "Assistant"
+        ? assistantSenderLabel
         : sender
           ? getActivityActorLabel(sender)
           : "User";
@@ -437,6 +475,10 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
 
     return accumulator;
   }, []);
+}
+
+export function toSessionPresentationMessages(messages: MessageInfo[]): SessionPresentationMessage[] {
+  return normalizeSessionMessages(messages);
 }
 
 export function resolveSessionMessageDisplay(input: {

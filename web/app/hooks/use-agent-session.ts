@@ -19,8 +19,9 @@ import {
   isSessionStatusActive,
   type SessionStatus,
 } from "@/lib/session-status";
+import { normalizeSessionMessages } from "@/lib/session-message-presentation";
 import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
-import { parseRoutedMessageEnvelope } from "@/lib/team-message-format";
+import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { OperationOption } from "@/lib/operation-presentation";
 import type {
   AgentContextUsage,
@@ -34,9 +35,8 @@ import type {
   MissionExecutionTargetMode,
   OperationState,
 } from "@/lib/types/mission";
-import { extractText } from "@/lib/chat-message-parts";
 import type { BanterEntry, ChatMessage, PartyMember } from "@/lib/noctis-team-ui-types";
-import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import { useChatStore } from "@/stores/chat-store";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
@@ -277,24 +277,6 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function extractLooseText(parts: MessagePart[]): string {
-  return parts
-    .map((part) => (typeof part.text === "string" ? part.text : ""))
-    .join("")
-    .trim();
-}
-
-function coerceMessageTimestamp(rawValue: unknown, fallback: Date): Date {
-  if (typeof rawValue === "string") {
-    const parsed = new Date(rawValue);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed;
-    }
-  }
-
-  return fallback;
-}
-
 async function loadMissionRuntimeSnapshot(
   missionId: string,
   missionRouteBase: string,
@@ -354,64 +336,26 @@ function toSessionChatMessages(
   messages: MessageInfo[],
   primaryAgentId: MissionPrimaryAgentId,
 ): ChatMessage[] {
-  return messages.reduce<ChatMessage[]>((accumulator, message, index) => {
-    const messageRecord = message as unknown as Record<string, unknown>;
-    const info = (messageRecord.info as Record<string, unknown> | undefined) ?? {};
-    const parts = Array.isArray(messageRecord.parts) ? (messageRecord.parts as MessagePart[]) : [];
-    const rawRole = info.role;
+  return normalizeSessionMessages(messages, {
+    assistantSender: primaryAgentId,
+    assistantSenderLabel: getActivityActorLabel(primaryAgentId),
+  }).map((message) => {
+    const sender = message.sender ?? primaryAgentId;
 
-    const content = extractText(parts);
-    const looseText = extractLooseText(parts);
-    const fallbackContent = content || looseText;
-
-    if (!fallbackContent && (rawRole !== "assistant" || parts.length === 0)) {
-      return accumulator;
-    }
-
-    const rawId = info.id;
-    const id =
-      typeof rawId === "string" && rawId.length > 0 ? rawId : `restored-${index}-${createId()}`;
-    const routedMessage =
-      rawRole === "assistant" ? null : parseRoutedMessageEnvelope(fallbackContent);
-    const sender =
-      rawRole === "assistant" ? primaryAgentId : (routedMessage?.speaker ?? "user");
-    const displayContent = routedMessage
-      ? routedMessage.messageType === "report"
-        ? routedMessage.body?.trim() || routedMessage.summary?.trim() || routedMessage.details?.trim() || ""
-        : routedMessage.body?.trim() || ""
-      : fallbackContent;
-    const detailContent = routedMessage
-      ? routedMessage.messageType === "report"
-        ? [routedMessage.body?.trim(), routedMessage.summary?.trim(), routedMessage.details?.trim()]
-            .filter(Boolean)
-            .join("\n\n")
-        : routedMessage.body?.trim() || fallbackContent
-      : fallbackContent;
-
-    accumulator.push({
-      id,
+    return {
+      id: message.id,
       sender,
       actor: sender,
       speaker: sender,
-      kind:
-        rawRole === "assistant"
-          ? "assistant_message"
-          : sender === "user"
-            ? "user_message"
-            : "team_message",
-      content: displayContent,
-      detailContent,
-      rawText: fallbackContent,
-      parts,
-      timestamp: coerceMessageTimestamp(
-        info.createdAt ?? messageRecord.createdAt,
-        new Date(Date.now() + index)
-      ),
-      source: "session",
-    });
-
-    return accumulator;
-  }, []);
+      kind: message.kind,
+      content: message.content,
+      detailContent: message.detailContent,
+      rawText: message.rawText,
+      parts: message.parts,
+      timestamp: message.timestamp,
+      source: message.source,
+    };
+  });
 }
 
 async function loadSessionMessages(

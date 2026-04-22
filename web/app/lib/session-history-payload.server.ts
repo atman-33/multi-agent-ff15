@@ -4,11 +4,12 @@ import {
   type SessionSelectionAdjustment,
 } from "@/lib/session-selection-adjustment";
 import type { ModelSelection } from "@/lib/types/mission";
-import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
+import type { MessageErrorInfo, MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 
 export type RawSessionMessage = {
   info: {
     agent?: string;
+    error?: unknown;
     id: string;
     model?: {
       modelID: string;
@@ -139,6 +140,30 @@ function sanitizeMessagePart(part: unknown): MessagePart | null {
   return nextPart;
 }
 
+function sanitizeMessageError(value: unknown): MessageErrorInfo | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const name = typeof value.name === "string" ? value.name : undefined;
+  const data = isRecord(value.data) ? value.data : undefined;
+  const message =
+    typeof value.message === "string"
+      ? value.message
+      : typeof data?.message === "string"
+        ? data.message
+        : undefined;
+
+  if (!name && !message) {
+    return undefined;
+  }
+
+  return {
+    ...(name ? { name } : {}),
+    ...(message ? { message } : {}),
+  };
+}
+
 function sanitizeMessage(
   message: RawSessionMessage,
   anchors: Record<string, { requested: SessionSelection }>,
@@ -153,6 +178,9 @@ function sanitizeMessage(
       ...(typeof message.info.agent === "string" ? { agent: message.info.agent } : {}),
       ...(model ? { model } : {}),
       ...(typeof message.info.parentID === "string" ? { parentID: message.info.parentID } : {}),
+      ...(sanitizeMessageError(message.info.error)
+        ? { error: sanitizeMessageError(message.info.error) }
+        : {}),
       ...(selectionAdjustment ? { selectionAdjustment } : {}),
       time: message.info.time,
     },

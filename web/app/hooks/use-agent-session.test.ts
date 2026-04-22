@@ -121,6 +121,21 @@ function createAssistantMessage(id: string, text: string): MessageInfo {
   };
 }
 
+function createAbortedAssistantMessage(id: string): MessageInfo {
+  return {
+    info: {
+      id,
+      role: "assistant",
+      error: {
+        name: "MessageAbortedError",
+        message: "Aborted",
+      },
+      time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+    },
+    parts: [],
+  };
+}
+
 async function flushEffects(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
@@ -360,6 +375,47 @@ describe("useAgentSession", () => {
       historyPhase: "ready",
       isLoadingHistory: false,
       messages: ["Mission one reply"],
+    });
+  });
+
+  it("surfaces top-level assistant errors from the mission transcript", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAbortedAssistantMessage("message-error-1")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Response interrupted: Aborted"],
     });
   });
 
