@@ -15,7 +15,7 @@ steps:
 
         1. Before starting, read `.opencode/skills/grill-me/SKILL.md` and use that workflow to ask User one question at a time in this step.
         2. Keep questions limited to what is necessary to finalize the specification, and investigate anything that can be answered from the codebase before asking.
-        3. The artifact produced in this step becomes fixed input for downstream steps. At a minimum, record the following in `requirements-brief.md`.
+        3. The artifact produced in this step becomes fixed input for downstream steps. At a minimum, record the following in `requirements-brief.md`, and write its body in the language specified by User or in `{{ setting("language", "name") }}` if none is specified.
            - `PRD Key`: a stable kebab-case key that uniquely identifies this request. Embed the same key in downstream GitHub issue bodies and use it to decide create versus update on reruns.
            - Problem, success criteria, constraints, in-scope items, and out-of-scope items
            - The language explicitly requested by User. If none is specified, default to `{{ setting("language", "name") }}`.
@@ -42,7 +42,7 @@ steps:
 
         1. Read `{{ output("clarify-requirements", "latest", "requirements-brief.md") }}` and treat all settled points there as the source of truth without asking again.
         2. Before starting, read `.opencode/skills/write-a-prd/SKILL.md`. In this step, stop after drafting the PRD and do not post the GitHub issue yet.
-        3. Write the PRD body in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested.
+        3. Write the body of `prd-draft.md`, along with the GitHub issue title and body it contains, in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested.
         4. Include both the GitHub issue title and GitHub issue body in `prd-draft.md`, and use the PRD template from the write-a-prd skill for the issue body.
         5. At the start of `## GitHub Issue Body`, include the HTML comment `<!-- prd-key: <same PRD Key> -->` so downstream steps can identify an existing parent issue again.
         6. Follow the skill's requirements when writing implementation and testing decisions, but do not include specific file paths or code snippets.
@@ -69,8 +69,9 @@ steps:
         2. Treat the GitHub issue title and body included in `prd-draft.md` as the source of truth for the parent PRD issue.
         3. Using `PRD Key`, search open issues for one that contains `<!-- prd-key: <PRD Key> -->`. If exactly one is found, update it; if none is found, create it. If multiple are found, treat the step as blocked for safety.
         4. Whether creating or updating, leave the final GitHub issue title and body matching `prd-draft.md`.
-        5. After completion, record `prd_key`, `issue_number`, `issue_url`, `issue_title`, and `issue_action` in `parent-prd-issue.md`.
-        6. If creating or updating the GitHub issue fails, stop and state the reason together with the recommended next action.
+        5. Write the body of `parent-prd-issue.md` in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested.
+        6. After completion, record `prd_key`, `issue_number`, `issue_url`, `issue_title`, and `issue_action` in `parent-prd-issue.md`.
+        7. If creating or updating the GitHub issue fails, stop and state the reason together with the recommended next action.
     output_contracts:
       report:
         - name: parent-prd-issue.md
@@ -115,9 +116,10 @@ steps:
         2. Before starting, read `.opencode/skills/prd-to-issues/SKILL.md`.
         3. Do not ask User again for the PRD GitHub issue number. Use `issue_number` from `parent-prd-issue.md` as the parent issue.
         4. Create child issue proposals according to the skill's tracer-bullet rules, and confirm the granularity, dependency structure, and HITL versus AFK classification with User.
-        5. After User approval, create the child issues in dependency order. In each issue body, reference the parent issue and user stories correctly and keep the content consistent with the PRD.
-        6. After completion, summarize the created issues, their dependencies, the parent issue number, and the main covered user stories in `child-issues.md`.
-        7. If the breakdown cannot be agreed on or issue creation fails, stop and state the reason explicitly.
+        5. Write the child issue proposals, the created child issue titles and bodies, and the body of `child-issues.md` in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested.
+        6. After User approval, create the child issues in dependency order. In each issue body, reference the parent issue and user stories correctly and keep the content consistent with the PRD.
+        7. After completion, summarize the created issues, their dependencies, the parent issue number, and the main covered user stories in `child-issues.md`.
+        8. If the breakdown cannot be agreed on or issue creation fails, stop and state the reason explicitly.
     output_contracts:
       report:
         - name: child-issues.md

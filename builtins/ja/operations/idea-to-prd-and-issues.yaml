@@ -15,7 +15,7 @@ steps:
 
         1. 開始前に `.opencode/skills/grill-me/SKILL.md` を読み、この step ではその workflow を使って User に 1 問ずつ確認する。
         2. 質問は仕様の確定に必要なものだけに絞り、コードベース調査で答えられる問いは先に自分で調べる。
-        3. この step の成果物は後続 step の固定入力になる。少なくとも次を `requirements-brief.md` に残す。
+        3. この step の成果物は後続 step の固定入力になる。少なくとも次を `requirements-brief.md` に残し、本文は User が指定した記述言語、未指定時は `{{ setting("language", "name") }}` で記述する。
            - `PRD Key`: この依頼を一意に識別する安定した kebab-case のキー。後続の GitHub issue 本文にも同じキーを埋め込み、再実行時の create/update 判定に使う。
            - 問題、成功条件、制約、in-scope、out-of-scope
            - User が明示した記述言語。指定がなければ default は `{{ setting("language", "name") }}` とする。
@@ -42,7 +42,7 @@ steps:
 
         1. `{{ output("clarify-requirements", "latest", "requirements-brief.md") }}` を読み、確定済み事項は再質問せず source of truth として扱う。
         2. 開始前に `.opencode/skills/write-a-prd/SKILL.md` を読む。ただしこの step では GitHub issue の投稿までは行わず、PRD draft の作成で止める。
-        3. PRD 本文の記述言語は User が指定していればそれに従い、指定がなければ `{{ setting("language", "name") }}` に従う。
+        3. `prd-draft.md` の本文と、そこに含める GitHub issue title / body は User が指定した記述言語、未指定時は `{{ setting("language", "name") }}` で記述する。
         4. `prd-draft.md` には GitHub issue title と GitHub issue body の両方を含め、issue body には write-a-prd skill の PRD template を使う。
         5. `## GitHub Issue Body` の先頭には `<!-- prd-key: <same PRD Key> -->` の HTML comment を含め、後続 step が既存 parent issue を再特定できるようにする。
         6. 実装方針と testing decisions は skill の要求に従って具体化するが、特定 file path や code snippet は書かない。
@@ -69,8 +69,9 @@ steps:
         2. `prd-draft.md` に含まれる GitHub issue title と GitHub issue body を parent PRD issue の source of truth として使う。
         3. `PRD Key` を使い、open issue の中から `<!-- prd-key: <PRD Key> -->` を含む issue を探す。ちょうど 1 件見つかったら update し、見つからなければ create する。複数見つかった場合は安全のため blocked として扱う。
         4. create と update のどちらでも、最終的に GitHub 上の issue title と body が `prd-draft.md` と一致する状態にする。
-        5. 完了後は `parent-prd-issue.md` に `prd_key`、`issue_number`、`issue_url`、`issue_title`、`issue_action` を記録する。
-        6. GitHub issue の作成または更新に失敗した場合は、理由と次の推奨行動を明記して止まる。
+        5. `parent-prd-issue.md` の本文は User が指定した記述言語、未指定時は `{{ setting("language", "name") }}` で記述する。
+        6. 完了後は `parent-prd-issue.md` に `prd_key`、`issue_number`、`issue_url`、`issue_title`、`issue_action` を記録する。
+        7. GitHub issue の作成または更新に失敗した場合は、理由と次の推奨行動を明記して止まる。
     output_contracts:
       report:
         - name: parent-prd-issue.md
@@ -115,9 +116,10 @@ steps:
         2. 開始前に `.opencode/skills/prd-to-issues/SKILL.md` を読む。
         3. PRD GitHub issue number は User に聞き直さず、`parent-prd-issue.md` の `issue_number` を親 issue として使う。
         4. skill の tracer bullet rules に従って child issue 案を作り、粒度、依存関係、HITL と AFK の判定を User に確認する。
-        5. User 承認後に child issue を dependency order で作成する。各 issue の本文では parent issue と user stories を正しく参照し、PRD の内容と矛盾させない。
-        6. 完了後は作成した issue 一覧、依存関係、parent issue 番号、主要にカバーした user stories を `child-issues.md` にまとめる。
-        7. 分解方針に合意できない、または issue 作成に失敗した場合は理由を明示して止まる。
+        5. child issue 案、User 承認後に作成する child issue title / body、そして `child-issues.md` の本文は User が指定した記述言語、未指定時は `{{ setting("language", "name") }}` で記述する。
+        6. User 承認後に child issue を dependency order で作成する。各 issue の本文では parent issue と user stories を正しく参照し、PRD の内容と矛盾させない。
+        7. 完了後は作成した issue 一覧、依存関係、parent issue 番号、主要にカバーした user stories を `child-issues.md` にまとめる。
+        8. 分解方針に合意できない、または issue 作成に失敗した場合は理由を明示して止まる。
     output_contracts:
       report:
         - name: child-issues.md
