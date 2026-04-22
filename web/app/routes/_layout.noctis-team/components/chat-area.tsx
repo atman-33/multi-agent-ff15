@@ -577,7 +577,6 @@ export const ChatArea = ({
     operationSelectValue,
   ]);
   const operationBadgeLabel = selectedOperationOption?.label ?? "Operation unavailable";
-  const operationDescription = selectedOperationOption?.description ?? "";
   const operationPlaceholder = isOperationSelectionLocked
     ? "Operation unavailable"
     : defaultOperation.label;
@@ -657,33 +656,33 @@ export const ChatArea = ({
     </div>
   ) : null;
   const workflowSelector = (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div>
-          <Select
-            disabled={isOperationSelectionLocked || isMissionStartPending}
-            value={operationSelectValue}
-            onValueChange={onSelectedOperationChange}
-          >
-            <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-              <SelectValue placeholder={operationPlaceholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {availableOperations.map((operation) => (
-                <SelectItem key={operation.value} value={operation.value}>
-                  {operation.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </TooltipTrigger>
-      {operationDescription ? (
-        <TooltipContent side="top" className="max-w-80 text-xs leading-relaxed">
-          {operationDescription}
-        </TooltipContent>
-      ) : null}
-    </Tooltip>
+    <Select
+      disabled={isOperationSelectionLocked || isMissionStartPending}
+      value={operationSelectValue}
+      onValueChange={onSelectedOperationChange}
+    >
+      <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+        <SelectValue placeholder={operationPlaceholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {availableOperations.map((operation) => (
+          <SelectItem key={operation.value} value={operation.value}>
+            {operation.description ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center">{operation.label}</span>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-80 text-xs leading-relaxed">
+                  {operation.description}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              operation.label
+            )}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 
   return (

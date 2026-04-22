@@ -37,9 +37,11 @@ vi.mock("@/components/chat/thread-frame", () => ({
 
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  SelectContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SelectContent: ({ children }: { children?: ReactNode }) => <div data-select-content="true">{children}</div>,
+  SelectItem: ({ children, value }: { children?: ReactNode; value?: string }) => (
+    <div data-select-item={value}>{children}</div>
+  ),
+  SelectTrigger: ({ children }: { children?: ReactNode }) => <div data-select-trigger="true">{children}</div>,
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
 }));
 
@@ -73,9 +75,13 @@ vi.mock("@/components/ui/switch", () => ({
 }));
 
 vi.mock("@/components/ui/tooltip", () => ({
-  Tooltip: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  TooltipContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  TooltipTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Tooltip: ({ children }: { children?: ReactNode }) => <div data-tooltip-root="true">{children}</div>,
+  TooltipContent: ({ children }: { children?: ReactNode }) => (
+    <div data-tooltip-content="true">{children}</div>
+  ),
+  TooltipTrigger: ({ children }: { children?: ReactNode }) => (
+    <div data-tooltip-trigger="true">{children}</div>
+  ),
 }));
 
 vi.mock("@/hooks/use-conversation-unit-inspectability", () => ({
@@ -388,6 +394,36 @@ describe("chat-area", () => {
     expect(markup).toContain("No Session History Yet");
     expect(markup).toContain("This mission has not produced a transcript yet.");
     expect(markup).toContain("send-enabled");
+  });
+
+  it("shows operation description tooltips only on select options", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        contextProjects={[]}
+        availableOperations={[
+          {
+            value: "builtin:ja:openspec-dev.yaml",
+            label: "openspec-dev",
+            description: "Guided mission flow.",
+            isDefault: false,
+            name: "openspec-dev",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+        ]}
+        selectedOperation="builtin:ja:openspec-dev.yaml"
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup.match(/data-tooltip-content="true"/g)).toHaveLength(1);
+    expect(markup).toContain('data-select-item="builtin:ja:openspec-dev.yaml"');
+    expect(markup).toContain("Guided mission flow.");
   });
 
   it("shows a transcript error state distinct from an empty transcript", () => {
