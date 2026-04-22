@@ -1,0 +1,26 @@
+name: noctis-autonomous
+description: >
+  Default (Autonomous) mode.
+  Noctis responds directly to User and delegates supporting tasks to available teammates when useful.
+initial_step: autonomous
+
+steps:
+  - name: autonomous
+    agent: noctis
+    job:
+      file: ../facets/jobs/noctis-autonomous.md
+    instruction:
+      file: ../facets/instructions/noctis-autonomous.md
+    skills:
+      - file: ../facets/skills/agent-relationships/SKILL.md
+    delegation:
+      allowed_workers:
+        - ignis
+        - gladiolus
+        - prompto
+      worker_job:
+        file: ../facets/jobs/delegated-worker.md
+      worker_instruction:
+        file: ../facets/instructions/delegated-worker.md
+      worker_skills:
+        - file: ../facets/skills/agent-relationships/SKILL.md

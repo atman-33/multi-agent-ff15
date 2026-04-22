@@ -1,0 +1,101 @@
+name: github-issue-openspec-dev
+description: >
+  GitHub issue driven OpenSpec delivery operation.
+  Noctis creates and gets approval for change artifacts, Gladiolus implements with TDD, Ignis reviews, and Prompto prepares manual verification docs.
+initial_step: spec-planning
+
+steps:
+  - name: spec-planning
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Issue-to-Spec Planning — Instructions
+
+        1. As the first action, run `git fetch origin --prune` to retrieve the latest remote history.
+        2. Since spec investigation must be based on the latest code, first move to the tip of `origin/main` with `git switch --detach origin/main` and inspect the current state there.
+        3. Read the GitHub issue URL provided by User and organize the issue goal, acceptance criteria, and related links. If parent issue information is explicitly given, inspect that as well and integrate its scope and constraints.
+        4. Before creating OpenSpec artifacts, decide on an appropriate kebab-case change name from the issue contents.
+        5. Once the change name is decided, create and switch to the corresponding feature branch from `origin/main`, using `feature/<change-name>` as the base form. If a matching branch already exists in the execution workspace, it may be reused.
+        6. Use `.opencode/command/opsx-ff.md` for the OpenSpec artifact creation procedure. Keep the branch name and the OpenSpec change name aligned to the same intent.
+        7. Before writing the design, read `.opencode/skills/improve-codebase-architecture/SKILL.md` and reflect deep-module and boundary-first viewpoints in the design.
+        8. Write the generated OpenSpec artifacts in `{{ setting("language", "name") }}`.
+        9. Do not pin references or creation targets to the current workspace. Treat `openspec_root` from `<tooling-context>` as the project root and use the `openspec/` directory under it. If `activate_project` is available, prefer the `openspec_root` for the active project.
+        10. After artifact creation, explicitly state the change name and change path and ask User for confirmation. Do not proceed to the next step until explicit approval is given.
+    skills:
+      - file: ../facets/skills/agent-relationships/SKILL.md
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format:
+            file: ../facets/output-contracts/spec-plan.md
+    rules:
+      - condition: OpenSpec artifacts generated and approved by User
+        next: implement
+
+  - name: implement
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      inline: |
+        # Implement With TDD — Instructions
+
+        1. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and use the frontmatter `change_name` as the OpenSpec change name. If `change_path` is present, use it first; otherwise use `openspec/changes/<change_name>/` under `openspec_root` from `<tooling-context>`.
+        2. Use `.opencode/command/opsx-apply.md` for the implementation flow.
+        3. Before implementing, read `.opencode/skills/tdd/SKILL.md` and proceed with vertical-slice TDD based on the public interface.
+        4. If `change_name` or `change_path` cannot be resolved, report the step as blocked.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    rules:
+      - condition: Implementation complete and relevant tests pass
+        next: review
+      - condition: Cannot proceed with implementation
+        next: ABORT
+
+  - name: review
+    agent: ignis
+    job:
+      file: ../facets/jobs/reviewer.md
+    instruction:
+      inline: |
+        # Review Against Change Artifacts — Instructions
+
+        1. Review according to `.opencode/command/opsx-verify.md`. Do not modify code.
+        2. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and resolve `change_name` and `change_path` as the verification target. If `change_path` is absent, use `openspec/changes/<change_name>/` under `openspec_root` from `<tooling-context>`.
+        3. Verify consistency with the requirements, tasks, and design, and format the output according to the `code-review` output contract. Write the review report body in `{{ setting("language", "name") }}`.
+        4. If there are blocking or critical findings, record the gaps and inconsistencies concretely so the implementation step can address them.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    output_contracts:
+      report:
+        - name: code-review.md
+          format:
+            file: ../facets/output-contracts/code-review.md
+    rules:
+      - condition: Approved — no blocking issues
+        next: manual-verification
+      - condition: Blocking or critical issues found
+        next: implement
+      - condition: Review cannot proceed
+        next: ABORT
+
+  - name: manual-verification
+    agent: prompto
+    job:
+      file: ../facets/jobs/verification-writer.md
+    instruction:
+      inline: |
+        # Manual Verification Docs — Instructions
+
+        1. Use the workflow and scaffold from `.opencode/skills/manual-verification-docs/SKILL.md` to create a user-facing manual verification document.
+        2. Determine the target scope from the implementation diff, the change information in `{{ output("spec-planning", "latest", "spec-plan.md") }}`, and, if needed, the findings in `{{ output("review", "latest", "code-review.md") }}`.
+        3. Write the output under `{{ root("app_root") }}/docs/reports/`. Do not place it on the execution root side.
+        4. Follow the skill's structuring rules, but write the generated document body in `{{ setting("language", "name") }}`.
+        5. After creation, report a summary of the generated file path, target scope, and main scenarios.
+    rules:
+      - condition: Manual verification document created
+        next: COMPLETE
+      - condition: Cannot create the document
+        next: ABORT

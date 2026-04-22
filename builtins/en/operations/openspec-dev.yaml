@@ -1,0 +1,116 @@
+name: openspec-dev
+description: >
+  Guided OpenSpec delivery operation.
+  Noctis plans with User, Gladiolus implements and fixes issues, Ignis reviews, and Prompto performs the final refactor before completion.
+initial_step: spec-planning
+
+# --- Steps ---
+
+steps:
+  # 1. Noctis clarifies requirements with User and creates a spec plan
+  - name: spec-planning
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Spec Planning — Instructions
+
+        Use `.opencode/command/opsx-ff.md` as the execution procedure for this step.
+        Follow its guidance for the order of OpenSpec artifact creation, references to dependent artifacts, User confirmation, and completion criteria.
+    skills:
+      - file: ../facets/skills/agent-relationships/SKILL.md
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format:
+            file: ../facets/output-contracts/spec-plan.md
+    rules:
+      - condition: OpenSpec artifact has been generated and approved
+        next: implement
+
+  # 2. Gladiolus implements based on the spec plan
+  - name: implement
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      inline: |
+        # Implement — Instructions
+
+        Implement according to `.opencode/command/opsx-apply.md`.
+        Before starting, read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and use the frontmatter `change_name` as the OpenSpec change name.
+        Prefer `change_path` for locating the spec, and use `openspec/changes/<change_name>/` if it is not set.
+        If `change_name` or `change_path` cannot be obtained, report the step as blocked.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    rules:
+      - condition: Implementation complete and tests pass
+        next: review
+      - condition: Cannot proceed with implementation
+        next: ABORT
+
+  # 3. Ignis reviews the code (read-only, produces structured report)
+  - name: review
+    agent: ignis
+    job:
+      file: ../facets/jobs/reviewer.md
+    instruction:
+      inline: |
+        # Review Code — Instructions
+
+        Review according to `.opencode/command/opsx-verify.md`.
+        Before starting, read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and use the frontmatter `change_name` as the target change name for verification.
+        Prefer `change_path` for locating the spec, and use `openspec/changes/<change_name>/` if it is not set.
+        Follow the verification viewpoints in `opsx-verify.md`, but format the output according to the `code-review` output contract and judge findings and verdict by policy.
+        Do not change code.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    output_contracts:
+      report:
+        - name: code-review.md
+          format:
+            file: ../facets/output-contracts/code-review.md
+    rules:
+      - condition: Approved — no blocking issues
+        next: refactor
+      - condition: Issues found — fix needed
+        next: fix
+      - condition: Critical problems — cannot proceed
+        next: ABORT
+
+  # 4. Gladiolus fixes issues found in review
+  - name: fix
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      inline: |
+        # Fix Code — Instructions
+
+        Resolve the blocking findings in `{{ output("review", "latest", "code-review.md") }}`.
+        When needed, read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and re-open the original spec through `change_name` and `change_path`.
+        Prefer `change_path` for locating the spec, and use `openspec/changes/<change_name>/` if it is not set.
+        If any finding cannot be resolved, report it as blocked or abort with the reason.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    rules:
+      - condition: All blocking issues fixed
+        next: review
+      - condition: Cannot fix — blocked
+        next: ABORT
+
+  # 5. Prompto performs the final cleanup after review approval
+  - name: refactor
+    agent: prompto
+    job:
+      file: ../facets/jobs/refactorer.md
+    instruction:
+      file: ../facets/instructions/simplify-code.md
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    rules:
+      - condition: Refactoring complete
+        next: COMPLETE
+      - condition: No changes needed — code is already clean
+        next: COMPLETE
