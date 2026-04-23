@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
+
+const { sessionChatRenderSnapshotMock } = vi.hoisted(() => ({
+  sessionChatRenderSnapshotMock: vi.fn(),
+}));
 
 vi.mock("@/components/chat/prompt-composer", () => ({
   PromptComposer: ({
@@ -94,12 +99,7 @@ vi.mock("@/hooks/use-conversation-unit-inspectability", () => ({
 }));
 
 vi.mock("@/hooks/use-session-chat-render-snapshot", () => ({
-  useSessionChatRenderSnapshot: () => ({
-    autoFollowKey: "empty",
-    inspectabilityBoundaries: [],
-    scrollSignal: 0,
-    renderedMessages: [],
-  }),
+  useSessionChatRenderSnapshot: (input: unknown) => sessionChatRenderSnapshotMock(input),
 }));
 
 vi.mock("@/stores/chat-store", () => ({
@@ -110,6 +110,17 @@ vi.mock("@/stores/chat-store", () => ({
 import { ChatArea } from "./chat-area";
 
 describe("chat-area", () => {
+  beforeEach(() => {
+    sessionChatRenderSnapshotMock.mockReset();
+    sessionChatRenderSnapshotMock.mockReturnValue({
+      autoFollowKey: "empty",
+      inspectabilityBoundaries: [],
+      scrollSignal: "none",
+      renderedMessages: [],
+      streamingMessage: null,
+    });
+  });
+
   it("shows compact execution project controls without the old setup heading", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
@@ -495,5 +506,46 @@ describe("chat-area", () => {
     expect(markup).toContain("Transcript Load Failed");
     expect(markup).toContain("Unable to load mission transcript.");
     expect(markup).not.toContain("No Session History Yet");
+  });
+
+  it("renders temporary assistant streaming text through the shared snapshot and hides the generic typing indicator once content exists", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        messages: [],
+        streamingText: {
+          content: "Mission two is responding",
+          fallbackSender: "noctis",
+          fallbackSenderLabel: "Noctis",
+        },
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        streamingContent="Mission two is responding"
+        isResponding={true}
+        isSessionActive={true}
+        isStreaming={true}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
+      messages: [],
+      streamingText: {
+        content: "Mission two is responding",
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+      },
+    });
+    expect(markup).toContain("Mission two is responding");
+    expect(markup).not.toContain("animate-bounce");
   });
 });

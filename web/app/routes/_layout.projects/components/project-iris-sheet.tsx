@@ -8,7 +8,7 @@ import type { ModelSelection } from "@/lib/types/mission";
 
 export const PROJECT_IRIS_COMPOSER_DRAFT_KEY = "projects:iris:global";
 export const PROJECT_IRIS_MANUAL_REFRESH_TEXT =
-  "Refresh the Projects page manually after Iris completes a registry change.";
+  "The Projects page refreshes automatically after Iris settles a registry change.";
 const PROJECT_IRIS_UNAVAILABLE_ERROR = "Pinned project-manage skill is unavailable.";
 
 type ProjectIrisSheetProps = {

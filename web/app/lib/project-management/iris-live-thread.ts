@@ -1,0 +1,40 @@
+import type { SessionPresentationMessage } from "@/lib/session-message-presentation";
+import { mergeMessagePartsText, mergeStreamingText } from "@/lib/session-stream";
+import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status";
+
+export function buildProjectIrisStreamingText(content: string): {
+  content: string;
+  fallbackSender: "iris";
+  fallbackSenderLabel: "Iris";
+} | null {
+  if (!content) {
+    return null;
+  }
+
+  return {
+    content,
+    fallbackSender: "iris",
+    fallbackSenderLabel: "Iris",
+  };
+}
+
+export function mergeProjectIrisStreamingMessage(
+  message: SessionPresentationMessage,
+  incoming: string,
+): SessionPresentationMessage {
+  return {
+    ...message,
+    content: mergeStreamingText(message.content, incoming),
+    detailContent: mergeStreamingText(message.detailContent ?? message.content, incoming),
+    rawText: mergeStreamingText(message.rawText ?? message.content, incoming),
+    parts: mergeMessagePartsText(message.parts ?? [], incoming),
+  };
+}
+
+export function shouldUseProjectIrisPollingFallback(input: {
+  isLiveUnavailable: boolean;
+  sessionId: string | null;
+  sessionStatus: SessionStatus | null;
+}): boolean {
+  return Boolean(input.sessionId) && isSessionStatusActive(input.sessionStatus) && input.isLiveUnavailable;
+}

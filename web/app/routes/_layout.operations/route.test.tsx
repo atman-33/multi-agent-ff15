@@ -6,8 +6,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 
-const { buildOperationsPreviewBundleMock } = vi.hoisted(() => ({
+const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, useSessionLiveThreadMock } = vi.hoisted(() => ({
   buildOperationsPreviewBundleMock: vi.fn(() => ({ flowSteps: [] })),
+  irisAuthoringSheetPropsSpy: vi.fn(),
+  useSessionLiveThreadMock: vi.fn(() => ({
+    clearStreaming: vi.fn(),
+    isLiveUnavailable: false,
+    resetLiveThread: vi.fn(),
+    streamingContent: "",
+    streamingMessageId: null,
+  })),
 }));
 
 vi.mock("react-router", async () => {
@@ -20,6 +28,19 @@ vi.mock("react-router", async () => {
 
 vi.mock("@/components/page-container", () => ({
   PageContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/components/operations/iris-authoring-sheet", () => ({
+  IrisAuthoringSheet: (props: {
+    streamingMessage?: { messageDisplay?: { displayContent?: string } } | null;
+  }) => {
+    irisAuthoringSheetPropsSpy(props);
+    return (
+      <div data-iris-authoring-sheet="true">
+        {props.streamingMessage?.messageDisplay?.displayContent ?? "no-streaming-message"}
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/ui/badge", () => ({
@@ -82,6 +103,10 @@ vi.mock("@/components/operations/copyable-prompt-block", () => ({
 
 vi.mock("@/lib/operations/preview-engine.server", () => ({
   buildOperationsPreviewBundle: buildOperationsPreviewBundleMock,
+}));
+
+vi.mock("@/hooks/use-session-live-thread", () => ({
+  useSessionLiveThread: useSessionLiveThreadMock,
 }));
 
 import {
@@ -197,6 +222,15 @@ afterEach(() => {
   }
 
   buildOperationsPreviewBundleMock.mockClear();
+  irisAuthoringSheetPropsSpy.mockReset();
+  useSessionLiveThreadMock.mockReset();
+  useSessionLiveThreadMock.mockReturnValue({
+    clearStreaming: vi.fn(),
+    isLiveUnavailable: false,
+    resetLiveThread: vi.fn(),
+    streamingContent: "",
+    streamingMessageId: null,
+  });
 
   if (originalRootEnv === undefined) {
     delete process.env.MULTI_AGENT_FF15_ROOT;

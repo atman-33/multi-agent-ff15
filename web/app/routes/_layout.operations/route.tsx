@@ -8,6 +8,7 @@ import { PreviewInputsSheet } from "@/components/operations/preview-inputs-sheet
 import { PreviewTabs } from "@/components/operations/preview-tabs";
 import { PageContainer } from "@/components/page-container";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
+import { useSessionLiveThread } from "@/hooks/use-session-live-thread";
 import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
 import { useChatStore } from "@/stores/chat-store";
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
@@ -47,7 +48,6 @@ import {
 import {
   buildOperationsIrisStreamingText,
   createOperationsIrisOptimisticMessage,
-  mergeOperationsIrisStreamingState,
   shouldClearOperationsIrisOptimisticMessage,
   shouldUseOperationsIrisPollingFallback,
   type OperationsIrisOptimisticMessage,
@@ -62,7 +62,7 @@ import type { OperationOption } from "@/lib/operation-presentation";
 import { PROJECT_SCOPE_LABELS, type ProjectScope } from "@/lib/project-scopes";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
-import { mergeMessageInfoText, parseSessionTextPartEvent } from "@/lib/session-stream";
+import { mergeMessageInfoText } from "@/lib/session-stream";
 import type { ModelSelection, WorkerAgentId } from "@/lib/types/mission";
 import type { MessageInfo } from "@/lib/opencode-session-types";
 import type { Route } from "./+types/route";
@@ -527,12 +527,8 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
   const [irisError, setIrisError] = useState<string | null>(null);
   const [isIrisLoading, setIsIrisLoading] = useState(false);
   const [isIrisSending, setIsIrisSending] = useState(false);
-  const [irisStreamingContent, setIrisStreamingContent] = useState("");
-  const [isIrisLiveUnavailable, setIsIrisLiveUnavailable] = useState(false);
   const operationCustomizationSkill = loaderData.operationCustomizationSkill;
   const irisLoadRequestIdRef = useRef(0);
-  const irisEventSourceRef = useRef<EventSource | null>(null);
-  const irisStreamingMessageIdRef = useRef<string | null>(null);
   const appliedPreviewWorkersKey = loaderData.previewWorkers.join(",");
   const lastAppliedPreviewWorkersKeyRef = useRef(appliedPreviewWorkersKey);
   const operationsIrisContextKey = useMemo(
@@ -649,9 +645,6 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     setIrisOptimisticMessage(null);
     setIrisError(null);
     setIsIrisLoading(false);
-    setIrisStreamingContent("");
-    setIsIrisLiveUnavailable(false);
-    irisStreamingMessageIdRef.current = null;
   }, []);
 
   const requestIrisContextTransition = useCallback((nextContextKey: string): boolean => {
@@ -682,6 +675,29 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     syncIrisContextState(operationsIrisContextKey);
   }, [operationsIrisContextKey, syncIrisContextState]);
 
+  const liveThread = useSessionLiveThread({
+    onTextPartMatched: ({ messageId, text }) => {
+      if (!messageId) {
+        return false;
+      }
+
+      let matchedExistingMessage = false;
+      setIrisMessages((current) =>
+        current.map((message) => {
+          if (message.info.id !== messageId) {
+            return message;
+          }
+
+          matchedExistingMessage = true;
+          return mergeMessageInfoText(message, text);
+        }),
+      );
+
+      return matchedExistingMessage;
+    },
+    sessionId: irisSessionId,
+  });
+
   const loadIrisMessages = useCallback(async (sessionId: string) => {
     const requestId = irisLoadRequestIdRef.current + 1;
     irisLoadRequestIdRef.current = requestId;
@@ -707,11 +723,10 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
         shouldClearOperationsIrisOptimisticMessage(current, nextMessages.length) ? null : current,
       );
       if (
-        irisStreamingMessageIdRef.current &&
-        nextMessages.some((message) => message.info.id === irisStreamingMessageIdRef.current)
+        liveThread.streamingMessageId &&
+        nextMessages.some((message) => message.info.id === liveThread.streamingMessageId)
       ) {
-        irisStreamingMessageIdRef.current = null;
-        setIrisStreamingContent("");
+        liveThread.clearStreaming();
       }
       setIrisError(null);
     } catch (error) {
@@ -725,7 +740,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
         setIsIrisLoading(false);
       }
     }
-  }, []);
+  }, [liveThread.clearStreaming, liveThread.streamingMessageId]);
 
   const sessionStatuses = useSessionStatusFeed({
     enabled: Boolean(irisSessionId),
@@ -744,9 +759,6 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
       setIrisOptimisticMessage(null);
       setIrisError(null);
       setIsIrisLoading(false);
-      setIrisStreamingContent("");
-      setIsIrisLiveUnavailable(false);
-      irisStreamingMessageIdRef.current = null;
       return;
     }
 
@@ -754,85 +766,9 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
   }, [irisSessionId, loadIrisMessages]);
 
   useEffect(() => {
-    if (!irisSessionId || typeof window === "undefined") {
-      return;
-    }
-
-    setIsIrisLiveUnavailable(false);
-
-    const source = new EventSource(`/api/session/${irisSessionId}/events`);
-    irisEventSourceRef.current = source;
-
-    source.onmessage = (event) => {
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(event.data as string) as Record<string, unknown>;
-      } catch {
-        return;
-      }
-
-      const textPartEvent = parseSessionTextPartEvent(parsed);
-      if (textPartEvent && (!textPartEvent.sessionId || textPartEvent.sessionId === irisSessionId)) {
-        if (textPartEvent.messageId) {
-          let matchedExistingMessage = false;
-          setIrisMessages((current) =>
-            current.map((message) => {
-              if (message.info.id !== textPartEvent.messageId) {
-                return message;
-              }
-
-              matchedExistingMessage = true;
-              return mergeMessageInfoText(message, textPartEvent.text);
-            }),
-          );
-
-          if (matchedExistingMessage) {
-            irisStreamingMessageIdRef.current = null;
-            setIrisStreamingContent("");
-            return;
-          }
-        }
-
-        const previousStreamingMessageId = irisStreamingMessageIdRef.current;
-        irisStreamingMessageIdRef.current = textPartEvent.messageId;
-        setIrisStreamingContent((current) =>
-          mergeOperationsIrisStreamingState({
-            currentContent: current,
-            currentMessageId: previousStreamingMessageId,
-            nextMessageId: textPartEvent.messageId,
-            nextText: textPartEvent.text,
-          }).content,
-        );
-        return;
-      }
-
-      const type = typeof parsed.type === "string" ? parsed.type : null;
-      if (type === "session.idle") {
-        irisStreamingMessageIdRef.current = null;
-        setIrisStreamingContent("");
-      }
-    };
-
-    source.onerror = () => {
-      setIsIrisLiveUnavailable(true);
-      source.close();
-      if (irisEventSourceRef.current === source) {
-        irisEventSourceRef.current = null;
-      }
-    };
-
-    return () => {
-      source.close();
-      if (irisEventSourceRef.current === source) {
-        irisEventSourceRef.current = null;
-      }
-    };
-  }, [irisSessionId]);
-
-  useEffect(() => {
     if (
       !shouldUseOperationsIrisPollingFallback({
-        isLiveUnavailable: isIrisLiveUnavailable,
+        isLiveUnavailable: liveThread.isLiveUnavailable,
         sessionId: irisSessionId,
         sessionStatus: irisSessionStatus,
       })
@@ -852,7 +788,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     return () => {
       window.clearInterval(interval);
     };
-  }, [irisSessionId, irisSessionStatus, isIrisLiveUnavailable, loadIrisMessages]);
+  }, [irisSessionId, irisSessionStatus, liveThread.isLiveUnavailable, loadIrisMessages]);
 
   const visibleDrafts = useMemo(
     () => drafts.filter((draft) => draft.scope === scope && draft.targetValue === targetValue),
@@ -1251,7 +1187,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
   );
   const irisRenderSnapshot = useSessionChatRenderSnapshot({
     messages: irisPresentationMessages,
-    streamingText: buildOperationsIrisStreamingText(irisStreamingContent),
+    streamingText: buildOperationsIrisStreamingText(liveThread.streamingContent),
   });
 
   const handleIrisPromptSend = useCallback(async (parts: PromptPart[]) => {
@@ -1284,9 +1220,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
 
     setIrisError(null);
     setIsIrisSending(true);
-    setIrisStreamingContent("");
-    setIsIrisLiveUnavailable(false);
-    irisStreamingMessageIdRef.current = null;
+    liveThread.clearStreaming();
     setIrisOptimisticMessage(
       createOperationsIrisOptimisticMessage({
         baselineMessageCount: irisMessages.length,
@@ -1390,6 +1324,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     userMessage,
     selectedIrisModel,
     irisMessages.length,
+    liveThread,
     operationCustomizationSkill,
   ]);
 

@@ -56,7 +56,7 @@ describe("project-iris-sheet", () => {
       />,
     );
 
-    expect(markup).toContain("Refresh the Projects page manually after Iris completes a registry change.");
+    expect(markup).toContain("The Projects page refreshes automatically after Iris settles a registry change.");
     expect(markup).toContain("Ask Iris to register, rename, refresh, or delete a project");
     expect(markup).toContain("Single shared conversation");
     expect(markup).toContain("enabled");

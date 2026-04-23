@@ -18,12 +18,14 @@ type HookProbeSnapshot = {
   isLoadingHistory: boolean;
   abortSettlementPhase: string;
   messages: string[];
+  streamingContent: string;
   abort: () => Promise<void>;
   send: ReturnType<typeof useAgentSession>["send"];
 };
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
+  closed = false;
 
   onerror: ((this: EventSource, ev: Event) => unknown) | null = null;
   onmessage: ((this: EventSource, ev: MessageEvent<string>) => unknown) | null = null;
@@ -35,7 +37,7 @@ class MockEventSource {
   }
 
   close(): void {
-    // No-op for tests.
+    this.closed = true;
   }
 }
 
@@ -182,16 +184,19 @@ function HookProbe({
   initialMessageInfos,
   initialMissionData,
   onSnapshot,
+  selectedExecutionProjectId,
 }: {
   activeMissionId: string | null;
   initialMessageInfos?: MessageInfo[] | null;
   initialMissionData?: MissionResumePayload | null;
   onSnapshot: (snapshot: HookProbeSnapshot) => void;
+  selectedExecutionProjectId?: string;
 }) {
   const state = useAgentSession({
     activeMissionId,
     initialMessageInfos,
     initialMissionData,
+    selectedExecutionProjectId,
   });
 
   useEffect(() => {
@@ -200,6 +205,7 @@ function HookProbe({
       isLoadingHistory: state.isLoadingHistory,
       abortSettlementPhase: state.abortSettlementPhase,
       messages: state.messages.map((message) => message.content),
+      streamingContent: state.streamingContent,
       abort: state.abort,
       send: state.send,
     });
@@ -210,6 +216,7 @@ function HookProbe({
     state.historyPhase,
     state.isLoadingHistory,
     state.messages,
+    state.streamingContent,
     state.send,
   ]);
 
@@ -338,6 +345,48 @@ describe("useAgentSession", () => {
       historyPhase: "loading",
       isLoadingHistory: true,
       messages: [],
+      streamingContent: "",
+    });
+
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-2/events",
+        ),
+    );
+
+    const sessionTwoEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-2/events",
+    );
+    await waitFor(() => typeof sessionTwoEventSource?.onmessage === "function");
+    const handleSessionTwoMessage = sessionTwoEventSource?.onmessage;
+
+    await act(async () => {
+      handleSessionTwoMessage?.call(
+        sessionTwoEventSource as unknown as EventSource,
+        {
+          data: JSON.stringify({
+            properties: {
+              part: {
+                messageID: "message-2",
+                sessionID: "session-2",
+                text: "Mission two is responding",
+                type: "text",
+              },
+            },
+            type: "message.part.updated",
+          }),
+        } as MessageEvent<string>,
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.streamingContent === "Mission two is responding");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "loading",
+      isLoadingHistory: true,
+      messages: [],
+      streamingContent: "Mission two is responding",
     });
 
     deferredSessionTwo.resolve(
@@ -349,6 +398,171 @@ describe("useAgentSession", () => {
       historyPhase: "ready",
       isLoadingHistory: false,
       messages: ["Mission two reply"],
+      streamingContent: "",
+    });
+  });
+
+  it("resubscribes to the pending primary session after route transition into a newly started mission", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let sessionMessages: MessageInfo[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/mission/start") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { objective?: string };
+        expect(body.objective).toBe("Start mission");
+        return createJsonResponse({
+          missionId: "mission-1",
+          noctisSessionId: "session-1",
+          operationState: null,
+        });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: { "session-1": "busy" },
+        });
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({ messages: sessionMessages });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: null,
+          initialMissionData: null,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+          selectedExecutionProjectId: "core-repo",
+        }),
+      );
+    });
+
+    let missionIdPromise: Promise<string | null> | null = null;
+    await act(async () => {
+      missionIdPromise = latestSnapshot?.send([{ type: "text", text: "Start mission" }]) ?? null;
+      await Promise.resolve();
+    });
+
+    await waitFor(
+      () =>
+        fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/start"),
+    );
+
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events" && !instance.closed,
+        ),
+    );
+
+    const firstSessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events" && !instance.closed,
+    );
+    await waitFor(() => typeof firstSessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      firstSessionEventSource?.onmessage?.call(
+        firstSessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              status: {
+                type: "busy",
+              },
+            },
+            type: "session.status",
+          }),
+        }),
+      );
+    });
+
+    const missionId = await missionIdPromise;
+    expect(missionId).toBe("mission-1");
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: null,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => firstSessionEventSource?.closed === true);
+    await waitFor(
+      () =>
+        MockEventSource.instances.filter(
+          (instance) => instance.url === "/api/session/session-1/events" && !instance.closed,
+        ).length === 1,
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) =>
+        instance.url === "/api/session/session-1/events" &&
+        !instance.closed &&
+        instance !== firstSessionEventSource,
+    );
+    await waitFor(() => typeof sessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              part: {
+                messageID: "message-1",
+                sessionID: "session-1",
+                text: "Mission one is responding",
+                type: "text",
+              },
+            },
+            type: "message.part.updated",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.streamingContent === "Mission one is responding");
+
+    sessionMessages = [createAssistantMessage("message-1", "Mission one reply")];
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              sessionID: "session-1",
+            },
+            type: "session.idle",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission one reply"],
+      streamingContent: "",
     });
   });
 
@@ -538,6 +752,29 @@ describe("useAgentSession", () => {
       );
     });
     await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(() => MockEventSource.instances.length > 0);
+
+    const sessionEventSource = MockEventSource.instances.at(-1);
+    const handleSessionMessage = sessionEventSource?.onmessage;
+    await act(async () => {
+      handleSessionMessage?.call(
+        sessionEventSource as unknown as EventSource,
+        {
+          data: JSON.stringify({
+            properties: {
+              part: {
+                messageID: "message-error-1",
+                sessionID: "session-1",
+                text: "Mission one is responding",
+                type: "text",
+              },
+            },
+            type: "message.part.updated",
+          }),
+        } as MessageEvent<string>,
+      );
+    });
+    await waitFor(() => latestSnapshot?.streamingContent === "Mission one is responding");
 
     await act(async () => {
       await latestSnapshot?.abort();
@@ -548,6 +785,7 @@ describe("useAgentSession", () => {
       isLoadingHistory: false,
       abortSettlementPhase: "settling",
       messages: ["Response interrupted: Aborted"],
+      streamingContent: "",
     });
   });
 

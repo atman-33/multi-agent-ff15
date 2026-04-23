@@ -61,6 +61,7 @@ import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-
 
 interface ChatAreaProps {
   messages: ChatMessage[];
+  streamingContent?: string;
   historyErrorMessage?: string | null;
   historyPhase?: MissionTranscriptPhase;
   abortSettlementPhase?: AbortSettlementPhase;
@@ -479,6 +480,7 @@ MessageBubble.displayName = "MessageBubble";
 
 export const ChatArea = ({
   messages,
+  streamingContent = "",
   historyErrorMessage = null,
   historyPhase = "idle",
   isLoadingHistory = false,
@@ -528,9 +530,22 @@ export const ChatArea = ({
     () => messages.map(toSessionPresentationMessage),
     [messages],
   );
+  const streamingText = useMemo(
+    () =>
+      streamingContent
+        ? {
+            content: streamingContent,
+            fallbackSender: primaryAgentId,
+            fallbackSenderLabel: primaryAgentLabel,
+          }
+        : null,
+    [primaryAgentId, primaryAgentLabel, streamingContent],
+  );
   const renderSnapshot = useSessionChatRenderSnapshot({
     messages: presentationMessages,
+    streamingText,
   });
+  const hasStreamingMessage = renderSnapshot.streamingMessage !== null;
   const inspectability = useConversationUnitInspectability(
     renderSnapshot.inspectabilityBoundaries,
   );
@@ -926,6 +941,7 @@ export const ChatArea = ({
           {renderSnapshot.renderedMessages.map((message, index) => {
             const isLastNoctis =
               isStreaming &&
+              !hasStreamingMessage &&
               message.sender === primaryAgentId &&
               index === renderSnapshot.renderedMessages.length - 1;
             return (
@@ -946,7 +962,20 @@ export const ChatArea = ({
             );
           })}
 
-          {isSessionActive ? (
+          {renderSnapshot.streamingMessage ? (
+            <MessageBubble
+              detailsExpanded={false}
+              expandedDetailEntries={{}}
+              key={renderSnapshot.streamingMessage.conversationUnitId}
+              message={renderSnapshot.streamingMessage}
+              onToggleDetail={inspectability.toggleDetailEntry}
+              onToggleDetails={inspectability.toggleConversationUnit}
+              primaryAgentId={primaryAgentId}
+              showCursor={isStreaming}
+            />
+          ) : null}
+
+          {isSessionActive && !hasStreamingMessage ? (
             <div className="flex items-end gap-2">
               <img
                 alt={primaryAgentLabel}
