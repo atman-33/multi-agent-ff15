@@ -117,9 +117,9 @@ steps:
         3. Do not ask User again for the PRD GitHub issue number. Use `issue_number` from `parent-prd-issue.md` as the parent issue.
         4. Create child issue proposals according to the skill's tracer-bullet rules, and confirm the granularity, dependency structure, and HITL versus AFK classification with User.
         5. Write the child issue proposals, the created child issue titles and bodies, and the body of `child-issues.md` in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested.
-        6. After User approval, create the child issues in dependency order. In each issue body, reference the parent issue and user stories correctly and keep the content consistent with the PRD.
-        7. After completion, summarize the created issues, their dependencies, the parent issue number, and the main covered user stories in `child-issues.md`.
-        8. If the breakdown cannot be agreed on or issue creation fails, stop and state the reason explicitly.
+        6. After User approval, create the child issues in dependency order. In each issue body, reference the parent issue and user stories correctly and keep the content consistent with the PRD. In addition, do not rely on body text alone: set the parent relationship on GitHub, and set blocked by relationships for issues that have dependencies.
+        7. After completion, summarize the created issues, their dependencies, the parent issue number, the main covered user stories, and the actual parent / blocked by relationships that were set in `child-issues.md`.
+        8. If the breakdown cannot be agreed on, issue creation fails, or the required relationships cannot be set, stop and state the reason explicitly.
     output_contracts:
       report:
         - name: child-issues.md

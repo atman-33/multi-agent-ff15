@@ -117,9 +117,9 @@ steps:
         3. PRD GitHub issue number は User に聞き直さず、`parent-prd-issue.md` の `issue_number` を親 issue として使う。
         4. skill の tracer bullet rules に従って child issue 案を作り、粒度、依存関係、HITL と AFK の判定を User に確認する。
         5. child issue 案、User 承認後に作成する child issue title / body、そして `child-issues.md` の本文は User が指定した記述言語、未指定時は `{{ setting("language", "name") }}` で記述する。
-        6. User 承認後に child issue を dependency order で作成する。各 issue の本文では parent issue と user stories を正しく参照し、PRD の内容と矛盾させない。
-        7. 完了後は作成した issue 一覧、依存関係、parent issue 番号、主要にカバーした user stories を `child-issues.md` にまとめる。
-        8. 分解方針に合意できない、または issue 作成に失敗した場合は理由を明示して止まる。
+        6. User 承認後に child issue を dependency order で作成する。各 issue の本文では parent issue と user stories を正しく参照し、PRD の内容と矛盾させない。加えて、本文への記述だけで済ませず、GitHub issue の relationship として親 issue を設定し、依存がある issue には blocked by を設定する。
+        7. 完了後は作成した issue 一覧、依存関係、parent issue 番号、主要にカバーした user stories、そして実際に設定した parent / blocked by relationship を `child-issues.md` にまとめる。
+        8. 分解方針に合意できない、issue 作成に失敗した、または必要な relationship を設定できない場合は理由を明示して止まる。
     output_contracts:
       report:
         - name: child-issues.md
