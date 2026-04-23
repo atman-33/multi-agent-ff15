@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Cpu,
   Crown,
+  Gauge,
   FileText,
   FolderGit2,
   Github,
@@ -99,6 +100,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Debug",
     items: [
       { to: "/loading-lab", icon: Rabbit, label: "Loading Lab", end: true },
+      { to: "/opencode-sdk-lab", icon: Gauge, label: "OpenCode SDK Lab", end: true },
     ],
   },
 ];

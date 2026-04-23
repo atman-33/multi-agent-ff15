@@ -9,7 +9,8 @@ import { deleteMission, getMission } from "@/lib/mission-store";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "@/lib/operation-runtime/state";
 
-const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
+const { appendSessionPromptDebugLogMock, promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
+  appendSessionPromptDebugLogMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
 }));
@@ -21,6 +22,10 @@ vi.mock("@/lib/opencode-client", () => ({
       promptAsync: promptAsyncMock,
     },
   }),
+}));
+
+vi.mock("@/lib/session-prompt-debug.server", () => ({
+  appendSessionPromptDebugLog: appendSessionPromptDebugLogMock,
 }));
 
 import { action as continueAction } from "./api.noctis.mission.continue";
@@ -216,6 +221,7 @@ describe("Noctis mission solo routing", () => {
 
     sessionCreateMock.mockClear();
     promptAsyncMock.mockClear();
+    appendSessionPromptDebugLogMock.mockClear();
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-continue" } });
 
     const response = await continueAction({
@@ -245,5 +251,43 @@ describe("Noctis mission solo routing", () => {
     expect(promptText).toContain("Effective allowed workers: none");
     expect(promptText).not.toContain("noctis-solo");
     expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(appendSessionPromptDebugLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: "api.noctis.mission.continue",
+        stage: "request-received",
+        payload: expect.objectContaining({
+          requestedMissionId: missionId,
+        }),
+      }),
+    );
+    expect(appendSessionPromptDebugLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: "api.noctis.mission.continue",
+        stage: "prompt-dispatched",
+        sessionId: "session-noctis-start",
+        payload: expect.objectContaining({
+          mission: expect.objectContaining({
+            missionId,
+            currentStep: "autonomous",
+            operationRef: buildBuiltinOperationRef("ja", "noctis-autonomous.yaml"),
+            sessionRecreated: false,
+          }),
+        }),
+      }),
+    );
+    expect(appendSessionPromptDebugLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: "api.noctis.mission.continue",
+        stage: "prompt-result",
+        sessionId: "session-noctis-start",
+        payload: expect.objectContaining({
+          error: null,
+          mission: expect.objectContaining({
+            missionId,
+            sessionRecreated: false,
+          }),
+        }),
+      }),
+    );
   });
 });

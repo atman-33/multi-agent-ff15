@@ -230,6 +230,7 @@ export function NoctisTeamScreen({
     speakingAgentId,
     historyErrorMessage,
     historyPhase,
+    abortSettlementPhase,
     isStartingMission,
     isSessionActive,
     isStreaming,
@@ -257,6 +258,7 @@ export function NoctisTeamScreen({
     selectedLunafreyaSkillIds,
   });
   const isMissionStartPending = !effectiveMissionId && isStartingMission;
+  const isAbortSettling = abortSettlementPhase !== "idle";
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
   const effectiveWorkflowProgress =
@@ -1110,9 +1112,12 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
-              isResponding={isMissionStartPending || isSessionActive || isLoadingHistory}
+              isResponding={
+                isMissionStartPending || isSessionActive || isLoadingHistory || isAbortSettling
+              }
               historyErrorMessage={historyErrorMessage}
               historyPhase={historyPhase}
+              abortSettlementPhase={abortSettlementPhase}
               isLoadingHistory={isLoadingHistory}
               isStartingMission={isMissionStartPending}
               isSessionActive={isSessionActive}
@@ -1149,7 +1154,9 @@ export function NoctisTeamScreen({
               onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}
               onSend={handleSend}
-              showAbortAction={isSessionActive && !isLoadingHistory && !isMissionStartPending}
+              showAbortAction={
+                isSessionActive && !isAbortSettling && !isLoadingHistory && !isMissionStartPending
+              }
               showWorkflowSelector={surface.supportsWorkflowSelector}
               headerTitle={
                 isLunafreyaSurface ? "Oracle Mission Surface" : "Regalia Command Center"

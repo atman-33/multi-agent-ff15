@@ -396,6 +396,54 @@ describe("chat-area", () => {
     expect(markup).toContain("send-enabled");
   });
 
+  it("shows abort-settlement feedback while resend is blocked", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="ready"
+        abortSettlementPhase="settling"
+        isResponding={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Stopping Response");
+    expect(markup).toContain("Waiting for the managed session to become idle before sending again.");
+    expect(markup).toContain("send-disabled");
+  });
+
+  it("shows a stronger warning when abort settlement takes longer than usual", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="ready"
+        abortSettlementPhase="delayed"
+        isResponding={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Still Waiting for Session Idle");
+    expect(markup).toContain(
+      "Stopping is taking longer than usual. Keep editing your next prompt; send will re-enable when the managed session becomes idle.",
+    );
+    expect(markup).toContain("send-disabled");
+  });
+
   it("shows operation description tooltips only on select options", () => {
     const markup = renderToStaticMarkup(
       <ChatArea

@@ -16,7 +16,10 @@ type MockResponse = Pick<Response, "json" | "ok" | "status">;
 type HookProbeSnapshot = {
   historyPhase: string;
   isLoadingHistory: boolean;
+  abortSettlementPhase: string;
   messages: string[];
+  abort: () => Promise<void>;
+  send: ReturnType<typeof useAgentSession>["send"];
 };
 
 class MockEventSource {
@@ -195,9 +198,20 @@ function HookProbe({
     onSnapshot({
       historyPhase: state.historyPhase,
       isLoadingHistory: state.isLoadingHistory,
+      abortSettlementPhase: state.abortSettlementPhase,
       messages: state.messages.map((message) => message.content),
+      abort: state.abort,
+      send: state.send,
     });
-  }, [onSnapshot, state.historyPhase, state.isLoadingHistory, state.messages]);
+  }, [
+    onSnapshot,
+    state.abort,
+    state.abortSettlementPhase,
+    state.historyPhase,
+    state.isLoadingHistory,
+    state.messages,
+    state.send,
+  ]);
 
   return null;
 }
@@ -246,6 +260,7 @@ describe("useAgentSession", () => {
       });
     }
     container.remove();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -477,5 +492,281 @@ describe("useAgentSession", () => {
       isLoadingHistory: false,
       messages: ["Mission one reply"],
     });
+  });
+
+  it("enters abort settlement after abort succeeds and before idle is confirmed", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1/abort") {
+        return createJsonResponse({ ok: true });
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({
+          messages: [createAbortedAssistantMessage("message-error-1")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    useChatStore.getState().setServerSessionState("session-1", "busy");
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      await latestSnapshot?.abort();
+    });
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      abortSettlementPhase: "settling",
+      messages: ["Response interrupted: Aborted"],
+    });
+  });
+
+  it("clears abort settlement when runtime polling later confirms idle", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let runtimeStatus: "busy" | null = "busy";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: runtimeStatus ? { "session-1": runtimeStatus } : {},
+        });
+      }
+
+      if (url === "/api/session/session-1/abort") {
+        return createJsonResponse({ ok: true });
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({
+          messages: [createAbortedAssistantMessage("message-error-1")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      await latestSnapshot?.abort();
+    });
+
+    if (!latestSnapshot) {
+      throw new Error("Expected hook snapshot after abort.");
+    }
+
+    const settledSnapshot: HookProbeSnapshot = latestSnapshot;
+    expect(settledSnapshot.abortSettlementPhase).toBe("settling");
+
+    runtimeStatus = null;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      if (!latestSnapshot) {
+        return false;
+      }
+
+      return latestSnapshot.abortSettlementPhase === "idle";
+    });
+  });
+
+  it("escalates abort settlement to delayed after a prolonged wait", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: { "session-1": "busy" },
+        });
+      }
+
+      if (url === "/api/session/session-1/abort") {
+        return createJsonResponse({ ok: true });
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({
+          messages: [createAbortedAssistantMessage("message-error-1")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      await latestSnapshot?.abort();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(10000);
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      if (!latestSnapshot) {
+        return false;
+      }
+
+      return latestSnapshot.abortSettlementPhase === "delayed";
+    });
+  });
+
+  it("keeps resend on the existing mission continue path after abort settlement", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let sessionMessages: MessageInfo[] = [createAssistantMessage("message-1", "Mission one reply")];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1/abort") {
+        sessionMessages = [createAbortedAssistantMessage("message-error-1")];
+        return createJsonResponse({ ok: true });
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        sessionMessages = [createAssistantMessage("message-2", "Follow-up reply")];
+        return createJsonResponse({ noctisSessionId: "session-1" });
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({ messages: sessionMessages });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(() => MockEventSource.instances.length > 0);
+
+    await act(async () => {
+      await latestSnapshot?.abort();
+    });
+
+    const sessionEventSource = MockEventSource.instances.at(-1);
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({ type: "session.idle" }),
+        }),
+      );
+    });
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Retry request" }]);
+    });
+
+    expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/start")).toBe(
+      false,
+    );
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/continue"),
+    ).toBe(true);
   });
 });

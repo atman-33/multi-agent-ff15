@@ -48,6 +48,8 @@ const PROGRESS_BANTER_DELAYS = {
   late: 10500,
 } as const;
 
+const ABORT_SETTLEMENT_DELAY_MS = 10000;
+
 const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
 const SPEAKING_INDICATOR_MS = 980;
 
@@ -192,6 +194,7 @@ function normalizeDelegationLedger(
 }
 
 export type MissionTranscriptPhase = "idle" | "loading" | "ready" | "empty" | "error";
+export type AbortSettlementPhase = "idle" | "settling" | "delayed";
 
 type MissionTranscriptState = {
   errorMessage: string | null;
@@ -475,6 +478,7 @@ export interface UseAgentSessionReturn {
   partyMembers: PartyMember[];
   historyErrorMessage: string | null;
   historyPhase: MissionTranscriptPhase;
+  abortSettlementPhase: AbortSettlementPhase;
   isStartingMission: boolean;
   isSessionActive: boolean;
   isStreaming: boolean;
@@ -578,6 +582,8 @@ export function useAgentSession({
     useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStartingMission, setIsStartingMission] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [abortSettlementPhase, setAbortSettlementPhase] =
+    useState<AbortSettlementPhase>("idle");
   const [transcriptState, setTranscriptState] = useState<MissionTranscriptState>(() =>
     getInitialTranscriptState(
       activeMissionId,
@@ -595,6 +601,7 @@ export function useAgentSession({
   const eventSourceRef = useRef<EventSource | null>(null);
   const workerEventSourcesRef = useRef<Partial<Record<WorkerMemberId, EventSource>>>({});
   const idleTimerRef = useRef<number | null>(null);
+  const abortSettlementTimerRef = useRef<number | null>(null);
   const banterTimelineMissionIdRef = useRef<string | null>(null);
   const banterFeedPresenterRef = useRef<BanterFeedPresenter | null>(null);
   const hasHydratedNoctisSettledRef = useRef(false);
@@ -626,6 +633,27 @@ export function useAgentSession({
   const setOptimisticSessionState = useChatStore((state) => state.setOptimisticSessionState);
   const setPendingMissionSession = useChatStore((state) => state.setPendingMissionSession);
   const clearPendingMissionSession = useChatStore((state) => state.clearPendingMissionSession);
+
+  const clearAbortSettlement = useCallback(() => {
+    if (abortSettlementTimerRef.current) {
+      clearTimeout(abortSettlementTimerRef.current);
+      abortSettlementTimerRef.current = null;
+    }
+
+    setAbortSettlementPhase("idle");
+  }, []);
+
+  const beginAbortSettlement = useCallback(() => {
+    if (abortSettlementTimerRef.current) {
+      clearTimeout(abortSettlementTimerRef.current);
+    }
+
+    setAbortSettlementPhase("settling");
+    abortSettlementTimerRef.current = window.setTimeout(() => {
+      setAbortSettlementPhase((current) => (current === "idle" ? "idle" : "delayed"));
+      abortSettlementTimerRef.current = null;
+    }, ABORT_SETTLEMENT_DELAY_MS);
+  }, []);
 
   if (!banterFeedPresenterRef.current) {
     banterFeedPresenterRef.current = createBanterFeedPresenter({
@@ -961,6 +989,7 @@ export function useAgentSession({
         primaryAgentId,
       )
     );
+    clearAbortSettlement();
     hasHydratedNoctisSettledRef.current = false;
     lastNoctisSettledRef.current = false;
     setIsStreaming(false);
@@ -979,6 +1008,7 @@ export function useAgentSession({
     initialNoctisSessionId,
     initialWorkerSessionIds,
     primaryAgentId,
+    clearAbortSettlement,
   ]);
 
   const scheduleIdleReset = useCallback(() => {
@@ -1172,6 +1202,7 @@ export function useAgentSession({
             setServerSessionState(sessionId, "idle");
             lastSessionStateRef.current = "idle";
             sessionStatusRef.current = "idle";
+            clearAbortSettlement();
             void syncSessionMessages(sessionId).catch(() => undefined);
           }
           streamingMessageIdRef.current = null;
@@ -1186,6 +1217,9 @@ export function useAgentSession({
           if (nextStatus && noctisSessionIdRef.current) {
             setServerSessionState(noctisSessionIdRef.current, nextStatus);
             sessionStatusRef.current = nextStatus;
+            if (nextStatus === "idle") {
+              clearAbortSettlement();
+            }
             resolvePendingActive(noctisSessionIdRef.current, nextStatus);
             if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
               clearProgressBanter(primaryAgentId);
@@ -1203,6 +1237,7 @@ export function useAgentSession({
       };
     },
     [
+      clearAbortSettlement,
       clearProgressBanter,
       handleAgentEvent,
       primaryAgentId,
@@ -1361,12 +1396,17 @@ export function useAgentSession({
       if (nextPrimarySessionId && nextPrimaryStatus) {
         setServerSessionState(nextPrimarySessionId, nextPrimaryStatus);
         sessionStatusRef.current = nextPrimaryStatus;
+        if (nextPrimaryStatus === "idle") {
+          clearAbortSettlement();
+        }
       } else if (shouldPreservePrimaryActive) {
       } else if (nextPrimarySessionId) {
         setServerSessionState(nextPrimarySessionId, "idle");
         sessionStatusRef.current = "idle";
+        clearAbortSettlement();
       } else {
         sessionStatusRef.current = null;
+        clearAbortSettlement();
       }
 
       const nextWorkerSessionIds = toWorkerSessionIds(runtime.sessions);
@@ -1382,6 +1422,7 @@ export function useAgentSession({
     },
     [
       clearPendingMissionSession,
+      clearAbortSettlement,
       isLunafreyaSurface,
       isStreaming,
       pendingMissionSessionId,
@@ -1400,6 +1441,9 @@ export function useAgentSession({
       closeWorkerEventSources();
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
+      }
+      if (abortSettlementTimerRef.current) {
+        clearTimeout(abortSettlementTimerRef.current);
       }
       banterFeedPresenterRef.current?.dispose();
       clearProgressBanter();
@@ -1454,6 +1498,7 @@ export function useAgentSession({
         setWorkerSessionIds(createInitialWorkerSessionIds());
         setDelegationLedger(null);
         setContextUsageByAgent(createInitialContextUsageByAgent());
+        clearAbortSettlement();
         streamingMessageIdRef.current = null;
         setSessionMessages(initialMessages);
         setTranscriptState(createMissionTranscriptState(null, "idle"));
@@ -1585,6 +1630,7 @@ export function useAgentSession({
     primaryAgentId,
     replaceServerSessionStates,
     subscribeToSession,
+    clearAbortSettlement,
   ]);
 
   const send = useCallback(
@@ -1820,8 +1866,8 @@ export function useAgentSession({
 
       streamingMessageIdRef.current = null;
       setIsStreaming(false);
+      beginAbortSettlement();
       clearProgressBanter();
-      setServerSessionState(sessionId, "idle");
       setPartyRuntime(createInitialPartyRuntimeState());
     } catch (err) {
       const errorText = `Unable to stop the current response. ${err instanceof Error ? err.message : String(err)}`;
@@ -1844,7 +1890,7 @@ export function useAgentSession({
       };
       setSessionMessages((prev) => [...prev, errorMessage]);
     }
-  }, [clearProgressBanter, primaryAgentId, setServerSessionState]);
+  }, [beginAbortSettlement, clearProgressBanter, primaryAgentId]);
 
   return {
     messages,
@@ -1854,6 +1900,7 @@ export function useAgentSession({
     partyMembers,
     historyErrorMessage: visibleTranscriptState.errorMessage,
     historyPhase: visibleTranscriptState.phase,
+    abortSettlementPhase,
     isStartingMission,
     isSessionActive,
     isStreaming,

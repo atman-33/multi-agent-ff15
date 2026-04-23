@@ -22,7 +22,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
-import type { MissionTranscriptPhase } from "@/hooks/use-agent-session";
+import type {
+  AbortSettlementPhase,
+  MissionTranscriptPhase,
+} from "@/hooks/use-agent-session";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
 import {
@@ -60,6 +63,7 @@ interface ChatAreaProps {
   messages: ChatMessage[];
   historyErrorMessage?: string | null;
   historyPhase?: MissionTranscriptPhase;
+  abortSettlementPhase?: AbortSettlementPhase;
   isResponding: boolean;
   isLoadingHistory?: boolean;
   isStartingMission?: boolean;
@@ -479,6 +483,7 @@ export const ChatArea = ({
   historyPhase = "idle",
   isLoadingHistory = false,
   isStartingMission = false,
+  abortSettlementPhase = "idle",
   isSessionActive = false,
   isStreaming = false,
   showWorkflowSelector = true,
@@ -516,6 +521,7 @@ export const ChatArea = ({
 }: ChatAreaProps) => {
   const isMissionStartPending = isStartingMission && showExecutionProjectSelector;
   const isTranscriptLoading = historyPhase === "loading";
+  const isAbortSettling = abortSettlementPhase !== "idle";
   const isTranscriptEmpty = historyPhase === "empty";
   const isTranscriptError = historyPhase === "error";
   const presentationMessages = useMemo(
@@ -655,6 +661,28 @@ export const ChatArea = ({
       </p>
     </div>
   ) : null;
+  const abortSettlementCallout = isAbortSettling ? (
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      className={cn(
+        "rounded-xl border px-3 py-2.5",
+        abortSettlementPhase === "delayed"
+          ? "border-amber-400/30 bg-amber-400/10"
+          : "border-primary/20 bg-primary/8",
+      )}
+      role="status"
+    >
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-foreground/80">
+        {abortSettlementPhase === "delayed" ? "Still Waiting for Session Idle" : "Stopping Response"}
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-foreground/80">
+        {abortSettlementPhase === "delayed"
+          ? "Stopping is taking longer than usual. Keep editing your next prompt; send will re-enable when the managed session becomes idle."
+          : "Waiting for the managed session to become idle before sending again."}
+      </p>
+    </div>
+  ) : null;
   const workflowSelector = (
     <Select
       disabled={isOperationSelectionLocked || isMissionStartPending}
@@ -715,87 +743,25 @@ export const ChatArea = ({
         <PromptComposer
           onSend={onSend}
           onAbort={onAbort}
-          disableSendAction={isMissionStartPending || isTranscriptLoading}
+          disableSendAction={isMissionStartPending || isTranscriptLoading || isAbortSettling}
           showAbortAction={showAbortAction}
           topSlot={
-            showExecutionProjectSelector ? (
-              <div className="space-y-3">
-                {missionStartPendingCallout}
-                <div className={cn("grid gap-3", showWorkflowSelector && "sm:grid-cols-2")}>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                        Execution Project
-                      </p>
-                      {executionProjectHint ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              aria-label="Execution project help"
-                              className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
-                              size="icon"
-                              type="button"
-                              variant="ghost"
-                            >
-                              <Info className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
-                            {executionProjectHint}
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : null}
-                    </div>
-                    <Select
-                      disabled={isMissionStartPending}
-                      value={selectedExecutionProjectId ?? undefined}
-                      onValueChange={onSelectedExecutionProjectChange}
-                    >
-                      <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-                        <SelectValue placeholder="Choose a project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {executionProjectOptions.map((project) => (
-                          <SelectItem key={project.value} value={project.value}>
-                            {project.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {executionProjectError ? (
-                      <p className="text-[11px] text-destructive">{executionProjectError}</p>
-                    ) : null}
-                  </div>
-
-                  {showWorkflowSelector ? (
+            <div className="space-y-3">
+              {abortSettlementCallout}
+              {showExecutionProjectSelector ? (
+                <div className="space-y-3">
+                  {missionStartPendingCallout}
+                  <div className={cn("grid gap-3", showWorkflowSelector && "sm:grid-cols-2")}>
                     <div className="space-y-1">
-                      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                        Operation
-                      </p>
-                      {workflowSelector}
-                    </div>
-                  ) : null}
-                </div>
-
-                {contextProjects.length > 0 || (contextActionLabel && onContextAction) ? (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background/40 px-3 py-2">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                        Context
-                      </p>
-                      <ContextProjectBadges projects={contextProjects} />
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {onSelectedExecutionTargetModeChange ? (
-                        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-                            {EXECUTION_MODE_TOGGLE_LABEL}
-                          </span>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                          Execution Project
+                        </p>
+                        {executionProjectHint ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                aria-label="Execution mode help"
+                                aria-label="Execution project help"
                                 className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
                                 size="icon"
                                 type="button"
@@ -805,74 +771,139 @@ export const ChatArea = ({
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
-                              {EXECUTION_MODE_TOOLTIP_COPY}
+                              {executionProjectHint}
                             </TooltipContent>
                           </Tooltip>
-                          <Switch
-                            aria-label="Toggle dedicated workspace"
-                            checked={selectedExecutionTargetMode === "mission_workspace"}
-                            disabled={isMissionStartPending}
-                            onCheckedChange={(checked) =>
-                              onSelectedExecutionTargetModeChange(
-                                checked ? "mission_workspace" : "execution_project",
-                              )
-                            }
-                          />
-                        </div>
-                      ) : null}
-
-                      {contextActionLabel && onContextAction ? (
-                        <MissionContextActionButton label={contextActionLabel} onClick={onContextAction} />
+                        ) : null}
+                      </div>
+                      <Select
+                        disabled={isMissionStartPending}
+                        value={selectedExecutionProjectId ?? undefined}
+                        onValueChange={onSelectedExecutionProjectChange}
+                      >
+                        <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                          <SelectValue placeholder="Choose a project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {executionProjectOptions.map((project) => (
+                            <SelectItem key={project.value} value={project.value}>
+                              {project.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {executionProjectError ? (
+                        <p className="text-[11px] text-destructive">{executionProjectError}</p>
                       ) : null}
                     </div>
+
+                    {showWorkflowSelector ? (
+                      <div className="space-y-1">
+                        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                          Operation
+                        </p>
+                        {workflowSelector}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            ) : isOperationSelectionLocked ? (
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {missionExecutionLabel ? (
-                    <span className={startedMissionChipClass}>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                        Execution
-                      </span>
-                      <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
-                    </span>
-                  ) : null}
-                  <div className={startedMissionChipClass}>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                      Context
-                    </span>
-                    <ContextProjectBadges projects={contextProjects} tone="mission" />
-                  </div>
-                  {showWorkflowSelector ? (
-                    <span className={startedMissionChipClass}>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
-                        Operation
-                      </span>
-                      <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
-                    </span>
+
+                  {contextProjects.length > 0 || (contextActionLabel && onContextAction) ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background/40 px-3 py-2">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                          Context
+                        </p>
+                        <ContextProjectBadges projects={contextProjects} />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {onSelectedExecutionTargetModeChange ? (
+                          <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-2.5 py-1">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+                              {EXECUTION_MODE_TOGGLE_LABEL}
+                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  aria-label="Execution mode help"
+                                  className="h-4 w-4 rounded-full border border-border/50 p-0 font-mono text-[10px] text-muted-foreground/80"
+                                  size="icon"
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  <Info className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+                                {EXECUTION_MODE_TOOLTIP_COPY}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Switch
+                              aria-label="Toggle dedicated workspace"
+                              checked={selectedExecutionTargetMode === "mission_workspace"}
+                              disabled={isMissionStartPending}
+                              onCheckedChange={(checked) =>
+                                onSelectedExecutionTargetModeChange(
+                                  checked ? "mission_workspace" : "execution_project",
+                                )
+                              }
+                            />
+                          </div>
+                        ) : null}
+
+                        {contextActionLabel && onContextAction ? (
+                          <MissionContextActionButton label={contextActionLabel} onClick={onContextAction} />
+                        ) : null}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
+              ) : isOperationSelectionLocked ? (
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {missionExecutionLabel ? (
+                      <span className={startedMissionChipClass}>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                          Execution
+                        </span>
+                        <span className="truncate font-semibold text-foreground">{missionExecutionLabel}</span>
+                      </span>
+                    ) : null}
+                    <div className={startedMissionChipClass}>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                        Context
+                      </span>
+                      <ContextProjectBadges projects={contextProjects} tone="mission" />
+                    </div>
+                    {showWorkflowSelector ? (
+                      <span className={startedMissionChipClass}>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                          Operation
+                        </span>
+                        <span className="truncate font-semibold text-foreground">{operationBadgeLabel}</span>
+                      </span>
+                    ) : null}
+                  </div>
 
-                {missionActionLabel && onMissionAction ? (
-                  <MissionContextActionButton label={missionActionLabel} onClick={onMissionAction} />
-                ) : null}
-              </div>
-            ) : showWorkflowSelector ? (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
-                    Operation
-                  </p>
-                  <p className="text-xs text-muted-foreground/75">
-                    {`${defaultOperation.label} is selected unless you choose another operation.`}
-                  </p>
+                  {missionActionLabel && onMissionAction ? (
+                    <MissionContextActionButton label={missionActionLabel} onClick={onMissionAction} />
+                  ) : null}
                 </div>
+              ) : showWorkflowSelector ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/65">
+                      Operation
+                    </p>
+                    <p className="text-xs text-muted-foreground/75">
+                      {`${defaultOperation.label} is selected unless you choose another operation.`}
+                    </p>
+                  </div>
 
-                <div className="w-full sm:max-w-56">{workflowSelector}</div>
-              </div>
-            ) : null
+                  <div className="w-full sm:max-w-56">{workflowSelector}</div>
+                </div>
+              ) : null}
+            </div>
           }
           footerStart={
             <div className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">

@@ -112,6 +112,7 @@ vi.mock("./chat-area", () => ({
     showAbortAction,
     historyErrorMessage,
     historyPhase,
+    abortSettlementPhase,
     workflowProgress,
     showWorkflowSelector,
     primaryAgentId,
@@ -131,6 +132,7 @@ vi.mock("./chat-area", () => ({
     showAbortAction?: boolean;
     historyErrorMessage?: string | null;
     historyPhase?: string | null;
+    abortSettlementPhase?: string | null;
     showWorkflowSelector?: boolean;
     primaryAgentId?: string | null;
     headerTitle?: string | null;
@@ -147,6 +149,7 @@ vi.mock("./chat-area", () => ({
       <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
       <div>{`history-phase:${historyPhase ?? "none"}`}</div>
+      <div>{`abort-settlement:${abortSettlementPhase ?? "idle"}`}</div>
       {historyErrorMessage ? <div>{`history-error:${historyErrorMessage}`}</div> : null}
       <div>{`workflow-selector:${showWorkflowSelector === false ? "no" : "yes"}`}</div>
       <div>{`primary-agent:${primaryAgentId ?? "none"}`}</div>
@@ -368,6 +371,44 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("mission-start:yes");
+    expect(markup).toContain("abort-action:no");
+  });
+
+  it("suppresses abort actions while abort settlement is still pending", () => {
+    agentSessionStateMock.mockReturnValue({
+      messages: [],
+      banterEntries: [],
+      latestBanterEntryId: null,
+      partyMembers: [],
+      speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "ready",
+      abortSettlementPhase: "settling",
+      isStartingMission: false,
+      isSessionActive: true,
+      isStreaming: false,
+      isLoadingHistory: false,
+      availableOperations: [],
+      selectedOperation: null,
+      activeOperationState: null,
+      workflowProgress: null,
+      activityLog: [],
+      primaryContextUsage: null,
+      isOperationSelectionLocked: true,
+      setSelectedOperation: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(),
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("abort-settlement:settling");
     expect(markup).toContain("abort-action:no");
   });
 
