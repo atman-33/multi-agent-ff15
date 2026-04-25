@@ -20,6 +20,15 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Document title shown in the markdown file",
     )
+    output_group = parser.add_mutually_exclusive_group(required=True)
+    output_group.add_argument(
+        "--output-path",
+        help="Exact markdown file path to write",
+    )
+    output_group.add_argument(
+        "--output-dir",
+        help="Directory where a dated markdown file should be created",
+    )
     return parser.parse_args()
 
 
@@ -46,12 +55,17 @@ def build_output_path(base_dir: Path, slug: str) -> Path:
         counter += 1
 
 
-def resolve_report_dir(script_path: Path) -> Path:
-    for parent in script_path.parents:
-        if (parent / ".git").exists():
-            return parent / "docs" / "reports"
+def expand_cli_path(raw_path: str) -> Path:
+    path = Path(raw_path).expanduser()
+    return path if path.is_absolute() else Path.cwd() / path
 
-    raise FileNotFoundError("Could not locate the repository root from the script path.")
+
+def resolve_output_path(args: argparse.Namespace, slug: str) -> Path:
+    if args.output_path:
+        return expand_cli_path(args.output_path)
+
+    output_dir = expand_cli_path(args.output_dir)
+    return build_output_path(output_dir, slug)
 
 
 def build_content(title: str, file_name: str) -> str:
@@ -131,16 +145,14 @@ def build_content(title: str, file_name: str) -> str:
 
 def main() -> None:
     args = parse_args()
-    output_dir = resolve_report_dir(Path(__file__).resolve())
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     slug = normalize_slug(args.slug)
-    output_path = build_output_path(output_dir, slug)
+    output_path = resolve_output_path(args, slug)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         build_content(title=args.title.strip(), file_name=output_path.name),
         encoding="utf-8",
     )
-    print(output_path)
+    print(output_path.resolve())
 
 
 if __name__ == "__main__":

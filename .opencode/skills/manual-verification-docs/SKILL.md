@@ -5,19 +5,20 @@ description: Organize post-implementation manual verification steps and expected
 
 # Manual Verification Docs
 
-Create a human-friendly manual verification guide for AI-agent changes and store it as Markdown in `docs/reports/`.
+Create a human-friendly manual verification guide for AI-agent changes at a caller-specified Markdown path.
 
 ## Quick start
 
 1. Collect the implementation scope, changed files, intended users, and impact area.
-2. Run the scaffold generator.
+2. Decide the output location with the caller. When used inside an operation, prefer the mission-scoped output file path from the step output contract. When used standalone, pass either an explicit output path or an output directory.
+3. Run the scaffold generator.
 
 ```bash
-python3 .opencode/skills/manual-verification-docs/scripts/create_verification_doc.py --slug <topic> --title "<verification target>"
+python3 .opencode/skills/manual-verification-docs/scripts/create_verification_doc.py --slug <topic> --title "<verification target>" --output-path <path>
 ```
 
-3. Fill in the generated `docs/reports/YYYYMMDD-*.md` file with checklist items, expected results, evidence notes, and open items.
-4. Share the created file path with the user and confirm that no important scenarios are missing.
+4. Fill in the generated Markdown file with checklist items, expected results, evidence notes, and open items.
+5. Share the created file path with the user and confirm that no important scenarios are missing.
 
 ## Workflow
 
@@ -30,8 +31,8 @@ python3 .opencode/skills/manual-verification-docs/scripts/create_verification_do
 ### 2. Generate the scaffold
 
 - Use lowercase kebab-case for `--slug`.
-- Always write the generated file to `docs/reports/`.
-- Keep the file name in `YYYYMMDD-xxx.md` format.
+- If the caller provides `--output-path`, write exactly that file and do not create a second copy anywhere else.
+- If the caller provides `--output-dir`, create a dated file in `YYYYMMDD-xxx.md` format inside that directory.
 
 ### 3. Make the guide concrete
 
@@ -45,19 +46,21 @@ python3 .opencode/skills/manual-verification-docs/scripts/create_verification_do
 
 - Confirm that the intended verification environment matches reality.
 - Check for missing happy paths, error paths, and permission scenarios.
-- If needed, add another file instead of overwriting an existing one.
+- If the caller gave an exact output path, update that file rather than creating another copy.
+- If the caller gave only an output directory, add another dated file only when a separate guide is truly needed.
 
 ## Rules
 
-- Write every file in this skill and every generated verification document in English.
+- Write this skill file, examples, and script-facing text in English.
+- Write the generated verification document in the caller-requested language, and default to English only when no language was specified.
 - Describe reproducible verification steps, not implementation internals.
 - Use checklist items for actionable verification work.
 - Include a matching expected result for every checklist item.
 - Leave space for evidence, notes, or blockers under each checklist item.
-- Place the output in `docs/reports/`.
-- Create a new dated file even when regenerating on the same day.
+- Use only the caller-specified output path or output directory.
+- Do not create duplicate copies in another workspace, repository, or reports directory unless the caller explicitly asks for more than one file.
 
 ## Output
 
-- Output directory: `docs/reports/`
+- Output location: caller-specified via `--output-path` or `--output-dir`
 - Scaffold generator: `.opencode/skills/manual-verification-docs/scripts/create_verification_doc.py`

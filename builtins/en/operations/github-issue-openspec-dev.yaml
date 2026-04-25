@@ -91,9 +91,14 @@ steps:
 
         1. Use the workflow and scaffold from `.opencode/skills/manual-verification-docs/SKILL.md` to create a user-facing manual verification document.
         2. Determine the target scope from the implementation diff, the change information in `{{ output("spec-planning", "latest", "spec-plan.md") }}`, and, if needed, the findings in `{{ output("review", "latest", "code-review.md") }}`.
-        3. Write the output under `{{ root("app_root") }}/docs/reports/`. Do not place it on the execution root side.
-        4. Follow the skill's structuring rules, but write the generated document body in `{{ setting("language", "name") }}`.
-        5. After creation, report a summary of the generated file path, target scope, and main scenarios.
+          3. Create exactly one manual verification document at the mission-scoped file path specified by this step's output contract. Do not create duplicate copies in the app repository or execution workspace.
+          4. Follow the skill's structuring rules, but write the generated document body in `{{ setting("language", "name") }}`.
+          5. After creation, report a summary of the generated file path, target scope, and main scenarios.
+      output_contracts:
+        report:
+          - name: manual-verification.md
+            format:
+              file: ../facets/output-contracts/manual-verification.md
     rules:
       - condition: Manual verification document created
         next: COMPLETE
