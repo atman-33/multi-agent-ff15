@@ -34,6 +34,8 @@ npm run dev
 
 Your application will be available at `http://localhost:5173`.
 
+When launched from the repository root via `npm run web:dev`, the runtime also records the active origin in `runtime/web-server.json` so mission helper scripts can target the correct server automatically.
+
 ## Building for Production
 
 Create a production build:

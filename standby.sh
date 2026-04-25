@@ -567,7 +567,7 @@ open_browser() {
 start_server() {
     local start_command
 
-    start_command="cd '$SCRIPT_DIR/web' && PORT='$WEB_PORT' npm run start"
+    start_command="cd '$SCRIPT_DIR' && npm run web:start -- --port '$WEB_PORT'"
 
     if command -v setsid >/dev/null 2>&1; then
         setsid bash -lc "$start_command" > "$WEB_LOG" 2>&1 < /dev/null &
