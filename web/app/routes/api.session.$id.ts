@@ -27,6 +27,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     const messages = sanitizeSessionMessages(
       (result.data ?? []) as RawSessionMessage[],
       anchors,
+      { detailState: "summary" },
     );
 
     return Response.json({ executionContext, messages });

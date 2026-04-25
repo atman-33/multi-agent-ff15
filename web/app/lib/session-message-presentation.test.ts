@@ -483,6 +483,43 @@ Implemented the requested change.
     expect(rendered[1]?.messageDisplay.displayContent).toBe("普通、集中");
   });
 
+  it("keeps summary-only tool activity out of the visible message body", () => {
+    const rendered = buildRenderedSessionMessages(
+      toSessionPresentationMessages([
+        {
+          info: {
+            id: "assistant-summary-tool-1",
+            role: "assistant",
+            agent: "noctis",
+            time: { created: Date.parse("2026-04-26T10:00:00.000Z") },
+          },
+          detailState: "summary",
+          summary: {
+            content: "",
+            detailContent: [
+              "## Tool 1: serena_read_memory",
+              "",
+              "- Status: completed",
+            ].join("\n"),
+            rawText: "",
+          },
+          parts: [
+            {
+              type: "tool",
+              tool: "serena_read_memory",
+              state: { status: "completed" },
+            },
+          ],
+        },
+      ]),
+    );
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.intermediateOnly).toBe(true);
+    expect(rendered[0]?.messageDisplay.displayContent).toBe("Tool activity: 1 event.");
+    expect(rendered[0]?.detailRawText).toContain("serena_read_memory");
+  });
+
   it("keeps opencode and noctis-team aligned for the same session history", () => {
     const rawPrompt = `
 <operation-prompt>

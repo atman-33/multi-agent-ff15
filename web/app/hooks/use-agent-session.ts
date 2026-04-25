@@ -56,6 +56,11 @@ const PROGRESS_BANTER_DELAYS = {
 } as const;
 
 const ABORT_SETTLEMENT_DELAY_MS = 10000;
+const MISSION_RUNTIME_RECOVERY_POLL_MS = 2000;
+const MISSION_RUNTIME_SETTLING_POLL_MS = 4000;
+const MISSION_RUNTIME_ACTIVE_POLL_MS = 10000;
+const MISSION_RUNTIME_IDLE_POLL_MS = 15000;
+const MISSION_RUNTIME_HIDDEN_POLL_MS = 30000;
 
 const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
 const SPEAKING_INDICATOR_MS = 980;
@@ -128,6 +133,203 @@ function toWorkerSessionIds(sessions?: MissionResumePayload["sessions"] | null):
 
 function areWorkerSessionIdsEqual(left: WorkerSessionIds, right: WorkerSessionIds): boolean {
   return WORKER_PARTY_MEMBERS.every((member) => left[member.id] === right[member.id]);
+}
+
+function areActivitySourcesEqual(
+  left: MissionActivityLogEntry["source"] | undefined,
+  right: MissionActivityLogEntry["source"] | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    left.type === right.type &&
+    left.sessionId === right.sessionId &&
+    left.messageId === right.messageId &&
+    left.taskId === right.taskId &&
+    left.next === right.next &&
+    left.reportStatus === right.reportStatus &&
+    left.deliveryStatus === right.deliveryStatus
+  );
+}
+
+function areMissionActivityLogsEqual(
+  left: MissionActivityLogEntry[],
+  right: MissionActivityLogEntry[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((entry, index) => {
+      const candidate = right[index];
+      return (
+        !!candidate &&
+        entry.id === candidate.id &&
+        entry.actor === candidate.actor &&
+        entry.speaker === candidate.speaker &&
+        entry.kind === candidate.kind &&
+        entry.body === candidate.body &&
+        entry.createdAt === candidate.createdAt &&
+        areActivitySourcesEqual(entry.source, candidate.source)
+      );
+    })
+  );
+}
+
+function areOperationStatesEqual(
+  left: OperationState | null,
+  right: OperationState | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    left.operationRef === right.operationRef &&
+    left.updatedAt === right.updatedAt &&
+    left.status === right.status &&
+    left.currentStep === right.currentStep &&
+    left.iteration === right.iteration
+  );
+}
+
+function areWorkflowProgressEqual(
+  left: MissionWorkflowProgress | null,
+  right: MissionWorkflowProgress | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    left.workflowLabel === right.workflowLabel &&
+    left.currentStep === right.currentStep &&
+    left.currentStepIndex === right.currentStepIndex &&
+    left.totalSteps === right.totalSteps &&
+    left.status === right.status &&
+    left.updatedAt === right.updatedAt &&
+    left.visitCount === right.visitCount &&
+    left.isTerminal === right.isTerminal
+  );
+}
+
+function areDelegationLedgersEqual(
+  left: DelegationLedger | null,
+  right: DelegationLedger | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return left === right;
+  }
+
+  const leftSummaryKeys = Object.keys(left.completedSummaries);
+  const rightSummaryKeys = Object.keys(right.completedSummaries);
+
+  return (
+    left.missionId === right.missionId &&
+    left.activeTasks.length === right.activeTasks.length &&
+    left.activeTasks.every((task, index) => {
+      const candidate = right.activeTasks[index];
+      return (
+        !!candidate &&
+        task.id === candidate.id &&
+        task.assignedTo === candidate.assignedTo &&
+        task.status === candidate.status
+      );
+    }) &&
+    leftSummaryKeys.length === rightSummaryKeys.length &&
+    leftSummaryKeys.every(
+      (key) => right.completedSummaries[key] === left.completedSummaries[key],
+    )
+  );
+}
+
+const CONTEXT_USAGE_AGENT_IDS = [
+  "noctis",
+  "lunafreya",
+  "ignis",
+  "gladiolus",
+  "prompto",
+] as const;
+
+function areContextUsageEntriesEqual(
+  left: AgentContextUsage | null,
+  right: AgentContextUsage | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    left.calculatedAt === right.calculatedAt &&
+    left.providerID === right.providerID &&
+    left.modelID === right.modelID &&
+    left.windowTokens === right.windowTokens &&
+    left.usedTokens === right.usedTokens &&
+    left.remainingTokens === right.remainingTokens
+  );
+}
+
+function areContextUsageByAgentEqual(
+  left: ReturnType<typeof createInitialContextUsageByAgent>,
+  right: ReturnType<typeof createInitialContextUsageByAgent>,
+): boolean {
+  return CONTEXT_USAGE_AGENT_IDS.every((agentId) =>
+    areContextUsageEntriesEqual(left[agentId], right[agentId]),
+  );
+}
+
+function getMissionRuntimePollInterval({
+  abortSettlementPhase,
+  hasActiveDelegation,
+  isDocumentVisible,
+  isPrimaryStreamConnected,
+  isSessionActive,
+  isStreaming,
+}: {
+  abortSettlementPhase: AbortSettlementPhase;
+  hasActiveDelegation: boolean;
+  isDocumentVisible: boolean;
+  isPrimaryStreamConnected: boolean;
+  isSessionActive: boolean;
+  isStreaming: boolean;
+}): number {
+  if (!isDocumentVisible) {
+    return MISSION_RUNTIME_HIDDEN_POLL_MS;
+  }
+
+  if (!isPrimaryStreamConnected) {
+    return MISSION_RUNTIME_RECOVERY_POLL_MS;
+  }
+
+  if (abortSettlementPhase !== "idle") {
+    return MISSION_RUNTIME_SETTLING_POLL_MS;
+  }
+
+  if (isStreaming || isSessionActive || hasActiveDelegation) {
+    return MISSION_RUNTIME_ACTIVE_POLL_MS;
+  }
+
+  return MISSION_RUNTIME_IDLE_POLL_MS;
 }
 
 function createInitialWorkerSessionStates(): Record<WorkerMemberId, SessionStatus | null> {
@@ -329,6 +531,7 @@ function mergeRuntimeSessionMessages(
       ...message,
       content: existing.content,
       detailContent: existing.detailContent ?? message.detailContent,
+      detailState: existing.detailState === "full" ? "full" : message.detailState,
       rawText: existing.rawText ?? message.rawText,
       parts: existing.parts && existing.parts.length > 0 ? existing.parts : message.parts,
     };
@@ -360,6 +563,7 @@ function toSessionChatMessages(
       kind: message.kind,
       content: message.content,
       detailContent: message.detailContent,
+      detailState: message.detailState,
       rawText: message.rawText,
       parts: message.parts,
       timestamp: message.timestamp,
@@ -486,6 +690,7 @@ export interface UseAgentSessionOptions {
 }
 
 export interface UseAgentSessionReturn {
+  sessionId: string | null;
   messages: ChatMessage[];
   liveDraft: SessionLiveDraft | null;
   streamingMessageId: string | null;
@@ -593,13 +798,17 @@ export function useAgentSession({
   const [partyRuntime, setPartyRuntime] = useState<PartyRuntimeState>(
     createInitialPartyRuntimeState
   );
-  const [_delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
+  const [delegationLedger, setDelegationLedger] = useState<DelegationLedger | null>(null);
   const [contextUsageByAgent, setContextUsageByAgent] = useState(createInitialContextUsageByAgent);
   const [noctisSessionId, setNoctisSessionId] = useState<string | null>(initialNoctisSessionId);
   const [workerSessionIds, setWorkerSessionIds] =
     useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStartingMission, setIsStartingMission] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isPrimaryStreamConnected, setIsPrimaryStreamConnected] = useState(false);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState !== "hidden",
+  );
   const [liveDraft, setLiveDraft] = useState<SessionLiveDraft | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [abortSettlementPhase, setAbortSettlementPhase] =
@@ -647,6 +856,9 @@ export function useAgentSession({
   const progressTimersRef = useRef<
     Partial<Record<string, Partial<Record<"early" | "late", ReturnType<typeof setTimeout>>>>>
   >({});
+  const runtimeRefreshInFlightRef = useRef(false);
+  const runtimeRefreshQueuedRef = useRef(false);
+  const refreshMissionRuntimeRef = useRef<(() => Promise<void>) | null>(null);
 
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setServerSessionState = useChatStore((state) => state.setServerSessionState);
@@ -992,6 +1204,7 @@ export function useAgentSession({
 
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
+    setIsPrimaryStreamConnected(false);
     closeWorkerEventSources();
 
     const nextPrimarySessionId =
@@ -1223,10 +1436,16 @@ export function useAgentSession({
         eventSourceRef.current.close();
       }
 
+      setIsPrimaryStreamConnected(false);
       const es = new EventSource(`/api/session/${sessionId}/events`);
       eventSourceRef.current = es;
 
+      es.onopen = () => {
+        setIsPrimaryStreamConnected(true);
+      };
+
       es.onmessage = (e: MessageEvent) => {
+        setIsPrimaryStreamConnected(true);
         let parsed: Record<string, unknown>;
         try {
           parsed = JSON.parse(e.data) as Record<string, unknown>;
@@ -1281,8 +1500,10 @@ export function useAgentSession({
       };
 
       es.onerror = () => {
+        setIsPrimaryStreamConnected(false);
         setIsStreaming(false);
         clearProgressBanter();
+        void refreshMissionRuntimeRef.current?.();
       };
     },
     [
@@ -1359,10 +1580,25 @@ export function useAgentSession({
       const delegationLedger = normalizeDelegationLedger(runtime.missionId, runtime.delegationLedger);
 
       missionIdRef.current = runtime.missionId;
-      setActiveOperationState(runtime.operationState ?? null);
-      setWorkflowProgress(runtime.workflowProgress ?? null);
-      setActivityLog(runtime.activityLog ?? []);
-      setSelectedOperation(runtime.operationState?.operationRef ?? null);
+      setActiveOperationState((current) =>
+        areOperationStatesEqual(current, runtime.operationState ?? null)
+          ? current
+          : (runtime.operationState ?? null),
+      );
+      setWorkflowProgress((current) =>
+        areWorkflowProgressEqual(current, runtime.workflowProgress ?? null)
+          ? current
+          : (runtime.workflowProgress ?? null),
+      );
+      setActivityLog((current) =>
+        areMissionActivityLogsEqual(current, runtime.activityLog ?? [])
+          ? current
+          : (runtime.activityLog ?? []),
+      );
+      setSelectedOperation((current) => {
+        const nextSelectedOperation = runtime.operationState?.operationRef ?? null;
+        return current === nextSelectedOperation ? current : nextSelectedOperation;
+      });
 
       const nextPrimarySessionId = getMissionPrimarySessionIdFromPayload(runtime);
       const optimisticPrimaryStatus = nextPrimarySessionId
@@ -1401,6 +1637,7 @@ export function useAgentSession({
         } else {
           eventSourceRef.current?.close();
           eventSourceRef.current = null;
+          setIsPrimaryStreamConnected(false);
           setSessionMessages([]);
           clearStreamingState();
           setTranscriptState(createMissionTranscriptState(transcriptMissionId, "empty"));
@@ -1418,7 +1655,9 @@ export function useAgentSession({
           ? current
           : nextWorkerSessionIds;
       });
-      setDelegationLedger(delegationLedger);
+      setDelegationLedger((current) =>
+        areDelegationLedgersEqual(current, delegationLedger) ? current : delegationLedger,
+      );
       syncPersistedBanterTimeline(runtime.banterTimeline ?? []);
       if (!hasHydratedNoctisSettledRef.current) {
         hasHydratedNoctisSettledRef.current = true;
@@ -1433,13 +1672,18 @@ export function useAgentSession({
       } else {
         lastNoctisSettledRef.current = isPrimarySettled;
       }
-      setContextUsageByAgent({
+      const nextContextUsageByAgent = {
         noctis: runtime.contextUsageByAgent?.noctis ?? null,
         lunafreya: runtime.contextUsageByAgent?.lunafreya ?? null,
         ignis: runtime.contextUsageByAgent?.ignis ?? null,
         gladiolus: runtime.contextUsageByAgent?.gladiolus ?? null,
         prompto: runtime.contextUsageByAgent?.prompto ?? null,
-      });
+      };
+      setContextUsageByAgent((current) =>
+        areContextUsageByAgentEqual(current, nextContextUsageByAgent)
+          ? current
+          : nextContextUsageByAgent,
+      );
 
       const nextPrimaryStatus = nextPrimarySessionId
         ? runtime.sessionStatuses[nextPrimarySessionId]
@@ -1488,6 +1732,63 @@ export function useAgentSession({
     ]
   );
 
+  const refreshMissionRuntime = useCallback(async () => {
+    if (!activeMissionId) {
+      return;
+    }
+
+    if (runtimeRefreshInFlightRef.current) {
+      runtimeRefreshQueuedRef.current = true;
+      return;
+    }
+
+    runtimeRefreshInFlightRef.current = true;
+
+    try {
+      const runtime = await loadMissionRuntimeSnapshot(activeMissionId, missionRouteBase);
+      if (runtime.missionId !== activeMissionIdRef.current) {
+        return;
+      }
+
+      applyMissionRuntimeSnapshot(runtime);
+    } catch {
+      // Ignore transient mission runtime failures.
+    } finally {
+      runtimeRefreshInFlightRef.current = false;
+
+      if (runtimeRefreshQueuedRef.current) {
+        runtimeRefreshQueuedRef.current = false;
+        void refreshMissionRuntimeRef.current?.();
+      }
+    }
+  }, [activeMissionId, applyMissionRuntimeSnapshot, missionRouteBase]);
+
+  useEffect(() => {
+    refreshMissionRuntimeRef.current = refreshMissionRuntime;
+
+    return () => {
+      if (refreshMissionRuntimeRef.current === refreshMissionRuntime) {
+        refreshMissionRuntimeRef.current = null;
+      }
+    };
+  }, [refreshMissionRuntime]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState !== "hidden";
+      setIsDocumentVisible(visible);
+
+      if (visible) {
+        void refreshMissionRuntimeRef.current?.();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
@@ -1512,28 +1813,51 @@ export function useAgentSession({
       return;
     }
 
+    const hasActiveDelegation =
+      delegationLedger?.activeTasks.some(
+        (task) => task.status === "pending" || task.status === "running",
+      ) ?? false;
     let cancelled = false;
+    let timeoutId: number | null = null;
 
-    const refreshMissionRuntime = async () => {
-      try {
-        const runtime = await loadMissionRuntimeSnapshot(activeMissionId, missionRouteBase);
-        if (cancelled || runtime.missionId !== activeMissionId) {
-          return;
-        }
-
-        applyMissionRuntimeSnapshot(runtime);
-      } catch {
-        // Ignore transient mission runtime failures.
+    const scheduleNextRefresh = () => {
+      if (cancelled) {
+        return;
       }
+
+      timeoutId = window.setTimeout(async () => {
+        await refreshMissionRuntime();
+        scheduleNextRefresh();
+      },
+      getMissionRuntimePollInterval({
+        abortSettlementPhase,
+        hasActiveDelegation,
+        isDocumentVisible,
+        isPrimaryStreamConnected,
+        isSessionActive,
+        isStreaming,
+      }));
     };
 
-    const intervalId = window.setInterval(refreshMissionRuntime, 2000);
+    scheduleNextRefresh();
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      runtimeRefreshQueuedRef.current = false;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
     };
-  }, [activeMissionId, applyMissionRuntimeSnapshot, missionRouteBase]);
+  }, [
+    abortSettlementPhase,
+    activeMissionId,
+    delegationLedger,
+    isDocumentVisible,
+    isPrimaryStreamConnected,
+    isSessionActive,
+    isStreaming,
+    refreshMissionRuntime,
+  ]);
 
   useEffect(() => {
     const loadMission = async () => {
@@ -1957,6 +2281,7 @@ export function useAgentSession({
   }, [beginAbortSettlement, clearProgressBanter, clearStreamingState, primaryAgentId]);
 
   return {
+    sessionId: noctisSessionId,
     messages,
     liveDraft,
     streamingMessageId: liveDraft?.messageId ?? streamingMessageIdRef.current,

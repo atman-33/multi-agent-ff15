@@ -13,7 +13,11 @@ import {
 } from "@/lib/session-selection-adjustment";
 import { getActivityActorLabel, parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
-import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
+import type {
+  MessageDetailState,
+  MessageInfo,
+  MessagePart,
+} from "@/lib/opencode-session-types";
 
 export type SessionPresentationMessage = {
   id: string;
@@ -24,6 +28,7 @@ export type SessionPresentationMessage = {
   kind: MissionActivityKind;
   content: string;
   detailContent?: string;
+  detailState?: MessageDetailState;
   rawText?: string;
   parts?: MessagePart[];
   timestamp: Date;
@@ -74,6 +79,10 @@ const DEFAULT_SESSION_CONTINUITY_ASSISTANT: SessionContinuityAssistant = {
   sender: "noctis",
   senderLabel: getActivityActorLabel("noctis"),
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 function normalizeActivityActorId(value: string | null | undefined): ActivityActorId | null {
   if (!value) {
@@ -156,6 +165,10 @@ function getMessageRawText(message: SessionPresentationMessage): string {
   }
 
   return message.content;
+}
+
+function normalizeMessageDetailState(value: unknown): MessageDetailState | undefined {
+  return value === "summary" || value === "full" ? value : undefined;
 }
 
 function buildDetailText(messages: SessionPresentationMessage[]): string {
@@ -432,15 +445,29 @@ export function normalizeSessionMessages(
     const messageRecord = message as unknown as Record<string, unknown>;
     const info = (messageRecord.info as Record<string, unknown> | undefined) ?? {};
     const parts = Array.isArray(messageRecord.parts) ? (messageRecord.parts as MessagePart[]) : [];
+    const summary = isRecord(messageRecord.summary)
+      ? (messageRecord.summary as {
+          content?: unknown;
+          detailContent?: unknown;
+          rawText?: unknown;
+        })
+      : null;
     const rawRole = info.role === "assistant" ? "assistant" : "user";
 
-    const content = extractText(parts);
+    const summaryContent = typeof summary?.content === "string" ? summary.content : null;
+    const summaryDetailContent =
+      typeof summary?.detailContent === "string" ? summary.detailContent : null;
+    const summaryRawText = typeof summary?.rawText === "string" ? summary.rawText : null;
+    const hasSummary = summary !== null;
+    const content = summaryContent ?? (hasSummary ? "" : extractText(parts));
     const looseText = extractLooseText(parts);
     const errorText =
       rawRole === "assistant"
         ? resolveAssistantErrorText(info.error as MessageInfo["info"]["error"] | undefined)
         : "";
-    const fallbackContent = content || looseText || errorText;
+    const fallbackContent = hasSummary
+      ? summaryRawText || summaryContent || errorText
+      : summaryRawText || content || looseText || errorText;
 
     if (!fallbackContent && (rawRole !== "assistant" || parts.length === 0)) {
       return accumulator;
@@ -473,21 +500,25 @@ export function normalizeSessionMessages(
         : sender
           ? getActivityActorLabel(sender)
           : "User";
-    const displayContent = routedMessage
-      ? routedMessage.messageType === "report"
-        ? routedMessage.body?.trim() ||
-          routedMessage.summary?.trim() ||
-          routedMessage.details?.trim() ||
-          ""
-        : routedMessage.body?.trim() || ""
-      : fallbackContent;
-    const detailContent = routedMessage
-      ? routedMessage.messageType === "report"
-        ? [routedMessage.body?.trim(), routedMessage.summary?.trim(), routedMessage.details?.trim()]
-            .filter(Boolean)
-            .join("\n\n")
-        : routedMessage.body?.trim() || fallbackContent
-      : fallbackContent;
+    const displayContent = summaryContent !== null
+      ? summaryContent
+      : routedMessage
+        ? routedMessage.messageType === "report"
+          ? routedMessage.body?.trim() ||
+            routedMessage.summary?.trim() ||
+            routedMessage.details?.trim() ||
+            ""
+          : routedMessage.body?.trim() || ""
+        : fallbackContent;
+    const detailContent = summaryDetailContent !== null
+      ? summaryDetailContent
+      : routedMessage
+        ? routedMessage.messageType === "report"
+          ? [routedMessage.body?.trim(), routedMessage.summary?.trim(), routedMessage.details?.trim()]
+              .filter(Boolean)
+              .join("\n\n")
+          : routedMessage.body?.trim() || fallbackContent
+        : fallbackContent;
     const createdAt =
       typeof info.time === "object" &&
       info.time !== null &&
@@ -512,7 +543,8 @@ export function normalizeSessionMessages(
             : "team_message",
       content: displayContent,
       detailContent,
-      rawText: fallbackContent,
+      detailState: normalizeMessageDetailState(messageRecord.detailState),
+      rawText: summaryRawText !== null ? summaryRawText : fallbackContent,
       parts,
       timestamp: createdAt ? new Date(createdAt) : new Date(Date.now() + index),
       source: "session",

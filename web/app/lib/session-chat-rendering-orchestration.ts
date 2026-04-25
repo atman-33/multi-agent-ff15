@@ -38,6 +38,8 @@ export type SessionChatRenderSnapshot = {
       fallbackSenderLabel: string;
     } | null;
   };
+  confirmedRenderedMessages: RenderedSessionMessage[];
+  confirmedInspectabilityBoundaries: MessageInspectabilityBoundary[];
   renderedMessages: RenderedSessionMessage[];
   inspectabilityBoundaries: MessageInspectabilityBoundary[];
   refreshKind: SessionChatRefreshKind;
@@ -139,6 +141,17 @@ function mergeUniqueValues(values: string[]): string[] {
 
 function normalizeContinuityAssistantLabel(value: string | null | undefined): string {
   return value?.trim().toLowerCase() ?? "";
+}
+
+function areContinuityAssistantsSemanticallyEqual(
+  left: SessionContinuityAssistant | null | undefined,
+  right: SessionContinuityAssistant | null | undefined,
+): boolean {
+  return (
+    (left?.sender ?? null) === (right?.sender ?? null) &&
+    normalizeContinuityAssistantLabel(left?.senderLabel) ===
+      normalizeContinuityAssistantLabel(right?.senderLabel)
+  );
 }
 
 function matchesContinuityAssistantMessage(
@@ -528,27 +541,47 @@ export function buildSessionChatRenderSnapshot({
     liveDraft,
     streamingText,
   });
-  const baseRenderedMessages = buildRenderedSessionMessages(
-    messages,
-    effectiveContinuityAssistant
-      ? { continuityAssistant: effectiveContinuityAssistant }
-      : undefined,
-  );
+  const canReuseConfirmedTranscript =
+    previousSnapshot !== null &&
+    previousSnapshot.input.messages === messages &&
+    areContinuityAssistantsSemanticallyEqual(
+      previousSnapshot.input.continuityAssistant,
+      effectiveContinuityAssistant,
+    );
+  const confirmedRenderedMessages = canReuseConfirmedTranscript
+    ? previousSnapshot.confirmedRenderedMessages
+    : buildRenderedSessionMessages(
+        messages,
+        effectiveContinuityAssistant
+          ? { continuityAssistant: effectiveContinuityAssistant }
+          : undefined,
+      );
+  const confirmedInspectabilityBoundaries = canReuseConfirmedTranscript
+    ? previousSnapshot.confirmedInspectabilityBoundaries
+    : confirmedRenderedMessages.map((message) =>
+        buildMessageInspectabilityBoundary(message),
+      );
   const baseStreamingMessage = containsStreamingMessage(messages, currentStreamingMessageId)
     ? null
     : buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);
   const foldedSnapshotState = foldIntermediateTailIntoStreamingMessage(
-    baseRenderedMessages,
+    confirmedRenderedMessages,
     baseStreamingMessage,
     effectiveContinuityAssistant,
   );
-  const nextRenderedMessages = reuseRenderedMessageReferences(
-    foldedSnapshotState.renderedMessages,
-    previousSnapshot,
-  );
-  const inspectabilityBoundaries = nextRenderedMessages.map((message) =>
-    buildMessageInspectabilityBoundary(message),
-  );
+  const nextRenderedMessages =
+    foldedSnapshotState.renderedMessages === confirmedRenderedMessages
+      ? confirmedRenderedMessages
+      : reuseRenderedMessageReferences(
+          foldedSnapshotState.renderedMessages,
+          previousSnapshot,
+        );
+  const inspectabilityBoundaries =
+    nextRenderedMessages === confirmedRenderedMessages
+      ? confirmedInspectabilityBoundaries
+      : nextRenderedMessages.map((message) =>
+          buildMessageInspectabilityBoundary(message),
+        );
   const streamingMessage = reuseStreamingMessageReference(
     foldedSnapshotState.streamingMessage,
     previousSnapshot,
@@ -570,6 +603,8 @@ export function buildSessionChatRenderSnapshot({
       messages,
       streamingText,
     },
+    confirmedRenderedMessages,
+    confirmedInspectabilityBoundaries,
     renderedMessages: nextRenderedMessages,
     inspectabilityBoundaries,
     refreshKind,

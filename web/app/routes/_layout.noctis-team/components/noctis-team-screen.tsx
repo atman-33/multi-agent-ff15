@@ -223,6 +223,7 @@ export function NoctisTeamScreen({
     [availableProjects, effectiveContextProjectIds],
   );
   const {
+    sessionId,
     messages,
     liveDraft,
     streamingMessageId,
@@ -1115,6 +1116,7 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
+              sessionId={sessionId}
               isResponding={
                 isMissionStartPending || isSessionActive || isLoadingHistory || isAbortSettling
               }

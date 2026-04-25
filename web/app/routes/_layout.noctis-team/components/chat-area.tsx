@@ -1,5 +1,14 @@
 import { Info, SlidersHorizontal, Workflow } from "lucide-react";
-import { memo, type ReactNode, useMemo } from "react";
+import {
+  memo,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
@@ -28,6 +37,7 @@ import type {
 } from "@/hooks/use-agent-session";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
+import { calculateConversationWindow } from "@/lib/conversation-window";
 import type { SessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
 import {
   DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
@@ -62,6 +72,7 @@ import MessageDetailSheet from "./message-detail-sheet";
 import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-parts";
 
 interface ChatAreaProps {
+  sessionId?: string | null;
   messages: ChatMessage[];
   currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
@@ -113,6 +124,10 @@ interface ChatAreaProps {
   composerPlaceholder?: string;
   startingMissionDescription?: string;
 }
+
+const TRANSCRIPT_WINDOW_THRESHOLD = 40;
+const TRANSCRIPT_WINDOW_OVERSCAN = 4;
+const TRANSCRIPT_ESTIMATED_ROW_HEIGHT = 148;
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   noctis: "/images/noctis.png",
@@ -354,6 +369,7 @@ const MessageBubble = memo(
   ({
     message,
     primaryAgentId,
+    sessionId,
     showCursor,
     detailsExpanded,
     expandedDetailEntries,
@@ -362,6 +378,7 @@ const MessageBubble = memo(
   }: {
     message: RenderedSessionMessage;
     primaryAgentId: ActivityActorId;
+    sessionId: string | null;
     showCursor: boolean;
     detailsExpanded: boolean;
     expandedDetailEntries: Record<string, true>;
@@ -464,11 +481,14 @@ const MessageBubble = memo(
           open ? (
             <MessageDetailSheet
               content={messageDisplay.displayContent}
+              detailState={message.detailState}
               messageDisplay={messageDisplay}
+              messageIds={message.sourceMessageIds}
               rawTextContent={message.detailRawText}
               parts={message.parts}
               onOpenChange={onOpenChange}
               open={open}
+              sessionId={sessionId}
               sender={message.sender}
             />
           ) : null
@@ -481,6 +501,155 @@ const MessageBubble = memo(
 );
 
 MessageBubble.displayName = "MessageBubble";
+
+function useTranscriptWindow(
+  renderedMessages: RenderedSessionMessage[],
+  viewportRef: RefObject<HTMLDivElement | null>,
+) {
+  const measuredHeightsRef = useRef<Record<string, number>>({});
+  const rowMeasurementCleanupRef = useRef<Record<string, () => void>>({});
+  const [measurementVersion, setMeasurementVersion] = useState(0);
+  const [viewportState, setViewportState] = useState({
+    clientHeight: 0,
+    ready: false,
+    scrollTop: 0,
+  });
+
+  const syncViewportState = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const nextState = {
+      clientHeight: viewport.clientHeight,
+      ready: true,
+      scrollTop: viewport.scrollTop,
+    };
+
+    setViewportState((current) =>
+      current.ready === nextState.ready &&
+      current.scrollTop === nextState.scrollTop &&
+      current.clientHeight === nextState.clientHeight
+        ? current
+        : nextState,
+    );
+  }, [viewportRef]);
+
+  useEffect(() => {
+    syncViewportState();
+
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const handleResize = () => {
+      syncViewportState();
+    };
+
+    viewport.addEventListener("scroll", syncViewportState, { passive: true });
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      viewport.removeEventListener("scroll", syncViewportState);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [syncViewportState, viewportRef]);
+
+  useEffect(() => {
+    return () => {
+      for (const cleanup of Object.values(rowMeasurementCleanupRef.current)) {
+        cleanup();
+      }
+
+      rowMeasurementCleanupRef.current = {};
+    };
+  }, []);
+
+  const registerMeasuredRow = useCallback((conversationUnitId: string) => {
+    return (node: HTMLDivElement | null) => {
+      rowMeasurementCleanupRef.current[conversationUnitId]?.();
+      delete rowMeasurementCleanupRef.current[conversationUnitId];
+
+      if (!node) {
+        return;
+      }
+
+      const updateMeasuredHeight = () => {
+        const nextHeight = Math.ceil(node.getBoundingClientRect().height);
+        if (
+          nextHeight <= 0 ||
+          measuredHeightsRef.current[conversationUnitId] === nextHeight
+        ) {
+          return;
+        }
+
+        measuredHeightsRef.current = {
+          ...measuredHeightsRef.current,
+          [conversationUnitId]: nextHeight,
+        };
+        setMeasurementVersion((current) => current + 1);
+      };
+
+      updateMeasuredHeight();
+
+      if (typeof ResizeObserver === "undefined") {
+        rowMeasurementCleanupRef.current[conversationUnitId] = () => {};
+        return;
+      }
+
+      const observer = new ResizeObserver(() => {
+        updateMeasuredHeight();
+      });
+      observer.observe(node);
+
+      rowMeasurementCleanupRef.current[conversationUnitId] = () => {
+        observer.disconnect();
+      };
+    };
+  }, []);
+
+  const windowState = useMemo(() => {
+    if (
+      renderedMessages.length === 0 ||
+      !viewportState.ready ||
+      renderedMessages.length <= TRANSCRIPT_WINDOW_THRESHOLD
+    ) {
+      return {
+        bottomSpacerHeight: 0,
+        topSpacerHeight: 0,
+        visibleMessages: renderedMessages,
+      };
+    }
+
+    const itemHeights = renderedMessages.map(
+      (message) =>
+        measuredHeightsRef.current[message.conversationUnitId] ??
+        TRANSCRIPT_ESTIMATED_ROW_HEIGHT,
+    );
+    const windowState = calculateConversationWindow({
+      itemHeights,
+      overscan: TRANSCRIPT_WINDOW_OVERSCAN,
+      scrollTop: viewportState.scrollTop,
+      viewportHeight: viewportState.clientHeight,
+    });
+
+    return {
+      bottomSpacerHeight: windowState.bottomSpacerHeight,
+      topSpacerHeight: windowState.topSpacerHeight,
+      visibleMessages: renderedMessages.slice(
+        windowState.startIndex,
+        windowState.endIndex,
+      ),
+    };
+  }, [measurementVersion, renderedMessages, viewportState]);
+
+  return {
+    ...windowState,
+    registerMeasuredRow,
+  };
+}
 
 const TranscriptBody = memo(
   ({
@@ -496,6 +665,8 @@ const TranscriptBody = memo(
     primaryAgentId,
     primaryAgentLabel,
     renderSnapshot,
+    sessionId,
+    viewportRef,
   }: {
     historyEmptyCallout: ReactNode;
     historyErrorCallout: ReactNode;
@@ -509,24 +680,44 @@ const TranscriptBody = memo(
     primaryAgentId: ActivityActorId;
     primaryAgentLabel: string;
     renderSnapshot: SessionChatRenderSnapshot;
-  }) => (
-    <>
+    sessionId: string | null;
+    viewportRef: RefObject<HTMLDivElement | null>;
+  }) => {
+    const {
+      bottomSpacerHeight,
+      registerMeasuredRow,
+      topSpacerHeight,
+      visibleMessages,
+    } = useTranscriptWindow(renderSnapshot.renderedMessages, viewportRef);
+
+    return (
+      <>
       {historyLoadingCallout}
       {historyErrorCallout}
       {historyEmptyCallout}
 
-      {renderSnapshot.renderedMessages.map((message) => (
-        <MessageBubble
-          detailsExpanded={isConversationUnitExpanded(message.conversationUnitId)}
-          expandedDetailEntries={getExpandedDetailEntries(message.conversationUnitId)}
-          key={message.conversationUnitId}
-          message={message}
-          onToggleDetail={onToggleDetailEntry}
-          onToggleDetails={onToggleConversationUnit}
-          primaryAgentId={primaryAgentId}
-          showCursor={false}
-        />
+      {topSpacerHeight > 0 ? (
+        <div aria-hidden="true" style={{ height: `${topSpacerHeight}px` }} />
+      ) : null}
+
+      {visibleMessages.map((message) => (
+        <div key={message.conversationUnitId} ref={registerMeasuredRow(message.conversationUnitId)}>
+          <MessageBubble
+            detailsExpanded={isConversationUnitExpanded(message.conversationUnitId)}
+            expandedDetailEntries={getExpandedDetailEntries(message.conversationUnitId)}
+            message={message}
+            onToggleDetail={onToggleDetailEntry}
+            onToggleDetails={onToggleConversationUnit}
+            primaryAgentId={primaryAgentId}
+            sessionId={sessionId}
+            showCursor={false}
+          />
+        </div>
       ))}
+
+      {bottomSpacerHeight > 0 ? (
+        <div aria-hidden="true" style={{ height: `${bottomSpacerHeight}px` }} />
+      ) : null}
 
       {renderSnapshot.streamingMessage ? (
         <MessageBubble
@@ -537,6 +728,7 @@ const TranscriptBody = memo(
           onToggleDetail={onToggleDetailEntry}
           onToggleDetails={onToggleConversationUnit}
           primaryAgentId={primaryAgentId}
+          sessionId={sessionId}
           showCursor={isStreaming}
         />
       ) : null}
@@ -566,12 +758,14 @@ const TranscriptBody = memo(
         </div>
       ) : null}
     </>
-  ),
+    );
+  },
 );
 
 TranscriptBody.displayName = "TranscriptBody";
 
 export const ChatArea = ({
+  sessionId = null,
   messages,
   currentStreamingMessageId = null,
   streamingContent = "",
@@ -1061,7 +1255,7 @@ export const ChatArea = ({
       contentClassName="mx-auto w-full min-w-0 max-w-3xl space-y-5 overflow-x-hidden"
       scrollSignal={renderSnapshot.scrollSignal}
     >
-      {() => (
+      {(viewportRef) => (
         <TranscriptBody
           getExpandedDetailEntries={inspectability.getExpandedDetailEntries}
           historyEmptyCallout={historyEmptyCallout}
@@ -1075,6 +1269,8 @@ export const ChatArea = ({
           primaryAgentId={primaryAgentId}
           primaryAgentLabel={primaryAgentLabel}
           renderSnapshot={renderSnapshot}
+          sessionId={sessionId}
+          viewportRef={viewportRef}
         />
       )}
     </ChatThreadFrame>

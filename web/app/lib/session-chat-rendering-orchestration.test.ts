@@ -375,4 +375,33 @@ Implemented the requested change.
     expect(updated.autoFollowKey).not.toBe(initial.autoFollowKey);
     expect(updated.streamingMessage?.detailRawText).toContain("Thinking through the next step");
   });
+
+  it("reuses confirmed transcript arrays when only the live tail changes", () => {
+    const messages = createGroupedNoctisMessages();
+    const continuityAssistant = {
+      sender: "noctis" as const,
+      senderLabel: "Noctis",
+    };
+    const initial = buildSessionChatRenderSnapshot({
+      continuityAssistant,
+      messages,
+    });
+
+    const updated = buildSessionChatRenderSnapshot({
+      continuityAssistant,
+      liveDraft: {
+        fallbackSender: "iris",
+        fallbackSenderLabel: "Iris",
+        messageId: "assistant-2",
+        parts: [{ text: "Streaming update", type: "text" }],
+      },
+      messages,
+      previousSnapshot: initial,
+    });
+
+    expect(updated.renderedMessages).toBe(initial.renderedMessages);
+    expect(updated.inspectabilityBoundaries).toBe(initial.inspectabilityBoundaries);
+    expect(updated.renderedMessages[0]).toBe(initial.renderedMessages[0]);
+    expect(updated.streamingMessage?.messageDisplay.displayContent).toBe("Streaming update");
+  });
 });

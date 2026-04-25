@@ -1,6 +1,14 @@
 import type { ModelSelection } from "@/lib/types/mission";
 import type { SessionSelectionAdjustment } from "@/lib/session-selection-adjustment";
 
+export type MessageDetailState = "summary" | "full";
+
+export type MessageSummary = {
+  content: string;
+  detailContent: string;
+  rawText: string;
+};
+
 export type MessagePart = {
   type: string;
   text?: string;
@@ -34,5 +42,7 @@ export type MessageInfo = {
       completed?: number;
     };
   };
+  detailState?: MessageDetailState;
   parts: MessagePart[];
+  summary?: MessageSummary;
 };

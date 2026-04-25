@@ -1,5 +1,5 @@
 import { ArrowUpRight, FileText } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import {
@@ -7,20 +7,25 @@ import {
   type WorkflowMessagePresentation,
 } from "@/lib/chat-workflow-presentation";
 import {
+  buildRenderedSessionMessages,
+  normalizeSessionMessages,
   resolveSessionMessageDisplay,
   type SessionMessageDisplay,
 } from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId } from "@/lib/types/mission";
-import type { MessagePart } from "@/lib/opencode-session-types";
+import type { MessageDetailState, MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
 
 type Props = {
   content: string;
+  detailState?: MessageDetailState;
+  messageIds?: string[];
   rawTextContent?: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   parts?: MessagePart[];
+  sessionId?: string | null;
   sender: ActivityActorId | null;
   messageDisplay?: SessionMessageDisplay;
   workflowPresentation?: WorkflowMessagePresentation | null;
@@ -28,26 +33,112 @@ type Props = {
 
 const MessageDetailSheet = ({
   content,
+  detailState,
+  messageIds,
   rawTextContent,
   onOpenChange,
   open,
   parts,
+  sessionId,
   sender,
   messageDisplay,
   workflowPresentation,
 }: Props) => {
   const toolKeyMapRef = useRef(new WeakMap<MessagePart, string>());
   const nextToolKeyRef = useRef(0);
+  const [loadedMessages, setLoadedMessages] = useState<MessageInfo[] | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const messageIdsKey = useMemo(() => (messageIds ?? []).join(":"), [messageIds]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      detailState !== "summary" ||
+      !sessionId ||
+      !messageIds ||
+      messageIds.length === 0
+    ) {
+      setLoadedMessages(null);
+      setIsLoadingDetail(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingDetail(true);
+
+    void Promise.all(
+      messageIds.map(async (messageId) => {
+        const response = await fetch(
+          `/api/session/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}`,
+        );
+        if (!response.ok) {
+          throw new Error(`message detail failed: ${response.status}`);
+        }
+
+        const data = (await response.json()) as { message?: MessageInfo };
+        return data.message ?? null;
+      }),
+    )
+      .then((nextMessages) => {
+        if (!cancelled) {
+          setLoadedMessages(nextMessages.filter((message): message is MessageInfo => message !== null));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadedMessages(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingDetail(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailState, messageIds, messageIdsKey, open, sessionId]);
+
+  const hydratedRenderedMessage = useMemo(() => {
+    if (!loadedMessages || loadedMessages.length === 0) {
+      return null;
+    }
+
+    const senderLabel = sender ? getActivityActorLabel(sender) : "Assistant";
+    const normalizedMessages = normalizeSessionMessages(loadedMessages, {
+      assistantSender: sender,
+      assistantSenderLabel: senderLabel,
+    });
+    const renderedMessages = buildRenderedSessionMessages(normalizedMessages, {
+      continuityAssistant: {
+        sender,
+        senderLabel,
+      },
+    });
+
+    return renderedMessages[0] ?? null;
+  }, [loadedMessages, sender]);
+
+  const effectiveParts = hydratedRenderedMessage?.parts ?? parts;
   const rawText = useMemo(() => {
+    if (hydratedRenderedMessage?.detailRawText?.trim()) {
+      return hydratedRenderedMessage.detailRawText;
+    }
+
     if (typeof rawTextContent === "string" && rawTextContent.trim()) {
       return rawTextContent;
     }
 
-    return parts && parts.length > 0 ? extractText(parts) : content;
-  }, [content, parts, rawTextContent]);
-  const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
-  const tools = useMemo(() => extractTools(parts ?? []), [parts]);
+    return effectiveParts && effectiveParts.length > 0 ? extractText(effectiveParts) : content;
+  }, [content, effectiveParts, hydratedRenderedMessage?.detailRawText, rawTextContent]);
+  const reasoning = useMemo(() => extractReasoning(effectiveParts ?? []), [effectiveParts]);
+  const tools = useMemo(() => extractTools(effectiveParts ?? []), [effectiveParts]);
   const resolvedMessageDisplay = useMemo(() => {
+    if (hydratedRenderedMessage) {
+      return hydratedRenderedMessage.messageDisplay;
+    }
+
     if (messageDisplay) {
       return messageDisplay;
     }
@@ -83,7 +174,7 @@ const MessageDetailSheet = ({
       fallbackSender: sender,
       fallbackSenderLabel: sender ? getActivityActorLabel(sender) : "Assistant",
     });
-  }, [messageDisplay, rawText, sender, workflowPresentation]);
+  }, [hydratedRenderedMessage, messageDisplay, rawText, sender, workflowPresentation]);
 
   const getToolKey = (tool: MessagePart) => {
     const existingKey = toolKeyMapRef.current.get(tool);
@@ -123,6 +214,12 @@ const MessageDetailSheet = ({
         <ArrowUpRight className="h-3.5 w-3.5" />
         {senderLabel}
       </div>
+
+      {isLoadingDetail ? (
+        <div className="mb-4 rounded-xl border border-white/10 bg-white/3 px-4 py-3 text-[12px] text-slate-300">
+          Loading full message detail...
+        </div>
+      ) : null}
 
       {hasVisibleBody ? (
         <div className="rounded-xl border border-white/10 bg-white/3 p-4 sm:p-5">

@@ -150,6 +150,65 @@ describe("session-history-payload.server", () => {
     expect(sanitized[0]?.parts).toEqual([{ type: "text", text: "Adjusted reply." }]);
   });
 
+  it("returns compact summary payloads for transcript-first history responses", () => {
+    const sanitized = sanitizeSessionMessages(
+      [
+        {
+          info: {
+            id: "assistant-summary-1",
+            role: "assistant",
+            agent: "Noctis",
+            providerID: "github-copilot",
+            modelID: "gpt-5.4",
+            time: { created: Date.parse("2026-04-22T10:00:00.000Z") },
+          },
+          parts: [
+            {
+              type: "text",
+              text: "Summary body.",
+            },
+            {
+              type: "reasoning",
+              text: "Long reasoning that can stay summarized.",
+            },
+            {
+              type: "tool",
+              tool: "apply_patch",
+              state: {
+                status: "completed",
+                input: {
+                  huge: "discard-me",
+                },
+                output: "discard-me",
+                error: "",
+              },
+            },
+          ],
+        },
+      ],
+      {},
+      { detailState: "summary" },
+    );
+
+    expect(sanitized[0]?.detailState).toBe("summary");
+    expect(sanitized[0]?.summary).toMatchObject({
+      content: "Summary body.",
+    });
+    expect(sanitized[0]?.parts).toEqual([
+      {
+        type: "reasoning",
+        text: "Long reasoning that can stay summarized.",
+      },
+      {
+        type: "tool",
+        tool: "apply_patch",
+        state: {
+          status: "completed",
+        },
+      },
+    ]);
+  });
+
   it("preserves assistant top-level errors and renders aborted replies", () => {
     const sanitized = sanitizeSessionMessages(
       [
