@@ -215,8 +215,16 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   );
   const renderSnapshot = useSessionChatRenderSnapshot({
     assistantPending: isSessionRunning,
+    continuityAssistant: managedSession
+      ? {
+          sender: null,
+          senderLabel: managedSession.ownerLabel,
+        }
+      : undefined,
+    currentStreamingMessageId: liveThread.streamingMessageId,
     liveDraft,
     messages: presentationMessages,
+    onStreamingMessageCommitted: liveThread.clearStreaming,
     streamingText,
   });
   const inspectability = useConversationUnitInspectability(

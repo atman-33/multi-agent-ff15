@@ -244,6 +244,73 @@ Implemented the requested change.
     expect(snapshot.renderedMessages[0]?.parts.filter((part) => part.type === "text")).toHaveLength(1);
   });
 
+  it("reuses the tail Iris intermediate bubble instead of rendering a second live Iris bubble when configured as the continuity assistant", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      continuityAssistant: {
+        sender: "iris",
+        senderLabel: "Iris",
+      },
+      liveDraft: {
+        fallbackSender: "iris",
+        fallbackSenderLabel: "Iris",
+        messageId: "reply-2",
+        parts: [{ text: "Registry refreshed.", type: "text" }],
+      },
+      messages: [
+        {
+          id: "tool-1",
+          role: "assistant",
+          sender: "iris",
+          senderLabel: "Iris",
+          kind: "assistant_message",
+          content: "",
+          detailContent: "",
+          rawText: "",
+          parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+          timestamp: new Date("2026-04-25T09:00:00.000Z"),
+          source: "session",
+        },
+      ],
+    });
+
+    expect(snapshot.renderedMessages).toHaveLength(1);
+    expect(snapshot.streamingMessage).toBeNull();
+    expect(snapshot.renderedMessages[0]?.conversationUnitId).toBe("tool-1");
+    expect(snapshot.renderedMessages[0]?.senderLabel).toBe("Iris");
+    expect(snapshot.renderedMessages[0]?.messageDisplay.displayContent).toBe("Registry refreshed.");
+  });
+
+  it("suppresses the live tail when authoritative history already contains the current streaming message", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      currentStreamingMessageId: "assistant-1",
+      liveDraft: {
+        fallbackSender: "iris",
+        fallbackSenderLabel: "Iris",
+        messageId: "assistant-1",
+        parts: [{ text: "Registry refreshed.", type: "text" }],
+      },
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          sender: "iris",
+          senderLabel: "Iris",
+          kind: "assistant_message",
+          content: "Registry refreshed.",
+          detailContent: "Registry refreshed.",
+          rawText: "Registry refreshed.",
+          parts: [{ type: "text", text: "Registry refreshed." }],
+          timestamp: new Date("2026-04-25T09:00:00.000Z"),
+          source: "session",
+        },
+      ],
+    });
+
+    expect(snapshot.renderedMessages).toHaveLength(1);
+    expect(snapshot.renderedMessages[0]?.conversationUnitId).toBe("assistant-1");
+    expect(snapshot.streamingMessage).toBeNull();
+  });
+
   it("exposes a pending indicator state when an assistant is active without visible tail content", () => {
     const snapshot = buildSessionChatRenderSnapshot({
       assistantPending: true,

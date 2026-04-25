@@ -244,6 +244,51 @@ project-manage
     expect(rendered[0]?.detailRawText).toContain("了解。今、みんなに聞いている。");
   });
 
+  it("groups tool-only Iris activity into the following visible Iris reply when configured as the continuity assistant", () => {
+    const rendered = buildRenderedSessionMessages(
+      [
+        {
+          id: "tool-1",
+          role: "assistant",
+          sender: "iris",
+          senderLabel: "Iris",
+          kind: "assistant_message",
+          content: "",
+          detailContent: "",
+          rawText: "",
+          parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+          timestamp: new Date("2026-04-25T09:00:00.000Z"),
+          source: "session",
+        },
+        {
+          id: "reply-1",
+          role: "assistant",
+          sender: "iris",
+          senderLabel: "Iris",
+          kind: "assistant_message",
+          content: "Registry refreshed.",
+          detailContent: "Registry refreshed.",
+          rawText: "Registry refreshed.",
+          parts: [{ type: "text", text: "Registry refreshed." }],
+          timestamp: new Date("2026-04-25T09:00:05.000Z"),
+          source: "session",
+        },
+      ],
+      {
+        continuityAssistant: {
+          sender: "iris",
+          senderLabel: "Iris",
+        },
+      },
+    );
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.conversationUnitId).toBe("tool-1");
+    expect(rendered[0]?.senderLabel).toBe("Iris");
+    expect(rendered[0]?.messageDisplay.displayContent).toBe("Registry refreshed.");
+    expect(rendered[0]?.parts.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
   it("keeps stable conversation-unit and detail identities across unchanged re-hydration", () => {
     const createMessages = (): SessionPresentationMessage[] => [
       {

@@ -285,8 +285,14 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
   );
   const projectIrisRenderSnapshot = useSessionChatRenderSnapshot({
     assistantPending: isSessionStatusActive(projectIrisSessionStatus),
+    continuityAssistant: {
+      sender: "iris",
+      senderLabel: "Iris",
+    },
+    currentStreamingMessageId: liveThread.streamingMessageId,
     liveDraft: buildProjectIrisLiveDraft(liveThread.liveDraft),
     messages: projectIrisMessages,
+    onStreamingMessageCommitted: liveThread.clearStreaming,
     streamingText: buildProjectIrisStreamingText(liveThread.streamingContent),
   });
 
@@ -328,15 +334,6 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
 
     void loadProjectIrisMessages(projectIrisSessionId);
   }, [hasHydratedProjectIrisSession, loadProjectIrisMessages, projectIrisSessionId]);
-
-  useEffect(() => {
-    if (
-      liveThread.streamingMessageId &&
-      projectIrisMessages.some((message) => message.id === liveThread.streamingMessageId)
-    ) {
-      liveThread.clearStreaming();
-    }
-  }, [liveThread, projectIrisMessages]);
 
   useEffect(() => {
     if (

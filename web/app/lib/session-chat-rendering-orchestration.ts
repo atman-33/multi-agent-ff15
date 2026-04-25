@@ -7,6 +7,7 @@ import {
   buildRenderedSessionMessages,
   type RenderedSessionMessage,
   resolveSessionMessageDisplay,
+  type SessionContinuityAssistant,
   type SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
 
@@ -22,6 +23,8 @@ export type SessionChatScrollSignal = "none" | "tail-append" | "streaming-growth
 export type SessionChatRenderSnapshot = {
   input: {
     assistantPending: boolean;
+    continuityAssistant: SessionContinuityAssistant | null;
+    currentStreamingMessageId: string | null;
     liveDraft: {
       fallbackSender: SessionPresentationMessage["sender"];
       fallbackSenderLabel: string;
@@ -119,17 +122,79 @@ function buildStreamingMessageFromLiveDraft(
   };
 }
 
+function containsStreamingMessage(
+  messages: SessionPresentationMessage[],
+  currentStreamingMessageId: string | null,
+): boolean {
+  if (!currentStreamingMessageId) {
+    return false;
+  }
+
+  return messages.some((message) => message.id === currentStreamingMessageId);
+}
+
 function mergeUniqueValues(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
+}
+
+function normalizeContinuityAssistantLabel(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function matchesContinuityAssistantMessage(
+  message: Pick<RenderedSessionMessage, "sender" | "senderLabel">,
+  continuityAssistant: SessionContinuityAssistant | null,
+): boolean {
+  if (!continuityAssistant) {
+    return false;
+  }
+
+  if (continuityAssistant.sender && message.sender === continuityAssistant.sender) {
+    return true;
+  }
+
+  const assistantLabel = normalizeContinuityAssistantLabel(continuityAssistant.senderLabel);
+  return Boolean(assistantLabel && normalizeContinuityAssistantLabel(message.senderLabel) === assistantLabel);
 }
 
 function combineDetailText(left: string, right: string): string {
   return mergeUniqueValues([left.trim(), right.trim()]).join("\n\n");
 }
 
-function foldNoctisIntermediateTailIntoStreamingMessage(
+function resolveContinuityAssistant(input: {
+  continuityAssistant?: SessionContinuityAssistant | null;
+  liveDraft?: LiveDraftInput | null;
+  streamingText?: {
+    content: string;
+    fallbackSender: SessionPresentationMessage["sender"];
+    fallbackSenderLabel: string;
+  } | null;
+}): SessionContinuityAssistant | null {
+  if (input.continuityAssistant) {
+    return input.continuityAssistant;
+  }
+
+  if (input.liveDraft) {
+    return {
+      sender: input.liveDraft.fallbackSender,
+      senderLabel: input.liveDraft.fallbackSenderLabel,
+    };
+  }
+
+  if (input.streamingText) {
+    return {
+      sender: input.streamingText.fallbackSender,
+      senderLabel: input.streamingText.fallbackSenderLabel,
+    };
+  }
+
+  return null;
+}
+
+function foldIntermediateTailIntoStreamingMessage(
   renderedMessages: RenderedSessionMessage[],
   streamingMessage: RenderedSessionMessage | null,
+  continuityAssistant: SessionContinuityAssistant | null,
 ): {
   renderedMessages: RenderedSessionMessage[];
   streamingMessage: RenderedSessionMessage | null;
@@ -140,8 +205,8 @@ function foldNoctisIntermediateTailIntoStreamingMessage(
     !tailMessage ||
     !streamingMessage ||
     !tailMessage.intermediateOnly ||
-    tailMessage.sender !== "noctis" ||
-    streamingMessage.sender !== "noctis" ||
+    !matchesContinuityAssistantMessage(tailMessage, continuityAssistant) ||
+    !matchesContinuityAssistantMessage(streamingMessage, continuityAssistant) ||
     !streamingMessage.messageDisplay.displayContent.trim()
   ) {
     return { renderedMessages, streamingMessage };
@@ -439,12 +504,16 @@ function buildAutoFollowKey(
 
 export function buildSessionChatRenderSnapshot({
   assistantPending = false,
+  continuityAssistant,
+  currentStreamingMessageId = null,
   liveDraft = null,
   messages,
   previousSnapshot = null,
   streamingText = null,
 }: {
   assistantPending?: boolean;
+  continuityAssistant?: SessionContinuityAssistant | null;
+  currentStreamingMessageId?: string | null;
   liveDraft?: LiveDraftInput | null;
   messages: SessionPresentationMessage[];
   previousSnapshot?: SessionChatRenderSnapshot | null;
@@ -454,12 +523,24 @@ export function buildSessionChatRenderSnapshot({
     fallbackSenderLabel: string;
   } | null;
 }): SessionChatRenderSnapshot {
-  const baseRenderedMessages = buildRenderedSessionMessages(messages);
-  const baseStreamingMessage =
-    buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);
-  const foldedSnapshotState = foldNoctisIntermediateTailIntoStreamingMessage(
+  const effectiveContinuityAssistant = resolveContinuityAssistant({
+    continuityAssistant,
+    liveDraft,
+    streamingText,
+  });
+  const baseRenderedMessages = buildRenderedSessionMessages(
+    messages,
+    effectiveContinuityAssistant
+      ? { continuityAssistant: effectiveContinuityAssistant }
+      : undefined,
+  );
+  const baseStreamingMessage = containsStreamingMessage(messages, currentStreamingMessageId)
+    ? null
+    : buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);
+  const foldedSnapshotState = foldIntermediateTailIntoStreamingMessage(
     baseRenderedMessages,
     baseStreamingMessage,
+    effectiveContinuityAssistant,
   );
   const nextRenderedMessages = reuseRenderedMessageReferences(
     foldedSnapshotState.renderedMessages,
@@ -481,7 +562,14 @@ export function buildSessionChatRenderSnapshot({
   const showPendingIndicator = assistantPending && !streamingMessage;
 
   return {
-    input: { assistantPending, liveDraft, messages, streamingText },
+    input: {
+      assistantPending,
+      continuityAssistant: effectiveContinuityAssistant,
+      currentStreamingMessageId,
+      liveDraft,
+      messages,
+      streamingText,
+    },
     renderedMessages: nextRenderedMessages,
     inspectabilityBoundaries,
     refreshKind,

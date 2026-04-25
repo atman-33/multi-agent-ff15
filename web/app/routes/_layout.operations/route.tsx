@@ -724,12 +724,6 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
       setIrisOptimisticMessage((current) =>
         shouldClearOperationsIrisOptimisticMessage(current, nextMessages.length) ? null : current,
       );
-      if (
-        liveThread.streamingMessageId &&
-        nextMessages.some((message) => message.info.id === liveThread.streamingMessageId)
-      ) {
-        liveThread.clearStreaming();
-      }
       setIrisError(null);
     } catch (error) {
       if (requestId !== irisLoadRequestIdRef.current) {
@@ -1189,8 +1183,14 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
   );
   const irisRenderSnapshot = useSessionChatRenderSnapshot({
     assistantPending: isSessionStatusActive(irisSessionStatus),
+    continuityAssistant: {
+      sender: "iris",
+      senderLabel: "Iris",
+    },
+    currentStreamingMessageId: liveThread.streamingMessageId,
     liveDraft: buildOperationsIrisLiveDraft(liveThread.liveDraft),
     messages: irisPresentationMessages,
+    onStreamingMessageCommitted: liveThread.clearStreaming,
     streamingText: buildOperationsIrisStreamingText(liveThread.streamingContent),
   });
 

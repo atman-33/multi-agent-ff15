@@ -63,6 +63,7 @@ import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-
 
 interface ChatAreaProps {
   messages: ChatMessage[];
+  currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
   streamingContent?: string;
   historyErrorMessage?: string | null;
@@ -572,6 +573,7 @@ TranscriptBody.displayName = "TranscriptBody";
 
 export const ChatArea = ({
   messages,
+  currentStreamingMessageId = null,
   streamingContent = "",
   historyErrorMessage = null,
   historyPhase = "idle",
@@ -648,6 +650,11 @@ export const ChatArea = ({
   );
   const renderSnapshot = useSessionChatRenderSnapshot({
     assistantPending: isSessionActive,
+    continuityAssistant: {
+      sender: primaryAgentId ?? null,
+      senderLabel: primaryAgentLabel ?? null,
+    },
+    currentStreamingMessageId,
     liveDraft: renderLiveDraft,
     messages: presentationMessages,
     streamingText,

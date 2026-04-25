@@ -585,6 +585,11 @@ describe("chat-area", () => {
 
     expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
       assistantPending: true,
+      continuityAssistant: {
+        sender: "noctis",
+        senderLabel: "Noctis",
+      },
+      currentStreamingMessageId: null,
       liveDraft: null,
       messages: [],
       streamingText: {
@@ -635,6 +640,11 @@ describe("chat-area", () => {
 
     expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
       assistantPending: true,
+      continuityAssistant: {
+        sender: "lunafreya",
+        senderLabel: "Lunafreya",
+      },
+      currentStreamingMessageId: null,
       liveDraft: {
         fallbackSender: "lunafreya",
         fallbackSenderLabel: "Lunafreya",
@@ -674,6 +684,11 @@ describe("chat-area", () => {
 
     expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
       assistantPending: true,
+      continuityAssistant: {
+        sender: "noctis",
+        senderLabel: "Noctis",
+      },
+      currentStreamingMessageId: null,
       liveDraft: null,
       messages: [],
       streamingText: null,

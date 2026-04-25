@@ -488,6 +488,7 @@ export interface UseAgentSessionOptions {
 export interface UseAgentSessionReturn {
   messages: ChatMessage[];
   liveDraft: SessionLiveDraft | null;
+  streamingMessageId: string | null;
   streamingContent: string;
   banterEntries: BanterEntry[];
   latestBanterEntryId: string | null;
@@ -1958,6 +1959,7 @@ export function useAgentSession({
   return {
     messages,
     liveDraft,
+    streamingMessageId: liveDraft?.messageId ?? streamingMessageIdRef.current,
     streamingContent,
     banterEntries,
     latestBanterEntryId,
