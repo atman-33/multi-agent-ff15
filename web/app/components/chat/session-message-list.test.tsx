@@ -75,4 +75,55 @@ describe("session-message-list", () => {
     expect(markup).toContain("進行中の返信");
     expect(markup).toContain('data-show-cursor="true"');
   });
+
+  it("renders a dedicated pending indicator at the thread tail when requested", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      messages: toSessionPresentationMessages([]),
+    });
+
+    const markup = renderToStaticMarkup(
+      <SessionMessageList
+        getExpandedDetailEntries={() => ({})}
+        isConversationUnitExpanded={() => false}
+        onToggleConversationUnit={() => undefined}
+        onToggleDetailEntry={() => undefined}
+        pendingIndicator={<div data-pending-indicator="true">Thinking</div>}
+        renderedMessages={snapshot.renderedMessages}
+        showPendingIndicator={snapshot.showPendingIndicator}
+        streamingMessage={snapshot.streamingMessage}
+      />,
+    );
+
+    expect(markup).toContain('data-pending-indicator="true"');
+    expect(markup).not.toContain("data-message-id=");
+  });
+
+  it("suppresses the pending indicator when a visible streaming unit already occupies the tail", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      messages: toSessionPresentationMessages([]),
+      streamingText: {
+        content: "Still working",
+        fallbackSender: "iris",
+        fallbackSenderLabel: "Iris",
+      },
+    });
+
+    const markup = renderToStaticMarkup(
+      <SessionMessageList
+        getExpandedDetailEntries={() => ({})}
+        isConversationUnitExpanded={() => false}
+        onToggleConversationUnit={() => undefined}
+        onToggleDetailEntry={() => undefined}
+        pendingIndicator={<div data-pending-indicator="true">Thinking</div>}
+        renderedMessages={snapshot.renderedMessages}
+        showPendingIndicator={true}
+        streamingMessage={snapshot.streamingMessage}
+      />,
+    );
+
+    expect(markup).toContain("Still working");
+    expect(markup).not.toContain('data-pending-indicator="true"');
+  });
 });

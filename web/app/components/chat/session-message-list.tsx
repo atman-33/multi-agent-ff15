@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 import { SessionMessageBubble } from "./session-message-bubble";
 
@@ -8,12 +9,14 @@ export type SessionMessageListProps = {
   getExpandedDetailEntries: (conversationUnitId: string) => Record<string, true>;
   onToggleConversationUnit: (conversationUnitId: string) => void;
   onToggleDetailEntry: (conversationUnitId: string, detailId: string) => void;
+  pendingIndicator?: ReactNode;
   renderAvatar?: (message: RenderedSessionMessage) => React.ReactNode;
   renderDetailSheet?: (args: {
     message: RenderedSessionMessage;
     open: boolean;
     onOpenChange: (open: boolean) => void;
   }) => React.ReactNode;
+  showPendingIndicator?: boolean;
 };
 
 export function SessionMessageList({
@@ -23,8 +26,10 @@ export function SessionMessageList({
   getExpandedDetailEntries,
   onToggleConversationUnit,
   onToggleDetailEntry,
+  pendingIndicator,
   renderAvatar,
   renderDetailSheet,
+  showPendingIndicator = false,
 }: SessionMessageListProps) {
   return (
     <div className="space-y-3">
@@ -48,6 +53,7 @@ export function SessionMessageList({
           showCursor={true}
         />
       ) : null}
+      {showPendingIndicator && !streamingMessage ? pendingIndicator ?? null : null}
     </div>
   );
 }

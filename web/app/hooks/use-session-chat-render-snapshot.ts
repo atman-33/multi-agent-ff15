@@ -9,10 +9,12 @@ type LiveDraftInput = NonNullable<SessionChatRenderSnapshot["input"]["liveDraft"
 type StreamingTextInput = NonNullable<SessionChatRenderSnapshot["input"]["streamingText"]>;
 
 export function useSessionChatRenderSnapshot({
+  assistantPending = false,
   liveDraft = null,
   messages,
   streamingText = null,
 }: {
+  assistantPending?: boolean;
   liveDraft?: LiveDraftInput | null;
   messages: SessionPresentationMessage[];
   streamingText?: StreamingTextInput | null;
@@ -22,12 +24,13 @@ export function useSessionChatRenderSnapshot({
   const snapshot = useMemo(
     () =>
       buildSessionChatRenderSnapshot({
+        assistantPending,
         liveDraft,
         messages,
         previousSnapshot: previousSnapshotRef.current,
         streamingText,
       }),
-    [liveDraft, messages, streamingText],
+    [assistantPending, liveDraft, messages, streamingText],
   );
 
   useEffect(() => {

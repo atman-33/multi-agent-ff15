@@ -64,6 +64,7 @@ import { PROJECT_SCOPE_LABELS, type ProjectScope } from "@/lib/project-scopes";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
 import { mergeMessageInfoText } from "@/lib/session-stream";
+import { isSessionStatusActive } from "@/lib/session-status";
 import type { ModelSelection, WorkerAgentId } from "@/lib/types/mission";
 import type { MessageInfo } from "@/lib/opencode-session-types";
 import type { Route } from "./+types/route";
@@ -1187,6 +1188,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     [irisMessages, irisOptimisticMessage],
   );
   const irisRenderSnapshot = useSessionChatRenderSnapshot({
+    assistantPending: isSessionStatusActive(irisSessionStatus),
     liveDraft: buildOperationsIrisLiveDraft(liveThread.liveDraft),
     messages: irisPresentationMessages,
     streamingText: buildOperationsIrisStreamingText(liveThread.streamingContent),
@@ -1807,6 +1809,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
             onSelectedModelChange={(model) => setAgentModel("iris", model)}
             renderedMessages={irisRenderSnapshot.renderedMessages}
             scopeLabel={PROJECT_SCOPE_LABELS[scope]}
+            showPendingIndicator={irisRenderSnapshot.showPendingIndicator}
             scrollSignal={irisRenderSnapshot.scrollSignal}
             selectedModel={selectedIrisModel}
             selectedEntryLabel={selectedEntryLabel}

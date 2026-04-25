@@ -4,6 +4,7 @@ import MessageDetailSheet from "./message-detail-sheet";
 
 type Props = {
   renderedMessages: RenderedSessionMessage[];
+  showPendingIndicator?: boolean;
   streamingMessage: RenderedSessionMessage | null;
   isConversationUnitExpanded: (conversationUnitId: string) => boolean;
   getExpandedDetailEntries: (conversationUnitId: string) => Record<string, true>;
@@ -11,8 +12,23 @@ type Props = {
   onToggleDetailEntry: (conversationUnitId: string, detailId: string) => void;
 };
 
+function PendingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
+        <div className="flex gap-1.5">
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const MessageList = ({
   renderedMessages,
+  showPendingIndicator = false,
   streamingMessage,
   isConversationUnitExpanded,
   getExpandedDetailEntries,
@@ -25,6 +41,7 @@ const MessageList = ({
       isConversationUnitExpanded={isConversationUnitExpanded}
       onToggleConversationUnit={onToggleConversationUnit}
       onToggleDetailEntry={onToggleDetailEntry}
+      pendingIndicator={<PendingIndicator />}
       renderDetailSheet={({ message, onOpenChange, open }) =>
         open ? (
           <MessageDetailSheet
@@ -40,6 +57,7 @@ const MessageList = ({
         ) : null
       }
       renderedMessages={renderedMessages}
+      showPendingIndicator={showPendingIndicator}
       streamingMessage={streamingMessage}
     />
   );

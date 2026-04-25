@@ -65,4 +65,26 @@ describe("message-list", () => {
     expect(markup).toContain(">1</span>");
     expect(markup).toContain("Noctis");
   });
+
+  it("renders the opencode pending indicator through the shared message list boundary", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      messages: toSessionPresentationMessages([]),
+    });
+
+    const markup = renderToStaticMarkup(
+      <MessageList
+        getExpandedDetailEntries={() => ({})}
+        isConversationUnitExpanded={() => false}
+        onToggleConversationUnit={() => undefined}
+        onToggleDetailEntry={() => undefined}
+        renderedMessages={snapshot.renderedMessages}
+        showPendingIndicator={snapshot.showPendingIndicator}
+        streamingMessage={snapshot.streamingMessage}
+      />,
+    );
+
+    expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]");
+    expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]");
+  });
 });

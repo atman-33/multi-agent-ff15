@@ -54,6 +54,7 @@ interface IrisAuthoringSheetProps {
   onSelectedModelChange: (model: ModelSelection) => void;
   renderedMessages: RenderedSessionMessage[];
   scopeLabel: string;
+  showPendingIndicator?: boolean;
   scrollSignal: SessionChatScrollSignal;
   selectedModel: ModelSelection | null;
   selectedEntryLabel: string;
@@ -173,6 +174,7 @@ export function IrisAuthoringSheet({
   onSelectedModelChange,
   renderedMessages,
   scopeLabel,
+  showPendingIndicator = false,
   scrollSignal,
   selectedModel,
   selectedEntryLabel,
@@ -347,12 +349,13 @@ export function IrisAuthoringSheet({
                     isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
                     onToggleConversationUnit={inspectability.toggleConversationUnit}
                     onToggleDetailEntry={inspectability.toggleDetailEntry}
+                    pendingIndicator={<IrisPendingBubble />}
                     renderAvatar={renderIrisAvatar}
                     renderDetailSheet={renderIrisDetailSheet}
                     renderedMessages={renderedMessages}
+                    showPendingIndicator={showPendingIndicator}
                     streamingMessage={streamingMessage}
                   />
-                  {isSessionActive ? <IrisPendingBubble /> : null}
                 </>
               )
             }

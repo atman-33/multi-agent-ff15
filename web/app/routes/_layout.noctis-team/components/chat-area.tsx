@@ -1,5 +1,5 @@
 import { Info, SlidersHorizontal, Workflow } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, type ReactNode, useMemo } from "react";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
 import { MessageBubbleBase } from "@/components/chat/message-bubble-base";
 import {
@@ -28,6 +28,7 @@ import type {
 } from "@/hooks/use-agent-session";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
+import type { SessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
 import {
   DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   EXECUTION_MODE_TOGGLE_LABEL,
@@ -480,6 +481,95 @@ const MessageBubble = memo(
 
 MessageBubble.displayName = "MessageBubble";
 
+const TranscriptBody = memo(
+  ({
+    historyEmptyCallout,
+    historyErrorCallout,
+    historyLoadingCallout,
+    getExpandedDetailEntries,
+    isConversationUnitExpanded,
+    isStreaming,
+    onToggleConversationUnit,
+    onToggleDetailEntry,
+    primaryAgentAvatarSrc,
+    primaryAgentId,
+    primaryAgentLabel,
+    renderSnapshot,
+  }: {
+    historyEmptyCallout: ReactNode;
+    historyErrorCallout: ReactNode;
+    historyLoadingCallout: ReactNode;
+    getExpandedDetailEntries: (conversationUnitId: string) => Record<string, true>;
+    isConversationUnitExpanded: (conversationUnitId: string) => boolean;
+    isStreaming: boolean;
+    onToggleConversationUnit: (conversationUnitId: string) => void;
+    onToggleDetailEntry: (conversationUnitId: string, detailId: string) => void;
+    primaryAgentAvatarSrc: string;
+    primaryAgentId: ActivityActorId;
+    primaryAgentLabel: string;
+    renderSnapshot: SessionChatRenderSnapshot;
+  }) => (
+    <>
+      {historyLoadingCallout}
+      {historyErrorCallout}
+      {historyEmptyCallout}
+
+      {renderSnapshot.renderedMessages.map((message) => (
+        <MessageBubble
+          detailsExpanded={isConversationUnitExpanded(message.conversationUnitId)}
+          expandedDetailEntries={getExpandedDetailEntries(message.conversationUnitId)}
+          key={message.conversationUnitId}
+          message={message}
+          onToggleDetail={onToggleDetailEntry}
+          onToggleDetails={onToggleConversationUnit}
+          primaryAgentId={primaryAgentId}
+          showCursor={false}
+        />
+      ))}
+
+      {renderSnapshot.streamingMessage ? (
+        <MessageBubble
+          detailsExpanded={false}
+          expandedDetailEntries={{}}
+          key={renderSnapshot.streamingMessage.conversationUnitId}
+          message={renderSnapshot.streamingMessage}
+          onToggleDetail={onToggleDetailEntry}
+          onToggleDetails={onToggleConversationUnit}
+          primaryAgentId={primaryAgentId}
+          showCursor={isStreaming}
+        />
+      ) : null}
+
+      {renderSnapshot.showPendingIndicator ? (
+        <div className="flex items-end gap-2">
+          <img
+            alt={primaryAgentLabel}
+            src={primaryAgentAvatarSrc}
+            className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
+            style={getAvatarThemeStyle(primaryAgentId)}
+          />
+          <div className="rounded-xl rounded-bl-sm border border-border/50 bg-card px-3 py-2">
+            <div className="flex items-center gap-1">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary/70"
+                  style={{
+                    animationDelay: `${i * 0.15}s`,
+                    animationDuration: "0.9s",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  ),
+);
+
+TranscriptBody.displayName = "TranscriptBody";
+
 export const ChatArea = ({
   messages,
   streamingContent = "",
@@ -557,11 +647,15 @@ export const ChatArea = ({
     [liveDraft, primaryAgentId, primaryAgentLabel],
   );
   const renderSnapshot = useSessionChatRenderSnapshot({
+    assistantPending: isSessionActive,
     liveDraft: renderLiveDraft,
     messages: presentationMessages,
     streamingText,
   });
-  const hasStreamingMessage = renderSnapshot.streamingMessage !== null;
+  const hasVisibleTranscriptContent =
+    renderSnapshot.renderedMessages.length > 0 ||
+    renderSnapshot.streamingMessage !== null ||
+    renderSnapshot.showPendingIndicator;
   const inspectability = useConversationUnitInspectability(
     renderSnapshot.inspectabilityBoundaries,
   );
@@ -656,42 +750,54 @@ export const ChatArea = ({
       </div>
     </div>
   ) : null;
-  const historyLoadingCallout = isLoadingHistory ? (
-    <div aria-atomic="true" aria-live="polite" className="flex justify-center py-4" role="status">
-      <div
-        aria-busy="true"
-        className="transcript-loading-capsule relative inline-flex items-center justify-center px-2 py-2"
-      >
-        <div className="transcript-loading-glow absolute inset-[-0.9rem]" aria-hidden="true" />
-        <div className="relative flex items-center gap-3.5" aria-hidden="true">
-          <span className="transcript-loading-dot transcript-loading-dot-1" />
-          <span className="transcript-loading-dot transcript-loading-dot-2" />
-          <span className="transcript-loading-dot transcript-loading-dot-3" />
+  const historyLoadingCallout = useMemo(
+    () =>
+      isLoadingHistory && !hasVisibleTranscriptContent ? (
+        <div aria-atomic="true" aria-live="polite" className="flex justify-center py-4" role="status">
+          <div
+            aria-busy="true"
+            className="transcript-loading-capsule relative inline-flex items-center justify-center px-2 py-2"
+          >
+            <div className="transcript-loading-glow absolute inset-[-0.9rem]" aria-hidden="true" />
+            <div className="relative flex items-center gap-3.5" aria-hidden="true">
+              <span className="transcript-loading-dot transcript-loading-dot-1" />
+              <span className="transcript-loading-dot transcript-loading-dot-2" />
+              <span className="transcript-loading-dot transcript-loading-dot-3" />
+            </div>
+            <span className="sr-only">Loading mission transcript</span>
+          </div>
         </div>
-        <span className="sr-only">Loading mission transcript</span>
-      </div>
-    </div>
-  ) : null;
-  const historyEmptyCallout = isTranscriptEmpty ? (
-    <div className="rounded-xl border border-border/60 bg-background/40 px-3 py-2.5" role="status">
-      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
-        No Session History Yet
-      </p>
-      <p className="mt-1 text-xs leading-relaxed text-foreground/75">
-        This mission has not produced a transcript yet.
-      </p>
-    </div>
-  ) : null;
-  const historyErrorCallout = isTranscriptError ? (
-    <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5" role="alert">
-      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-destructive/90">
-        Transcript Load Failed
-      </p>
-      <p className="mt-1 text-xs leading-relaxed text-foreground/80">
-        {historyErrorMessage ?? "Unable to load the mission transcript right now."}
-      </p>
-    </div>
-  ) : null;
+      ) : null,
+    [hasVisibleTranscriptContent, isLoadingHistory],
+  );
+  const historyEmptyCallout = useMemo(
+    () =>
+      isTranscriptEmpty ? (
+        <div className="rounded-xl border border-border/60 bg-background/40 px-3 py-2.5" role="status">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
+            No Session History Yet
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-foreground/75">
+            This mission has not produced a transcript yet.
+          </p>
+        </div>
+      ) : null,
+    [isTranscriptEmpty],
+  );
+  const historyErrorCallout = useMemo(
+    () =>
+      isTranscriptError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5" role="alert">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-destructive/90">
+            Transcript Load Failed
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-foreground/80">
+            {historyErrorMessage ?? "Unable to load the mission transcript right now."}
+          </p>
+        </div>
+      ) : null,
+    [historyErrorMessage, isTranscriptError],
+  );
   const abortSettlementCallout = isAbortSettling ? (
     <div
       aria-atomic="true"
@@ -949,73 +1055,20 @@ export const ChatArea = ({
       scrollSignal={renderSnapshot.scrollSignal}
     >
       {() => (
-        <>
-          {historyLoadingCallout}
-          {historyErrorCallout}
-          {historyEmptyCallout}
-
-          {renderSnapshot.renderedMessages.map((message, index) => {
-            const isLastNoctis =
-              isStreaming &&
-              !hasStreamingMessage &&
-              message.sender === primaryAgentId &&
-              index === renderSnapshot.renderedMessages.length - 1;
-            return (
-              <MessageBubble
-                detailsExpanded={inspectability.isConversationUnitExpanded(
-                  message.conversationUnitId,
-                )}
-                expandedDetailEntries={inspectability.getExpandedDetailEntries(
-                  message.conversationUnitId,
-                )}
-                key={message.conversationUnitId}
-                message={message}
-                onToggleDetail={inspectability.toggleDetailEntry}
-                onToggleDetails={inspectability.toggleConversationUnit}
-                primaryAgentId={primaryAgentId}
-                showCursor={isLastNoctis}
-              />
-            );
-          })}
-
-          {renderSnapshot.streamingMessage ? (
-            <MessageBubble
-              detailsExpanded={false}
-              expandedDetailEntries={{}}
-              key={renderSnapshot.streamingMessage.conversationUnitId}
-              message={renderSnapshot.streamingMessage}
-              onToggleDetail={inspectability.toggleDetailEntry}
-              onToggleDetails={inspectability.toggleConversationUnit}
-              primaryAgentId={primaryAgentId}
-              showCursor={isStreaming}
-            />
-          ) : null}
-
-          {isSessionActive && !hasStreamingMessage ? (
-            <div className="flex items-end gap-2">
-              <img
-                alt={primaryAgentLabel}
-                src={primaryAgentAvatarSrc}
-                className="h-8 w-8 shrink-0 rounded-full border object-cover ring-1 ring-white/6"
-                style={getAvatarThemeStyle(primaryAgentId)}
-              />
-              <div className="rounded-xl rounded-bl-sm border border-border/50 bg-card px-3 py-2">
-                <div className="flex items-center gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary/70"
-                      style={{
-                        animationDelay: `${i * 0.15}s`,
-                        animationDuration: "0.9s",
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </>
+        <TranscriptBody
+          getExpandedDetailEntries={inspectability.getExpandedDetailEntries}
+          historyEmptyCallout={historyEmptyCallout}
+          historyErrorCallout={historyErrorCallout}
+          historyLoadingCallout={historyLoadingCallout}
+          isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
+          isStreaming={isStreaming}
+          onToggleConversationUnit={inspectability.toggleConversationUnit}
+          onToggleDetailEntry={inspectability.toggleDetailEntry}
+          primaryAgentAvatarSrc={primaryAgentAvatarSrc}
+          primaryAgentId={primaryAgentId}
+          primaryAgentLabel={primaryAgentLabel}
+          renderSnapshot={renderSnapshot}
+        />
       )}
     </ChatThreadFrame>
   );

@@ -21,6 +21,7 @@ export type SessionChatScrollSignal = "none" | "tail-append" | "streaming-growth
 
 export type SessionChatRenderSnapshot = {
   input: {
+    assistantPending: boolean;
     liveDraft: {
       fallbackSender: SessionPresentationMessage["sender"];
       fallbackSenderLabel: string;
@@ -39,6 +40,7 @@ export type SessionChatRenderSnapshot = {
   refreshKind: SessionChatRefreshKind;
   scrollSignal: SessionChatScrollSignal;
   autoFollowKey: string | null;
+  showPendingIndicator: boolean;
   streamingMessage: RenderedSessionMessage | null;
 };
 
@@ -366,11 +368,13 @@ function buildAutoFollowKey(
 }
 
 export function buildSessionChatRenderSnapshot({
+  assistantPending = false,
   liveDraft = null,
   messages,
   previousSnapshot = null,
   streamingText = null,
 }: {
+  assistantPending?: boolean;
   liveDraft?: LiveDraftInput | null;
   messages: SessionPresentationMessage[];
   previousSnapshot?: SessionChatRenderSnapshot | null;
@@ -396,14 +400,16 @@ export function buildSessionChatRenderSnapshot({
     nextRenderedMessages,
     streamingMessage,
   );
+  const showPendingIndicator = assistantPending && !streamingMessage;
 
   return {
-    input: { liveDraft, messages, streamingText },
+    input: { assistantPending, liveDraft, messages, streamingText },
     renderedMessages: nextRenderedMessages,
     inspectabilityBoundaries,
     refreshKind,
     scrollSignal: toScrollSignal(refreshKind),
     autoFollowKey: buildAutoFollowKey(refreshKind, nextRenderedMessages, streamingMessage),
+    showPendingIndicator,
     streamingMessage,
   };
 }

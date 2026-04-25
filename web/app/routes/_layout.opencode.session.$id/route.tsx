@@ -214,6 +214,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     [liveThread.streamingContent],
   );
   const renderSnapshot = useSessionChatRenderSnapshot({
+    assistantPending: isSessionRunning,
     liveDraft,
     messages: presentationMessages,
     streamingText,
@@ -522,21 +523,10 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
               onToggleConversationUnit={inspectability.toggleConversationUnit}
               onToggleDetailEntry={inspectability.toggleDetailEntry}
               renderedMessages={renderSnapshot.renderedMessages}
+              showPendingIndicator={renderSnapshot.showPendingIndicator}
               streamingMessage={renderSnapshot.streamingMessage}
             />
           )}
-
-          {isSessionRunning ? (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
-                <div className="flex gap-1.5">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
-                </div>
-              </div>
-            </div>
-          ) : null}
         </>
       )}
     </ChatThreadFrame>

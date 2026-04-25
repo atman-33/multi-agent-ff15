@@ -31,7 +31,7 @@ import {
   toSessionPresentationMessages,
   type SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
-import { getSessionStatusForId } from "@/lib/session-status";
+import { getSessionStatusForId, isSessionStatusActive } from "@/lib/session-status";
 import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
@@ -239,11 +239,6 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
     },
     sessionId: projectIrisSessionId,
   });
-  const projectIrisRenderSnapshot = useSessionChatRenderSnapshot({
-    liveDraft: buildProjectIrisLiveDraft(liveThread.liveDraft),
-    messages: projectIrisMessages,
-    streamingText: buildProjectIrisStreamingText(liveThread.streamingContent),
-  });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -288,6 +283,12 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
     projectIrisSessionStatuses,
     projectIrisSessionId,
   );
+  const projectIrisRenderSnapshot = useSessionChatRenderSnapshot({
+    assistantPending: isSessionStatusActive(projectIrisSessionStatus),
+    liveDraft: buildProjectIrisLiveDraft(liveThread.liveDraft),
+    messages: projectIrisMessages,
+    streamingText: buildProjectIrisStreamingText(liveThread.streamingContent),
+  });
 
   useEffect(() => {
     if (loaderData?.initialData || loaderData?.initialFetchError) {

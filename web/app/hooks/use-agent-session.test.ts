@@ -412,6 +412,59 @@ describe("useAgentSession", () => {
     });
   });
 
+  it("preserves the last visible mission transcript while the same mission rehydrates a new primary session in the background", async () => {
+    const initialMission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const runtimeMission = createMission({ missionId: "mission-1", primarySessionId: "session-2" });
+    const deferredSessionTwo = createDeferredResponse();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(runtimeMission));
+      }
+
+      if (url === "/api/session/session-2") {
+        return deferredSessionTwo.promise;
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+    const initialMessages = [createAssistantMessage("message-1", "Mission one reply")];
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: initialMessages,
+          initialMissionData: initialMission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(
+      () =>
+        fetchMock.mock.calls.some(([input]) => String(input) === "/api/session/session-2"),
+    );
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "loading",
+      isLoadingHistory: false,
+      messages: ["Mission one reply"],
+      streamingContent: "",
+    });
+  });
+
   it("resubscribes to the pending primary session after route transition into a newly started mission", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     let sessionMessages: MessageInfo[] = [];

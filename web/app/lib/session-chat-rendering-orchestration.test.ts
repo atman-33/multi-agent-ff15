@@ -209,6 +209,43 @@ Implemented the requested change.
     ]);
   });
 
+  it("exposes a pending indicator state when an assistant is active without visible tail content", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      messages: [],
+    });
+
+    expect(snapshot.showPendingIndicator).toBe(true);
+    expect(snapshot.streamingMessage).toBeNull();
+  });
+
+  it("suppresses the pending indicator once live draft or streaming text produces visible tail content", () => {
+    const draftSnapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      liveDraft: {
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      },
+      messages: [],
+    });
+    const textSnapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      messages: [],
+      streamingText: {
+        content: "Visible reply",
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+      },
+    });
+
+    expect(draftSnapshot.streamingMessage).not.toBeNull();
+    expect(draftSnapshot.showPendingIndicator).toBe(false);
+    expect(textSnapshot.streamingMessage?.messageDisplay.displayContent).toBe("Visible reply");
+    expect(textSnapshot.showPendingIndicator).toBe(false);
+  });
+
   it("derives follow keys from reasoning-only live draft growth", () => {
     const initial = buildSessionChatRenderSnapshot({
       liveDraft: {

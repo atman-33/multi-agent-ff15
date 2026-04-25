@@ -51,11 +51,14 @@ vi.mock("@/components/chat/thread-frame", () => ({
 
 vi.mock("@/components/chat/session-message-list", () => ({
   SessionMessageList: ({
+    pendingIndicator,
     renderedMessages,
     renderAvatar,
     renderDetailSheet,
+    showPendingIndicator,
     streamingMessage,
   }: {
+    pendingIndicator?: ReactNode;
     renderedMessages: RenderedSessionMessage[];
     renderAvatar?: (message: RenderedSessionMessage) => ReactNode;
     renderDetailSheet?: (args: {
@@ -63,6 +66,7 @@ vi.mock("@/components/chat/session-message-list", () => ({
       open: boolean;
       onOpenChange: (open: boolean) => void;
     }) => ReactNode;
+    showPendingIndicator?: boolean;
     streamingMessage: RenderedSessionMessage | null;
   }) => (
     <div data-session-message-list="true">
@@ -78,6 +82,9 @@ vi.mock("@/components/chat/session-message-list", () => ({
           {streamingMessage.senderLabel}:{streamingMessage.messageDisplay.displayContent || "cursor"}
         </section>
       ) : <section data-streaming-message="false" />}
+      <section data-pending-indicator={showPendingIndicator ? "true" : "false"}>
+        {showPendingIndicator ? pendingIndicator : null}
+      </section>
     </div>
   ),
 }));
@@ -362,7 +369,7 @@ describe("iris-authoring-sheet", () => {
     expect(markup).not.toContain("h-6 w-6 blur-lg");
   });
 
-  it("shows a route-local Iris dots bubble in the conversation body before streaming text arrives", () => {
+  it("shows the Iris dots bubble through the shared transcript list before streaming text arrives", () => {
     const markup = renderToStaticMarkup(
       <IrisAuthoringSheet
         autoFollowKey="tail:message-1"
@@ -402,6 +409,7 @@ describe("iris-authoring-sheet", () => {
           },
         })]}
         scopeLabel="Lunafreya"
+        showPendingIndicator={true}
         scrollSignal="tail-append"
         selectedModel={null}
         selectedEntryLabel="lunafreya-autonomous"
@@ -413,6 +421,7 @@ describe("iris-authoring-sheet", () => {
     );
 
     expect(markup).toContain('data-streaming-message="false"');
+    expect(markup).toContain('data-pending-indicator="true"');
     expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]");
     expect(markup).toContain("animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]");
   });

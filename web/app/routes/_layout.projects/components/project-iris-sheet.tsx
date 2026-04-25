@@ -65,6 +65,7 @@ export function ProjectIrisSheet({
       onSend={onSend}
       renderedMessages={renderSnapshot?.renderedMessages ?? []}
       scopeLabel="Projects"
+      showPendingIndicator={renderSnapshot?.showPendingIndicator ?? false}
       scrollSignal={renderSnapshot?.scrollSignal ?? "none"}
       selectedEntryLabel="project registry"
       selectedModel={selectedModel}

@@ -442,7 +442,15 @@ function getVisibleMissionMessages(
     return sessionMessages;
   }
 
-  if (transcriptState.missionId !== activeMissionId || transcriptState.phase !== "ready") {
+  if (transcriptState.missionId !== activeMissionId) {
+    return [];
+  }
+
+  if (transcriptState.phase === "loading" && sessionMessages.length > 0) {
+    return sessionMessages;
+  }
+
+  if (transcriptState.phase !== "ready") {
     return [];
   }
 
@@ -631,7 +639,8 @@ export function useAgentSession({
   );
   const isLoadingHistory =
     activeMissionId !== null &&
-    visibleTranscriptState.phase === "loading";
+    visibleTranscriptState.phase === "loading" &&
+    messages.length === 0;
   const sessionStatusRef = useRef<SessionStatus | null>(null);
   const pendingActiveResolversRef = useRef<Map<string, Array<() => void>>>(new Map());
   const progressTimersRef = useRef<
@@ -1360,7 +1369,6 @@ export function useAgentSession({
         setNoctisSessionId(nextPrimarySessionId);
         clearStreamingState();
         if (nextPrimarySessionId) {
-          setSessionMessages([]);
           setTranscriptState(createMissionTranscriptState(transcriptMissionId, "loading"));
           subscribeToSession(nextPrimarySessionId);
           void syncSessionMessages(nextPrimarySessionId, {
