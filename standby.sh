@@ -9,7 +9,11 @@ WEB_PORT=13000
 WEB_URL="http://localhost:${WEB_PORT}"
 WEB_LOG="runtime/logs/web.log"
 BUILD_OUTPUT="web/build/server/index.js"
+ACTION="start"
 RUN_BUILD=false
+SERVER_STATE="stopped"
+SERVER_PID=""
+SERVER_CMD=""
 
 log_info() {
     echo -e "\033[1;33m[INFO]\033[0m $1"
@@ -31,11 +35,15 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
+    echo "      --stop     Stop the managed web server if it is running"
+    echo "      --status   Print the managed web server status"
     echo "  -h, --help     Show this help"
     echo ""
     echo "Examples:"
     echo "  ./standby.sh"
     echo "  ./standby.sh --build"
+    echo "  ./standby.sh --stop"
+    echo "  ./standby.sh --status"
     echo ""
 }
 
@@ -91,11 +99,40 @@ require_command() {
     fi
 }
 
+require_port_lookup() {
+    if command -v lsof >/dev/null 2>&1 || command -v ss >/dev/null 2>&1; then
+        return
+    fi
+
+    log_warn "Required command not found: lsof or ss"
+    exit 1
+}
+
+set_action() {
+    local next_action="$1"
+
+    if [ "$ACTION" != "start" ] && [ "$ACTION" != "$next_action" ]; then
+        log_warn "Choose only one action: start, stop, or status."
+        show_help
+        exit 1
+    fi
+
+    ACTION="$next_action"
+}
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -b|--build)
                 RUN_BUILD=true
+                shift
+                ;;
+            --stop)
+                set_action "stop"
+                shift
+                ;;
+            --status)
+                set_action "status"
                 shift
                 ;;
             -h|--help)
@@ -109,6 +146,12 @@ parse_args() {
                 ;;
         esac
     done
+
+    if [ "$RUN_BUILD" = true ] && [ "$ACTION" != "start" ]; then
+        log_warn "--build can only be used when starting the web app."
+        show_help
+        exit 1
+    fi
 }
 
 ensure_dependencies() {
@@ -139,27 +182,128 @@ get_listening_pid() {
     fi
 }
 
+get_process_command() {
+    local process_pid="$1"
+
+    ps -p "$process_pid" -o args= 2>/dev/null || true
+}
+
+is_managed_server_command() {
+    local process_command="$1"
+
+    printf '%s\n' "$process_command" | grep -qiE 'react-router-serve|node.*(web/)?build/server/index.js|node.*(web/)?server\.js|npm --prefix web run start|npm run web:start'
+}
+
+refresh_server_state() {
+    local listening_pid
+    local listening_cmd
+
+    SERVER_STATE="stopped"
+    SERVER_PID=""
+    SERVER_CMD=""
+
+    listening_pid="$(get_listening_pid || true)"
+    if [ -z "$listening_pid" ]; then
+        return
+    fi
+
+    listening_cmd="$(get_process_command "$listening_pid")"
+
+    SERVER_PID="$listening_pid"
+    SERVER_CMD="$listening_cmd"
+
+    if is_managed_server_command "$listening_cmd"; then
+        SERVER_STATE="running"
+        return
+    fi
+
+    SERVER_STATE="occupied"
+}
+
+print_server_status() {
+    refresh_server_state
+
+    case "$SERVER_STATE" in
+        running)
+            log_success "Web server is running: ${WEB_URL} (PID: ${SERVER_PID})"
+            log_info "Log: ${WEB_LOG}"
+            return 0
+            ;;
+        stopped)
+            log_info "Web server is not running."
+            return 1
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is already in use by another process."
+            log_warn "$SERVER_CMD"
+            return 2
+            ;;
+    esac
+}
+
+stop_managed_server() {
+    refresh_server_state
+
+    case "$SERVER_STATE" in
+        stopped)
+            log_info "Web server is not running."
+            return 0
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is already in use by another process."
+            log_warn "$SERVER_CMD"
+            return 1
+            ;;
+    esac
+
+    log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${SERVER_PID})..."
+    kill "$SERVER_PID" 2>/dev/null || true
+    sleep 1
+
+    refresh_server_state
+    case "$SERVER_STATE" in
+        stopped)
+            log_success "Web server stopped."
+            return 0
+            ;;
+        running)
+            log_warn "Web server is still running after stop request."
+            return 1
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is now in use by another process."
+            log_warn "$SERVER_CMD"
+            return 1
+            ;;
+    esac
+}
+
 stop_existing_server() {
-    local existing_pid
+    refresh_server_state
 
-    existing_pid="$(get_listening_pid || true)"
-    if [ -z "$existing_pid" ]; then
-        return
+    case "$SERVER_STATE" in
+        stopped)
+            return
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is already in use by another process."
+            log_warn "$SERVER_CMD"
+            exit 1
+            ;;
+    esac
+
+    log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${SERVER_PID})..."
+    kill "$SERVER_PID" 2>/dev/null || true
+    sleep 1
+
+    refresh_server_state
+    if [ "$SERVER_STATE" != "stopped" ]; then
+        log_warn "Port ${WEB_PORT} is not available after stopping the existing web server."
+        if [ -n "$SERVER_CMD" ]; then
+            log_warn "$SERVER_CMD"
+        fi
+        exit 1
     fi
-
-    local existing_cmd
-    existing_cmd="$(ps -p "$existing_pid" -o args= 2>/dev/null || true)"
-
-    if echo "$existing_cmd" | grep -qiE 'react-router-serve|node.*(web/)?build/server/index.js|node.*(web/)?server\.js|npm --prefix web run start|npm run web:start'; then
-        log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${existing_pid})..."
-        kill "$existing_pid" 2>/dev/null || true
-        sleep 1
-        return
-    fi
-
-    log_warn "Port ${WEB_PORT} is already in use by another process."
-    log_warn "$existing_cmd"
-    exit 1
 }
 
 wait_for_server() {
@@ -208,8 +352,21 @@ start_server() {
 }
 
 require_command npm
-require_command curl
 parse_args "$@"
+require_port_lookup
+
+case "$ACTION" in
+    status)
+        print_server_status
+        exit $?
+        ;;
+    stop)
+        stop_managed_server
+        exit $?
+        ;;
+esac
+
+require_command curl
 
 mkdir -p runtime/logs
 
