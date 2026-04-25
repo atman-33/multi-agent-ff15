@@ -1060,7 +1060,21 @@ export function useAgentSession({
         trackStreamingMessage?: boolean;
       },
     ) => {
+      const streamingMessageIdBeforeSync = streamingMessageIdRef.current;
+      const transcriptMissionId =
+        options?.missionId ?? missionIdRef.current ?? activeMissionIdRef.current;
+
       const nextMessages = await loadSessionMessages(sessionId, primaryAgentId);
+      const latestAssistant = [...nextMessages]
+        .reverse()
+        .find((message) => message.sender === primaryAgentId);
+      const containsStreamingMessageId = Boolean(
+        streamingMessageIdBeforeSync &&
+          nextMessages.some((message) => message.id === streamingMessageIdBeforeSync)
+      );
+      const effectiveSessionStatus =
+        useChatStore.getState().sessionStates[sessionId] ?? sessionStatusRef.current;
+
       setSessionMessages((current) => {
         if (nextMessages.length === 0) {
           return options?.preserveStreaming ? current : initialMessages;
@@ -1071,8 +1085,6 @@ export function useAgentSession({
           : nextMessages;
       });
 
-      const transcriptMissionId =
-        options?.missionId ?? missionIdRef.current ?? activeMissionIdRef.current;
       setTranscriptState(
         createMissionTranscriptState(
           transcriptMissionId,
@@ -1081,8 +1093,10 @@ export function useAgentSession({
       );
 
       if (
-        streamingMessageIdRef.current &&
-        nextMessages.some((message) => message.id === streamingMessageIdRef.current)
+        streamingMessageIdBeforeSync &&
+        streamingMessageIdRef.current === streamingMessageIdBeforeSync &&
+        containsStreamingMessageId &&
+        !isSessionStatusActive(effectiveSessionStatus)
       ) {
         clearStreamingState();
       }
@@ -1091,9 +1105,6 @@ export function useAgentSession({
         return;
       }
 
-      const latestAssistant = [...nextMessages]
-        .reverse()
-        .find((message) => message.sender === primaryAgentId);
       streamingMessageIdRef.current = latestAssistant?.id ?? null;
     },
     [clearStreamingState, initialMessages, primaryAgentId]
