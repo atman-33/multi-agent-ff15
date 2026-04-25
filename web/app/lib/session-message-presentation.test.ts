@@ -324,6 +324,31 @@ Implemented the requested change.
     expect(rendered[0]?.senderLabel).toBe("Noctis");
   });
 
+  it("suppresses trailing Noctis intermediate activity when it has no preview text", () => {
+    const rendered = buildRenderedSessionMessages([
+      {
+        id: "context-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "",
+        detailContent: "<workspace-context>project_root: /tmp/example</workspace-context>",
+        rawText: "<workspace-context>project_root: /tmp/example</workspace-context>",
+        parts: [
+          {
+            type: "text",
+            text: "<workspace-context>project_root: /tmp/example</workspace-context>",
+          },
+        ],
+        timestamp: new Date("2026-04-04T10:00:00.000Z"),
+        source: "session",
+      },
+    ]);
+
+    expect(rendered).toHaveLength(0);
+  });
+
   it("keeps the same conversation-unit identity when pending Noctis activity becomes visible", () => {
     const pendingOnly = buildRenderedSessionMessages([
       {

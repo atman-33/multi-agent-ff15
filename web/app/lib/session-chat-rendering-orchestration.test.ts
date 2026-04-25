@@ -209,6 +209,41 @@ Implemented the requested change.
     ]);
   });
 
+  it("reuses the tail Noctis intermediate bubble instead of rendering a second live Noctis bubble", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+        messageId: "reply-2",
+        parts: [{ text: "了解。俺がイグニス、グラディオラス、プロンプトに今それぞれ聞いておいた。", type: "text" }],
+      },
+      messages: [
+        {
+          id: "tool-1",
+          role: "assistant",
+          sender: "noctis",
+          senderLabel: "Noctis",
+          kind: "assistant_message",
+          content: "",
+          detailContent: "",
+          rawText: "",
+          parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+          timestamp: new Date("2026-04-04T10:00:00.000Z"),
+          source: "session",
+        },
+      ],
+    });
+
+    expect(snapshot.renderedMessages).toHaveLength(1);
+    expect(snapshot.streamingMessage).toBeNull();
+    expect(snapshot.renderedMessages[0]?.conversationUnitId).toBe("tool-1");
+    expect(snapshot.renderedMessages[0]?.messageDisplay.displayContent).toBe(
+      "了解。俺がイグニス、グラディオラス、プロンプトに今それぞれ聞いておいた。",
+    );
+    expect(snapshot.renderedMessages[0]?.parts.filter((part) => part.type === "tool")).toHaveLength(1);
+    expect(snapshot.renderedMessages[0]?.parts.filter((part) => part.type === "text")).toHaveLength(1);
+  });
+
   it("exposes a pending indicator state when an assistant is active without visible tail content", () => {
     const snapshot = buildSessionChatRenderSnapshot({
       assistantPending: true,

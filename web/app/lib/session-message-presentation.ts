@@ -335,7 +335,7 @@ function flushPendingNoctisMessages(
     pendingNoctis.map((entry) => entry.display.rawPromptPayload),
   );
 
-  if (!preview && promptContextSections.length === 0 && !reportDetails && !rawPromptPayload) {
+  if (!preview) {
     return [];
   }
 

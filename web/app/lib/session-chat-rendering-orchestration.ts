@@ -119,6 +119,76 @@ function buildStreamingMessageFromLiveDraft(
   };
 }
 
+function mergeUniqueValues(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function combineDetailText(left: string, right: string): string {
+  return mergeUniqueValues([left.trim(), right.trim()]).join("\n\n");
+}
+
+function foldNoctisIntermediateTailIntoStreamingMessage(
+  renderedMessages: RenderedSessionMessage[],
+  streamingMessage: RenderedSessionMessage | null,
+): {
+  renderedMessages: RenderedSessionMessage[];
+  streamingMessage: RenderedSessionMessage | null;
+} {
+  const tailMessage = renderedMessages.at(-1);
+
+  if (
+    !tailMessage ||
+    !streamingMessage ||
+    !tailMessage.intermediateOnly ||
+    tailMessage.sender !== "noctis" ||
+    streamingMessage.sender !== "noctis" ||
+    !streamingMessage.messageDisplay.displayContent.trim()
+  ) {
+    return { renderedMessages, streamingMessage };
+  }
+
+  const mergedTailMessage: RenderedSessionMessage = {
+    ...tailMessage,
+    content: streamingMessage.content,
+    detailContent: combineDetailText(
+      tailMessage.detailContent ?? "",
+      streamingMessage.detailContent ?? "",
+    ),
+    rawText: streamingMessage.rawText,
+    parts: [...tailMessage.parts, ...streamingMessage.parts],
+    sourceMessageIds: mergeUniqueValues([
+      ...tailMessage.sourceMessageIds,
+      ...streamingMessage.sourceMessageIds,
+    ]),
+    detailRawText: combineDetailText(tailMessage.detailRawText, streamingMessage.detailRawText),
+    intermediateOnly: undefined,
+    messageDisplay: {
+      ...streamingMessage.messageDisplay,
+      promptContextSections: tailMessage.messageDisplay.promptContextSections,
+      promptContextSource:
+        tailMessage.messageDisplay.promptContextSource ??
+        streamingMessage.messageDisplay.promptContextSource,
+      rawWorkflowPrompt:
+        tailMessage.messageDisplay.rawWorkflowPrompt ??
+        streamingMessage.messageDisplay.rawWorkflowPrompt,
+      rawPromptPayload:
+        tailMessage.messageDisplay.rawPromptPayload ??
+        streamingMessage.messageDisplay.rawPromptPayload,
+      reportDetails:
+        tailMessage.messageDisplay.reportDetails ??
+        streamingMessage.messageDisplay.reportDetails,
+      selectionAdjustment:
+        streamingMessage.messageDisplay.selectionAdjustment ??
+        tailMessage.messageDisplay.selectionAdjustment,
+    },
+  };
+
+  return {
+    renderedMessages: [...renderedMessages.slice(0, -1), mergedTailMessage],
+    streamingMessage: null,
+  };
+}
+
 function hashText(value: string): string {
   let hash = 0;
 
@@ -384,15 +454,22 @@ export function buildSessionChatRenderSnapshot({
     fallbackSenderLabel: string;
   } | null;
 }): SessionChatRenderSnapshot {
+  const baseRenderedMessages = buildRenderedSessionMessages(messages);
+  const baseStreamingMessage =
+    buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);
+  const foldedSnapshotState = foldNoctisIntermediateTailIntoStreamingMessage(
+    baseRenderedMessages,
+    baseStreamingMessage,
+  );
   const nextRenderedMessages = reuseRenderedMessageReferences(
-    buildRenderedSessionMessages(messages),
+    foldedSnapshotState.renderedMessages,
     previousSnapshot,
   );
   const inspectabilityBoundaries = nextRenderedMessages.map((message) =>
     buildMessageInspectabilityBoundary(message),
   );
   const streamingMessage = reuseStreamingMessageReference(
-    buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText),
+    foldedSnapshotState.streamingMessage,
     previousSnapshot,
   );
   const refreshKind = classifyRefreshKind(
