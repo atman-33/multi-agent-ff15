@@ -20,7 +20,12 @@ import {
   type SessionStatus,
 } from "@/lib/session-status";
 import { normalizeSessionMessages } from "@/lib/session-message-presentation";
-import { mergeStreamingText, parseSessionTextPartEvent } from "@/lib/session-stream";
+import {
+  mergeSessionLiveDraft,
+  mergeStreamingText,
+  parseSessionLiveEvent,
+  type SessionLiveDraft,
+} from "@/lib/session-stream";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { OperationOption } from "@/lib/operation-presentation";
 import type {
@@ -36,11 +41,13 @@ import type {
   OperationState,
 } from "@/lib/types/mission";
 import type { BanterEntry, ChatMessage, PartyMember } from "@/lib/noctis-team-ui-types";
-import type { MessageInfo } from "@/lib/opencode-session-types";
+import type { MessageInfo, MessagePart } from "@/lib/opencode-session-types";
 import { useChatStore } from "@/stores/chat-store";
 
 type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & {
   messageId?: string;
+  part?: MessagePart;
+  sessionId?: string;
 };
 
 const PROGRESS_BANTER_DELAYS = {
@@ -472,6 +479,7 @@ export interface UseAgentSessionOptions {
 
 export interface UseAgentSessionReturn {
   messages: ChatMessage[];
+  liveDraft: SessionLiveDraft | null;
   streamingContent: string;
   banterEntries: BanterEntry[];
   latestBanterEntryId: string | null;
@@ -583,6 +591,7 @@ export function useAgentSession({
     useState<WorkerSessionIds>(initialWorkerSessionIds);
   const [isStartingMission, setIsStartingMission] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [liveDraft, setLiveDraft] = useState<SessionLiveDraft | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
   const [abortSettlementPhase, setAbortSettlementPhase] =
     useState<AbortSettlementPhase>("idle");
@@ -638,6 +647,7 @@ export function useAgentSession({
 
   const clearStreamingState = useCallback(() => {
     streamingMessageIdRef.current = null;
+    setLiveDraft(null);
     setStreamingContent("");
   }, []);
 
@@ -1085,7 +1095,10 @@ export function useAgentSession({
       if (event.type === "message.part.updated") {
         const { text } = event;
         const eventMessageId = "messageId" in event ? event.messageId : undefined;
-        if (!text) return;
+        const eventPart = "part" in event ? event.part : undefined;
+        const eventSessionId =
+          ("sessionId" in event ? event.sessionId : undefined) ?? noctisSessionIdRef.current;
+        if (!text && !eventPart) return;
 
         setIsStreaming(true);
         if (noctisSessionIdRef.current) {
@@ -1094,16 +1107,33 @@ export function useAgentSession({
         const previousStreamingMessageId = streamingMessageIdRef.current;
         const nextStreamingMessageId = eventMessageId ?? previousStreamingMessageId;
         streamingMessageIdRef.current = nextStreamingMessageId ?? null;
-        setStreamingContent((current) =>
-          mergeStreamingText(
-            nextStreamingMessageId &&
-              previousStreamingMessageId &&
-              nextStreamingMessageId !== previousStreamingMessageId
-              ? ""
-              : current,
-            text,
-          ),
-        );
+
+        if (nextStreamingMessageId) {
+          const nextPart = eventPart ?? (text ? { type: "text", text } : null);
+          if (nextPart) {
+            setLiveDraft((current) =>
+              mergeSessionLiveDraft(current, {
+                kind: "part",
+                messageId: nextStreamingMessageId,
+                part: nextPart,
+                sessionId: eventSessionId ?? null,
+              }),
+            );
+          }
+        }
+
+        if (text) {
+          setStreamingContent((current) =>
+            mergeStreamingText(
+              nextStreamingMessageId &&
+                previousStreamingMessageId &&
+                nextStreamingMessageId !== previousStreamingMessageId
+                ? ""
+                : current,
+              text,
+            ),
+          );
+        }
         return;
       }
 
@@ -1179,44 +1209,42 @@ export function useAgentSession({
           return;
         }
 
-        const textPartEvent = parseSessionTextPartEvent(parsed);
-        if (textPartEvent) {
+        const liveEvent = parseSessionLiveEvent(parsed);
+        if (liveEvent?.kind === "part") {
           handleAgentEvent({
             type: "message.part.updated",
-            text: textPartEvent.text,
-            messageId: textPartEvent.messageId ?? undefined,
+            messageId: liveEvent.messageId ?? undefined,
+            part: liveEvent.part,
+            sessionId: liveEvent.sessionId ?? undefined,
+            text: liveEvent.part.type === "text" ? liveEvent.part.text : undefined,
           });
           return;
         }
 
-        const type = parsed.type;
-        if (typeof type !== "string") return;
-
-        if (type === "session.idle") {
-          const sessionId = noctisSessionIdRef.current;
-          if (sessionId) {
-            setServerSessionState(sessionId, "idle");
+        if (liveEvent?.kind === "idle") {
+          const activeSessionId = liveEvent.sessionId ?? noctisSessionIdRef.current;
+          if (activeSessionId) {
+            setServerSessionState(activeSessionId, "idle");
             lastSessionStateRef.current = "idle";
             sessionStatusRef.current = "idle";
             clearAbortSettlement();
-            void syncSessionMessages(sessionId).catch(() => undefined);
+            void syncSessionMessages(activeSessionId).catch(() => undefined);
           }
           streamingMessageIdRef.current = null;
           handleAgentEvent({ type: "session.completed", message: "" });
           return;
         }
 
-        if (type === "session.status") {
-          const props = parsed.properties as Record<string, unknown> | undefined;
-          const status = props?.status as Record<string, unknown> | undefined;
-          const nextStatus = coerceSessionStatus(status?.type);
-          if (nextStatus && noctisSessionIdRef.current) {
-            setServerSessionState(noctisSessionIdRef.current, nextStatus);
+        if (liveEvent?.kind === "status") {
+          const nextStatus = coerceSessionStatus(liveEvent.status);
+          const activeSessionId = liveEvent.sessionId ?? noctisSessionIdRef.current;
+          if (nextStatus && activeSessionId) {
+            setServerSessionState(activeSessionId, nextStatus);
             sessionStatusRef.current = nextStatus;
             if (nextStatus === "idle") {
               clearAbortSettlement();
             }
-            resolvePendingActive(noctisSessionIdRef.current, nextStatus);
+            resolvePendingActive(activeSessionId, nextStatus);
             if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
               clearProgressBanter(primaryAgentId);
               handleAgentEvent({ type: "task.retrying", agentId: primaryAgentId });
@@ -1906,6 +1934,7 @@ export function useAgentSession({
 
   return {
     messages,
+    liveDraft,
     streamingContent,
     banterEntries,
     latestBanterEntryId,

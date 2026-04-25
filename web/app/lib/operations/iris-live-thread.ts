@@ -61,6 +61,28 @@ export function buildOperationsIrisStreamingText(content: string): {
   };
 }
 
+export function buildOperationsIrisLiveDraft(input: {
+  messageId: string | null;
+  parts: SessionPresentationMessage["parts"] | undefined;
+  sessionId: string | null;
+} | null): {
+  fallbackSender: "iris";
+  fallbackSenderLabel: "Iris";
+  messageId: string | null;
+  parts: NonNullable<SessionPresentationMessage["parts"]>;
+} | null {
+  if (!input?.parts || input.parts.length === 0) {
+    return null;
+  }
+
+  return {
+    fallbackSender: "iris",
+    fallbackSenderLabel: "Iris",
+    messageId: input.messageId,
+    parts: input.parts,
+  };
+}
+
 export function mergeOperationsIrisStreamingState(input: {
   currentContent: string;
   currentMessageId: string | null;

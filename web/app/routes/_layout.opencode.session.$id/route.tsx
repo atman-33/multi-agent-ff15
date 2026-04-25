@@ -190,6 +190,18 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     },
     sessionId,
   });
+  const liveDraft = useMemo(
+    () =>
+      liveThread.liveDraft && liveThread.liveDraft.parts.length > 0
+        ? {
+            fallbackSender: null,
+            fallbackSenderLabel: managedSession?.ownerLabel ?? "Assistant",
+            messageId: liveThread.liveDraft.messageId,
+            parts: liveThread.liveDraft.parts,
+          }
+        : null,
+    [liveThread.liveDraft, managedSession?.ownerLabel],
+  );
   const streamingText = useMemo(
     () =>
       liveThread.streamingContent
@@ -202,6 +214,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     [liveThread.streamingContent],
   );
   const renderSnapshot = useSessionChatRenderSnapshot({
+    liveDraft,
     messages: presentationMessages,
     streamingText,
   });
@@ -218,6 +231,46 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       void refreshSessionStatus();
     }
   }, [liveThread.isLiveUnavailable, refreshSessionStatus]);
+
+  useEffect(() => {
+    if (!liveThread.isLiveUnavailable || !sessionId || !isSessionRunning) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollAuthoritativeSession = async () => {
+      const status = await refreshSessionStatus();
+      if (cancelled) {
+        return;
+      }
+
+      await loadMessages();
+      if (cancelled) {
+        return;
+      }
+
+      if (status && !isSessionStatusActive(status) && typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sessions:refresh"));
+      }
+    };
+
+    void pollAuthoritativeSession();
+    const intervalId = window.setInterval(() => {
+      void pollAuthoritativeSession();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [
+    isSessionRunning,
+    liveThread.isLiveUnavailable,
+    loadMessages,
+    refreshSessionStatus,
+    sessionId,
+  ]);
 
   const handleSend = useCallback(
     async (
@@ -538,4 +591,5 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
   }
 };
 
+export { SessionRoute };
 export default SessionRoute;

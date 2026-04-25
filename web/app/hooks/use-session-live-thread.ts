@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  mergeSessionLiveDraft,
   mergeStreamingText,
-  parseSessionTextPartEvent,
+  parseSessionLiveEvent,
+  type SessionLiveDraft,
   type SessionTextPartEvent,
 } from "@/lib/session-stream";
 import { coerceSessionStatus, type SessionStatus } from "@/lib/session-status";
@@ -20,6 +22,7 @@ export type UseSessionLiveThreadOptions = {
 export type UseSessionLiveThreadResult = {
   clearStreaming: () => void;
   isLiveUnavailable: boolean;
+  liveDraft: SessionLiveDraft | null;
   resetLiveThread: () => void;
   streamingContent: string;
   streamingMessageId: string | null;
@@ -35,6 +38,7 @@ export function useSessionLiveThread({
 }: UseSessionLiveThreadOptions): UseSessionLiveThreadResult {
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [liveDraft, setLiveDraft] = useState<SessionLiveDraft | null>(null);
   const [isLiveUnavailable, setIsLiveUnavailable] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const onSessionIdleRef = useRef(onSessionIdle);
@@ -52,6 +56,7 @@ export function useSessionLiveThread({
 
   const clearStreaming = useCallback(() => {
     streamingMessageIdRef.current = null;
+    setLiveDraft(null);
     setStreamingContent("");
     setStreamingMessageId(null);
   }, []);
@@ -82,60 +87,61 @@ export function useSessionLiveThread({
         return;
       }
 
-      const textPartEvent = parseSessionTextPartEvent(parsed);
-      if (textPartEvent && (!textPartEvent.sessionId || textPartEvent.sessionId === sessionId)) {
-        if (onTextPartMatchedRef.current?.(textPartEvent)) {
+      const liveEvent = parseSessionLiveEvent(parsed);
+      if (!liveEvent) {
+        onUnhandledEventRef.current?.(parsed);
+        return;
+      }
+
+      if (liveEvent.kind === "part") {
+        if (liveEvent.sessionId && liveEvent.sessionId !== sessionId) {
+          return;
+        }
+
+        const textPartEvent: SessionTextPartEvent | null =
+          liveEvent.part.type === "text" && typeof liveEvent.part.text === "string"
+            ? {
+                messageId: liveEvent.messageId,
+                sessionId: liveEvent.sessionId,
+                text: liveEvent.part.text,
+              }
+            : null;
+
+        if (textPartEvent && onTextPartMatchedRef.current?.(textPartEvent)) {
           clearStreaming();
           return;
         }
 
+        setLiveDraft((current) => mergeSessionLiveDraft(current, liveEvent));
+
         const previousStreamingMessageId = streamingMessageIdRef.current;
-        streamingMessageIdRef.current = textPartEvent.messageId;
-        setStreamingMessageId(textPartEvent.messageId);
-        setStreamingContent((current) =>
-          mergeStreamingText(
-            textPartEvent.messageId === previousStreamingMessageId ? current : "",
-            textPartEvent.text,
-          ),
-        );
+        streamingMessageIdRef.current = liveEvent.messageId;
+        setStreamingMessageId(liveEvent.messageId);
+
+        if (textPartEvent) {
+          setStreamingContent((current) =>
+            mergeStreamingText(
+              textPartEvent.messageId === previousStreamingMessageId ? current : "",
+              textPartEvent.text,
+            ),
+          );
+        }
         return;
       }
 
-      const type = typeof parsed.type === "string" ? parsed.type : null;
-      if (!type) {
-        return;
-      }
-
-      if (type === "session.status") {
-        const properties = parsed.properties as
-          | {
-              sessionID?: unknown;
-              status?: {
-                type?: unknown;
-              };
-            }
-          | undefined;
-        const eventSessionId =
-          typeof properties?.sessionID === "string" ? properties.sessionID : sessionId;
-        const nextStatus = coerceSessionStatus(properties?.status?.type);
+      if (liveEvent.kind === "status") {
+        const eventSessionId = liveEvent.sessionId ?? sessionId;
+        const nextStatus = coerceSessionStatus(liveEvent.status);
         if (eventSessionId && nextStatus) {
           onSessionStatusRef.current?.(nextStatus, eventSessionId);
         }
         return;
       }
 
-      if (type === "session.idle") {
-        const properties = parsed.properties as { sessionID?: unknown } | undefined;
-        const eventSessionId =
-          typeof properties?.sessionID === "string" ? properties.sessionID : sessionId;
-
-        clearStreaming();
-        onSessionStatusRef.current?.("idle", eventSessionId);
-        onSessionIdleRef.current?.(eventSessionId);
-        return;
-      }
-
-      onUnhandledEventRef.current?.(parsed);
+      const eventSessionId = liveEvent.sessionId ?? sessionId;
+      clearStreaming();
+      onSessionStatusRef.current?.("idle", eventSessionId);
+      onSessionIdleRef.current?.(eventSessionId);
     };
 
     source.onerror = () => {
@@ -162,6 +168,7 @@ export function useSessionLiveThread({
   return {
     clearStreaming,
     isLiveUnavailable,
+    liveDraft,
     resetLiveThread,
     streamingContent,
     streamingMessageId,

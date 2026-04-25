@@ -46,6 +46,7 @@ import type {
   RenderedSessionMessage,
   SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
+import type { SessionLiveDraft } from "@/lib/session-stream";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type {
   ActivityActorId,
@@ -61,6 +62,7 @@ import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-
 
 interface ChatAreaProps {
   messages: ChatMessage[];
+  liveDraft?: SessionLiveDraft | null;
   streamingContent?: string;
   historyErrorMessage?: string | null;
   historyPhase?: MissionTranscriptPhase;
@@ -507,6 +509,7 @@ export const ChatArea = ({
   selectedOperation,
   activeOperationState,
   workflowProgress = null,
+  liveDraft = null,
   isOperationSelectionLocked,
   onSelectedOperationChange,
   onAbort,
@@ -541,7 +544,20 @@ export const ChatArea = ({
         : null,
     [primaryAgentId, primaryAgentLabel, streamingContent],
   );
+  const renderLiveDraft = useMemo(
+    () =>
+      liveDraft && liveDraft.parts.length > 0
+        ? {
+            fallbackSender: primaryAgentId,
+            fallbackSenderLabel: primaryAgentLabel,
+            messageId: liveDraft.messageId,
+            parts: liveDraft.parts,
+          }
+        : null,
+    [liveDraft, primaryAgentId, primaryAgentLabel],
+  );
   const renderSnapshot = useSessionChatRenderSnapshot({
+    liveDraft: renderLiveDraft,
     messages: presentationMessages,
     streamingText,
   });

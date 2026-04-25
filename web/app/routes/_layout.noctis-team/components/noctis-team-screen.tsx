@@ -224,6 +224,7 @@ export function NoctisTeamScreen({
   );
   const {
     messages,
+    liveDraft,
     streamingContent,
     banterEntries,
     latestBanterEntryId,
@@ -1116,6 +1117,7 @@ export function NoctisTeamScreen({
               isResponding={
                 isMissionStartPending || isSessionActive || isLoadingHistory || isAbortSettling
               }
+              liveDraft={liveDraft}
               streamingContent={streamingContent}
               historyErrorMessage={historyErrorMessage}
               historyPhase={historyPhase}

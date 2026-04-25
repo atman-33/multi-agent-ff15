@@ -5,12 +5,15 @@ import {
 } from "@/lib/session-chat-rendering-orchestration";
 import type { SessionPresentationMessage } from "@/lib/session-message-presentation";
 
+type LiveDraftInput = NonNullable<SessionChatRenderSnapshot["input"]["liveDraft"]>;
 type StreamingTextInput = NonNullable<SessionChatRenderSnapshot["input"]["streamingText"]>;
 
 export function useSessionChatRenderSnapshot({
+  liveDraft = null,
   messages,
   streamingText = null,
 }: {
+  liveDraft?: LiveDraftInput | null;
   messages: SessionPresentationMessage[];
   streamingText?: StreamingTextInput | null;
 }): SessionChatRenderSnapshot {
@@ -19,11 +22,12 @@ export function useSessionChatRenderSnapshot({
   const snapshot = useMemo(
     () =>
       buildSessionChatRenderSnapshot({
+        liveDraft,
         messages,
         previousSnapshot: previousSnapshotRef.current,
         streamingText,
       }),
-    [messages, streamingText],
+    [liveDraft, messages, streamingText],
   );
 
   useEffect(() => {

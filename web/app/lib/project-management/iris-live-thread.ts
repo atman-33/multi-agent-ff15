@@ -2,6 +2,28 @@ import type { SessionPresentationMessage } from "@/lib/session-message-presentat
 import { mergeMessagePartsText, mergeStreamingText } from "@/lib/session-stream";
 import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status";
 
+export function buildProjectIrisLiveDraft(input: {
+  messageId: string | null;
+  parts: SessionPresentationMessage["parts"] | undefined;
+  sessionId: string | null;
+} | null): {
+  fallbackSender: "iris";
+  fallbackSenderLabel: "Iris";
+  messageId: string | null;
+  parts: NonNullable<SessionPresentationMessage["parts"]>;
+} | null {
+  if (!input?.parts || input.parts.length === 0) {
+    return null;
+  }
+
+  return {
+    fallbackSender: "iris",
+    fallbackSenderLabel: "Iris",
+    messageId: input.messageId,
+    parts: input.parts,
+  };
+}
+
 export function buildProjectIrisStreamingText(content: string): {
   content: string;
   fallbackSender: "iris";

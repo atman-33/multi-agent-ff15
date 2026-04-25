@@ -3,6 +3,7 @@
 import { act, createElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MessagePart } from "@/lib/opencode-session-types";
 import { mergeStreamingText } from "@/lib/session-stream";
 import { useSessionLiveThread } from "./use-session-live-thread";
 
@@ -13,6 +14,11 @@ type MessageRecord = {
 
 type HookSnapshot = {
   isLiveUnavailable: boolean;
+  liveDraft: {
+    messageId: string | null;
+    parts: MessagePart[];
+    sessionId: string | null;
+  } | null;
   messages: MessageRecord[];
   streamingContent: string;
   streamingMessageId: string | null;
@@ -77,11 +83,12 @@ function HookProbe({
   useEffect(() => {
     onSnapshot({
       isLiveUnavailable: liveThread.isLiveUnavailable,
+      liveDraft: liveThread.liveDraft,
       messages,
       streamingContent: liveThread.streamingContent,
       streamingMessageId: liveThread.streamingMessageId,
     });
-  }, [liveThread.isLiveUnavailable, liveThread.streamingContent, liveThread.streamingMessageId, messages, onSnapshot]);
+  }, [liveThread.isLiveUnavailable, liveThread.liveDraft, liveThread.streamingContent, liveThread.streamingMessageId, messages, onSnapshot]);
 
   return null;
 }
@@ -295,5 +302,137 @@ describe("useSessionLiveThread", () => {
     });
 
     expect(getSnapshot().isLiveUnavailable).toBe(true);
+  });
+
+  it("accumulates a reasoning part into the live draft", async () => {
+    let latestSnapshot: HookSnapshot | null = null;
+    const getSnapshot = () => {
+      if (!latestSnapshot) {
+        throw new Error("Hook snapshot was not captured.");
+      }
+
+      return latestSnapshot;
+    };
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          onSnapshot: (snapshot: HookSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+          sessionId: "session-1",
+        }),
+      );
+    });
+
+    const eventSource = MockEventSource.instances[0];
+    if (!eventSource?.onmessage) {
+      throw new Error("EventSource handler was not registered.");
+    }
+
+    await act(async () => {
+      eventSource.onmessage?.call(eventSource as unknown as EventSource, {
+        data: JSON.stringify({
+          properties: {
+            part: {
+              id: "part-1",
+              messageID: "assistant-1",
+              sessionID: "session-1",
+              text: "Thinking through the next step",
+              time: {
+                start: 1,
+              },
+              type: "reasoning",
+            },
+          },
+          type: "message.part.updated",
+        }),
+      } as MessageEvent<string>);
+    });
+
+    expect(getSnapshot().liveDraft).toEqual({
+      messageId: "assistant-1",
+      parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      sessionId: "session-1",
+    });
+    expect(getSnapshot().streamingContent).toBe("");
+    expect(getSnapshot().streamingMessageId).toBe("assistant-1");
+  });
+
+  it("accumulates text and reasoning into one live draft by message identity", async () => {
+    let latestSnapshot: HookSnapshot | null = null;
+    const getSnapshot = () => {
+      if (!latestSnapshot) {
+        throw new Error("Hook snapshot was not captured.");
+      }
+
+      return latestSnapshot;
+    };
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          onSnapshot: (snapshot: HookSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+          sessionId: "session-1",
+        }),
+      );
+    });
+
+    const eventSource = MockEventSource.instances[0];
+    if (!eventSource?.onmessage) {
+      throw new Error("EventSource handler was not registered.");
+    }
+
+    await act(async () => {
+      eventSource.onmessage?.call(eventSource as unknown as EventSource, {
+        data: JSON.stringify({
+          properties: {
+            part: {
+              id: "part-1",
+              messageID: "assistant-1",
+              sessionID: "session-1",
+              text: "Thinking through the next step",
+              time: {
+                start: 1,
+              },
+              type: "reasoning",
+            },
+          },
+          type: "message.part.updated",
+        }),
+      } as MessageEvent<string>);
+    });
+
+    await act(async () => {
+      eventSource.onmessage?.call(eventSource as unknown as EventSource, {
+        data: JSON.stringify({
+          properties: {
+            part: {
+              id: "part-2",
+              messageID: "assistant-1",
+              sessionID: "session-1",
+              text: "Hello",
+              type: "text",
+            },
+          },
+          type: "message.part.updated",
+        }),
+      } as MessageEvent<string>);
+    });
+
+    expect(getSnapshot().liveDraft).toEqual({
+      messageId: "assistant-1",
+      parts: [
+        { text: "Thinking through the next step", type: "reasoning" },
+        { text: "Hello", type: "text" },
+      ],
+      sessionId: "session-1",
+    });
+    expect(getSnapshot().streamingContent).toBe("Hello");
+    expect(getSnapshot().streamingMessageId).toBe("assistant-1");
   });
 });

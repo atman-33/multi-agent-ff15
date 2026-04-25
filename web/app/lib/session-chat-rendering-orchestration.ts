@@ -1,3 +1,4 @@
+import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
 import {
   buildMessageInspectabilityBoundary,
   type MessageInspectabilityBoundary,
@@ -20,6 +21,12 @@ export type SessionChatScrollSignal = "none" | "tail-append" | "streaming-growth
 
 export type SessionChatRenderSnapshot = {
   input: {
+    liveDraft: {
+      fallbackSender: SessionPresentationMessage["sender"];
+      fallbackSenderLabel: string;
+      messageId: string | null;
+      parts: RenderedSessionMessage["parts"];
+    } | null;
     messages: SessionPresentationMessage[];
     streamingText: {
       content: string;
@@ -34,6 +41,8 @@ export type SessionChatRenderSnapshot = {
   autoFollowKey: string | null;
   streamingMessage: RenderedSessionMessage | null;
 };
+
+type LiveDraftInput = NonNullable<SessionChatRenderSnapshot["input"]["liveDraft"]>;
 
 function buildStreamingMessage(input: {
   content: string;
@@ -65,6 +74,45 @@ function buildStreamingMessage(input: {
     source: "session",
     sourceMessageIds: ["streaming-assistant"],
     detailRawText: input.content,
+    messageDisplay,
+  };
+}
+
+function buildStreamingMessageFromLiveDraft(
+  input: LiveDraftInput | null,
+): RenderedSessionMessage | null {
+  if (!input || input.parts.length === 0) {
+    return null;
+  }
+
+  const content = extractText(input.parts);
+  const detailContent = buildMessageMarkdown(
+    content,
+    extractReasoning(input.parts),
+    extractTools(input.parts),
+  );
+  const messageId = input.messageId ?? "streaming-assistant";
+  const messageDisplay = resolveSessionMessageDisplay({
+    rawText: content,
+    fallbackSender: input.fallbackSender,
+    fallbackSenderLabel: input.fallbackSenderLabel,
+  });
+
+  return {
+    id: messageId,
+    conversationUnitId: messageId,
+    role: "assistant",
+    sender: messageDisplay.resolvedSender,
+    senderLabel: messageDisplay.resolvedSenderLabel,
+    kind: "assistant_message",
+    content,
+    detailContent,
+    rawText: content,
+    parts: input.parts,
+    timestamp: new Date(),
+    source: "session",
+    sourceMessageIds: [messageId],
+    detailRawText: detailContent,
     messageDisplay,
   };
 }
@@ -215,7 +263,10 @@ function reuseStreamingMessageReference(
     return null;
   }
 
-  if (previousSnapshot?.streamingMessage?.content === streamingMessage.content) {
+  if (
+    previousSnapshot?.streamingMessage &&
+    areRenderedMessagesSemanticallyEqual(previousSnapshot.streamingMessage, streamingMessage)
+  ) {
     return previousSnapshot.streamingMessage;
   }
 
@@ -234,12 +285,14 @@ function classifyRefreshKind(
   const previousMessages = previousSnapshot.renderedMessages;
   const previousStreamingMessage = previousSnapshot.streamingMessage;
 
-  if (
-    previousStreamingMessage?.content !== undefined &&
-    streamingMessage?.content !== undefined &&
-    previousStreamingMessage.content !== streamingMessage.content
-  ) {
-    return "streaming-growth";
+  if (previousStreamingMessage || streamingMessage) {
+    if (!previousStreamingMessage || !streamingMessage) {
+      return "streaming-growth";
+    }
+
+    if (!areRenderedMessagesSemanticallyEqual(previousStreamingMessage, streamingMessage)) {
+      return "streaming-growth";
+    }
   }
 
   if (
@@ -298,7 +351,7 @@ function buildAutoFollowKey(
 
   if (refreshKind === "streaming-growth") {
     if (streamingMessage) {
-      return `stream:${streamingMessage.conversationUnitId}:${hashText(streamingMessage.content)}`;
+      return `stream:${streamingMessage.conversationUnitId}:${hashText(streamingMessage.detailRawText)}`;
     }
 
     const tailMessage = renderedMessages.at(-1);
@@ -313,10 +366,12 @@ function buildAutoFollowKey(
 }
 
 export function buildSessionChatRenderSnapshot({
+  liveDraft = null,
   messages,
   previousSnapshot = null,
   streamingText = null,
 }: {
+  liveDraft?: LiveDraftInput | null;
   messages: SessionPresentationMessage[];
   previousSnapshot?: SessionChatRenderSnapshot | null;
   streamingText?: {
@@ -333,7 +388,7 @@ export function buildSessionChatRenderSnapshot({
     buildMessageInspectabilityBoundary(message),
   );
   const streamingMessage = reuseStreamingMessageReference(
-    buildStreamingMessage(streamingText),
+    buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText),
     previousSnapshot,
   );
   const refreshKind = classifyRefreshKind(
@@ -343,7 +398,7 @@ export function buildSessionChatRenderSnapshot({
   );
 
   return {
-    input: { messages, streamingText },
+    input: { liveDraft, messages, streamingText },
     renderedMessages: nextRenderedMessages,
     inspectabilityBoundaries,
     refreshKind,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildOperationsIrisLiveDraft,
   buildOperationsIrisStreamingText,
   createOperationsIrisOptimisticMessage,
   mergeOperationsIrisStreamingState,
@@ -44,6 +45,29 @@ describe("operations iris-live-thread", () => {
       fallbackSender: "iris",
       fallbackSenderLabel: "Iris",
     });
+  });
+
+  it("builds a live draft input for shared Iris rendering", () => {
+    expect(
+      buildOperationsIrisLiveDraft({
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the revision", type: "reasoning" }],
+        sessionId: "session-iris-1",
+      }),
+    ).toEqual({
+      fallbackSender: "iris",
+      fallbackSenderLabel: "Iris",
+      messageId: "assistant-1",
+      parts: [{ text: "Thinking through the revision", type: "reasoning" }],
+    });
+
+    expect(
+      buildOperationsIrisLiveDraft({
+        messageId: "assistant-1",
+        parts: undefined,
+        sessionId: "session-iris-1",
+      }),
+    ).toBeNull();
   });
 
   it("merges streaming text-part updates until a new assistant message starts", () => {

@@ -6,10 +6,24 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
 
-const { chatStoreStateMock, projectIrisSheetPropsSpy, setAgentModelMock } = vi.hoisted(() => ({
+const { chatStoreStateMock, projectIrisSheetPropsSpy, setAgentModelMock, useSessionLiveThreadMock } = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
   projectIrisSheetPropsSpy: vi.fn(),
   setAgentModelMock: vi.fn(),
+  useSessionLiveThreadMock: vi.fn(() => ({
+    clearStreaming: vi.fn(),
+    isLiveUnavailable: false,
+    liveDraft: null as
+      | {
+          messageId: string;
+          parts: Array<{ text: string; type: string }> | undefined;
+          sessionId: string;
+        }
+      | null,
+    resetLiveThread: vi.fn(),
+    streamingContent: "",
+    streamingMessageId: null as string | null,
+  })),
 }));
 
 vi.mock("@/components/workspace-launch-actions", () => ({
@@ -32,6 +46,10 @@ vi.mock("@/hooks/use-vscode-preferences", () => ({
     vscodePreferences: {},
     updateVSCodePreference: () => undefined,
   }),
+}));
+
+vi.mock("@/hooks/use-session-live-thread", () => ({
+  useSessionLiveThread: useSessionLiveThreadMock,
 }));
 
 vi.mock("./components/project-iris-sheet", () => ({
@@ -112,6 +130,15 @@ afterEach(() => {
 beforeEach(() => {
   projectIrisSheetPropsSpy.mockReset();
   setAgentModelMock.mockReset();
+  useSessionLiveThreadMock.mockReset();
+  useSessionLiveThreadMock.mockReturnValue({
+    clearStreaming: vi.fn(),
+    isLiveUnavailable: false,
+    liveDraft: null,
+    resetLiveThread: vi.fn(),
+    streamingContent: "",
+    streamingMessageId: null,
+  });
   chatStoreStateMock.mockReturnValue({
     agentModels: {
       iris: null,
@@ -299,5 +326,44 @@ describe("projects route", () => {
       modelID: "gpt-5.4",
       variant: "balanced",
     });
+  });
+
+  it("passes a live Projects Iris draft through to the sheet before authoritative history settles", () => {
+    useSessionLiveThreadMock.mockReturnValue({
+      clearStreaming: vi.fn(),
+      isLiveUnavailable: false,
+      liveDraft: {
+        messageId: "assistant-1",
+        parts: [{ text: "Refreshing the registry", type: "reasoning" }],
+        sessionId: "session-project-iris-1",
+      },
+      resetLiveThread: vi.fn(),
+      streamingContent: "",
+      streamingMessageId: "assistant-1",
+    });
+
+    renderToStaticMarkup(
+      <TestPage
+        loaderData={{
+          initialData: {
+            projects: [],
+          },
+          initialFetchError: null,
+          projectManageSkill: {
+            available: true,
+            error: null,
+            filePath: "/home/atman/repos/multi-agent-ff15/.opencode/skills/project-manage/SKILL.md",
+            promptContext: "<reference-files>project-manage</reference-files>",
+          },
+        }}
+      />,
+    );
+
+    const sheetProps = projectIrisSheetPropsSpy.mock.calls.at(-1)?.[0];
+    expect(sheetProps?.renderSnapshot?.streamingMessage?.conversationUnitId).toBe("assistant-1");
+    expect(sheetProps?.renderSnapshot?.streamingMessage?.parts).toEqual([
+      { text: "Refreshing the registry", type: "reasoning" },
+    ]);
+    expect(sheetProps?.renderSnapshot?.streamingMessage?.senderLabel).toBe("Iris");
   });
 });

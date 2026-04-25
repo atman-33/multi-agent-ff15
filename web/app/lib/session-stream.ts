@@ -7,8 +7,18 @@ type RawEvent = {
     part?: {
       type?: unknown;
       text?: unknown;
+      tool?: unknown;
+      state?: {
+        status?: unknown;
+        input?: unknown;
+        output?: unknown;
+        error?: unknown;
+      };
       messageID?: unknown;
       sessionID?: unknown;
+    };
+    status?: {
+      type?: unknown;
     };
   };
 };
@@ -19,18 +29,92 @@ export interface SessionTextPartEvent {
   text: string;
 }
 
-export function parseSessionTextPartEvent(payload: unknown): SessionTextPartEvent | null {
+export interface SessionLiveDraft {
+  messageId: string | null;
+  parts: MessagePart[];
+  sessionId: string | null;
+}
+
+export type SessionLiveEvent =
+  | {
+      kind: "part";
+      messageId: string | null;
+      sessionId: string | null;
+      part: MessagePart;
+    }
+  | {
+      kind: "status";
+      sessionId: string | null;
+      status: string | null;
+    }
+  | {
+      kind: "idle";
+      sessionId: string | null;
+    };
+
+function sanitizePartState(
+  value:
+    | {
+        status?: unknown;
+        input?: unknown;
+        output?: unknown;
+        error?: unknown;
+      }
+    | undefined,
+): MessagePart["state"] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const nextState: MessagePart["state"] = {};
+  const state = value;
+
+  if (typeof state.status === "string") {
+    nextState.status = state.status;
+  }
+
+  if (state.input && typeof state.input === "object" && !Array.isArray(state.input)) {
+    nextState.input = state.input as Record<string, unknown>;
+  }
+
+  if (typeof state.output === "string") {
+    nextState.output = state.output;
+  }
+
+  if (typeof state.error === "string") {
+    nextState.error = state.error;
+  }
+
+  return Object.keys(nextState).length > 0 ? nextState : undefined;
+}
+
+export function parseSessionLiveEvent(payload: unknown): SessionLiveEvent | null {
   if (!payload || typeof payload !== "object") {
     return null;
   }
 
   const event = payload as RawEvent;
-  if (event.type !== "message.part.updated" && event.type !== "message.part.created") {
-    return null;
+      if (event.type === "session.status") {
+        return {
+          kind: "status",
+          sessionId: typeof event.properties?.sessionID === "string" ? event.properties.sessionID : null,
+          status: typeof event.properties?.status?.type === "string" ? event.properties.status.type : null,
+        };
+      }
+
+      if (event.type === "session.idle") {
+        return {
+          kind: "idle",
+          sessionId: typeof event.properties?.sessionID === "string" ? event.properties.sessionID : null,
+        };
+      }
+
+      if (event.type !== "message.part.updated" && event.type !== "message.part.created") {
+        return null;
   }
 
   const part = event.properties?.part;
-  if (!part || part.type !== "text" || typeof part.text !== "string") {
+  if (!part || typeof part.type !== "string") {
     return null;
   }
 
@@ -42,10 +126,73 @@ export function parseSessionTextPartEvent(payload: unknown): SessionTextPartEven
         ? event.properties.sessionID
         : null;
 
+  const nextPart: MessagePart = {
+    type: part.type,
+  };
+
+  if (typeof part.text === "string") {
+    nextPart.text = part.text;
+  }
+
+  if (typeof part.tool === "string") {
+    nextPart.tool = part.tool;
+  }
+
+  const nextState = sanitizePartState(part.state);
+  if (nextState) {
+    nextPart.state = nextState;
+  }
+
   return {
+    kind: "part",
     messageId,
     sessionId,
-    text: part.text,
+    part: nextPart,
+  };
+}
+
+export function parseSessionTextPartEvent(payload: unknown): SessionTextPartEvent | null {
+  const event = parseSessionLiveEvent(payload);
+  if (!event || event.kind !== "part" || event.part.type !== "text" || typeof event.part.text !== "string") {
+    return null;
+  }
+
+  return {
+    messageId: event.messageId,
+    sessionId: event.sessionId,
+    text: event.part.text,
+  };
+}
+
+function mergeLiveDraftParts(current: MessagePart[], incoming: MessagePart): MessagePart[] {
+  if (incoming.type !== "text" && incoming.type !== "reasoning") {
+    return [...current, incoming];
+  }
+
+  const index = current.findIndex((part) => part.type === incoming.type);
+  if (index === -1) {
+    return [...current, incoming];
+  }
+
+  const nextParts = [...current];
+  const currentPart = nextParts[index];
+  nextParts[index] = {
+    ...currentPart,
+    text: mergeStreamingText(currentPart.text ?? "", incoming.text ?? ""),
+  };
+  return nextParts;
+}
+
+export function mergeSessionLiveDraft(
+  current: SessionLiveDraft | null,
+  event: Extract<SessionLiveEvent, { kind: "part" }>,
+): SessionLiveDraft {
+  const currentParts = current && current.messageId === event.messageId ? current.parts : [];
+
+  return {
+    messageId: event.messageId,
+    parts: mergeLiveDraftParts(currentParts, event.part),
+    sessionId: event.sessionId,
   };
 }
 

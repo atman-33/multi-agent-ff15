@@ -538,6 +538,7 @@ describe("chat-area", () => {
     );
 
     expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
+      liveDraft: null,
       messages: [],
       streamingText: {
         content: "Mission two is responding",
@@ -547,5 +548,55 @@ describe("chat-area", () => {
     });
     expect(markup).toContain("Mission two is responding");
     expect(markup).not.toContain("animate-bounce");
+  });
+
+  it("passes a mission live draft into the shared snapshot contract", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        liveDraft: {
+          fallbackSender: "lunafreya",
+          fallbackSenderLabel: "Lunafreya",
+          messageId: "assistant-1",
+          parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+        },
+        messages: [],
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        liveDraft={{
+          messageId: "assistant-1",
+          parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+          sessionId: "session-1",
+        }}
+        isResponding={true}
+        isSessionActive={true}
+        isStreaming={true}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+        primaryAgentId="lunafreya"
+        primaryAgentLabel="Lunafreya"
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
+      liveDraft: {
+        fallbackSender: "lunafreya",
+        fallbackSenderLabel: "Lunafreya",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      },
+      messages: [],
+      streamingText: null,
+    });
+    expect(markup).toContain("Commentary");
+    expect(markup).toContain("Thinking through the next step");
   });
 });

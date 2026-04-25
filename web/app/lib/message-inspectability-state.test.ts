@@ -146,4 +146,38 @@ describe("message-inspectability-state", () => {
       firstConversationEntries,
     );
   });
+
+  it("preserves inspectability state when authoritative history settles over a live draft using the same ids", () => {
+    let state = createMessageInspectabilityState();
+    state = toggleConversationUnitExpansion(state, "assistant-1");
+    state = toggleDetailEntryExpansion(state, "assistant-1", "tool:assistant-1:0");
+
+    const settledSnapshot = buildSessionChatRenderSnapshot({
+      messages: toSessionPresentationMessages([
+        {
+          info: {
+            id: "assistant-1",
+            role: "assistant",
+            agent: "iris",
+            time: { created: Date.parse("2026-04-25T10:00:00.000Z") },
+          },
+          parts: [
+            { type: "tool", tool: "read_file", state: { status: "completed" } },
+            { type: "text", text: "Done." },
+          ],
+        },
+      ]),
+    });
+
+    const reconciled = reconcileMessageInspectabilityState(
+      state,
+      settledSnapshot.inspectabilityBoundaries,
+    );
+
+    expect(isConversationUnitExpanded(reconciled, "assistant-1")).toBe(true);
+    expect(getExpandedDetailEntryIds(reconciled, "assistant-1")).toEqual([
+      "tool:assistant-1:0",
+    ]);
+    expect(reconciled).toBe(state);
+  });
 });

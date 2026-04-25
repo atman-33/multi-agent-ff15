@@ -46,6 +46,7 @@ import {
   type OperationsIrisSessionState,
 } from "@/lib/operations/iris-session";
 import {
+  buildOperationsIrisLiveDraft,
   buildOperationsIrisStreamingText,
   createOperationsIrisOptimisticMessage,
   shouldClearOperationsIrisOptimisticMessage,
@@ -1186,6 +1187,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     [irisMessages, irisOptimisticMessage],
   );
   const irisRenderSnapshot = useSessionChatRenderSnapshot({
+    liveDraft: buildOperationsIrisLiveDraft(liveThread.liveDraft),
     messages: irisPresentationMessages,
     streamingText: buildOperationsIrisStreamingText(liveThread.streamingContent),
   });

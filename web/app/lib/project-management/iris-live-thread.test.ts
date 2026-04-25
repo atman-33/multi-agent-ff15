@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SessionPresentationMessage } from "@/lib/session-message-presentation";
 import {
+  buildProjectIrisLiveDraft,
   buildProjectIrisStreamingText,
   mergeProjectIrisStreamingMessage,
   shouldUseProjectIrisPollingFallback,
@@ -30,6 +31,29 @@ describe("project-management iris live-thread helpers", () => {
       fallbackSenderLabel: "Iris",
     });
     expect(buildProjectIrisStreamingText("")).toBeNull();
+  });
+
+  it("builds a live draft input for shared Projects Iris rendering", () => {
+    expect(
+      buildProjectIrisLiveDraft({
+        messageId: "assistant-1",
+        parts: [{ text: "Refreshing the registry", type: "reasoning" }],
+        sessionId: "session-project-iris-1",
+      }),
+    ).toEqual({
+      fallbackSender: "iris",
+      fallbackSenderLabel: "Iris",
+      messageId: "assistant-1",
+      parts: [{ text: "Refreshing the registry", type: "reasoning" }],
+    });
+
+    expect(
+      buildProjectIrisLiveDraft({
+        messageId: "assistant-1",
+        parts: undefined,
+        sessionId: "session-project-iris-1",
+      }),
+    ).toBeNull();
   });
 
   it("merges streaming text into an authoritative Iris message", () => {

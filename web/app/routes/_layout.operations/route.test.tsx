@@ -6,15 +6,30 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 
-const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, useSessionLiveThreadMock } = vi.hoisted(() => ({
+const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, sessionChatRenderSnapshotMock, useSessionLiveThreadMock } = vi.hoisted(() => ({
   buildOperationsPreviewBundleMock: vi.fn(() => ({ flowSteps: [] })),
   irisAuthoringSheetPropsSpy: vi.fn(),
+  sessionChatRenderSnapshotMock: vi.fn(() => ({
+    autoFollowKey: null,
+    inspectabilityBoundaries: [],
+    refreshKind: "initial",
+    renderedMessages: [],
+    scrollSignal: "none",
+    streamingMessage: null,
+  })),
   useSessionLiveThreadMock: vi.fn(() => ({
     clearStreaming: vi.fn(),
     isLiveUnavailable: false,
+    liveDraft: null as
+      | {
+          messageId: string;
+          parts: Array<{ text: string; type: string }> | undefined;
+          sessionId: string;
+        }
+      | null,
     resetLiveThread: vi.fn(),
     streamingContent: "",
-    streamingMessageId: null,
+    streamingMessageId: null as string | null,
   })),
 }));
 
@@ -103,6 +118,10 @@ vi.mock("@/components/operations/copyable-prompt-block", () => ({
 
 vi.mock("@/lib/operations/preview-engine.server", () => ({
   buildOperationsPreviewBundle: buildOperationsPreviewBundleMock,
+}));
+
+vi.mock("@/hooks/use-session-chat-render-snapshot", () => ({
+  useSessionChatRenderSnapshot: sessionChatRenderSnapshotMock,
 }));
 
 vi.mock("@/hooks/use-session-live-thread", () => ({
@@ -223,10 +242,20 @@ afterEach(() => {
 
   buildOperationsPreviewBundleMock.mockClear();
   irisAuthoringSheetPropsSpy.mockReset();
+  sessionChatRenderSnapshotMock.mockReset();
+  sessionChatRenderSnapshotMock.mockReturnValue({
+    autoFollowKey: null,
+    inspectabilityBoundaries: [],
+    refreshKind: "initial",
+    renderedMessages: [],
+    scrollSignal: "none",
+    streamingMessage: null,
+  });
   useSessionLiveThreadMock.mockReset();
   useSessionLiveThreadMock.mockReturnValue({
     clearStreaming: vi.fn(),
     isLiveUnavailable: false,
+    liveDraft: null,
     resetLiveThread: vi.fn(),
     streamingContent: "",
     streamingMessageId: null,
@@ -481,5 +510,61 @@ describe("operations route", () => {
       model: selectedModel,
       parts: [{ type: "text", text: "Explain the current prompt flow." }],
     });
+  });
+
+  it("passes a live Iris draft through to the authoring sheet before history settles", () => {
+    useSessionLiveThreadMock.mockReturnValue({
+      clearStreaming: vi.fn(),
+      isLiveUnavailable: false,
+      liveDraft: {
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the revision", type: "reasoning" }],
+        sessionId: "session-iris-1",
+      },
+      resetLiveThread: vi.fn(),
+      streamingContent: "",
+      streamingMessageId: "assistant-1",
+    });
+
+    const props = {
+      loaderData: {
+        activeStepId: "",
+        lunafreyaJobOptions: [],
+        lunafreyaSkillOptions: [],
+        operations: [],
+        operationCustomizationSkill: {
+          available: true,
+          error: null,
+          filePath: "/home/atman/repos/multi-agent-ff15/.opencode/skills/operation-customization/SKILL.md",
+          promptContext: "<reference-files>operation-customization</reference-files>",
+        },
+        partyMode: "full",
+        preview: null,
+        previewWorkers: ["ignis", "gladiolus", "prompto"],
+        projects: [],
+        scope: "noctis_team",
+        selectedLunafreyaJobId: null,
+        selectedLunafreyaSkillIds: [],
+        selectedOperation: null,
+        targetValue: "builtin",
+        taskInstruction: "Execute the current step according to the workflow context.",
+        userMessage: "Ask Iris to revise the operation.",
+      },
+      matches: [] as never[],
+      params: {},
+    } as unknown as Parameters<typeof OperationsPage>[0];
+
+    renderToStaticMarkup(<OperationsPage {...props} />);
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        liveDraft: {
+          fallbackSender: "iris",
+          fallbackSenderLabel: "Iris",
+          messageId: "assistant-1",
+          parts: [{ text: "Thinking through the revision", type: "reasoning" }],
+        },
+      }),
+    );
   });
 });

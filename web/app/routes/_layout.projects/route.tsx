@@ -22,6 +22,7 @@ import { prependProjectIrisContext } from "@/lib/project-management/iris-prompt"
 import { resolveProjectManageSkill, type ProjectManageSkillAvailability } from "@/lib/project-management/project-manage-skill.server";
 import { readRegisteredProjects } from "@/lib/project-config.server";
 import {
+  buildProjectIrisLiveDraft,
   buildProjectIrisStreamingText,
   mergeProjectIrisStreamingMessage,
   shouldUseProjectIrisPollingFallback,
@@ -239,6 +240,7 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
     sessionId: projectIrisSessionId,
   });
   const projectIrisRenderSnapshot = useSessionChatRenderSnapshot({
+    liveDraft: buildProjectIrisLiveDraft(liveThread.liveDraft),
     messages: projectIrisMessages,
     streamingText: buildProjectIrisStreamingText(liveThread.streamingContent),
   });

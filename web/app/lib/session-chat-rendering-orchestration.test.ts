@@ -190,4 +190,50 @@ Implemented the requested change.
     expect(updated.scrollSignal).toBe("streaming-growth");
     expect(updated.streamingMessage?.messageDisplay.displayContent).toBe("Hello");
   });
+
+  it("builds a temporary streaming message from a live draft with intermediate details", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      },
+      messages: [],
+    });
+
+    expect(snapshot.streamingMessage?.conversationUnitId).toBe("assistant-1");
+    expect(snapshot.streamingMessage?.messageDisplay.displayContent).toBe("");
+    expect(snapshot.streamingMessage?.parts).toEqual([
+      { text: "Thinking through the next step", type: "reasoning" },
+    ]);
+  });
+
+  it("derives follow keys from reasoning-only live draft growth", () => {
+    const initial = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking", type: "reasoning" }],
+      },
+      messages: [],
+    });
+
+    const updated = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      },
+      messages: [],
+      previousSnapshot: initial,
+    });
+
+    expectRefreshKind(updated.refreshKind, "streaming-growth");
+    expect(updated.scrollSignal).toBe("streaming-growth");
+    expect(updated.autoFollowKey).not.toBe(initial.autoFollowKey);
+    expect(updated.streamingMessage?.detailRawText).toContain("Thinking through the next step");
+  });
 });

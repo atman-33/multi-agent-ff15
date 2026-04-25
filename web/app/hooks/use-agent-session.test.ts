@@ -14,8 +14,14 @@ import {
 type MockResponse = Pick<Response, "json" | "ok" | "status">;
 
 type HookProbeSnapshot = {
+  liveDraft: {
+    messageId: string | null;
+    parts: Array<{ text?: string; type: string }>;
+    sessionId: string | null;
+  } | null;
   historyPhase: string;
   isLoadingHistory: boolean;
+  isStreaming: boolean;
   abortSettlementPhase: string;
   messages: string[];
   streamingContent: string;
@@ -201,8 +207,10 @@ function HookProbe({
 
   useEffect(() => {
     onSnapshot({
+      liveDraft: state.liveDraft,
       historyPhase: state.historyPhase,
       isLoadingHistory: state.isLoadingHistory,
+      isStreaming: state.isStreaming,
       abortSettlementPhase: state.abortSettlementPhase,
       messages: state.messages.map((message) => message.content),
       streamingContent: state.streamingContent,
@@ -215,6 +223,8 @@ function HookProbe({
     state.abortSettlementPhase,
     state.historyPhase,
     state.isLoadingHistory,
+    state.isStreaming,
+    state.liveDraft,
     state.messages,
     state.streamingContent,
     state.send,
@@ -604,6 +614,78 @@ describe("useAgentSession", () => {
       historyPhase: "ready",
       isLoadingHistory: false,
       messages: ["Mission one reply"],
+    });
+  });
+
+  it("accumulates a reasoning part into the mission live draft", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-0", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(
+      () => MockEventSource.instances.some((instance) => instance.url === "/api/session/session-1/events"),
+    );
+
+    const sessionEventSource = [...MockEventSource.instances]
+      .reverse()
+      .find((instance) => instance.url === "/api/session/session-1/events" && !instance.closed);
+    await waitFor(() => typeof sessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(sessionEventSource as unknown as EventSource, {
+        data: JSON.stringify({
+          properties: {
+            part: {
+              messageID: "message-1",
+              sessionID: "session-1",
+              text: "Thinking through the next step",
+              time: { start: 1 },
+              type: "reasoning",
+            },
+          },
+          type: "message.part.updated",
+        }),
+      } as MessageEvent<string>);
+    });
+
+    await waitFor(() => latestSnapshot?.liveDraft?.messageId === "message-1");
+
+    expect(latestSnapshot).toMatchObject({
+      liveDraft: {
+        messageId: "message-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+        sessionId: "session-1",
+      },
+      messages: ["Mission one reply"],
+      streamingContent: "",
     });
   });
 
