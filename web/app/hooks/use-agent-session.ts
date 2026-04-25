@@ -1060,17 +1060,20 @@ export function useAgentSession({
         trackStreamingMessage?: boolean;
       },
     ) => {
-      const streamingMessageIdBeforeSync = streamingMessageIdRef.current;
       const transcriptMissionId =
         options?.missionId ?? missionIdRef.current ?? activeMissionIdRef.current;
 
       const nextMessages = await loadSessionMessages(sessionId, primaryAgentId);
+      const currentStreamingMessageId = streamingMessageIdRef.current;
       const latestAssistant = [...nextMessages]
         .reverse()
         .find((message) => message.sender === primaryAgentId);
       const containsStreamingMessageId = Boolean(
-        streamingMessageIdBeforeSync &&
-          nextMessages.some((message) => message.id === streamingMessageIdBeforeSync)
+        currentStreamingMessageId &&
+          nextMessages.some((message) => message.id === currentStreamingMessageId)
+      );
+      const shouldClearSyncedLiveTail = Boolean(
+        currentStreamingMessageId && containsStreamingMessageId,
       );
       const effectiveSessionStatus =
         useChatStore.getState().sessionStates[sessionId] ?? sessionStatusRef.current;
@@ -1092,10 +1095,11 @@ export function useAgentSession({
         )
       );
 
-      if (
-        streamingMessageIdBeforeSync &&
-        streamingMessageIdRef.current === streamingMessageIdBeforeSync &&
-        containsStreamingMessageId &&
+      if (shouldClearSyncedLiveTail) {
+        clearStreamingState();
+      } else if (
+        !options?.trackStreamingMessage &&
+        currentStreamingMessageId &&
         !isSessionStatusActive(effectiveSessionStatus)
       ) {
         clearStreamingState();

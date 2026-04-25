@@ -465,10 +465,10 @@ describe("useAgentSession", () => {
     });
   });
 
-  it("keeps the live mission reply visible while a busy history sync resolves", async () => {
+  it("keeps the live mission reply visible while a busy history sync resolves with stale history", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     const deferredSession = createDeferredResponse();
-    let firstSessionLoad = true;
+    let sessionLoadCount = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -487,8 +487,9 @@ describe("useAgentSession", () => {
       }
 
       if (url === "/api/session/session-1") {
-        if (firstSessionLoad) {
-          firstSessionLoad = false;
+        sessionLoadCount += 1;
+
+        if (sessionLoadCount === 1) {
           return deferredSession.promise;
         }
 
@@ -583,10 +584,7 @@ describe("useAgentSession", () => {
 
     deferredSession.resolve(
       createJsonResponse({
-        messages: [
-          createAssistantMessage("message-1", "Mission one reply"),
-          createAssistantMessage("message-2", "Mission one follow-up reply"),
-        ],
+        messages: [createAssistantMessage("message-1", "Mission one reply")],
       }),
     );
 
@@ -595,7 +593,7 @@ describe("useAgentSession", () => {
     expect(latestSnapshot).toMatchObject({
       historyPhase: "ready",
       isLoadingHistory: false,
-      messages: ["Mission one reply", "Mission one follow-up reply"],
+      messages: ["Mission one reply"],
       streamingContent: "Mission one is responding",
     });
 
@@ -622,6 +620,151 @@ describe("useAgentSession", () => {
       isLoadingHistory: false,
       isStreaming: false,
       messages: ["Mission one reply", "Mission one follow-up reply"],
+      streamingContent: "",
+    });
+  });
+
+  it("clears the live tail once history includes the current streaming message while the session stays busy", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const deferredSession = createDeferredResponse();
+    let firstSessionLoad = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse({ noctisSessionId: "session-1" });
+      }
+
+      if (url === "/api/session/session-1") {
+        if (firstSessionLoad) {
+          firstSessionLoad = false;
+          return deferredSession.promise;
+        }
+
+        return createJsonResponse({
+          messages: [
+            createAssistantMessage("message-1", "Mission one reply"),
+            createAssistantMessage("message-2", "Mission one is responding"),
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events",
+        ),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Continue mission" }]);
+    });
+
+    await waitFor(
+      () =>
+        fetchMock.mock.calls.some(([input]) => String(input) === "/api/session/session-1"),
+    );
+    await waitFor(() => useChatStore.getState().sessionStates["session-1"] === "busy");
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              sessionID: "session-1",
+              status: {
+                type: "busy",
+              },
+            },
+            type: "session.status",
+          }),
+        }),
+      );
+    });
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              part: {
+                messageID: "message-2",
+                sessionID: "session-1",
+                text: "Mission one is responding",
+                type: "text",
+              },
+            },
+            type: "message.part.updated",
+          }),
+        }),
+      );
+    });
+
+    await waitFor(
+      () =>
+        latestSnapshot?.liveDraft?.messageId === "message-2" &&
+        latestSnapshot.streamingContent === "Mission one is responding",
+    );
+
+    deferredSession.resolve(
+      createJsonResponse({
+        messages: [
+          createAssistantMessage("message-1", "Mission one reply"),
+          createAssistantMessage("message-2", "Mission one is responding"),
+        ],
+      }),
+    );
+
+    await waitFor(
+      () =>
+        latestSnapshot?.historyPhase === "ready" &&
+        latestSnapshot.liveDraft === null &&
+        latestSnapshot.streamingContent === "",
+    );
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      liveDraft: null,
+      messages: ["Mission one reply", "Mission one is responding"],
       streamingContent: "",
     });
   });

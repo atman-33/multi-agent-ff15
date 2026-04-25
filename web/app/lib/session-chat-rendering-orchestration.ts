@@ -400,6 +400,7 @@ export function buildSessionChatRenderSnapshot({
     nextRenderedMessages,
     streamingMessage,
   );
+
   const showPendingIndicator = assistantPending && !streamingMessage;
 
   return {
