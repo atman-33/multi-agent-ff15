@@ -33,4 +33,20 @@ describe("conversation-window", () => {
       bottomSpacerHeight: 0,
     });
   });
+
+  it("clamps the overscanned window at the tail of a long transcript", () => {
+    expect(
+      calculateConversationWindow({
+        itemHeights: [100, 100, 100, 100, 100, 100, 100, 100],
+        overscan: 2,
+        scrollTop: 620,
+        viewportHeight: 150,
+      }),
+    ).toEqual({
+      startIndex: 4,
+      endIndex: 8,
+      topSpacerHeight: 400,
+      bottomSpacerHeight: 0,
+    });
+  });
 });

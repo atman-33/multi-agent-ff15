@@ -548,19 +548,37 @@ export function buildSessionChatRenderSnapshot({
       previousSnapshot.input.continuityAssistant,
       effectiveContinuityAssistant,
     );
-  const confirmedRenderedMessages = canReuseConfirmedTranscript
-    ? previousSnapshot.confirmedRenderedMessages
-    : buildRenderedSessionMessages(
-        messages,
-        effectiveContinuityAssistant
-          ? { continuityAssistant: effectiveContinuityAssistant }
-          : undefined,
-      );
-  const confirmedInspectabilityBoundaries = canReuseConfirmedTranscript
-    ? previousSnapshot.confirmedInspectabilityBoundaries
-    : confirmedRenderedMessages.map((message) =>
-        buildMessageInspectabilityBoundary(message),
-      );
+  const confirmedRenderedMessages = (() => {
+    if (canReuseConfirmedTranscript) {
+      return previousSnapshot.confirmedRenderedMessages;
+    }
+
+    const rebuiltConfirmedMessages = buildRenderedSessionMessages(
+      messages,
+      effectiveContinuityAssistant
+        ? { continuityAssistant: effectiveContinuityAssistant }
+        : undefined,
+    );
+
+    if (!previousSnapshot) {
+      return rebuiltConfirmedMessages;
+    }
+
+    return reuseRenderedMessageReferences(rebuiltConfirmedMessages, {
+      ...previousSnapshot,
+      renderedMessages: previousSnapshot.confirmedRenderedMessages,
+    });
+  })();
+  const confirmedInspectabilityBoundaries =
+    previousSnapshot !== null &&
+    previousSnapshot.confirmedRenderedMessages.length === confirmedRenderedMessages.length &&
+    confirmedRenderedMessages.every(
+      (message, index) => message === previousSnapshot.confirmedRenderedMessages[index],
+    )
+      ? previousSnapshot.confirmedInspectabilityBoundaries
+      : confirmedRenderedMessages.map((message) =>
+          buildMessageInspectabilityBoundary(message),
+        );
   const baseStreamingMessage = containsStreamingMessage(messages, currentStreamingMessageId)
     ? null
     : buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);

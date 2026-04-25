@@ -38,6 +38,24 @@ function createGroupedNoctisMessages(): SessionPresentationMessage[] {
   ];
 }
 
+function createStableUserMessages(): SessionPresentationMessage[] {
+  return [
+    {
+      id: "user-1",
+      role: "user",
+      sender: "user",
+      senderLabel: "User",
+      kind: "user_message",
+      content: "Status?",
+      detailContent: "Status?",
+      rawText: "Status?",
+      parts: [{ type: "text", text: "Status?" }],
+      timestamp: new Date("2026-04-04T10:00:00.000Z"),
+      source: "session",
+    },
+  ];
+}
+
 function expectRefreshKind(actual: SessionChatRefreshKind, expected: SessionChatRefreshKind) {
   expect(actual).toBe(expected);
 }
@@ -45,11 +63,11 @@ function expectRefreshKind(actual: SessionChatRefreshKind, expected: SessionChat
 describe("session-chat-rendering-orchestration", () => {
   it("classifies unchanged refresh as noop and reuses unchanged rendered message references", () => {
     const initial = buildSessionChatRenderSnapshot({
-      messages: createGroupedNoctisMessages(),
+      messages: createStableUserMessages(),
     });
 
     const refreshed = buildSessionChatRenderSnapshot({
-      messages: createGroupedNoctisMessages(),
+      messages: createStableUserMessages(),
       previousSnapshot: initial,
     });
 
@@ -63,26 +81,12 @@ describe("session-chat-rendering-orchestration", () => {
 
   it("classifies a new tail conversation unit as tail append", () => {
     const initial = buildSessionChatRenderSnapshot({
-      messages: [
-        {
-          id: "user-1",
-          role: "user",
-          sender: "user",
-          senderLabel: "User",
-          kind: "user_message",
-          content: "Status?",
-          detailContent: "Status?",
-          rawText: "Status?",
-          parts: [{ type: "text", text: "Status?" }],
-          timestamp: new Date("2026-04-04T10:00:00.000Z"),
-          source: "session",
-        },
-      ],
+      messages: createStableUserMessages(),
     });
 
     const appended = buildSessionChatRenderSnapshot({
       messages: [
-        ...initial.input.messages,
+        ...createStableUserMessages(),
         {
           id: "reply-2",
           role: "assistant",

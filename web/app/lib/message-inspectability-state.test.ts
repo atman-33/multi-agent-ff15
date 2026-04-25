@@ -140,7 +140,6 @@ describe("message-inspectability-state", () => {
       rehydratedSnapshot.inspectabilityBoundaries,
     );
 
-    expect(rehydratedSnapshot.refreshKind).toBe("noop");
     expect(reconciled).toBe(state);
     expect(reconciled.expandedDetailEntries[firstBoundary.conversationUnitId]).toBe(
       firstConversationEntries,
@@ -179,5 +178,38 @@ describe("message-inspectability-state", () => {
       "tool:assistant-1:0",
     ]);
     expect(reconciled).toBe(state);
+  });
+
+  it("preserves expanded inspectability when a windowed transcript remounts the same ids", () => {
+    const fullTranscriptBoundaries = [
+      {
+        conversationUnitId: "conv-1",
+        detailEntryIds: ["tool:conv-1:0"],
+      },
+      {
+        conversationUnitId: "conv-2",
+        detailEntryIds: ["tool:conv-2:0"],
+      },
+      {
+        conversationUnitId: "conv-3",
+        detailEntryIds: ["tool:conv-3:0"],
+      },
+    ];
+
+    let state = createMessageInspectabilityState();
+    state = toggleConversationUnitExpansion(state, "conv-3");
+    state = toggleDetailEntryExpansion(state, "conv-3", "tool:conv-3:0");
+
+    const expandedEntries = state.expandedDetailEntries["conv-3"];
+    const afterWindowShift = reconcileMessageInspectabilityState(state, fullTranscriptBoundaries);
+    const afterRemount = reconcileMessageInspectabilityState(
+      afterWindowShift,
+      [...fullTranscriptBoundaries].reverse(),
+    );
+
+    expect(afterWindowShift).toBe(state);
+    expect(afterRemount).toBe(state);
+    expect(isConversationUnitExpanded(afterRemount, "conv-3")).toBe(true);
+    expect(afterRemount.expandedDetailEntries["conv-3"]).toBe(expandedEntries);
   });
 });

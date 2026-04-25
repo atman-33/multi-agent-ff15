@@ -33,6 +33,7 @@ class MockEventSource {
   static instances: MockEventSource[] = [];
   closed = false;
 
+  onopen: ((this: EventSource, ev: Event) => unknown) | null = null;
   onerror: ((this: EventSource, ev: Event) => unknown) | null = null;
   onmessage: ((this: EventSource, ev: MessageEvent<string>) => unknown) | null = null;
   readonly url: string;
@@ -1445,5 +1446,131 @@ describe("useAgentSession", () => {
     expect(
       fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/continue"),
     ).toBe(true);
+  });
+
+  it("backs off idle runtime polling after the primary stream is healthy", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let runtimeFetchCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        runtimeFetchCount += 1;
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(
+      () => MockEventSource.instances.some((instance) => instance.url === "/api/session/session-1/events"),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onopen === "function");
+
+    await act(async () => {
+      sessionEventSource?.onopen?.call(
+        sessionEventSource as unknown as EventSource,
+        new Event("open"),
+      );
+    });
+
+    const baselineFetchCount = runtimeFetchCount;
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+
+    expect(runtimeFetchCount).toBe(baselineFetchCount);
+
+    await act(async () => {
+      vi.advanceTimersByTime(15000);
+      await Promise.resolve();
+    });
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
+  });
+
+  it("triggers a targeted runtime refresh when the primary stream disconnects", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let runtimeFetchCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        runtimeFetchCount += 1;
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(
+      () => MockEventSource.instances.some((instance) => instance.url === "/api/session/session-1/events"),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onerror === "function");
+
+    const baselineFetchCount = runtimeFetchCount;
+
+    await act(async () => {
+      sessionEventSource?.onerror?.call(
+        sessionEventSource as unknown as EventSource,
+        new Event("error"),
+      );
+      await Promise.resolve();
+    });
+
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
   });
 });
