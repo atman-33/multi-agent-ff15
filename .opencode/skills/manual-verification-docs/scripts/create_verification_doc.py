@@ -88,38 +88,57 @@ def build_content(title: str, file_name: str) -> str:
 
 - [ ] Target environment is running.
 - [ ] Required test data, permissions, and configuration values are prepared.
-- [ ] Relevant screens, APIs, and logs can be inspected.
+- [ ] Relevant screens, APIs, logs, jobs, and notification sinks can be inspected.
+- [ ] Required CLI tools, tokens, and environment variables are available.
 
 ## Verification Checklist
 
 ### 1. Happy Path
 
 - [ ] Primary user flow works end to end.
+    Verification method:
+    Execution steps:
     Expected result:
+    Observation point:
     Evidence / notes:
 
 - [ ] Success feedback appears after the main action.
+    Verification method:
+    Execution steps:
     Expected result:
+    Observation point:
     Evidence / notes:
 
 ### 2. Edge Cases / Input Variations
 
 - [ ] Boundary input values are handled correctly.
+    Verification method:
+    Execution steps:
     Expected result:
+    Observation point:
     Evidence / notes:
 
 - [ ] Invalid or incomplete input is rejected safely.
+    Verification method:
+    Execution steps:
     Expected result:
+    Observation point:
     Evidence / notes:
 
 ### 3. Error Handling / Permissions
 
 - [ ] Error handling is visible and understandable.
+    Verification method:
+    Execution steps:
     Expected result:
+    Observation point:
     Evidence / notes:
 
 - [ ] Permission rules are enforced correctly.
+    Verification method:
+    Execution steps:
     Expected result:
+    Observation point:
     Evidence / notes:
 
 ## Observation Notes

@@ -1,6 +1,6 @@
 ---
 name: manual-verification-docs
-description: Organize post-implementation manual verification steps and expected results into a checklist-oriented dated Markdown report. Use when the user asks for verification steps, acceptance checks, expected outcomes, or manual test notes after implementation.
+description: Organize post-implementation manual verification steps, execution methods, and expected results into a checklist-oriented dated Markdown report. Use when the user asks for verification steps, acceptance checks, expected outcomes, or manual test notes for UI, API, job, permission, or notification changes after implementation.
 ---
 
 # Manual Verification Docs
@@ -17,7 +17,7 @@ Create a human-friendly manual verification guide for AI-agent changes at a call
 python3 .opencode/skills/manual-verification-docs/scripts/create_verification_doc.py --slug <topic> --title "<verification target>" --output-path <path>
 ```
 
-4. Fill in the generated Markdown file with checklist items, expected results, evidence notes, and open items.
+4. Fill in the generated Markdown file with checklist items, execution steps, expected results, observation points, evidence notes, and open items.
 5. Share the created file path with the user and confirm that no important scenarios are missing.
 
 ## Workflow
@@ -38,8 +38,12 @@ python3 .opencode/skills/manual-verification-docs/scripts/create_verification_do
 
 - Document startup steps, required data, permissions, and configuration values in the prerequisites section.
 - For each scenario, create checklist items that a user can mark off one by one.
-- Under every checklist item, include the expected result and an evidence or notes field.
+- Under every checklist item, include the execution steps, expected result, observation point, and an evidence or notes field.
 - Make every expected result observable and specific.
+- For anything that cannot be verified through normal app interaction, document an exact execution method instead of a vague instruction.
+- For API verification, provide a runnable command such as `curl`, including required headers, auth placeholders, and example payloads when applicable.
+- For jobs, scripts, queues, or notifications, describe how to trigger the behavior and where to observe completion or side effects.
+- If the exact execution method is unknown, write `Maintainer input required:` with the missing detail instead of inventing a partial procedure.
 - Record unverified items or known constraints at the end.
 
 ### 4. Review with the user
@@ -55,10 +59,16 @@ python3 .opencode/skills/manual-verification-docs/scripts/create_verification_do
 - Write the generated verification document in the caller-requested language, and default to English only when no language was specified.
 - Describe reproducible verification steps, not implementation internals.
 - Use checklist items for actionable verification work.
+- Each checklist item must tell the verifier how to execute the check, especially for non-UI paths.
 - Include a matching expected result for every checklist item.
+- Include an observation point for every checklist item so the verifier knows where to inspect success or failure.
 - Leave space for evidence, notes, or blockers under each checklist item.
 - Use only the caller-specified output path or output directory.
 - Do not create duplicate copies in another workspace, repository, or reports directory unless the caller explicitly asks for more than one file.
+
+## Advanced features
+
+See [REFERENCE.md](REFERENCE.md) for concrete patterns for API, job, notification, and permission verification steps.
 
 ## Output
 
