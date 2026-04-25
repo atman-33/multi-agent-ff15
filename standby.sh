@@ -150,7 +150,7 @@ stop_existing_server() {
     local existing_cmd
     existing_cmd="$(ps -p "$existing_pid" -o args= 2>/dev/null || true)"
 
-    if echo "$existing_cmd" | grep -qiE 'react-router-serve|node.*(web/)?build/server/index.js|npm --prefix web run start|npm run web:start'; then
+    if echo "$existing_cmd" | grep -qiE 'react-router-serve|node.*(web/)?build/server/index.js|node.*(web/)?server\.js|npm --prefix web run start|npm run web:start'; then
         log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${existing_pid})..."
         kill "$existing_pid" 2>/dev/null || true
         sleep 1
