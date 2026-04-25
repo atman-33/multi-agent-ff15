@@ -1,11 +1,57 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 
-import { clearWebServerRecord, writeWebServerRecord } from "../web/app/lib/web-server.ts";
-
 type Command = "dev" | "start";
+
+const SERVER_STATE_FILE = "web-server.json";
+
+type WebServerMode = "development" | "production";
+
+type WebServerRecord = {
+  mode: WebServerMode;
+  pid: number;
+  port: number;
+  projectRoot: string;
+  startedAt: string;
+  url: string;
+  version: 1;
+};
+
+type WriteWebServerRecordInput = {
+  mode: WebServerMode;
+  pid: number;
+  port: number;
+  startedAt: string;
+  url: string;
+};
+
+function getWebServerStatePath(root: string): string {
+  return join(root, "runtime", SERVER_STATE_FILE);
+}
+
+// Keep state-file writes local so this raw Node entrypoint does not depend on bundler-resolved web modules.
+function writeWebServerRecord(input: WriteWebServerRecordInput, root: string): void {
+  const record: WebServerRecord = {
+    version: 1,
+    mode: input.mode,
+    pid: input.pid,
+    port: input.port,
+    projectRoot: root,
+    startedAt: input.startedAt,
+    url: input.url,
+  };
+
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  writeFileSync(getWebServerStatePath(root), `${JSON.stringify(record, null, 2)}\n`, "utf-8");
+}
+
+function clearWebServerRecord(root: string): void {
+  rmSync(getWebServerStatePath(root), { force: true });
+}
 
 type ParsedArgs = {
   command: Command;
