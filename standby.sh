@@ -9,6 +9,7 @@ WEB_PORT=13000
 WEB_URL="http://localhost:${WEB_PORT}"
 WEB_LOG="runtime/logs/web.log"
 BUILD_OUTPUT="web/build/server/index.js"
+OPENCODE_CONTROL_SCRIPT="scripts/opencode_server_control.mts"
 ACTION="start"
 RUN_BUILD=false
 SERVER_STATE="stopped"
@@ -35,8 +36,8 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
-    echo "      --stop     Stop the managed web server if it is running"
-    echo "      --status   Print the managed web server status"
+    echo "      --stop     Stop the managed web server and app-owned OpenCode server"
+    echo "      --status   Print managed web and OpenCode server status"
     echo "  -h, --help     Show this help"
     echo ""
     echo "Examples:"
@@ -106,6 +107,40 @@ require_port_lookup() {
 
     log_warn "Required command not found: lsof or ss"
     exit 1
+}
+
+run_opencode_control() {
+    NODE_NO_WARNINGS=1 node --experimental-strip-types "$SCRIPT_DIR/$OPENCODE_CONTROL_SCRIPT" "$@" --root "$SCRIPT_DIR"
+}
+
+json_get() {
+        local json_input="$1"
+        local property_path="$2"
+
+        printf '%s' "$json_input" | node -e '
+const fs = require("node:fs");
+
+const propertyPath = process.argv[1];
+let value = JSON.parse(fs.readFileSync(0, "utf8"));
+
+for (const key of propertyPath.split(".")) {
+    if (!key.length) {
+        continue;
+    }
+
+    if (value === null || value === undefined || !(key in Object(value))) {
+        process.exit(1);
+    }
+
+    value = value[key];
+}
+
+if (value === null || value === undefined) {
+    process.exit(1);
+}
+
+process.stdout.write(typeof value === "string" ? value : JSON.stringify(value));
+' "$property_path"
 }
 
 set_action() {
@@ -241,6 +276,107 @@ print_server_status() {
     esac
 }
 
+print_opencode_status() {
+    local status_json
+    local state
+    local managed_by_app
+    local pid
+    local url
+    local error
+    local warning
+
+    if ! status_json="$(run_opencode_control status)"; then
+        log_warn "Failed to inspect OpenCode server status."
+        return 2
+    fi
+
+    if [ -z "$status_json" ]; then
+        log_warn "OpenCode server status returned no data."
+        return 2
+    fi
+
+    state="$(json_get "$status_json" "state" 2>/dev/null || true)"
+    managed_by_app="$(json_get "$status_json" "managedByApp" 2>/dev/null || true)"
+    pid="$(json_get "$status_json" "pid" 2>/dev/null || true)"
+    url="$(json_get "$status_json" "url" 2>/dev/null || true)"
+    error="$(json_get "$status_json" "error" 2>/dev/null || true)"
+    warning="$(json_get "$status_json" "warning" 2>/dev/null || true)"
+
+    case "$state" in
+        running)
+            if [ -n "$pid" ]; then
+                log_success "OpenCode server is running: ${url} (PID: ${pid})"
+            else
+                log_success "OpenCode server is running: ${url}"
+            fi
+            ;;
+        down)
+            if [ "$managed_by_app" = "true" ] && [ -n "$url" ]; then
+                if [ -n "$pid" ]; then
+                    log_warn "OpenCode server is down: ${url} (PID: ${pid})"
+                else
+                    log_warn "OpenCode server is down: ${url}"
+                fi
+
+                if [ -n "$error" ]; then
+                    log_warn "$error"
+                fi
+
+                if [ -n "$warning" ]; then
+                    log_warn "$warning"
+                fi
+
+                return 2
+            fi
+
+            log_info "OpenCode server is not running."
+            if [ -n "$warning" ]; then
+                log_warn "$warning"
+            fi
+            return 1
+            ;;
+        *)
+            log_warn "Unexpected OpenCode server status."
+            return 2
+            ;;
+    esac
+
+    if [ -n "$warning" ]; then
+        log_warn "$warning"
+    fi
+
+    return 0
+}
+
+print_managed_status() {
+    local web_status
+    local opencode_status
+
+    if print_server_status; then
+        web_status=0
+    else
+        web_status=$?
+    fi
+
+    echo ""
+
+    if print_opencode_status; then
+        opencode_status=0
+    else
+        opencode_status=$?
+    fi
+
+    if [ "$web_status" -eq 2 ] || [ "$opencode_status" -eq 2 ]; then
+        return 2
+    fi
+
+    if [ "$web_status" -ne 0 ] || [ "$opencode_status" -ne 0 ]; then
+        return 1
+    fi
+
+    return 0
+}
+
 stop_managed_server() {
     refresh_server_state
 
@@ -276,6 +412,97 @@ stop_managed_server() {
             return 1
             ;;
     esac
+}
+
+stop_managed_opencode_server() {
+    local result_json
+    local previous_record_state
+    local previous_pid
+    local previous_url
+    local error
+    local warning
+
+    if ! result_json="$(run_opencode_control stop)"; then
+        :
+    fi
+
+    if [ -z "$result_json" ]; then
+        log_warn "Failed to stop OpenCode server."
+        return 1
+    fi
+
+    previous_record_state="$(json_get "$result_json" "previousRecordState" 2>/dev/null || true)"
+    previous_pid="$(json_get "$result_json" "previousPid" 2>/dev/null || true)"
+    previous_url="$(json_get "$result_json" "previousUrl" 2>/dev/null || true)"
+    error="$(json_get "$result_json" "error" 2>/dev/null || true)"
+    warning="$(json_get "$result_json" "status.warning" 2>/dev/null || true)"
+
+    if [ -n "$error" ]; then
+        if [ -n "$previous_url" ] && [ -n "$previous_pid" ]; then
+            log_warn "Failed to stop OpenCode server: ${previous_url} (PID: ${previous_pid})"
+        else
+            log_warn "Failed to stop OpenCode server."
+        fi
+        log_warn "$error"
+
+        if [ -n "$warning" ]; then
+            log_warn "$warning"
+        fi
+
+        return 1
+    fi
+
+    case "$previous_record_state" in
+        valid|stale-unhealthy)
+            if [ -n "$previous_url" ] && [ -n "$previous_pid" ]; then
+                log_success "OpenCode server stopped: ${previous_url} (PID: ${previous_pid})"
+            elif [ -n "$previous_url" ]; then
+                log_success "OpenCode server stopped: ${previous_url}"
+            else
+                log_success "OpenCode server stopped."
+            fi
+            ;;
+        stale-dead)
+            log_info "Cleared stale OpenCode server state."
+            ;;
+        missing|"")
+            log_info "OpenCode server is not running."
+            ;;
+        *)
+            log_info "OpenCode server state is unchanged."
+            ;;
+    esac
+
+    if [ -n "$warning" ]; then
+        log_warn "$warning"
+    fi
+
+    return 0
+}
+
+stop_managed_services() {
+    local web_status
+    local opencode_status
+
+    if stop_managed_server; then
+        web_status=0
+    else
+        web_status=$?
+    fi
+
+    echo ""
+
+    if stop_managed_opencode_server; then
+        opencode_status=0
+    else
+        opencode_status=$?
+    fi
+
+    if [ "$web_status" -ne 0 ] || [ "$opencode_status" -ne 0 ]; then
+        return 1
+    fi
+
+    return 0
 }
 
 stop_existing_server() {
@@ -351,18 +578,25 @@ start_server() {
     echo $!
 }
 
+require_command node
 require_command npm
 parse_args "$@"
 require_port_lookup
 
 case "$ACTION" in
     status)
-        print_server_status
-        exit $?
+        if print_managed_status; then
+            exit 0
+        else
+            exit $?
+        fi
         ;;
     stop)
-        stop_managed_server
-        exit $?
+        if stop_managed_services; then
+            exit 0
+        else
+            exit $?
+        fi
         ;;
 esac
 
