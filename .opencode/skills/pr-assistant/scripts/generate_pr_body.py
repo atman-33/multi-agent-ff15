@@ -96,6 +96,11 @@ def format_samples(samples: List[str]) -> str:
     return f", including {sample_labels[0]}, {sample_labels[1]}, and {sample_labels[2]}"
 
 
+def format_issue_reference(issue_ref: str) -> str:
+    """Normalize issue references for markdown output."""
+    return issue_ref if '#' in issue_ref else f"#{issue_ref}"
+
+
 def generate_area_breakdown(analysis: Dict) -> str:
     """Generate fallback changes breakdown using top-level areas."""
     areas = analysis.get('top_level_areas', [])
@@ -140,11 +145,29 @@ def generate_changes_breakdown(analysis: Dict) -> str:
 def generate_related_issues(analysis: Dict) -> str:
     """Generate related issues section."""
     issue_refs = analysis.get('issue_references', [])
+    closing_refs = analysis.get('closing_issue_references', [])
+    related_refs = analysis.get('related_issue_references')
+    target_is_default_branch = analysis.get('target_is_default_branch', False)
 
     if not issue_refs:
         return "None"
 
-    return ', '.join([f"#{issue}" for issue in issue_refs])
+    if related_refs is None:
+        closing_ref_set = set(closing_refs)
+        related_refs = [ref for ref in issue_refs if ref not in closing_ref_set]
+
+    lines: List[str] = []
+    if target_is_default_branch:
+        lines.extend(f"- Closes {format_issue_reference(issue)}" for issue in closing_refs)
+    elif closing_refs:
+        lines.append(
+            f"- Related issues are listed without closing keywords because base `{analysis.get('target_branch', 'unknown')}` is not confirmed as the repository default branch."
+        )
+        closing_ref_set = set(closing_refs)
+        related_refs = closing_refs + [ref for ref in related_refs if ref not in closing_ref_set]
+
+    lines.extend(f"- Related to {format_issue_reference(issue)}" for issue in related_refs)
+    return '\n'.join(lines) if lines else "None"
 
 
 def generate_checklist(analysis: Dict) -> str:

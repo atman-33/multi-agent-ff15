@@ -42,6 +42,14 @@ INFRA_MARKERS = {"terraform", "infra", "infrastructure", "helm", "charts", "k8s"
 FRONTEND_MARKERS = {"web", "ui", "frontend", "client"}
 BACKEND_MARKERS = {"api", "apis", "server", "backend", "worker", "workers"}
 TEST_MARKERS = {"test", "tests", "spec", "specs", "__tests__", "__snapshots__"}
+ISSUE_REF_PATTERN = re.compile(r'(?P<ref>(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#\d+)')
+CLOSING_CLAUSE_PATTERN = re.compile(
+    r'(?i)\b(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\b\s*:?\s+([^\n.;]+)'
+)
+CONVENTIONAL_COMMIT_PREFIX_PATTERN = re.compile(
+    r'^(feat|fix|docs|refactor|chore|build|ci|test)(\(.+?\))?!?:\s*',
+    re.IGNORECASE,
+)
 
 
 def run_command(cmd: List[str]) -> Tuple[str, int]:
@@ -68,6 +76,30 @@ def sanitize_branch_name(branch_name: str) -> str:
     """Return a filesystem-safe branch slug."""
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", branch_name.replace("/", "-"))
     return slug.strip("-") or "head"
+
+
+def normalize_branch_name(branch_name: str) -> str:
+    """Normalize local and remote branch names for comparisons."""
+    normalized = branch_name.strip()
+    prefixes = ('refs/heads/', 'refs/remotes/origin/', 'origin/')
+    for prefix in prefixes:
+        if normalized.startswith(prefix):
+            return normalized[len(prefix):]
+    return normalized
+
+
+def get_default_branch() -> str:
+    """Return the repository default branch name when available."""
+    output, returncode = run_command(['git', 'symbolic-ref', 'refs/remotes/origin/HEAD'])
+    if returncode == 0 and output:
+        return normalize_branch_name(output)
+
+    output, returncode = run_command(['git', 'remote', 'show', 'origin'])
+    if returncode != 0 or not output:
+        return ''
+
+    match = re.search(r'HEAD branch:\s*(?P<branch>.+)$', output, re.MULTILINE)
+    return match.group('branch').strip() if match else ''
 
 
 def get_changed_files(target_branch: str) -> List[Tuple[str, str]]:
@@ -159,17 +191,58 @@ def get_commit_messages(target_branch: str) -> List[str]:
     return [line.strip() for line in output.split('\n') if line.strip()]
 
 
-def extract_issue_references(messages: List[str]) -> List[str]:
-    """Extract issue references from commit messages."""
-    import re
-    pattern = r'#(\d+)'
-    issues = set()
+def get_commit_message_bodies(target_branch: str) -> List[str]:
+    """Get full commit messages between target branch and HEAD."""
+    output, returncode = run_command([
+        'git', 'log', f'{target_branch}..HEAD', '--format=%B%x00'
+    ])
 
-    for msg in messages:
-        matches = re.findall(pattern, msg)
-        issues.update(matches)
+    if returncode != 0 or not output:
+        return []
 
-    return sorted(issues, key=int)
+    return [entry.strip() for entry in output.split('\x00') if entry.strip()]
+
+
+def unique_in_order(values: List[str]) -> List[str]:
+    """Return unique values while preserving discovery order."""
+    seen = set()
+    result: List[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def strip_conventional_commit_prefix(message: str) -> str:
+    """Remove a conventional commit prefix before issue parsing."""
+    return CONVENTIONAL_COMMIT_PREFIX_PATTERN.sub('', message, count=1)
+
+
+def extract_issue_references(messages: List[str]) -> Dict[str, List[str]]:
+    """Extract related and auto-closing issue references from commit messages."""
+    all_refs: List[str] = []
+    closing_refs: List[str] = []
+
+    for message in messages:
+        normalized_message = strip_conventional_commit_prefix(message)
+        all_refs.extend(match.group('ref') for match in ISSUE_REF_PATTERN.finditer(normalized_message))
+
+        for clause in CLOSING_CLAUSE_PATTERN.finditer(normalized_message):
+            closing_refs.extend(match.group('ref') for match in ISSUE_REF_PATTERN.finditer(clause.group(1)))
+
+    all_refs = unique_in_order(all_refs)
+    all_ref_set = set(all_refs)
+    closing_refs = [ref for ref in unique_in_order(closing_refs) if ref in all_ref_set]
+    closing_ref_set = set(closing_refs)
+    related_refs = [ref for ref in all_refs if ref not in closing_ref_set]
+
+    return {
+        'all': all_refs,
+        'closing': closing_refs,
+        'related': related_refs,
+    }
 
 
 def get_diff_stats(target_branch: str) -> Dict[str, int]:
@@ -332,9 +405,11 @@ def main():
     target_branch = args.target_branch
 
     current_branch = get_current_branch()
+    default_branch = get_default_branch()
     changed_files = get_changed_files(target_branch)
     commit_messages = get_commit_messages(target_branch)
-    issue_refs = extract_issue_references(commit_messages)
+    commit_message_bodies = get_commit_message_bodies(target_branch)
+    issue_refs = extract_issue_references(commit_message_bodies or commit_messages)
     diff_stats = get_diff_stats(target_branch)
 
     # Categorize changes
@@ -358,10 +433,14 @@ def main():
         'current_branch': current_branch,
         'branch_slug': sanitize_branch_name(current_branch),
         'target_branch': target_branch,
+        'default_branch': default_branch,
+        'target_is_default_branch': normalize_branch_name(target_branch) == default_branch if default_branch else False,
         'pr_type': pr_type,
         'stats': diff_stats,
         'commits': commit_messages,
-        'issue_references': issue_refs,
+        'issue_references': issue_refs['all'],
+        'closing_issue_references': issue_refs['closing'],
+        'related_issue_references': issue_refs['related'],
         'changes_by_category': dict(changes_by_category),
         'category_summary': category_summary,
         'top_level_areas': top_level_areas,

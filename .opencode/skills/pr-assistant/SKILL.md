@@ -48,6 +48,11 @@ Use `scripts/analyze_changes.py` to categorize changes into generic buckets:
 - Data
 - Other
 
+When issue references are present, preserve them in three buckets when possible:
+- `issue_references`: every detected issue reference
+- `closing_issue_references`: issues that should auto-close on merge
+- `related_issue_references`: issues that should stay linked without auto-closing
+
 If classification confidence is low, do not force category-based prose in the PR body. Fall back to diff stats and top-level area summaries.
 
 ### 2. Determine PR Type
@@ -82,8 +87,10 @@ Use `scripts/generate_pr_body.py` with the appropriate template from `assets/tem
 Auto-fill sections:
 - **Summary**: Commit themes, capped to a short list
 - **Changes breakdown**: Diff stats plus category or top-level area summaries
-- **Related issues**: Parse commit messages for `#123`, `fixes #456` patterns
+- **Related issues**: Parse issue references from commit messages and render close-safe refs as `Closes #123` or `Fixes owner/repo#456`; render non-closing refs as `Related to #123`
 - **Checklist**: Auto-populate based on change types
+
+Only emit closing keywords when the PR targets the repository default branch. Otherwise, downgrade those references to non-closing `Related to ...` lines.
 
 After auto-generation, edit the body if necessary. Avoid dumping every changed file into the PR body.
 
@@ -121,6 +128,8 @@ Would you like me to:
 
 If the user explicitly requested immediate PR creation, briefly summarize the generated draft and then create the PR.
 
+If the draft contains closing keywords, explicitly call out which issues will auto-close when the PR is merged.
+
 ### 7. Create the PR
 
 Once the user approves, or when the user explicitly requested immediate creation, use `gh` CLI:
@@ -136,6 +145,8 @@ gh pr create \
 ```
 
 Only suggest reviewers or labels when repository conventions are obvious or the user asks.
+
+Preserve any `Closes ...`, `Fixes ...`, or `Resolves ...` lines in the final PR body so GitHub can auto-close the linked issues on merge.
 
 ## Generic Classification Strategy
 
