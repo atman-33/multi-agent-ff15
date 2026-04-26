@@ -337,6 +337,18 @@ function buildDelegatedReturnGuidance(input: {
   ]);
 }
 
+function cloneOperationState(state: OperationState): OperationState {
+  return {
+    ...state,
+    stepHistory: state.stepHistory.map((entry) => ({ ...entry })),
+    delegatedTasks: state.delegatedTasks.map((entry) => ({ ...entry })),
+    deviations: {
+      ...state.deviations,
+      history: state.deviations.history.map((entry) => ({ ...entry })),
+    },
+  };
+}
+
 export function createOperationInstantiator(): OperationInstantiator {
   return {
     activateOperation(input) {
@@ -505,23 +517,26 @@ export function createOperationInstantiator(): OperationInstantiator {
     },
 
     processStepReport(input) {
-      const operationState = input.operationState ?? getOperationState(input.missionId) ?? null;
+      const persistedOperationState = input.operationState ?? getOperationState(input.missionId) ?? null;
 
       if (
-        !operationState ||
-        (operationState.status !== "running" && operationState.status !== "waiting_for_report")
+        !persistedOperationState ||
+        (persistedOperationState.status !== "running" &&
+          persistedOperationState.status !== "waiting_for_report")
       ) {
         return {
           noctisGuidance: "",
           stateTransition: null,
           nextWorkerDispatch: null,
           operation: null,
-          operationState,
+          operationState: persistedOperationState,
           currentStep: null,
           nextStep: null,
           promptArtifact: null,
         };
       }
+
+      const operationState = cloneOperationState(persistedOperationState);
 
       const operation = resolveOperationForInput({
         operationOverride: input.operationOverride,

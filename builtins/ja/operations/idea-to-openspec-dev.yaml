@@ -119,14 +119,14 @@ steps:
 
         1. `.opencode/skills/manual-verification-docs/SKILL.md` の workflow と scaffold を使い、User 向けの動作確認ドキュメントを作成する。
         2. 対象 scope は実装差分、`{{ output("spec-planning", "latest", "spec-plan.md") }}` の change 情報、必要なら `{{ output("review", "latest", "code-review.md") }}` の指摘から決める。
-          3. この step の output contract が指定する mission-scoped file path に、動作確認ドキュメントをちょうど 1 つ作成する。app repository や execution workspace に複製を作らない。
-          4. skill の構成ルールは使うが、生成するドキュメント本文は `{{ setting("language", "name") }}` で記述する。
-          5. 作成後は生成した file path、対象 scope、主要シナリオを要約して報告する。
-      output_contracts:
-        report:
-          - name: manual-verification.md
-            format:
-              file: ../facets/output-contracts/manual-verification.md
+        3. この step の output contract が指定する mission-scoped file path に、動作確認ドキュメントをちょうど 1 つ作成する。app repository や execution workspace に複製を作らない。
+        4. skill の構成ルールは使うが、生成するドキュメント本文は `{{ setting("language", "name") }}` で記述する。
+        5. 作成後は生成した file path、対象 scope、主要シナリオを要約して報告する。
+    output_contracts:
+      report:
+        - name: manual-verification.md
+          format:
+            file: ../facets/output-contracts/manual-verification.md
     rules:
       - condition: Manual verification document created
         next: finalize-delivery

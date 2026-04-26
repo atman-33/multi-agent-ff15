@@ -125,6 +125,39 @@ function seedActivationBoundaryOperation(root: string): void {
   );
 }
 
+function seedBrokenTransitionOperation(root: string): void {
+  writeFileSync(
+    join(root, "builtins", "ja", "operations", "broken-transition.yaml"),
+    [
+      "name: broken-transition",
+      "description: Operation with a prompt-building failure on transition",
+      "initial_step: plan",
+      "steps:",
+      "  - name: plan",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: Approve the handoff to implementation.",
+      "    rules:",
+      "      - condition: Ready for implementation",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Review the current implementation.",
+      "    rules:",
+      "      - condition: Approved",
+      "        next: finalize",
+      "  - name: finalize",
+      "    agent: noctis",
+      "    instruction:",
+      '      inline: Read {{ output("implement", "latest", "missing-review.md") }} before finalizing.',
+      "    rules: []",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+}
+
 function seedAutonomousBoundaryOperation(root: string): void {
   writeFileSync(
     join(root, "builtins", "ja", "operations", "autonomous-boundary.yaml"),
@@ -423,5 +456,53 @@ describe("OperationInstantiator", () => {
         next: "implement",
       }),
     ).toThrow(/missing operationRef/i);
+  });
+
+  it("does not persist the next step when prompt construction fails during report processing", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    seedBrokenTransitionOperation(root);
+    createMissionFixture("mission-broken-transition");
+
+    const instantiator = createOperationInstantiator();
+    const activation = instantiator.activateOperation({
+      missionId: "mission-broken-transition",
+      message: "Please run broken-transition for this mission.",
+      selectedOperation: "builtin:ja:broken-transition.yaml",
+    });
+
+    const taskId = activation.operationState?.stepHistory.at(-1)?.taskId;
+    expect(taskId).toBeTruthy();
+
+    instantiator.processStepReport({
+      missionId: "mission-broken-transition",
+      reportBody: "Ready for implementation.",
+      fromAgent: "noctis",
+      taskId: taskId ?? "",
+      next: "implement",
+    });
+
+    const implementTaskId = getOperationState("mission-broken-transition")?.stepHistory.at(-1)?.taskId;
+    expect(implementTaskId).toBeTruthy();
+
+    expect(() =>
+      instantiator.processStepReport({
+        missionId: "mission-broken-transition",
+        reportBody: "Approved.",
+        fromAgent: "ignis",
+        taskId: implementTaskId ?? "",
+        next: "finalize",
+      }),
+    ).toThrow(/undeclared file "missing-review\.md"/i);
+
+    const savedState = getOperationState("mission-broken-transition");
+    expect(savedState?.currentStep).toBe("implement");
+    expect(savedState?.status).toBe("running");
+    expect(savedState?.stepHistory.at(-1)).toMatchObject({
+      step: "plan",
+      status: "completed",
+      taskId,
+    });
+    expect(savedState?.stepHistory).toHaveLength(1);
   });
 });

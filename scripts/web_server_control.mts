@@ -132,11 +132,23 @@ async function waitForServer(url: string): Promise<void> {
   throw new Error(`Web server did not become ready at ${url}`);
 }
 
+async function waitForChildStability(child: ReturnType<typeof spawn>): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 150);
+  });
+
+  if (child.exitCode !== null) {
+    throw new Error(`Web server process exited with code ${child.exitCode}`);
+  }
+
+  if (child.signalCode !== null) {
+    throw new Error(`Web server process exited with signal ${child.signalCode}`);
+  }
+}
+
 async function main(): Promise<void> {
   const { command, port, root } = parseArgs(process.argv.slice(2));
   const url = `http://127.0.0.1:${port}`;
-
-  clearWebServerRecord(root);
 
   const child = spawn("npm", buildChildArgs(command, port), {
     cwd: `${root}/web`,
@@ -149,12 +161,16 @@ async function main(): Promise<void> {
   }
 
   let cleanedUp = false;
+  let activeRecordOwnedByChild = false;
   const cleanup = () => {
     if (cleanedUp) {
       return;
     }
     cleanedUp = true;
-    clearWebServerRecord(root);
+    if (activeRecordOwnedByChild) {
+      clearWebServerRecord(root);
+      activeRecordOwnedByChild = false;
+    }
   };
 
   const forwardSignal = (signal: NodeJS.Signals) => {
@@ -171,23 +187,32 @@ async function main(): Promise<void> {
     forwardSignal("SIGHUP");
   });
 
-  child.on("exit", (code, signal) => {
-    cleanup();
-    if (signal) {
-      process.kill(process.pid, signal);
-      return;
-    }
-    process.exit(code ?? 0);
-  });
+  const childExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+    (resolve, reject) => {
+      child.on("exit", (code, signal) => {
+        cleanup();
+        resolve({ code, signal });
+      });
 
-  child.on("error", (error) => {
-    cleanup();
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exit(1);
-  });
+      child.on("error", (error) => {
+        cleanup();
+        reject(error);
+      });
+    },
+  );
 
   try {
-    await waitForServer(url);
+    await Promise.race([
+      waitForServer(url),
+      childExit.then(({ code, signal }) => {
+        throw new Error(
+          signal
+            ? `Web server process exited with signal ${signal}`
+            : `Web server process exited with code ${code ?? 0}`,
+        );
+      }),
+    ]);
+    await waitForChildStability(child);
     writeWebServerRecord(
       {
         mode: command === "dev" ? "development" : "production",
@@ -198,15 +223,25 @@ async function main(): Promise<void> {
       },
       root,
     );
+    activeRecordOwnedByChild = true;
   } catch (error) {
     cleanup();
     child.kill("SIGTERM");
+    try {
+      await childExit;
+    } catch {
+      // startup failure already being handled
+    }
     throw error;
   }
 
-  await new Promise(() => {
-    // wait for child exit; handled by event listeners above
-  });
+  const { code, signal } = await childExit;
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+
+  process.exit(code ?? 0);
 }
 
 try {
