@@ -199,7 +199,7 @@ describe("api.missions.$missionId.reports", () => {
     } as never);
 
     if (response.status !== 200) {
-      throw new Error(JSON.stringify(body));
+      throw new Error(JSON.stringify(await readJson(response)));
     }
     expect(response.status).toBe(200);
     await expect(readJson(response)).resolves.toMatchObject({
