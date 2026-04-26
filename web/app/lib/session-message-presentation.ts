@@ -13,7 +13,11 @@ import {
 } from "@/lib/session-selection-adjustment";
 import { getActivityActorLabel, parseRoutedMessageEnvelope } from "@/lib/team-message-format";
 import type { ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
-import type { MessageInfo, MessagePart } from "@/routes/_layout.opencode.session.$id/types";
+import type {
+  MessageDetailState,
+  MessageInfo,
+  MessagePart,
+} from "@/lib/opencode-session-types";
 
 export type SessionPresentationMessage = {
   id: string;
@@ -24,6 +28,7 @@ export type SessionPresentationMessage = {
   kind: MissionActivityKind;
   content: string;
   detailContent?: string;
+  detailState?: MessageDetailState;
   rawText?: string;
   parts?: MessagePart[];
   timestamp: Date;
@@ -53,12 +58,31 @@ export type RenderedSessionMessage = Omit<SessionPresentationMessage, "parts"> &
   intermediateOnly?: boolean;
 };
 
+export type NormalizeSessionMessagesOptions = {
+  assistantSender?: ActivityActorId | null;
+  assistantSenderLabel?: string;
+};
+
+export type SessionContinuityAssistant = {
+  sender?: ActivityActorId | null;
+  senderLabel?: string | null;
+};
+
 type PreparedSessionMessage = {
   message: SessionPresentationMessage;
   parts: MessagePart[];
   rawText: string;
   display: SessionMessageDisplay;
 };
+
+const DEFAULT_SESSION_CONTINUITY_ASSISTANT: SessionContinuityAssistant = {
+  sender: "noctis",
+  senderLabel: getActivityActorLabel("noctis"),
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 function normalizeActivityActorId(value: string | null | undefined): ActivityActorId | null {
   if (!value) {
@@ -97,6 +121,24 @@ function extractLooseText(parts: MessagePart[]): string {
     .trim();
 }
 
+function resolveAssistantErrorText(error: MessageInfo["info"]["error"] | undefined): string {
+  if (!error) {
+    return "";
+  }
+
+  const message = typeof error.message === "string" ? error.message.trim() : "";
+
+  if (error.name === "MessageAbortedError") {
+    return message ? `Response interrupted: ${message}` : "Response interrupted.";
+  }
+
+  if (message) {
+    return `Assistant error: ${message}`;
+  }
+
+  return error.name ? `Assistant error: ${error.name}` : "";
+}
+
 function getMessageParts(message: SessionPresentationMessage): MessagePart[] {
   if (message.parts && message.parts.length > 0) {
     return message.parts;
@@ -123,6 +165,10 @@ function getMessageRawText(message: SessionPresentationMessage): string {
   }
 
   return message.content;
+}
+
+function normalizeMessageDetailState(value: unknown): MessageDetailState | undefined {
+  return value === "summary" || value === "full" ? value : undefined;
 }
 
 function buildDetailText(messages: SessionPresentationMessage[]): string {
@@ -289,44 +335,79 @@ function toRenderedSessionMessage(
   };
 }
 
-function flushPendingNoctisMessages(
-  rendered: RenderedSessionMessage[],
-  pendingNoctis: PreparedSessionMessage[],
-): PreparedSessionMessage[] {
-  if (pendingNoctis.length === 0) {
-    return pendingNoctis;
+function normalizeContinuityAssistantLabel(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function matchesContinuityAssistant(
+  display: SessionMessageDisplay,
+  continuityAssistant: SessionContinuityAssistant | null,
+): boolean {
+  if (!continuityAssistant) {
+    return false;
   }
 
-  const parts = pendingNoctis.flatMap((entry) => entry.parts);
+  if (continuityAssistant.sender && display.resolvedSender === continuityAssistant.sender) {
+    return true;
+  }
+
+  const assistantLabel = normalizeContinuityAssistantLabel(continuityAssistant.senderLabel);
+  return Boolean(
+    assistantLabel &&
+      normalizeContinuityAssistantLabel(display.resolvedSenderLabel) === assistantLabel,
+  );
+}
+
+function flushPendingIntermediateMessages(
+  rendered: RenderedSessionMessage[],
+  pendingMessages: PreparedSessionMessage[],
+  continuityAssistant: SessionContinuityAssistant | null,
+): PreparedSessionMessage[] {
+  if (pendingMessages.length === 0) {
+    return pendingMessages;
+  }
+
+  const parts = pendingMessages.flatMap((entry) => entry.parts);
   const preview = getIntermediatePreview(parts);
-  const promptContextSections = pendingNoctis.flatMap(
+  const promptContextSections = pendingMessages.flatMap(
     (entry) => entry.display.promptContextSections,
   );
   const reportDetails = combineTextSections(
-    pendingNoctis.map((entry) => entry.display.reportDetails),
+    pendingMessages.map((entry) => entry.display.reportDetails),
   );
   const rawWorkflowPrompt = combineTextSections(
-    pendingNoctis.map((entry) => entry.display.rawWorkflowPrompt),
+    pendingMessages.map((entry) => entry.display.rawWorkflowPrompt),
   );
   const rawPromptPayload = combineTextSections(
-    pendingNoctis.map((entry) => entry.display.rawPromptPayload),
+    pendingMessages.map((entry) => entry.display.rawPromptPayload),
   );
 
-  if (!preview && promptContextSections.length === 0 && !reportDetails && !rawPromptPayload) {
+  if (!preview) {
     return [];
   }
 
-  const timestamp = pendingNoctis[pendingNoctis.length - 1].message.timestamp;
-  const detailRawText = buildDetailText(pendingNoctis.map((entry) => entry.message));
-  const conversationUnitId = pendingNoctis[0]?.message.id ?? "pending-noctis";
+  const timestamp = pendingMessages[pendingMessages.length - 1].message.timestamp;
+  const detailRawText = buildDetailText(pendingMessages.map((entry) => entry.message));
+  const firstPendingMessage = pendingMessages[0];
+  const sender =
+    continuityAssistant?.sender ??
+    firstPendingMessage?.display.resolvedSender ??
+    firstPendingMessage?.message.sender ??
+    null;
+  const senderLabel =
+    continuityAssistant?.senderLabel?.trim() ||
+    firstPendingMessage?.display.resolvedSenderLabel ||
+    firstPendingMessage?.message.senderLabel ||
+    "Assistant";
+  const conversationUnitId = firstPendingMessage?.message.id ?? "pending-intermediate";
 
   rendered.push({
     id: conversationUnitId,
     conversationUnitId,
-    sourceMessageIds: pendingNoctis.map((entry) => entry.message.id),
+    sourceMessageIds: pendingMessages.map((entry) => entry.message.id),
     role: "assistant",
-    sender: "noctis",
-    senderLabel: getActivityActorLabel("noctis"),
+    sender,
+    senderLabel,
     kind: "assistant_message",
     content: "",
     detailContent: detailRawText,
@@ -340,15 +421,15 @@ function flushPendingNoctisMessages(
       displayContent: preview ?? "",
       promptContextSections,
       promptContextSource: combinePromptContextSource(
-        pendingNoctis.map((entry) => entry.display),
+        pendingMessages.map((entry) => entry.display),
       ),
       rawWorkflowPrompt,
       rawPromptPayload,
       reportDetails,
       selectionAdjustment: null,
-      resolvedSender: "noctis",
-      resolvedSenderIsUser: false,
-      resolvedSenderLabel: getActivityActorLabel("noctis"),
+      resolvedSender: sender,
+      resolvedSenderIsUser: sender === "user",
+      resolvedSenderLabel: senderLabel,
       workflowPresentation: null,
     },
   });
@@ -356,16 +437,37 @@ function flushPendingNoctisMessages(
   return [];
 }
 
-export function toSessionPresentationMessages(messages: MessageInfo[]): SessionPresentationMessage[] {
+export function normalizeSessionMessages(
+  messages: MessageInfo[],
+  options?: NormalizeSessionMessagesOptions,
+): SessionPresentationMessage[] {
   return messages.reduce<SessionPresentationMessage[]>((accumulator, message, index) => {
     const messageRecord = message as unknown as Record<string, unknown>;
     const info = (messageRecord.info as Record<string, unknown> | undefined) ?? {};
     const parts = Array.isArray(messageRecord.parts) ? (messageRecord.parts as MessagePart[]) : [];
+    const summary = isRecord(messageRecord.summary)
+      ? (messageRecord.summary as {
+          content?: unknown;
+          detailContent?: unknown;
+          rawText?: unknown;
+        })
+      : null;
     const rawRole = info.role === "assistant" ? "assistant" : "user";
 
-    const content = extractText(parts);
+    const summaryContent = typeof summary?.content === "string" ? summary.content : null;
+    const summaryDetailContent =
+      typeof summary?.detailContent === "string" ? summary.detailContent : null;
+    const summaryRawText = typeof summary?.rawText === "string" ? summary.rawText : null;
+    const hasSummary = summary !== null;
+    const content = summaryContent ?? (hasSummary ? "" : extractText(parts));
     const looseText = extractLooseText(parts);
-    const fallbackContent = content || looseText;
+    const errorText =
+      rawRole === "assistant"
+        ? resolveAssistantErrorText(info.error as MessageInfo["info"]["error"] | undefined)
+        : "";
+    const fallbackContent = hasSummary
+      ? summaryRawText || summaryContent || errorText
+      : summaryRawText || content || looseText || errorText;
 
     if (!fallbackContent && (rawRole !== "assistant" || parts.length === 0)) {
       return accumulator;
@@ -378,33 +480,45 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
         : `restored-${index}-${Date.now().toString(36)}`;
     const routedMessage =
       rawRole === "assistant" ? null : parseRoutedMessageEnvelope(fallbackContent);
+    const defaultAssistantSender = normalizeActivityActorId(
+      typeof info.agent === "string" ? info.agent : null,
+    );
+    const defaultAssistantSenderLabel =
+      (typeof info.agent === "string" && info.agent.trim()) || "Assistant";
+    const assistantSender = options?.assistantSender ?? defaultAssistantSender;
+    const assistantSenderLabel =
+      typeof options?.assistantSenderLabel === "string" && options.assistantSenderLabel.trim()
+        ? options.assistantSenderLabel
+        : defaultAssistantSenderLabel;
     const sender =
       rawRole === "assistant"
-        ? normalizeActivityActorId(
-            typeof info.agent === "string" ? info.agent : null,
-          )
+        ? assistantSender
         : (routedMessage?.speaker ?? "user");
     const senderLabel =
       rawRole === "assistant"
-        ? (typeof info.agent === "string" && info.agent.trim()) || "Assistant"
+        ? assistantSenderLabel
         : sender
           ? getActivityActorLabel(sender)
           : "User";
-    const displayContent = routedMessage
-      ? routedMessage.messageType === "report"
-        ? routedMessage.body?.trim() ||
-          routedMessage.summary?.trim() ||
-          routedMessage.details?.trim() ||
-          ""
-        : routedMessage.body?.trim() || ""
-      : fallbackContent;
-    const detailContent = routedMessage
-      ? routedMessage.messageType === "report"
-        ? [routedMessage.body?.trim(), routedMessage.summary?.trim(), routedMessage.details?.trim()]
-            .filter(Boolean)
-            .join("\n\n")
-        : routedMessage.body?.trim() || fallbackContent
-      : fallbackContent;
+    const displayContent = summaryContent !== null
+      ? summaryContent
+      : routedMessage
+        ? routedMessage.messageType === "report"
+          ? routedMessage.body?.trim() ||
+            routedMessage.summary?.trim() ||
+            routedMessage.details?.trim() ||
+            ""
+          : routedMessage.body?.trim() || ""
+        : fallbackContent;
+    const detailContent = summaryDetailContent !== null
+      ? summaryDetailContent
+      : routedMessage
+        ? routedMessage.messageType === "report"
+          ? [routedMessage.body?.trim(), routedMessage.summary?.trim(), routedMessage.details?.trim()]
+              .filter(Boolean)
+              .join("\n\n")
+          : routedMessage.body?.trim() || fallbackContent
+        : fallbackContent;
     const createdAt =
       typeof info.time === "object" &&
       info.time !== null &&
@@ -429,7 +543,8 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
             : "team_message",
       content: displayContent,
       detailContent,
-      rawText: fallbackContent,
+      detailState: normalizeMessageDetailState(messageRecord.detailState),
+      rawText: summaryRawText !== null ? summaryRawText : fallbackContent,
       parts,
       timestamp: createdAt ? new Date(createdAt) : new Date(Date.now() + index),
       source: "session",
@@ -437,6 +552,10 @@ export function toSessionPresentationMessages(messages: MessageInfo[]): SessionP
 
     return accumulator;
   }, []);
+}
+
+export function toSessionPresentationMessages(messages: MessageInfo[]): SessionPresentationMessage[] {
+  return normalizeSessionMessages(messages);
 }
 
 export function resolveSessionMessageDisplay(input: {
@@ -481,31 +600,41 @@ export function resolveSessionMessageDisplay(input: {
 
 export function buildRenderedSessionMessages(
   messages: SessionPresentationMessage[],
+  options?: {
+    continuityAssistant?: SessionContinuityAssistant | null;
+  },
 ): RenderedSessionMessage[] {
+  const continuityAssistant =
+    options?.continuityAssistant ?? DEFAULT_SESSION_CONTINUITY_ASSISTANT;
   const rendered: RenderedSessionMessage[] = [];
-  let pendingNoctis: PreparedSessionMessage[] = [];
+  let pendingIntermediate: PreparedSessionMessage[] = [];
 
   messages.forEach((message) => {
     const prepared = prepareSessionMessage(message);
     const canCollapseToIntermediate =
-      prepared.display.resolvedSender === "noctis" && prepared.message.source === "session";
+      matchesContinuityAssistant(prepared.display, continuityAssistant) &&
+      prepared.message.source === "session";
 
     if (!prepared.display.displayContent && canCollapseToIntermediate) {
-      pendingNoctis.push(prepared);
+      pendingIntermediate.push(prepared);
       return;
     }
 
     if (!canCollapseToIntermediate) {
-      pendingNoctis = flushPendingNoctisMessages(rendered, pendingNoctis);
+      pendingIntermediate = flushPendingIntermediateMessages(
+        rendered,
+        pendingIntermediate,
+        continuityAssistant,
+      );
       rendered.push(toRenderedSessionMessage(prepared));
       return;
     }
 
-    rendered.push(toRenderedSessionMessage(prepared, [...pendingNoctis, prepared]));
-    pendingNoctis = [];
+    rendered.push(toRenderedSessionMessage(prepared, [...pendingIntermediate, prepared]));
+    pendingIntermediate = [];
   });
 
-  flushPendingNoctisMessages(rendered, pendingNoctis);
+  flushPendingIntermediateMessages(rendered, pendingIntermediate, continuityAssistant);
 
   return rendered;
 }

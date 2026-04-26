@@ -106,7 +106,7 @@ describe("operation catalog", () => {
     const root = createTempRoot();
     writeBuiltinOperation(root, "ja", "lunafreya-autonomous.yaml", "lunafreya-autonomous");
     writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
-    writeBuiltinOperation(root, "ja", "openspec-dev.yaml", "openspec-dev");
+    writeBuiltinOperation(root, "ja", "test-review-cycle-flow.yaml", "test-review-cycle-flow");
 
     const fullEntries = listOperationCatalogEntriesForScope({
       root,
@@ -122,20 +122,20 @@ describe("operation catalog", () => {
     expect(fullEntries.map((entry) => entry.ref)).toEqual([
       "builtin:ja:lunafreya-autonomous.yaml",
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
     ]);
     expect(userFacingEntries.map((entry) => entry.ref)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
     ]);
   });
 
   it("includes registered project workflows alongside builtin workflows without collapsing same-name entries", () => {
     const root = createTempRoot();
     writeBuiltinOperation(root, "ja", "noctis-autonomous.yaml", "noctis-autonomous");
-    writeBuiltinOperation(root, "ja", "openspec-dev.yaml", "openspec-dev");
+    writeBuiltinOperation(root, "ja", "test-review-cycle-flow.yaml", "test-review-cycle-flow");
     writeProjectManifest(root);
-    writeProjectOperation(root, "openspec-dev.yaml", "openspec-dev");
+    writeProjectOperation(root, "test-review-cycle-flow.yaml", "test-review-cycle-flow");
 
     const entries = listOperationCatalogEntriesForScope({
       root,
@@ -145,11 +145,11 @@ describe("operation catalog", () => {
 
     expect(entries.map((entry) => entry.ref)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
-      "project:alpha:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
+      "project:alpha:test-review-cycle-flow.yaml",
     ]);
-    expect(entries.filter((entry) => entry.name === "openspec-dev")).toHaveLength(2);
-    expect(entries.find((entry) => entry.ref === "project:alpha:openspec-dev.yaml")).toMatchObject({
+    expect(entries.filter((entry) => entry.name === "test-review-cycle-flow")).toHaveLength(2);
+    expect(entries.find((entry) => entry.ref === "project:alpha:test-review-cycle-flow.yaml")).toMatchObject({
       sourceKind: "project",
       projectId: "alpha",
       projectName: "Alpha Project",

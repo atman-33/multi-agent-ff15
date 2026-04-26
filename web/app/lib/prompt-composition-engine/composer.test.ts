@@ -15,6 +15,11 @@ import { createOperationState } from "@/lib/operation-runtime/state";
 import { registerDelegatedTask } from "@/lib/operation-runtime/state";
 import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 import {
+  REVIEW_CYCLE_TEST_OPERATION_NAME,
+  REVIEW_CYCLE_TEST_OPERATION_REF,
+  writeReviewCycleTestOperation,
+} from "@/lib/test-fixtures/operation-fixtures";
+import {
   composeGenericSessionPrompt,
   composeTeamMessagePrompt,
   composeUserToNoctisPrompt,
@@ -33,6 +38,7 @@ function createTempRoot(): string {
   cpSync(join(repoRoot, "config"), join(root, "config"), { recursive: true });
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
   cpSync(join(repoRoot, "opencode.json"), join(root, "opencode.json"));
+  writeReviewCycleTestOperation(root);
   process.env.MULTI_AGENT_FF15_ROOT = root;
   return root;
 }
@@ -330,11 +336,11 @@ function buildSyntheticOperationState(missionId: string): {
   taskId: string;
   specPlanningTaskId: string;
 } {
-  const operation = loadOperationByName("openspec-dev", "ja");
+  const operation = loadOperationByName(REVIEW_CYCLE_TEST_OPERATION_NAME, "ja");
   const state = createOperationState(
     operation.name,
     operation.initial_step,
-    builtinOperationRef("openspec-dev"),
+    REVIEW_CYCLE_TEST_OPERATION_REF,
   );
 
   const specPlanningTaskId = ensureActiveStepTaskId(state, "noctis");
@@ -358,7 +364,7 @@ function buildSyntheticOperationState(missionId: string): {
       "",
     ].join("\n"),
   });
-  operationInstantiator.processStepReport({
+  const reportResult = operationInstantiator.processStepReport({
     missionId,
     operationState: state,
     reportBody: "Synthetic report from worker",
@@ -367,8 +373,9 @@ function buildSyntheticOperationState(missionId: string): {
     next: "implement",
   });
 
-  const taskId = ensureActiveStepTaskId(state, "gladiolus");
-  return { state, taskId, specPlanningTaskId };
+  const nextState = reportResult.operationState ?? state;
+  const taskId = ensureActiveStepTaskId(nextState, "gladiolus");
+  return { state: nextState, taskId, specPlanningTaskId };
 }
 
 function buildSyntheticAutonomousOperationState() {
@@ -446,11 +453,11 @@ describe("prompt composition engine", () => {
         missionId: "mission-2",
         allowedWorkers: ["ignis", "gladiolus", "prompto"],
       },
-      userMessage: "Open the openspec-dev workflow.",
+      userMessage: "Open the review-cycle test workflow.",
       missionId: "mission-2",
       sessionId: "session-2",
       isNewMission: true,
-      selectedOperation: builtinOperationRef("openspec-dev"),
+      selectedOperation: REVIEW_CYCLE_TEST_OPERATION_REF,
     });
 
     expect(composed.workflowExtension).not.toContain("format=");
@@ -642,7 +649,7 @@ describe("prompt composition engine", () => {
     const { state: operationState, taskId } = buildSyntheticOperationState(missionId);
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationRef: builtinOperationRef("openspec-dev"),
+      operationRef: REVIEW_CYCLE_TEST_OPERATION_REF,
       taskInstruction: "Synthetic task for gladiolus: implement the current step as Noctis instructed.",
     });
     const workerStep = bundle.flowSteps.find(
@@ -683,7 +690,7 @@ describe("prompt composition engine", () => {
     const root = createTempRoot();
     seedProjectConfig(root);
     const bundle = buildOperationDebugBundle({
-      operationRef: builtinOperationRef("openspec-dev"),
+      operationRef: REVIEW_CYCLE_TEST_OPERATION_REF,
     });
 
     expect(
@@ -706,7 +713,7 @@ describe("prompt composition engine", () => {
     const missionId = "debug-self-step-preview";
     const bundle = buildOperationDebugBundle({
       missionId,
-      operationRef: builtinOperationRef("openspec-dev"),
+      operationRef: REVIEW_CYCLE_TEST_OPERATION_REF,
     });
     const selfStep = bundle.flowSteps.find(
       (step) => step.kind === "noctis-step" && step.to === "Noctis",
@@ -724,7 +731,7 @@ describe("prompt composition engine", () => {
       missionId,
       sessionId: "debug-noctis-session",
       isNewMission: true,
-      selectedOperation: builtinOperationRef("openspec-dev"),
+      selectedOperation: REVIEW_CYCLE_TEST_OPERATION_REF,
     });
 
     expect(selfStep).toBeTruthy();

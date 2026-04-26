@@ -49,6 +49,7 @@ type PromptComposerProps = {
   helperText?: ReactNode;
   topSlot?: ReactNode;
   footerStart?: ReactNode;
+  footerEnd?: ReactNode;
 };
 
 const MAX_HEIGHT_PX = 160;
@@ -110,6 +111,7 @@ export function PromptComposer({
   helperText,
   topSlot,
   footerStart,
+  footerEnd,
 }: PromptComposerProps) {
   const [input, setInput] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -583,34 +585,37 @@ export function PromptComposer({
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
           {footerStart}
           {helperText ? (
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+            <p className="min-w-0 flex-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
               {helperText}
             </p>
           ) : null}
-          <button
-            type="button"
-            onClick={effectiveShowAbortAction ? onAbort : handleSubmit}
-            disabled={
-              effectiveShowAbortAction
-                ? !onAbort || disabled || isAborting
-                : !canSubmit || disabled || disableSendAction
-            }
-            title={effectiveShowAbortAction ? "Stop" : "Send"}
-            className={cn(
-              "ml-auto flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-all",
-              effectiveShowAbortAction
-                ? "border-red-500/25 bg-red-500/15 text-red-50 hover:border-red-400/35 hover:bg-red-500/20"
-                : !canSubmit || disabled
-                  ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35"
-                  : "border-primary/25 bg-primary/12 text-foreground hover:border-primary/40 hover:bg-primary/18"
-            )}
-          >
-            {effectiveShowAbortAction ? (
-              <Square className={cn("h-3.5 w-3.5", isAborting && "animate-pulse")} />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {footerEnd}
+            <button
+              type="button"
+              onClick={effectiveShowAbortAction ? onAbort : handleSubmit}
+              disabled={
+                effectiveShowAbortAction
+                  ? !onAbort || disabled || isAborting
+                  : !canSubmit || disabled || disableSendAction
+              }
+              title={effectiveShowAbortAction ? "Stop" : "Send"}
+              className={cn(
+                "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-all",
+                effectiveShowAbortAction
+                  ? "border-red-500/25 bg-red-500/15 text-red-50 hover:border-red-400/35 hover:bg-red-500/20"
+                  : !canSubmit || disabled
+                    ? "cursor-not-allowed border-border/40 bg-background/45 text-muted-foreground/35"
+                    : "border-primary/25 bg-primary/12 text-foreground hover:border-primary/40 hover:bg-primary/18"
+              )}
+            >
+              {effectiveShowAbortAction ? (
+                <Square className={cn("h-3.5 w-3.5", isAborting && "animate-pulse")} />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

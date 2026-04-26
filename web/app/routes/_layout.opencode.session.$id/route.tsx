@@ -7,16 +7,13 @@ import { Button } from "@/components/ui/button";
 import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit-inspectability";
 import { useProjectRegistry } from "@/hooks/use-project-registry";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
+import { useSessionLiveThread } from "@/hooks/use-session-live-thread";
 import {
   APP_ROOT_EXECUTION_PROJECT_ID,
   APP_ROOT_EXECUTION_PROJECT_LABEL,
 } from "@/lib/execution-context";
 import { fetchSessionStatus, isSessionStatusActive } from "@/lib/session-status";
-import {
-  mergeMessageInfoText,
-  mergeStreamingText,
-  parseSessionTextPartEvent,
-} from "@/lib/session-stream";
+import { mergeMessageInfoText } from "@/lib/session-stream";
 import { toSessionPresentationMessages } from "@/lib/session-message-presentation";
 import { useChatStore } from "@/stores/chat-store";
 import type { OpenCodeOutletContext } from "../_layout.opencode/route";
@@ -41,7 +38,7 @@ type ManagedSessionInfo = {
 const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
   const navigate = useNavigate();
-  const sessionId = params.id;
+  const sessionId = params.id ?? null;
   const { sessions } = useOutletContext<OpenCodeOutletContext>();
   const [messages, setMessages] = useState<MessageInfo[]>(loaderData.messages ?? []);
   const [executionContext, setExecutionContext] = useState<SessionExecutionContext>(
@@ -61,10 +58,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const selectedAgent = useChatStore((state) => state.selectedAgent);
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setServerSessionState = useChatStore((state) => state.setServerSessionState);
-  const streamingContent = useChatStore((state) => state.streamingContent);
-  const clearStreamingContent = useChatStore((state) => state.clearStreamingContent);
-  const setStreamingContent = useChatStore((state) => state.setStreamingContent);
-  const setStreamingMessageId = useChatStore((state) => state.setStreamingMessageId);
 
   const isSessionRunning = sessionId ? isSessionStatusActive(sessionStates[sessionId]) : false;
   const currentSession = useMemo(
@@ -113,24 +106,6 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         .filter((project) => project.id !== displayedExecutionContext.executionProjectId)
         .map((project) => ({ value: project.id, label: project.displayName })),
     [displayedExecutionContext.executionProjectId, registeredProjects],
-  );
-  const streamingText = useMemo(
-    () =>
-      streamingContent
-        ? {
-            content: streamingContent,
-            fallbackSender: null,
-            fallbackSenderLabel: "Assistant",
-          }
-        : null,
-    [streamingContent],
-  );
-  const renderSnapshot = useSessionChatRenderSnapshot({
-    messages: presentationMessages,
-    streamingText,
-  });
-  const inspectability = useConversationUnitInspectability(
-    renderSnapshot.inspectabilityBoundaries,
   );
 
   const loadMessages = useCallback(async () => {
@@ -182,108 +157,128 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     }
   }, [sessionId, setServerSessionState]);
 
+  const liveThread = useSessionLiveThread({
+    onSessionIdle: (activeSessionId) => {
+      setServerSessionState(activeSessionId, "idle");
+      void loadMessages();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sessions:refresh"));
+      }
+    },
+    onSessionStatus: (status, activeSessionId) => {
+      setServerSessionState(activeSessionId, status);
+    },
+    onTextPartMatched: ({ messageId, text }) => {
+      if (!messageId) {
+        return false;
+      }
+
+      let matchedExistingMessage = false;
+      setMessages((current) =>
+        current.map((message) => {
+          if (message.info.id !== messageId) {
+            return message;
+          }
+
+          matchedExistingMessage = true;
+          return mergeMessageInfoText(message, text);
+        }),
+      );
+
+      return matchedExistingMessage;
+    },
+    sessionId,
+  });
+  const liveDraft = useMemo(
+    () =>
+      liveThread.liveDraft && liveThread.liveDraft.parts.length > 0
+        ? {
+            fallbackSender: null,
+            fallbackSenderLabel: managedSession?.ownerLabel ?? "Assistant",
+            messageId: liveThread.liveDraft.messageId,
+            parts: liveThread.liveDraft.parts,
+          }
+        : null,
+    [liveThread.liveDraft, managedSession?.ownerLabel],
+  );
+  const streamingText = useMemo(
+    () =>
+      liveThread.streamingContent
+        ? {
+            content: liveThread.streamingContent,
+            fallbackSender: null,
+            fallbackSenderLabel: "Assistant",
+          }
+        : null,
+    [liveThread.streamingContent],
+  );
+  const renderSnapshot = useSessionChatRenderSnapshot({
+    assistantPending: isSessionRunning,
+    continuityAssistant: managedSession
+      ? {
+          sender: null,
+          senderLabel: managedSession.ownerLabel,
+        }
+      : undefined,
+    currentStreamingMessageId: liveThread.streamingMessageId,
+    liveDraft,
+    messages: presentationMessages,
+    onStreamingMessageCommitted: liveThread.clearStreaming,
+    streamingText,
+  });
+  const inspectability = useConversationUnitInspectability(
+    renderSnapshot.inspectabilityBoundaries,
+  );
+
   useEffect(() => {
     void refreshSessionStatus();
   }, [refreshSessionStatus]);
 
   useEffect(() => {
-    if (!sessionId || typeof window === "undefined") {
+    if (liveThread.isLiveUnavailable) {
+      void refreshSessionStatus();
+    }
+  }, [liveThread.isLiveUnavailable, refreshSessionStatus]);
+
+  useEffect(() => {
+    if (!liveThread.isLiveUnavailable || !sessionId || !isSessionRunning) {
       return;
     }
 
-    const source = new EventSource(`/api/session/${sessionId}/events`);
+    let cancelled = false;
 
-    source.onmessage = (event) => {
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(event.data as string) as Record<string, unknown>;
-      } catch {
+    const pollAuthoritativeSession = async () => {
+      const status = await refreshSessionStatus();
+      if (cancelled) {
         return;
       }
 
-      const textPartEvent = parseSessionTextPartEvent(parsed);
-      if (textPartEvent && (!textPartEvent.sessionId || textPartEvent.sessionId === sessionId)) {
-        const currentStore = useChatStore.getState();
-
-        if (textPartEvent.messageId) {
-          let matchedExistingMessage = false;
-          setMessages((current) =>
-            current.map((message) => {
-              if (message.info.id !== textPartEvent.messageId) {
-                return message;
-              }
-
-              matchedExistingMessage = true;
-              return mergeMessageInfoText(message, textPartEvent.text);
-            })
-          );
-
-          if (matchedExistingMessage) {
-            setStreamingMessageId(null);
-            setStreamingContent("");
-            return;
-          }
-        }
-
-        setStreamingMessageId(textPartEvent.messageId);
-        setStreamingContent(
-          mergeStreamingText(
-            textPartEvent.messageId === currentStore.streamingMessageId
-              ? currentStore.streamingContent
-              : "",
-            textPartEvent.text
-          )
-        );
+      await loadMessages();
+      if (cancelled) {
         return;
       }
 
-      const type = typeof parsed.type === "string" ? parsed.type : null;
-      if (!type) {
-        return;
-      }
-
-      if (type === "session.status") {
-        const properties = parsed.properties as
-          | {
-              status?: {
-                type?: "idle" | "busy" | "retry";
-              };
-            }
-          | undefined;
-        const nextStatus = properties?.status?.type;
-        if (nextStatus) {
-          setServerSessionState(sessionId, nextStatus);
-        }
-        return;
-      }
-
-      if (type === "session.idle") {
-        setServerSessionState(sessionId, "idle");
-        clearStreamingContent();
-        setStreamingMessageId(null);
-        void loadMessages();
-
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("sessions:refresh"));
-        }
+      if (status && !isSessionStatusActive(status) && typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sessions:refresh"));
       }
     };
 
-    source.onerror = () => {
-      void refreshSessionStatus();
-    };
+    void pollAuthoritativeSession();
+    const intervalId = window.setInterval(() => {
+      void pollAuthoritativeSession();
+    }, 1500);
 
     return () => {
-      source.close();
+      cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [
-    clearStreamingContent,
+    isSessionRunning,
+    liveThread.isLiveUnavailable,
     loadMessages,
     refreshSessionStatus,
     sessionId,
-    setServerSessionState,
-    setStreamingContent,
-    setStreamingMessageId,
   ]);
 
   const handleSend = useCallback(
@@ -315,8 +310,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         if (!response.ok) {
           throw new Error("Failed to send message");
         }
-        clearStreamingContent();
-        setStreamingMessageId(null);
+        liveThread.clearStreaming();
         await refreshSessionStatus();
         await loadMessages();
       } catch {
@@ -328,15 +322,14 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       }
     },
     [
-      clearStreamingContent,
       isLoading,
+      liveThread,
       loadMessages,
       managedSession,
       refreshSessionStatus,
       selectedAgent,
       selectedModel,
       sessionId,
-      setStreamingMessageId,
     ]
   );
 
@@ -354,8 +347,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
         throw new Error(data?.error ?? `HTTP ${response.status}`);
       }
 
-      clearStreamingContent();
-      setStreamingMessageId(null);
+      liveThread.clearStreaming();
       await refreshSessionStatus();
       await loadMessages();
 
@@ -370,12 +362,11 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       setIsAborting(false);
     }
   }, [
-    clearStreamingContent,
     isAborting,
+    liveThread,
     loadMessages,
     refreshSessionStatus,
     sessionId,
-    setStreamingMessageId,
   ]);
 
   const handleOpenTerminal = useCallback(async () => {
@@ -509,7 +500,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
       }
       footer={
         <MessageComposer
-          sessionId={sessionId}
+          sessionId={sessionId ?? undefined}
           executionProjectOptions={executionProjectOptions}
           selectedExecutionProjectId={displayedExecutionContext.executionProjectId}
           executionProjectLocked={true}
@@ -540,21 +531,11 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
               onToggleConversationUnit={inspectability.toggleConversationUnit}
               onToggleDetailEntry={inspectability.toggleDetailEntry}
               renderedMessages={renderSnapshot.renderedMessages}
+              sessionId={sessionId}
+              showPendingIndicator={renderSnapshot.showPendingIndicator}
               streamingMessage={renderSnapshot.streamingMessage}
             />
           )}
-
-          {isSessionRunning ? (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-sm border border-border/50 bg-card px-4 py-2.5">
-                <div className="flex gap-1.5">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60" />
-                </div>
-              </div>
-            </div>
-          ) : null}
         </>
       )}
     </ChatThreadFrame>
@@ -609,4 +590,5 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
   }
 };
 
+export { SessionRoute };
 export default SessionRoute;

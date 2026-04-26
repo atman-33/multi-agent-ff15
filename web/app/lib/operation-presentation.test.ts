@@ -12,24 +12,24 @@ describe("operation-presentation", () => {
     expect(getOperationDisplayLabel("noctis-autonomous")).toBe(
       DEFAULT_AUTONOMOUS_OPERATION_LABEL,
     );
-    expect(getOperationDisplayLabel("openspec-dev")).toBe("openspec-dev");
+    expect(getOperationDisplayLabel("test-review-cycle-flow")).toBe("test-review-cycle-flow");
   });
 
   it("normalizes multiline descriptions when building select options", () => {
     expect(
       toOperationOption({
-        ref: "builtin:ja:openspec-dev.yaml",
-        name: "openspec-dev",
+        ref: "builtin:ja:test-review-cycle-flow.yaml",
+        name: "test-review-cycle-flow",
         description: "Guided operation.\n  Plans, implements, and reviews.",
         isDefault: false,
         sourceKind: "builtin",
       }),
     ).toEqual({
-      value: "builtin:ja:openspec-dev.yaml",
-      label: "openspec-dev",
+      value: "builtin:ja:test-review-cycle-flow.yaml",
+      label: "test-review-cycle-flow",
       description: "Guided operation. Plans, implements, and reviews.",
       isDefault: false,
-      name: "openspec-dev",
+      name: "test-review-cycle-flow",
       sourceKind: "builtin",
       sourceLabel: "Builtin",
     });
@@ -38,8 +38,8 @@ describe("operation-presentation", () => {
   it("adds project source metadata to project-authored workflow labels", () => {
     expect(
       toOperationOption({
-        ref: "project:multi-agent-ff15:openspec-dev.yaml",
-        name: "openspec-dev",
+        ref: "project:multi-agent-ff15:test-review-cycle-flow.yaml",
+        name: "test-review-cycle-flow",
         description: "Project-local operation.",
         isDefault: false,
         sourceKind: "project",
@@ -47,11 +47,11 @@ describe("operation-presentation", () => {
         projectName: "Multi Agent FF15",
       }),
     ).toEqual({
-      value: "project:multi-agent-ff15:openspec-dev.yaml",
-      label: "openspec-dev · Multi Agent FF15",
+      value: "project:multi-agent-ff15:test-review-cycle-flow.yaml",
+      label: "test-review-cycle-flow · Multi Agent FF15",
       description: "Project-local operation.",
       isDefault: false,
-      name: "openspec-dev",
+      name: "test-review-cycle-flow",
       projectId: "multi-agent-ff15",
       sourceKind: "project",
       sourceLabel: "Multi Agent FF15",
@@ -61,11 +61,11 @@ describe("operation-presentation", () => {
   it("sorts the default workflow before other options", () => {
     const options = [
       {
-        value: "builtin:ja:openspec-dev.yaml",
-        label: "openspec-dev",
+        value: "builtin:ja:test-review-cycle-flow.yaml",
+        label: "test-review-cycle-flow",
         description: "OpenSpec delivery flow.",
         isDefault: false,
-        name: "openspec-dev",
+        name: "test-review-cycle-flow",
         sourceKind: "builtin",
         sourceLabel: "Builtin",
       },
@@ -83,7 +83,7 @@ describe("operation-presentation", () => {
 
     expect(sorted.map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
     ]);
   });
 });

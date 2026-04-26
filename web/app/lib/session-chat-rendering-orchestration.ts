@@ -1,3 +1,4 @@
+import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
 import {
   buildMessageInspectabilityBoundary,
   type MessageInspectabilityBoundary,
@@ -6,6 +7,7 @@ import {
   buildRenderedSessionMessages,
   type RenderedSessionMessage,
   resolveSessionMessageDisplay,
+  type SessionContinuityAssistant,
   type SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
 
@@ -20,6 +22,15 @@ export type SessionChatScrollSignal = "none" | "tail-append" | "streaming-growth
 
 export type SessionChatRenderSnapshot = {
   input: {
+    assistantPending: boolean;
+    continuityAssistant: SessionContinuityAssistant | null;
+    currentStreamingMessageId: string | null;
+    liveDraft: {
+      fallbackSender: SessionPresentationMessage["sender"];
+      fallbackSenderLabel: string;
+      messageId: string | null;
+      parts: RenderedSessionMessage["parts"];
+    } | null;
     messages: SessionPresentationMessage[];
     streamingText: {
       content: string;
@@ -27,13 +38,18 @@ export type SessionChatRenderSnapshot = {
       fallbackSenderLabel: string;
     } | null;
   };
+  confirmedRenderedMessages: RenderedSessionMessage[];
+  confirmedInspectabilityBoundaries: MessageInspectabilityBoundary[];
   renderedMessages: RenderedSessionMessage[];
   inspectabilityBoundaries: MessageInspectabilityBoundary[];
   refreshKind: SessionChatRefreshKind;
   scrollSignal: SessionChatScrollSignal;
   autoFollowKey: string | null;
+  showPendingIndicator: boolean;
   streamingMessage: RenderedSessionMessage | null;
 };
+
+type LiveDraftInput = NonNullable<SessionChatRenderSnapshot["input"]["liveDraft"]>;
 
 function buildStreamingMessage(input: {
   content: string;
@@ -66,6 +82,188 @@ function buildStreamingMessage(input: {
     sourceMessageIds: ["streaming-assistant"],
     detailRawText: input.content,
     messageDisplay,
+  };
+}
+
+function buildStreamingMessageFromLiveDraft(
+  input: LiveDraftInput | null,
+): RenderedSessionMessage | null {
+  if (!input || input.parts.length === 0) {
+    return null;
+  }
+
+  const content = extractText(input.parts);
+  const detailContent = buildMessageMarkdown(
+    content,
+    extractReasoning(input.parts),
+    extractTools(input.parts),
+  );
+  const messageId = input.messageId ?? "streaming-assistant";
+  const messageDisplay = resolveSessionMessageDisplay({
+    rawText: content,
+    fallbackSender: input.fallbackSender,
+    fallbackSenderLabel: input.fallbackSenderLabel,
+  });
+
+  return {
+    id: messageId,
+    conversationUnitId: messageId,
+    role: "assistant",
+    sender: messageDisplay.resolvedSender,
+    senderLabel: messageDisplay.resolvedSenderLabel,
+    kind: "assistant_message",
+    content,
+    detailContent,
+    rawText: content,
+    parts: input.parts,
+    timestamp: new Date(),
+    source: "session",
+    sourceMessageIds: [messageId],
+    detailRawText: detailContent,
+    messageDisplay,
+  };
+}
+
+function containsStreamingMessage(
+  messages: SessionPresentationMessage[],
+  currentStreamingMessageId: string | null,
+): boolean {
+  if (!currentStreamingMessageId) {
+    return false;
+  }
+
+  return messages.some((message) => message.id === currentStreamingMessageId);
+}
+
+function mergeUniqueValues(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function normalizeContinuityAssistantLabel(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function areContinuityAssistantsSemanticallyEqual(
+  left: SessionContinuityAssistant | null | undefined,
+  right: SessionContinuityAssistant | null | undefined,
+): boolean {
+  return (
+    (left?.sender ?? null) === (right?.sender ?? null) &&
+    normalizeContinuityAssistantLabel(left?.senderLabel) ===
+      normalizeContinuityAssistantLabel(right?.senderLabel)
+  );
+}
+
+function matchesContinuityAssistantMessage(
+  message: Pick<RenderedSessionMessage, "sender" | "senderLabel">,
+  continuityAssistant: SessionContinuityAssistant | null,
+): boolean {
+  if (!continuityAssistant) {
+    return false;
+  }
+
+  if (continuityAssistant.sender && message.sender === continuityAssistant.sender) {
+    return true;
+  }
+
+  const assistantLabel = normalizeContinuityAssistantLabel(continuityAssistant.senderLabel);
+  return Boolean(assistantLabel && normalizeContinuityAssistantLabel(message.senderLabel) === assistantLabel);
+}
+
+function combineDetailText(left: string, right: string): string {
+  return mergeUniqueValues([left.trim(), right.trim()]).join("\n\n");
+}
+
+function resolveContinuityAssistant(input: {
+  continuityAssistant?: SessionContinuityAssistant | null;
+  liveDraft?: LiveDraftInput | null;
+  streamingText?: {
+    content: string;
+    fallbackSender: SessionPresentationMessage["sender"];
+    fallbackSenderLabel: string;
+  } | null;
+}): SessionContinuityAssistant | null {
+  if (input.continuityAssistant) {
+    return input.continuityAssistant;
+  }
+
+  if (input.liveDraft) {
+    return {
+      sender: input.liveDraft.fallbackSender,
+      senderLabel: input.liveDraft.fallbackSenderLabel,
+    };
+  }
+
+  if (input.streamingText) {
+    return {
+      sender: input.streamingText.fallbackSender,
+      senderLabel: input.streamingText.fallbackSenderLabel,
+    };
+  }
+
+  return null;
+}
+
+function foldIntermediateTailIntoStreamingMessage(
+  renderedMessages: RenderedSessionMessage[],
+  streamingMessage: RenderedSessionMessage | null,
+  continuityAssistant: SessionContinuityAssistant | null,
+): {
+  renderedMessages: RenderedSessionMessage[];
+  streamingMessage: RenderedSessionMessage | null;
+} {
+  const tailMessage = renderedMessages.at(-1);
+
+  if (
+    !tailMessage ||
+    !streamingMessage ||
+    !tailMessage.intermediateOnly ||
+    !matchesContinuityAssistantMessage(tailMessage, continuityAssistant) ||
+    !matchesContinuityAssistantMessage(streamingMessage, continuityAssistant) ||
+    !streamingMessage.messageDisplay.displayContent.trim()
+  ) {
+    return { renderedMessages, streamingMessage };
+  }
+
+  const mergedTailMessage: RenderedSessionMessage = {
+    ...tailMessage,
+    content: streamingMessage.content,
+    detailContent: combineDetailText(
+      tailMessage.detailContent ?? "",
+      streamingMessage.detailContent ?? "",
+    ),
+    rawText: streamingMessage.rawText,
+    parts: [...tailMessage.parts, ...streamingMessage.parts],
+    sourceMessageIds: mergeUniqueValues([
+      ...tailMessage.sourceMessageIds,
+      ...streamingMessage.sourceMessageIds,
+    ]),
+    detailRawText: combineDetailText(tailMessage.detailRawText, streamingMessage.detailRawText),
+    intermediateOnly: undefined,
+    messageDisplay: {
+      ...streamingMessage.messageDisplay,
+      promptContextSections: tailMessage.messageDisplay.promptContextSections,
+      promptContextSource:
+        tailMessage.messageDisplay.promptContextSource ??
+        streamingMessage.messageDisplay.promptContextSource,
+      rawWorkflowPrompt:
+        tailMessage.messageDisplay.rawWorkflowPrompt ??
+        streamingMessage.messageDisplay.rawWorkflowPrompt,
+      rawPromptPayload:
+        tailMessage.messageDisplay.rawPromptPayload ??
+        streamingMessage.messageDisplay.rawPromptPayload,
+      reportDetails:
+        tailMessage.messageDisplay.reportDetails ??
+        streamingMessage.messageDisplay.reportDetails,
+      selectionAdjustment:
+        streamingMessage.messageDisplay.selectionAdjustment ??
+        tailMessage.messageDisplay.selectionAdjustment,
+    },
+  };
+
+  return {
+    renderedMessages: [...renderedMessages.slice(0, -1), mergedTailMessage],
+    streamingMessage: null,
   };
 }
 
@@ -215,7 +413,10 @@ function reuseStreamingMessageReference(
     return null;
   }
 
-  if (previousSnapshot?.streamingMessage?.content === streamingMessage.content) {
+  if (
+    previousSnapshot?.streamingMessage &&
+    areRenderedMessagesSemanticallyEqual(previousSnapshot.streamingMessage, streamingMessage)
+  ) {
     return previousSnapshot.streamingMessage;
   }
 
@@ -234,12 +435,14 @@ function classifyRefreshKind(
   const previousMessages = previousSnapshot.renderedMessages;
   const previousStreamingMessage = previousSnapshot.streamingMessage;
 
-  if (
-    previousStreamingMessage?.content !== undefined &&
-    streamingMessage?.content !== undefined &&
-    previousStreamingMessage.content !== streamingMessage.content
-  ) {
-    return "streaming-growth";
+  if (previousStreamingMessage || streamingMessage) {
+    if (!previousStreamingMessage || !streamingMessage) {
+      return "streaming-growth";
+    }
+
+    if (!areRenderedMessagesSemanticallyEqual(previousStreamingMessage, streamingMessage)) {
+      return "streaming-growth";
+    }
   }
 
   if (
@@ -298,7 +501,7 @@ function buildAutoFollowKey(
 
   if (refreshKind === "streaming-growth") {
     if (streamingMessage) {
-      return `stream:${streamingMessage.conversationUnitId}:${hashText(streamingMessage.content)}`;
+      return `stream:${streamingMessage.conversationUnitId}:${hashText(streamingMessage.detailRawText)}`;
     }
 
     const tailMessage = renderedMessages.at(-1);
@@ -313,10 +516,18 @@ function buildAutoFollowKey(
 }
 
 export function buildSessionChatRenderSnapshot({
+  assistantPending = false,
+  continuityAssistant,
+  currentStreamingMessageId = null,
+  liveDraft = null,
   messages,
   previousSnapshot = null,
   streamingText = null,
 }: {
+  assistantPending?: boolean;
+  continuityAssistant?: SessionContinuityAssistant | null;
+  currentStreamingMessageId?: string | null;
+  liveDraft?: LiveDraftInput | null;
   messages: SessionPresentationMessage[];
   previousSnapshot?: SessionChatRenderSnapshot | null;
   streamingText?: {
@@ -325,15 +536,72 @@ export function buildSessionChatRenderSnapshot({
     fallbackSenderLabel: string;
   } | null;
 }): SessionChatRenderSnapshot {
-  const nextRenderedMessages = reuseRenderedMessageReferences(
-    buildRenderedSessionMessages(messages),
-    previousSnapshot,
+  const effectiveContinuityAssistant = resolveContinuityAssistant({
+    continuityAssistant,
+    liveDraft,
+    streamingText,
+  });
+  const canReuseConfirmedTranscript =
+    previousSnapshot !== null &&
+    previousSnapshot.input.messages === messages &&
+    areContinuityAssistantsSemanticallyEqual(
+      previousSnapshot.input.continuityAssistant,
+      effectiveContinuityAssistant,
+    );
+  const confirmedRenderedMessages = (() => {
+    if (canReuseConfirmedTranscript) {
+      return previousSnapshot.confirmedRenderedMessages;
+    }
+
+    const rebuiltConfirmedMessages = buildRenderedSessionMessages(
+      messages,
+      effectiveContinuityAssistant
+        ? { continuityAssistant: effectiveContinuityAssistant }
+        : undefined,
+    );
+
+    if (!previousSnapshot) {
+      return rebuiltConfirmedMessages;
+    }
+
+    return reuseRenderedMessageReferences(rebuiltConfirmedMessages, {
+      ...previousSnapshot,
+      renderedMessages: previousSnapshot.confirmedRenderedMessages,
+    });
+  })();
+  const confirmedInspectabilityBoundaries =
+    previousSnapshot !== null &&
+    previousSnapshot.confirmedRenderedMessages.length === confirmedRenderedMessages.length &&
+    confirmedRenderedMessages.every(
+      (message, index) => message === previousSnapshot.confirmedRenderedMessages[index],
+    )
+      ? previousSnapshot.confirmedInspectabilityBoundaries
+      : confirmedRenderedMessages.map((message) =>
+          buildMessageInspectabilityBoundary(message),
+        );
+  const baseStreamingMessage = containsStreamingMessage(messages, currentStreamingMessageId)
+    ? null
+    : buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);
+  const foldedSnapshotState = foldIntermediateTailIntoStreamingMessage(
+    confirmedRenderedMessages,
+    baseStreamingMessage,
+    effectiveContinuityAssistant,
   );
-  const inspectabilityBoundaries = nextRenderedMessages.map((message) =>
-    buildMessageInspectabilityBoundary(message),
-  );
+  const nextRenderedMessages =
+    foldedSnapshotState.renderedMessages === confirmedRenderedMessages
+      ? confirmedRenderedMessages
+      : reuseRenderedMessageReferences(
+          foldedSnapshotState.renderedMessages,
+          previousSnapshot,
+        );
+  const inspectabilityBoundaries =
+    nextRenderedMessages === confirmedRenderedMessages
+      ? confirmedInspectabilityBoundaries
+      : nextRenderedMessages.map((message) =>
+          buildMessageInspectabilityBoundary(message),
+        );
   const streamingMessage = reuseStreamingMessageReference(
-    buildStreamingMessage(streamingText),
+    foldedSnapshotState.streamingMessage,
     previousSnapshot,
   );
   const refreshKind = classifyRefreshKind(
@@ -342,13 +610,25 @@ export function buildSessionChatRenderSnapshot({
     streamingMessage,
   );
 
+  const showPendingIndicator = assistantPending;
+
   return {
-    input: { messages, streamingText },
+    input: {
+      assistantPending,
+      continuityAssistant: effectiveContinuityAssistant,
+      currentStreamingMessageId,
+      liveDraft,
+      messages,
+      streamingText,
+    },
+    confirmedRenderedMessages,
+    confirmedInspectabilityBoundaries,
     renderedMessages: nextRenderedMessages,
     inspectabilityBoundaries,
     refreshKind,
     scrollSignal: toScrollSignal(refreshKind),
     autoFollowKey: buildAutoFollowKey(refreshKind, nextRenderedMessages, streamingMessage),
+    showPendingIndicator,
     streamingMessage,
   };
 }

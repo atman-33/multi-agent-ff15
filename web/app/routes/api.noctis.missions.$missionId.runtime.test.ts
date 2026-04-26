@@ -25,6 +25,11 @@ import {
   setWorkerSession,
 } from "@/lib/mission-store";
 import { createOperationState, saveOperationState } from "@/lib/operation-runtime/state";
+import {
+  REVIEW_CYCLE_TEST_OPERATION_NAME,
+  REVIEW_CYCLE_TEST_OPERATION_REF,
+  writeReviewCycleTestOperation,
+} from "@/lib/test-fixtures/operation-fixtures";
 import { loader } from "./api.noctis.missions.$missionId.runtime";
 
 const tempRoots: string[] = [];
@@ -42,54 +47,7 @@ function createTempRoot(): string {
 }
 
 function seedWorkflowFixture(root: string): void {
-  writeFileSync(
-    join(root, "builtins", "ja", "operations", "openspec-dev.yaml"),
-    [
-      "name: openspec-dev",
-      "description: Guided OpenSpec delivery workflow.",
-      "initial_step: spec-planning",
-      "steps:",
-      "  - name: spec-planning",
-      "    agent: noctis",
-      "    instruction:",
-      "      inline: Plan the change.",
-      "    rules:",
-      "      - condition: Planned",
-      "        next: implement",
-      "  - name: implement",
-      "    agent: gladiolus",
-      "    instruction:",
-      "      inline: Implement the plan.",
-      "    rules:",
-      "      - condition: Implemented",
-      "        next: review",
-      "  - name: review",
-      "    agent: ignis",
-      "    instruction:",
-      "      inline: Review the implementation.",
-      "    rules:",
-      "      - condition: Approved",
-      "        next: refactor",
-      "      - condition: Fix needed",
-      "        next: fix",
-      "  - name: fix",
-      "    agent: gladiolus",
-      "    instruction:",
-      "      inline: Fix review findings.",
-      "    rules:",
-      "      - condition: Fixed",
-      "        next: review",
-      "  - name: refactor",
-      "    agent: prompto",
-      "    instruction:",
-      "      inline: Perform final cleanup.",
-      "    rules:",
-      "      - condition: Done",
-      "        next: COMPLETE",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
+  writeReviewCycleTestOperation(root);
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -119,6 +77,36 @@ afterEach(() => {
 });
 
 describe("api.noctis.missions.$missionId.runtime", () => {
+  it("returns shell-only runtime payload without duplicated session history", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-shell-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Shell mission",
+      objective: "Verify shell-only runtime payload",
+    });
+
+    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle" } });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      primaryMessages?: unknown;
+      noctisMessages?: unknown;
+      primarySessionId: string | null;
+      sessionStatuses: Record<string, string>;
+    }>(response);
+
+    expect(data.primarySessionId).toBe("session-noctis");
+    expect(data.primaryMessages).toBeUndefined();
+    expect(data.noctisMessages).toBeUndefined();
+    expect(data.sessionStatuses["session-noctis"]).toBe("idle");
+    expect(sessionMessagesMock).not.toHaveBeenCalled();
+  });
+
   it("returns derived workflow progress for the active mission workflow", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -132,9 +120,9 @@ describe("api.noctis.missions.$missionId.runtime", () => {
     });
 
     const operationState = createOperationState(
-      "openspec-dev",
+      REVIEW_CYCLE_TEST_OPERATION_NAME,
       "spec-planning",
-      "builtin:ja:openspec-dev.yaml",
+      REVIEW_CYCLE_TEST_OPERATION_REF,
     );
     operationState.currentStep = "review";
     operationState.status = "waiting_for_report";
@@ -186,7 +174,7 @@ describe("api.noctis.missions.$missionId.runtime", () => {
     }>(response);
 
     expect(data.workflowProgress).toMatchObject({
-      workflowLabel: "openspec-dev",
+      workflowLabel: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "review",
       currentStepIndex: 3,
       totalSteps: 5,

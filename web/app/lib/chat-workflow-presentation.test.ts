@@ -227,6 +227,26 @@ Hello from User
     ]);
   });
 
+  it("extracts operations context as injected prompt context", () => {
+    expect(
+      parseInjectedPromptContextSections(`
+<operations-context>
+scope: Noctis Team
+selected_entry: github-issue-openspec-dev
+</operations-context>
+      `),
+    ).toEqual([
+      {
+        key: "operations-context:0",
+        tagName: "operations-context",
+        label: "Operations Context",
+        content: "scope: Noctis Team\nselected_entry: github-issue-openspec-dev",
+        preview: "scope: Noctis Team selected_entry: github-issue-openspec-dev",
+        source: "injected",
+      },
+    ]);
+  });
+
   it("ignores unknown or incomplete injected prompt metadata safely", () => {
     expect(
       parseInjectedPromptContextSections(`

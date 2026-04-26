@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
 import { createMission, deleteMission } from "@/lib/mission-store";
 import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 
@@ -188,5 +189,42 @@ describe("common-context.server", () => {
     expect(context).toContain(`    project_root: ${betaRoot}`);
     expect(context).toContain(`activate_project: ${alphaRoot}`);
     expect(context).toContain(`openspec_root: ${alphaRoot}`);
+  });
+
+  it("prefers mission execution metadata over app-root session sidecar context", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const alphaRoot = writeProject(root, "alpha");
+    const betaRoot = writeProject(root, "beta");
+    writeFileSync(join(root, "AGENTS.md"), "# Root Agents\n", "utf-8");
+    saveSessionExecutionContext("session-noctis", {
+      executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
+      contextProjectIds: [],
+    });
+
+    const mission = createMission(`mission-${crypto.randomUUID()}`, "session-noctis", {
+      title: "Cross-project managed mission",
+      objective: "Keep execution targeting anchored to mission metadata",
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+      contextProjectIds: ["beta"],
+    });
+    missionIds.push(mission.id);
+
+    const context = buildSharedPromptContext({
+      appRoot: root,
+      agent: "noctis",
+      missionId: mission.id,
+      sessionId: "session-noctis",
+    });
+
+    expect(context).toContain(`project_root: ${alphaRoot}`);
+    expect(context).toContain(`    project_root: ${betaRoot}`);
+    expect(context).toContain(`activate_project: ${alphaRoot}`);
+    expect(context).toContain(`openspec_root: ${alphaRoot}`);
+    expect(context).not.toContain(`project_root: ${root}\n`);
+    expect(context).not.toContain(
+      `<tooling-context>\nactivate_project: ${root}\nopenspec_root: ${root}`,
+    );
   });
 });

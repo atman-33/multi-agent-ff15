@@ -203,7 +203,7 @@ export const action = async ({ request }: { request: Request }) => {
     let sessionId = getMissionPrimarySessionId(mission);
     if (!sessionId) {
       const sessionResult = await client.session.create({
-        directory: executionRoot.executionRoot,
+        directory: executionRoot.sessionHostRoot,
         title: `mission:${missionId}`,
       });
 

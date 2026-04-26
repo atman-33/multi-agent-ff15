@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
 import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
-import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
+import {
+  provisionMissionExecutionWorkspace,
+  resolveManagedMissionStartRoots,
+} from "@/lib/mission-execution-workspace.server";
 import { createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
@@ -139,10 +142,15 @@ export const action = async ({ request }: { request: Request }) => {
           })
         : null;
     const { model, variant } = splitModelSelection(lunafreyaModel);
-    const executionRoot = executionWorkspace?.workspacePath ?? executionProject.rootPath;
+    const managedRoots = resolveManagedMissionStartRoots({
+      appRoot: projectRoot,
+      executionProject,
+      executionTargetMode,
+      executionWorkspace,
+    });
 
     const sessionResult = await client.session.create({
-      directory: executionRoot,
+      directory: managedRoots.sessionHostRoot,
       title: `mission:${missionId}`,
     });
 

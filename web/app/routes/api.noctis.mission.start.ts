@@ -1,6 +1,9 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
-import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
+import {
+  provisionMissionExecutionWorkspace,
+  resolveManagedMissionStartRoots,
+} from "@/lib/mission-execution-workspace.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
@@ -149,10 +152,15 @@ export const action = async ({ request }: Route.ActionArgs) => {
           })
         : null;
     const { model, variant } = splitModelSelection(noctisModel);
-    const executionRoot = executionWorkspace?.workspacePath ?? executionProject.rootPath;
+    const managedRoots = resolveManagedMissionStartRoots({
+      appRoot: projectRoot,
+      executionProject,
+      executionTargetMode,
+      executionWorkspace,
+    });
 
     const sessionResult = await client.session.create({
-      directory: executionRoot,
+      directory: managedRoots.sessionHostRoot,
       title: `mission:${missionId}`,
     });
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { resolveWebOrigin } from "./resolve_web_origin.mjs";
+
 const [, , missionId, agentId, message, taskId] = process.argv;
 
 if (!missionId || !agentId || !message) {
@@ -7,7 +9,7 @@ if (!missionId || !agentId || !message) {
   process.exit(1);
 }
 
-const origin = process.env.FF15_WEB_ORIGIN || "http://localhost:5173";
+const origin = resolveWebOrigin(process.env);
 
 try {
   const response = await fetch(

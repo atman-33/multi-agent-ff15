@@ -22,6 +22,29 @@ export function hasMissionOutputDetailRoute(input: {
   return Boolean(input.step && input.taskId && input.filename);
 }
 
+export function buildMissionOutputDetailKey(input: {
+  step?: string | null;
+  taskId?: string | null;
+  filename?: string | null;
+}): string | null {
+  if (!hasMissionOutputDetailRoute(input)) {
+    return null;
+  }
+
+  return `${input.step}:${input.taskId}:${input.filename}`;
+}
+
+export function resolveMissionOutputDetailActive(
+  routeInput: {
+    step?: string | null;
+    taskId?: string | null;
+    filename?: string | null;
+  },
+  visualOverride?: boolean,
+): boolean {
+  return visualOverride ?? hasMissionOutputDetailRoute(routeInput);
+}
+
 export function resolveMissionInspectorTab(
   requestedTab: MissionInspectorTab,
   outputDetailActive: boolean,

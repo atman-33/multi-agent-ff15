@@ -1,34 +1,57 @@
-import type { ReactNode } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-
-vi.mock("react-router", async () => {
-  const actual = await vi.importActual<typeof import("react-router")>("react-router");
-
-  return {
-    ...actual,
-    Outlet: () => <div>nested-route</div>,
-    useNavigate: () => vi.fn(),
-  };
-});
-
-vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
-  },
-}));
-
-import { LunafreyaMissionPage } from "./route";
-
-const TestPage = LunafreyaMissionPage as unknown as (props: { loaderData: unknown }) => ReactNode;
+import {
+  handleMissingMissionRoute,
+  loadMissionExistence,
+} from "@/lib/mission-route-availability";
 
 describe("lunafreya mission route", () => {
-  it("renders only nested mission detail content when the mission exists", () => {
-    const markup = renderToStaticMarkup(
-      <TestPage loaderData={{ exists: true, requestedMissionId: "mission-luna" }} />,
-    );
+  it("does not redirect when the mission exists", () => {
+    const navigateMock = vi.fn();
+    const notifyMock = vi.fn();
 
-    expect(markup).toContain("nested-route");
-    expect(markup).not.toContain("screen:");
+    expect(
+      handleMissingMissionRoute({
+        fallbackPath: "/lunafreya",
+        loaderData: { exists: true, requestedMissionId: "mission-luna" },
+        navigate: navigateMock,
+        notify: notifyMock,
+      }),
+    ).toBe(false);
+
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects back to the surface root when the mission is missing", () => {
+    const navigateMock = vi.fn();
+    const notifyMock = vi.fn();
+
+    expect(
+      handleMissingMissionRoute({
+        fallbackPath: "/lunafreya",
+        loaderData: { exists: false, requestedMissionId: "mission-luna" },
+        navigate: navigateMock,
+        notify: notifyMock,
+      }),
+    ).toBe(true);
+
+    expect(notifyMock).toHaveBeenCalledWith("Mission not found", {
+      description: "Mission mission-luna could not be restored.",
+    });
+    expect(navigateMock).toHaveBeenCalledWith("/lunafreya", { replace: true });
+  });
+
+  it("checks the surface-specific mission endpoint in the loader helper", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await loadMissionExistence({
+      endpointPath: "/api/lunafreya/missions",
+      fetchImpl: fetchMock as typeof fetch,
+      request: new Request("http://localhost/lunafreya/mission-luna"),
+      requestedMissionId: "mission-luna",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost/api/lunafreya/missions/mission-luna");
+    expect(result).toEqual({ exists: true, requestedMissionId: "mission-luna" });
   });
 });

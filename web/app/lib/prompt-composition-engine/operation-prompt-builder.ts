@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { getAgentLabel, isWorkerAgentId } from "@/lib/agent-identity";
+import { readAppConfig } from "@/lib/app-config.server";
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
+import { getMission, getMissionOutputFilePath } from "@/lib/mission-store";
 import { buildSkillsCatalog, mergeSkillEntries } from "@/lib/skill-catalog.server";
 import type { ResolvedSkillEntry } from "@/lib/operation-definition/types";
-import { getMissionOutputFilePath } from "@/lib/mission-store";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
 import type {
   ContentSource,
@@ -25,6 +28,9 @@ import {
 
 const OUTPUT_PLACEHOLDER_PATTERN =
   /\{\{\s*output\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const SETTING_PLACEHOLDER_PATTERN =
+  /\{\{\s*setting\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const ROOT_PLACEHOLDER_PATTERN = /\{\{\s*root\(\s*"([^"]+)"\s*\)\s*\}\}/g;
 
 export function describeStepRole(jobSource: ContentSource | undefined, fallbackName?: string): string {
   if (!jobSource) {
@@ -171,6 +177,51 @@ function resolveOutputPlaceholderPath(input: {
   return outputPath;
 }
 
+function resolveSettingPlaceholderValue(key: string, mode: string): string {
+  if (key !== "language") {
+    throw new Error(`Unsupported setting placeholder key "${key}".`);
+  }
+
+  if (mode !== "name") {
+    throw new Error(`Unsupported setting placeholder mode "${mode}" for key "${key}".`);
+  }
+
+  const language = readAppConfig(getProjectRoot()).language;
+
+  if (language === "ja") {
+    return "japanese";
+  }
+
+  if (language === "en") {
+    return "english";
+  }
+
+  return language;
+}
+
+function resolveRootPlaceholderValue(scope: string, missionId: string): string {
+  const appRoot = getProjectRoot();
+
+  if (scope === "app_root") {
+    return appRoot;
+  }
+
+  if (scope === "execution_root") {
+    const mission = getMission(missionId);
+
+    if (!mission) {
+      throw new Error(`Could not resolve execution root for missing mission "${missionId}".`);
+    }
+
+    return resolveMissionExecutionRoot({
+      appRoot,
+      mission,
+    }).executionRoot;
+  }
+
+  throw new Error(`Unsupported root placeholder scope "${scope}".`);
+}
+
 function resolveInstructionPlaceholders(input: {
   content: string;
   operation: OperationDefinition;
@@ -181,7 +232,7 @@ function resolveInstructionPlaceholders(input: {
     return input.content;
   }
 
-  const resolved = input.content.replace(
+  const outputResolved = input.content.replace(
     OUTPUT_PLACEHOLDER_PATTERN,
     (_match, stepName: string, selector: string, fileName: string) =>
       resolveOutputPlaceholderPath({
@@ -194,10 +245,30 @@ function resolveInstructionPlaceholders(input: {
       }),
   );
 
+  const settingsResolved = outputResolved.replace(
+    SETTING_PLACEHOLDER_PATTERN,
+    (_match, key: string, mode: string) => resolveSettingPlaceholderValue(key, mode),
+  );
+
+  const resolved = settingsResolved.replace(
+    ROOT_PLACEHOLDER_PATTERN,
+    (_match, scope: string) => resolveRootPlaceholderValue(scope, input.missionId),
+  );
+
   if (resolved.includes("{{ output(")) {
     throw new Error(
       'Invalid output placeholder syntax. Use {{ output("step", "selector", "file") }}.',
     );
+  }
+
+  if (resolved.includes("{{ setting(")) {
+    throw new Error(
+      'Invalid setting placeholder syntax. Use {{ setting("key", "mode") }}.',
+    );
+  }
+
+  if (resolved.includes("{{ root(")) {
+    throw new Error('Invalid root placeholder syntax. Use {{ root("scope") }}.');
   }
 
   return resolved;

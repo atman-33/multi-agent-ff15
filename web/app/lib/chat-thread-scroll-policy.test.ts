@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { shouldAutoFollowThreadUpdate } from "./chat-thread-scroll-policy";
+import {
+  getAutoFollowScrollBehavior,
+  shouldAutoFollowThreadUpdate,
+} from "./chat-thread-scroll-policy";
 
 describe("chat-thread-scroll-policy", () => {
   it("does not auto-follow semantic no-op refreshes", () => {
@@ -27,5 +30,13 @@ describe("chat-thread-scroll-policy", () => {
         scrollSignal: "streaming-growth",
       }),
     ).toBe(false);
+  });
+
+  it("uses immediate follow behavior for streaming tail growth", () => {
+    expect(getAutoFollowScrollBehavior("streaming-growth")).toBe("auto");
+  });
+
+  it("keeps smooth follow behavior for tail append updates", () => {
+    expect(getAutoFollowScrollBehavior("tail-append")).toBe("smooth");
   });
 });

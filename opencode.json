@@ -1,5 +1,18 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "~/**": "allow"
+    }
+  },
+  "watcher": {
+    "ignore": [
+      "runtime/**",
+      ".tmp/**",
+      ".ruff_cache/**",
+      ".serena/**"
+    ]
+  },
   "mcp": {
     "memory": {
       "type": "local",
@@ -35,7 +48,7 @@
         "-c",
         "uvx --from git+https://github.com/oraios/serena serena start-mcp-server --open-web-dashboard false --context ide-assistant"
       ],
-      "enabled": true
+      "enabled": false
     }
   }
 }

@@ -3,7 +3,7 @@ export type InternalContextViewModel = {
   summary: string;
 };
 
-const CONTEXT_BLOCK_REGEX = /<(workspace-context|tooling-context|delegation-context)[^>]*>[\s\S]*?<\/\1>/g;
+const CONTEXT_BLOCK_REGEX = /<(workspace-context|operations-context|tooling-context|delegation-context)[^>]*>[\s\S]*?<\/\1>/g;
 const PROJECT_ROOT_REGEX = /^project_root:\s*(.+)$/m;
 const SERENA_PROJECT_REGEX = /^(?:serena_project|activate_project):\s*(.+)$/m;
 const ALLOWED_WORKER_REGEX = /^\s*-\s*(.+)$/gm;

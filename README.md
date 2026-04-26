@@ -155,10 +155,16 @@ language: en   # English responses
 
 ### Web port
 
-The web app runs on port `13000` by default. To change it, edit `standby.sh`:
+- `./standby.sh` starts the production web server on port `13000` by default.
+- `npm run web:dev` starts the development server on port `5173` by default.
+- Agent helper scripts resolve the active web origin from `FF15_WEB_ORIGIN` first, then `runtime/web-server.json`.
+
+To override the port explicitly:
 
 ```bash
-WEB_PORT=13000   # Change to any available port
+npm run web:dev -- --port 14000
+npm run web:start -- --port 14000
+FF15_WEB_ORIGIN=http://localhost:14000 ./scripts/send_report.sh ...
 ```
 
 ---
@@ -171,7 +177,7 @@ Start the development server with HMR:
 npm run web:dev
 ```
 
-App available at `http://localhost:5173`.
+App available at `http://localhost:5173` by default.
 
 ### Other commands
 

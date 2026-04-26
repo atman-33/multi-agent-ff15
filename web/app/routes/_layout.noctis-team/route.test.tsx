@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { paramsMock, navigateMock } = vi.hoisted(() => ({
+const { matchMock, paramsMock, navigateMock } = vi.hoisted(() => ({
+  matchMock: vi.fn(),
   navigateMock: vi.fn(),
   paramsMock: vi.fn<() => { id?: string | undefined }>(),
 }));
@@ -17,6 +18,7 @@ vi.mock("react-router", async () => {
       return params.id ? <div>nested-route</div> : null;
     },
     useLocation: () => ({ state: null }),
+    useMatch: () => matchMock(),
     useNavigate: () => navigateMock,
     useParams: () => paramsMock(),
   };
@@ -34,6 +36,7 @@ const TestPage = NoctisTeamPage as unknown as (props: { loaderData: unknown }) =
 
 describe("noctis-team layout route", () => {
   it("renders the root screen when no mission route is active", () => {
+    matchMock.mockReturnValue(null);
     paramsMock.mockReturnValue({});
 
     const markup = renderToStaticMarkup(
@@ -45,6 +48,7 @@ describe("noctis-team layout route", () => {
   });
 
   it("keeps the mission surface screen mounted when a mission URL is active", () => {
+    matchMock.mockReturnValue(null);
     paramsMock.mockReturnValue({ id: "mission-123" });
 
     const markup = renderToStaticMarkup(

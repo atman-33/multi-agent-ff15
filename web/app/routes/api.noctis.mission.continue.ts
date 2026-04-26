@@ -15,12 +15,15 @@ import {
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
+import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import type { Route } from "./+types/api.noctis.mission.continue";
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
+
+  const requestId = crypto.randomUUID();
 
   const body = (await request.json().catch(() => null)) as {
     missionId?: unknown;
@@ -29,6 +32,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
     noctisModel?: unknown;
     allowedWorkers?: unknown;
   } | null;
+  const requestedMissionId = typeof body?.missionId === "string" ? body.missionId.trim() : null;
+
+  appendSessionPromptDebugLog({
+    route: "api.noctis.mission.continue",
+    stage: "request-received",
+    requestId,
+    payload: {
+      body: body ?? null,
+      requestedMissionId,
+    },
+  });
 
   if (!body || typeof body.missionId !== "string" || !body.missionId.trim()) {
     return Response.json({ error: "Missing missionId" }, { status: 400 });
@@ -86,6 +100,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const client = getOpencodeClient();
     const appRoot = getProjectRoot();
+    const missionDebugContext = {
+      allowedWorkers,
+      executionProjectId: mission.executionProjectId,
+      operationRef: mission.operationState?.operationRef ?? null,
+      currentStep: mission.operationState?.currentStep ?? null,
+    };
     const executionRoot = resolveMissionExecutionRoot({
       appRoot,
       mission,
@@ -102,9 +122,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     let sessionId = mission.noctisSessionId;
+    let sessionRecreated = false;
     if (!sessionId) {
       const sessionResult = await client.session.create({
-        directory: executionRoot.executionRoot,
+        directory: executionRoot.sessionHostRoot,
         title: `mission:${missionId}`,
       });
 
@@ -118,6 +139,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       }
 
       setNoctisSession(missionId, sessionId);
+      sessionRecreated = true;
     }
 
     const userMessage = stringifyPromptParts(promptParts);
@@ -136,6 +158,25 @@ export const action = async ({ request }: Route.ActionArgs) => {
       isNewMission: false,
     });
 
+    appendSessionPromptDebugLog({
+      route: "api.noctis.mission.continue",
+      stage: "prompt-dispatched",
+      requestId,
+      sessionId,
+      payload: {
+        sessionID: sessionId,
+        model: model ?? null,
+        variant: variant ?? null,
+        agent: noctisAgentProfile,
+        parts: composed.payloadParts,
+        mission: {
+          missionId,
+          sessionRecreated,
+          ...missionDebugContext,
+        },
+      },
+    });
+
     const result = await client.session.promptAsync({
       sessionID: sessionId,
       parts: composed.payloadParts,
@@ -144,12 +185,37 @@ export const action = async ({ request }: Route.ActionArgs) => {
       ...(variant ? { variant } : {}),
     });
 
+    appendSessionPromptDebugLog({
+      route: "api.noctis.mission.continue",
+      stage: result.error ? "prompt-error" : "prompt-result",
+      requestId,
+      sessionId,
+      payload: {
+        error: result.error ?? null,
+        mission: {
+          missionId,
+          sessionRecreated,
+          ...missionDebugContext,
+        },
+      },
+    });
+
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });
     }
 
     return Response.json({ noctisSessionId: sessionId });
   } catch (error) {
+    appendSessionPromptDebugLog({
+      route: "api.noctis.mission.continue",
+      stage: "prompt-error",
+      requestId,
+      payload: {
+        error,
+        missionId,
+      },
+    });
+
     if (error instanceof Error && error.message.length > 0) {
       return Response.json({ error: error.message }, { status: 409 });
     }

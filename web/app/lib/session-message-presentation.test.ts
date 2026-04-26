@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import {
   buildRenderedSessionMessages,
   resolveSessionMessageDisplay,
@@ -91,6 +91,65 @@ Hello from User.
     ]);
     expect(resolved.rawPromptPayload).toContain("<workspace-context>");
     expect(resolved.rawPromptPayload).toContain("Hello from User.");
+  });
+
+  it("shows Ask Iris user-request content while keeping operations context in prompt details", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: `
+<operations-context>
+scope: Noctis Team
+authoring_target: Builtin · No project
+selected_entry: github-issue-openspec-dev
+</operations-context>
+
+<user-request from="user" to="iris">
+元気？
+</user-request>
+      `.trim(),
+      fallbackSender: "user",
+      fallbackSenderLabel: "User",
+    });
+
+    expect(resolved.displayContent).toBe("元気？");
+    expect(resolved.promptContextSource).toBe("workflow");
+    expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
+      "operations-context",
+    ]);
+    expect(resolved.resolvedSenderLabel).toBe("User");
+    expect(resolved.rawPromptPayload).toContain("<operations-context>");
+    expect(resolved.rawPromptPayload).toContain('<user-request from="user" to="iris">');
+    expect(resolved.rawPromptPayload).toContain("元気？");
+  });
+
+  it("shows Projects Iris user-request content while keeping hidden project-management context in prompt details", () => {
+    const resolved = resolveSessionMessageDisplay({
+      rawText: `
+<projects-iris-context>
+Use the pinned project-manage skill to perform project registry work for User.
+</projects-iris-context>
+
+<reference-files>
+project-manage
+</reference-files>
+
+<user-request from="user" to="iris">
+こんにちは
+</user-request>
+      `.trim(),
+      fallbackSender: "user",
+      fallbackSenderLabel: "User",
+    });
+
+    expect(resolved.displayContent).toBe("こんにちは");
+    expect(resolved.promptContextSource).toBe("workflow");
+    expect(resolved.promptContextSections.map((section) => section.tagName)).toEqual([
+      "projects-iris-context",
+      "reference-files",
+    ]);
+    expect(resolved.resolvedSenderLabel).toBe("User");
+    expect(resolved.rawPromptPayload).toContain("<projects-iris-context>");
+    expect(resolved.rawPromptPayload).toContain('<user-request from="user" to="iris">');
+    expect(resolved.rawPromptPayload).toContain("こんにちは");
   });
 
   it("omits raw prompt payload when persisted raw text matches visible body", () => {
@@ -185,6 +244,51 @@ Hello from User.
     expect(rendered[0]?.detailRawText).toContain("了解。今、みんなに聞いている。");
   });
 
+  it("groups tool-only Iris activity into the following visible Iris reply when configured as the continuity assistant", () => {
+    const rendered = buildRenderedSessionMessages(
+      [
+        {
+          id: "tool-1",
+          role: "assistant",
+          sender: "iris",
+          senderLabel: "Iris",
+          kind: "assistant_message",
+          content: "",
+          detailContent: "",
+          rawText: "",
+          parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+          timestamp: new Date("2026-04-25T09:00:00.000Z"),
+          source: "session",
+        },
+        {
+          id: "reply-1",
+          role: "assistant",
+          sender: "iris",
+          senderLabel: "Iris",
+          kind: "assistant_message",
+          content: "Registry refreshed.",
+          detailContent: "Registry refreshed.",
+          rawText: "Registry refreshed.",
+          parts: [{ type: "text", text: "Registry refreshed." }],
+          timestamp: new Date("2026-04-25T09:00:05.000Z"),
+          source: "session",
+        },
+      ],
+      {
+        continuityAssistant: {
+          sender: "iris",
+          senderLabel: "Iris",
+        },
+      },
+    );
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.conversationUnitId).toBe("tool-1");
+    expect(rendered[0]?.senderLabel).toBe("Iris");
+    expect(rendered[0]?.messageDisplay.displayContent).toBe("Registry refreshed.");
+    expect(rendered[0]?.parts.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
   it("keeps stable conversation-unit and detail identities across unchanged re-hydration", () => {
     const createMessages = (): SessionPresentationMessage[] => [
       {
@@ -263,6 +367,31 @@ Implemented the requested change.
     expect(rendered[0]?.intermediateOnly).toBe(true);
     expect(rendered[0]?.messageDisplay.displayContent).toBe("Tool activity: 1 event.");
     expect(rendered[0]?.senderLabel).toBe("Noctis");
+  });
+
+  it("suppresses trailing Noctis intermediate activity when it has no preview text", () => {
+    const rendered = buildRenderedSessionMessages([
+      {
+        id: "context-1",
+        role: "assistant",
+        sender: "noctis",
+        senderLabel: "Noctis",
+        kind: "assistant_message",
+        content: "",
+        detailContent: "<workspace-context>project_root: /tmp/example</workspace-context>",
+        rawText: "<workspace-context>project_root: /tmp/example</workspace-context>",
+        parts: [
+          {
+            type: "text",
+            text: "<workspace-context>project_root: /tmp/example</workspace-context>",
+          },
+        ],
+        timestamp: new Date("2026-04-04T10:00:00.000Z"),
+        source: "session",
+      },
+    ]);
+
+    expect(rendered).toHaveLength(0);
   });
 
   it("keeps the same conversation-unit identity when pending Noctis activity becomes visible", () => {
@@ -352,6 +481,43 @@ Implemented the requested change.
     expect(rendered[0]?.intermediateOnly).toBe(true);
     expect(rendered[1]?.senderLabel).toBe("Ignis");
     expect(rendered[1]?.messageDisplay.displayContent).toBe("普通、集中");
+  });
+
+  it("keeps summary-only tool activity out of the visible message body", () => {
+    const rendered = buildRenderedSessionMessages(
+      toSessionPresentationMessages([
+        {
+          info: {
+            id: "assistant-summary-tool-1",
+            role: "assistant",
+            agent: "noctis",
+            time: { created: Date.parse("2026-04-26T10:00:00.000Z") },
+          },
+          detailState: "summary",
+          summary: {
+            content: "",
+            detailContent: [
+              "## Tool 1: serena_read_memory",
+              "",
+              "- Status: completed",
+            ].join("\n"),
+            rawText: "",
+          },
+          parts: [
+            {
+              type: "tool",
+              tool: "serena_read_memory",
+              state: { status: "completed" },
+            },
+          ],
+        },
+      ]),
+    );
+
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]?.intermediateOnly).toBe(true);
+    expect(rendered[0]?.messageDisplay.displayContent).toBe("Tool activity: 1 event.");
+    expect(rendered[0]?.detailRawText).toContain("serena_read_memory");
   });
 
   it("keeps opencode and noctis-team aligned for the same session history", () => {

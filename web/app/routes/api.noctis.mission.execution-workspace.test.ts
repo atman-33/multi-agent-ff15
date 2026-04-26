@@ -151,7 +151,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(existsSync(mission?.workspacePath ?? "")).toBe(true);
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: mission?.workspacePath,
+        directory: process.env.MULTI_AGENT_FF15_ROOT,
         title: `mission:${data.missionId}`,
       }),
     );
@@ -209,7 +209,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(mission?.workspaceStatus).toBeUndefined();
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: join(root, "external-alpha"),
+        directory: root,
         title: `mission:${data.missionId}`,
       }),
     );
@@ -247,7 +247,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(mission?.workspaceStatus).toBeUndefined();
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: join(root, "external-alpha"),
+        directory: root,
         title: `mission:${data.missionId}`,
       }),
     );
@@ -323,6 +323,13 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(await readJson<{ noctisSessionId: string }>(continueResponse)).toEqual({
       noctisSessionId: "session-noctis-recreated",
     });
+    expect(sessionCreateMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        directory: process.env.MULTI_AGENT_FF15_ROOT,
+        title: `mission:${missionId}`,
+      }),
+    );
     expect(getMission(missionId)?.noctisSessionId).toBe("session-noctis-recreated");
     expect(getMission(missionId)?.workerSessions).toEqual({});
     expect(existsSync(getMission(missionId)?.workspacePath ?? "")).toBe(true);
@@ -360,7 +367,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     });
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: join(root, "external-alpha"),
+        directory: root,
         title: `mission:${mission.id}`,
       }),
     );

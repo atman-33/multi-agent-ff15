@@ -1,0 +1,176 @@
+name: idea-to-openspec-dev
+description: >
+  Idea-driven OpenSpec delivery operation.
+  Noctis clarifies the request with grill-me, creates OpenSpec change artifacts, Gladiolus implements with TDD, Ignis reviews, Prompto prepares manual verification docs, and Noctis closes out delivery after User verification.
+initial_step: clarify-requirements
+
+steps:
+  - name: clarify-requirements
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Clarify Requirements — 手順指示
+
+        1. 開始前に `.opencode/skills/grill-me/SKILL.md` を読み、この step ではその workflow を使って User に 1 問ずつ確認する。
+        2. 質問は OpenSpec artifact 作成に必要なものだけに絞り、コードベース調査で答えられる問いは先に自分で調べる。
+        3. この step の成果物は後続 step の固定入力になる。少なくとも次を `change-brief.md` に残し、本文は User が指定した記述言語、未指定時は `{{ setting("language", "name") }}` で記述する。
+           - `Change Key`: この依頼を一意に識別する安定した kebab-case のキー。後続 step では OpenSpec change 名と feature branch 名の基点として使い、同じ依頼の rerun でも維持する。
+           - 問題、成功条件、制約、in-scope、out-of-scope
+           - User が明示した記述言語。指定がなければ default は `{{ setting("language", "name") }}` とする。
+        4. 仕様が十分に固まり、後続 step が追加ヒアリングなしで OpenSpec artifact を作成できる状態になったら artifact を出力する。
+        5. User がこの時点で作業中止を望む場合のみ cancel として終了する。
+    output_contracts:
+      report:
+        - name: change-brief.md
+          format:
+            file: ../facets/output-contracts/change-brief.md
+    rules:
+      - condition: Requirements clarified and brief recorded
+        next: spec-planning
+      - condition: User cancelled before planning
+        next: cancelled
+
+  - name: spec-planning
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Idea-to-Spec Planning — 手順指示
+
+        1. 初期作業として `git fetch origin --prune` を実行し、remote の最新履歴を取得する。
+        2. 仕様検討では最新コードを基準にするため、まず `git switch --detach origin/main` で `origin/main` の先頭に移動して現状を確認する。
+        3. `{{ output("clarify-requirements", "latest", "change-brief.md") }}` を読み、確定済み事項は source of truth として扱う。OpenSpec artifact 作成に必要な情報がまだ足りない場合だけ、追加の確認を行う。
+        4. OpenSpec artifact を作る前に、`Change Key` を OpenSpec change 名の基本形として使う。clarified scope からより適切な kebab-case 名が必要な場合は同じ意図の名前に補正してよいが、その場合は最終 change 名を明示する。
+        5. change 名が決まったら、その内容に対応する feature branch を `feature/<change-name>` を基本形として `origin/main` から作成し、そこへ切り替える。すでに対応する branch が execution workspace に存在する場合はそれを再利用してよい。
+        6. OpenSpec artifact の作成手順は `.opencode/command/opsx-ff.md` を使う。branch 名と OpenSpec change 名は同じ意図の名前にそろえる。
+        7. design を書く前に `.opencode/skills/improve-codebase-architecture/SKILL.md` を読み、deep module と boundary-first の観点を設計に反映する。
+        8. 生成する OpenSpec artifact の本文は `change-brief.md` の `Requested Language` に従い、明示指定が無ければ `{{ setting("language", "name") }}` で記述する。
+        9. frontend の自動テストを十分に書けない場合でも、OpenSpec artifact では manual verification guide / checklist / report を deliverable や task として定義しない。必要なら coverage gap や確認観点だけを記述し、この operation の最終 manual verification document は後段の `manual-verification` step だけで作成する。
+        10. OpenSpec の参照先と作成先は current workspace に固定せず、`<tooling-context>` の `openspec_root` を project root として扱い、その配下の `openspec/` を使う。`activate_project` がある場合は、その active project に対応する `openspec_root` を優先する。
+        11. User が実装前に artifact の確認や承認を明示的に求めている場合だけ、artifact 作成後に change 名と change path を示して確認を依頼し、承認が出るまで待つ。それ以外は change 名と change path を報告したら承認待ちせず次 step に進む。
+    skills:
+      - file: ../facets/skills/agent-relationships/SKILL.md
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format:
+            file: ../facets/output-contracts/spec-plan.md
+    rules:
+      - condition: OpenSpec artifacts generated, and approval was obtained only if User explicitly requested artifact review before implementation
+        next: implement
+
+  - name: implement
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      inline: |
+        # Implement With TDD — 手順指示
+
+        1. `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読み、frontmatter の `change_name` を OpenSpec change 名として使う。`change_path` があれば最優先で使い、無ければ `<tooling-context>` の `openspec_root` 配下の `openspec/changes/<change_name>/` を使う。
+        2. 実装フローは `.opencode/command/opsx-apply.md` を使う。
+        3. 実装前に `.opencode/skills/tdd/SKILL.md` を読み、public interface ベースの vertical slice TDD で進める。
+        4. `change_name` / `change_path` を解決できない場合は blocked として報告する。
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    rules:
+      - condition: Implementation complete and relevant tests pass
+        next: review
+      - condition: Cannot proceed with implementation
+        next: ABORT
+
+  - name: review
+    agent: ignis
+    job:
+      file: ../facets/jobs/reviewer.md
+    instruction:
+      inline: |
+        # Review Against Change Artifacts — 手順指示
+
+        1. `.opencode/command/opsx-verify.md` に従って review する。コードは変更しない。
+        2. `{{ output("spec-planning", "latest", "spec-plan.md") }}` を読み、`change_name` / `change_path` を verification 対象として解決する。`change_path` が無ければ `<tooling-context>` の `openspec_root` 配下の `openspec/changes/<change_name>/` を使う。
+        3. 要件、tasks、design との整合を検証し、出力は `code-review` output contract の形式に合わせ、review report の本文は `{{ setting("language", "name") }}` で記述する。
+        4. blocking または critical の指摘があれば、実装 step に戻せるように不足・不整合を具体的に記録する。
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    output_contracts:
+      report:
+        - name: code-review.md
+          format:
+            file: ../facets/output-contracts/code-review.md
+    rules:
+      - condition: Approved — no blocking issues
+        next: manual-verification
+      - condition: Blocking or critical issues found
+        next: implement
+      - condition: Review cannot proceed
+        next: ABORT
+
+  - name: manual-verification
+    agent: prompto
+    job:
+      file: ../facets/jobs/verification-writer.md
+    instruction:
+      inline: |
+        # Manual Verification Docs — 手順指示
+
+        1. `.opencode/skills/manual-verification-docs/SKILL.md` の workflow と scaffold を使い、User 向けの動作確認ドキュメントを作成する。
+        2. 対象 scope は実装差分、`{{ output("spec-planning", "latest", "spec-plan.md") }}` の change 情報、必要なら `{{ output("review", "latest", "code-review.md") }}` の指摘から決める。
+        3. この step の output contract が指定する mission-scoped file path に、動作確認ドキュメントをちょうど 1 つ作成する。app repository や execution workspace に複製を作らない。
+        4. skill の構成ルールは使うが、生成するドキュメント本文は `{{ setting("language", "name") }}` で記述する。
+        5. 作成後は生成した file path、対象 scope、主要シナリオを要約して報告する。
+    output_contracts:
+      report:
+        - name: manual-verification.md
+          format:
+            file: ../facets/output-contracts/manual-verification.md
+    rules:
+      - condition: Manual verification document created
+        next: finalize-delivery
+      - condition: Cannot create the document
+        next: ABORT
+
+  - name: finalize-delivery
+    agent: noctis
+    job:
+      file: ../facets/jobs/noctis-autonomous.md
+    instruction:
+      inline: |
+        # Finalize Delivery — 手順指示
+
+        1. `{{ output("spec-planning", "latest", "spec-plan.md") }}`、`{{ output("review", "latest", "code-review.md") }}`、`{{ output("manual-verification", "latest", "manual-verification.md") }}` を読む。spec-plan から `change_name` を取り出し、`change_path` があればそれを優先して使う。どちらも解決できない場合は blocked として報告する。
+        2. User に `manual-verification.md` に沿った確認を依頼し、問題がなかったかを明示的に確認する。問題があれば、症状、未確認項目、再現条件を要約し、archive / commit / PR 作成は行わず implement step に戻る。
+        3. 問題がなければ `.opencode/command/opsx-archive.md` を使って対象 change を archive する。change 選択は User に聞かず `change_name` を使い、delta specs は main specs へ必ず sync してから archive する。spec sync の可否は User に聞かない。
+        4. archive 後に git working tree を確認する。現在の workflow と無関係な差分、merge conflict、または commit 対象を安全に特定できない状態があれば blocked として止まる。commit 可能ならこの workflow で生成・更新した変更だけを stage し、branch prefix が `feature/` または `feat/` なら `feat: <change_name>`、`fix/` / `bugfix/` / `hotfix/` なら `fix: <change_name>`、`docs/` なら `docs: <change_name>`、それ以外は `chore: <change_name>` を commit message として commit する。新たに commit すべき差分がなければ現在の HEAD を採用する。
+        5. current branch を remote に publish する。
+        6. `.opencode/skills/pr-assistant/SKILL.md` を使い、PR title と body を `{{ setting("language", "name") }}` で整えたうえで、current branch から repository default branch への PR を追加の approval turn なしで直ちに作成する。必要なら生成ドラフトをその言語に整えてから作成する。
+        7. `delivery-closeout.md` に manual verification の判定、archive path、spec sync status、採用した commit SHA、PR title、PR URL、主要メモを記録する。
+    output_contracts:
+      report:
+        - name: delivery-closeout.md
+          format:
+            file: ../facets/output-contracts/delivery-closeout.md
+    rules:
+      - condition: User reported issues during manual verification
+        next: implement
+      - condition: Delivery finalized and closeout report recorded
+        next: COMPLETE
+      - condition: Could not finalize delivery safely
+        next: ABORT
+
+  - name: cancelled
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Cancelled — 手順指示
+
+        1. User が OpenSpec artifact 作成前に中止を望んだため、この workflow を終了する。
+        2. 中止理由があれば簡潔にまとめ、再開時に必要な前提があれば一言添える。
+    rules:
+      - condition: Cancellation acknowledged
+        next: ABORT

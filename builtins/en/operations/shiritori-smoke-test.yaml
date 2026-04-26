@@ -1,0 +1,103 @@
+name: shiritori-smoke-test
+description: >
+  Operation transition smoke test for smaller-model agents.
+  Noctis starts, then Ignis, Gladiolus, and Prompto each return one self-chosen word in a shiritori chain and complete.
+  Each step appends exactly one word to the word sequence in the handoff message.
+initial_step: start
+
+steps:
+  - name: start
+    agent: noctis
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        Choose one starting word yourself.
+        Use one short noun in hiragana.
+        Do not use a word that ends with `ん`.
+        Write only the starting word in the report `message`.
+        Do not add explanations.
+        If you can start successfully, set next to `ignis-turn`.
+        Only if you cannot start should next be `start-failed`.
+    rules:
+      - condition: Chose a starting word and wrote it in the handoff message
+        next: ignis-turn
+      - condition: Could not choose a starting word
+        next: start-failed
+
+  - name: start-failed
+    agent: noctis
+    job:
+      inline: |
+        Report only that starting shiritori failed.
+    instruction:
+      inline: |
+        You could not choose a starting word for shiritori.
+        Report only that the start failed, briefly.
+        Set next to `ABORT`.
+    rules:
+      - condition: Reported the start failure
+        next: ABORT
+
+  - name: ignis-turn
+    agent: ignis
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        Read the word sequence in the handoff `message`.
+        Think of exactly one new word that starts with the ending sound of the last word.
+        Use one short noun in hiragana.
+        Do not reuse a word that already appeared.
+        Do not use a word that ends with `ん`.
+        In the report `message`, write the entire word sequence joined by ` -> ` and append exactly one new word at the end.
+        Do not add explanations.
+        If you can continue successfully, set next to `gladiolus-turn`.
+        Only if you cannot continue should next be `ABORT`.
+    rules:
+      - condition: Appended one word to the sequence and created the handoff message
+        next: gladiolus-turn
+      - condition: Could not continue shiritori
+        next: ABORT
+
+  - name: gladiolus-turn
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        Read the word sequence in the handoff `message`.
+        Think of exactly one new word that starts with the ending sound of the last word.
+        Use one short noun in hiragana.
+        Do not reuse a word that already appeared.
+        Do not use a word that ends with `ん`.
+        In the report `message`, write the entire word sequence joined by ` -> ` and append exactly one new word at the end.
+        Do not add explanations.
+        If you can continue successfully, set next to `prompto-turn`.
+        Only if you cannot continue should next be `ABORT`.
+    rules:
+      - condition: Appended one word to the sequence and created the handoff message
+        next: prompto-turn
+      - condition: Could not continue shiritori
+        next: ABORT
+
+  - name: prompto-turn
+    agent: prompto
+    job:
+      file: ../facets/jobs/shiritori-player.md
+    instruction:
+      inline: |
+        Read the word sequence in the handoff `message`.
+        Think of exactly one new word that starts with the ending sound of the last word.
+        Use one short noun in hiragana.
+        Do not reuse a word that already appeared.
+        Do not use a word that ends with `ん`.
+        In the report `message`, write the completed word sequence joined by ` -> ` and append exactly one new word at the end.
+        Do not add explanations.
+        If you can complete successfully, set next to `COMPLETE`.
+        Only if you cannot complete should next be `ABORT`.
+    rules:
+      - condition: Created the completed word sequence and finished
+        next: COMPLETE
+      - condition: Could not complete shiritori
+        next: ABORT

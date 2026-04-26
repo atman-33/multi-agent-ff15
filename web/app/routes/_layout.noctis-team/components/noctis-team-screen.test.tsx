@@ -110,6 +110,10 @@ vi.mock("./chat-area", () => ({
     missionActionLabel,
     isStartingMission,
     showAbortAction,
+    historyErrorMessage,
+    historyPhase,
+    abortSettlementPhase,
+    streamingContent,
     workflowProgress,
     showWorkflowSelector,
     primaryAgentId,
@@ -127,6 +131,10 @@ vi.mock("./chat-area", () => ({
     missionActionLabel?: string | null;
     isStartingMission?: boolean;
     showAbortAction?: boolean;
+    historyErrorMessage?: string | null;
+    historyPhase?: string | null;
+    abortSettlementPhase?: string | null;
+    streamingContent?: string;
     showWorkflowSelector?: boolean;
     primaryAgentId?: string | null;
     headerTitle?: string | null;
@@ -142,6 +150,10 @@ vi.mock("./chat-area", () => ({
       <div>chat-area</div>
       <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
+      <div>{`history-phase:${historyPhase ?? "none"}`}</div>
+      <div>{`abort-settlement:${abortSettlementPhase ?? "idle"}`}</div>
+      <div>{`streaming-content:${streamingContent ?? "none"}`}</div>
+      {historyErrorMessage ? <div>{`history-error:${historyErrorMessage}`}</div> : null}
       <div>{`workflow-selector:${showWorkflowSelector === false ? "no" : "yes"}`}</div>
       <div>{`primary-agent:${primaryAgentId ?? "none"}`}</div>
       {headerTitle ? <div>{`header:${headerTitle}`}</div> : null}
@@ -255,10 +267,14 @@ describe("noctis-team-screen", () => {
     });
     agentSessionStateMock.mockReturnValue({
       messages: [],
+      streamingContent: "",
       banterEntries: [],
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "idle",
+      abortSettlementPhase: "idle",
       isStartingMission: false,
       isSessionActive: false,
       isStreaming: false,
@@ -266,6 +282,7 @@ describe("noctis-team-screen", () => {
       availableOperations: [],
       selectedOperation: null,
       activeOperationState: null,
+      workflowProgress: null,
       activityLog: [],
       primaryContextUsage: null,
       isOperationSelectionLocked: false,
@@ -287,6 +304,26 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("context:None");
     expect(markup).toContain("context-action:Mission Context");
     expect(markup).not.toContain("Mission Setup");
+  });
+
+  it("passes temporary mission streaming content through to the chat area", () => {
+    agentSessionStateMock.mockReturnValue({
+      ...agentSessionStateMock(),
+      historyPhase: "loading",
+      isLoadingHistory: true,
+      isStreaming: true,
+      streamingContent: "Mission two is responding",
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("streaming-content:Mission two is responding");
   });
 
   it("shows a legacy mission resume block until an execution project is assigned", () => {
@@ -338,6 +375,8 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "idle",
       isStartingMission: true,
       isSessionActive: true,
       isStreaming: false,
@@ -358,6 +397,44 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("mission-start:yes");
+    expect(markup).toContain("abort-action:no");
+  });
+
+  it("suppresses abort actions while abort settlement is still pending", () => {
+    agentSessionStateMock.mockReturnValue({
+      messages: [],
+      banterEntries: [],
+      latestBanterEntryId: null,
+      partyMembers: [],
+      speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "ready",
+      abortSettlementPhase: "settling",
+      isStartingMission: false,
+      isSessionActive: true,
+      isStreaming: false,
+      isLoadingHistory: false,
+      availableOperations: [],
+      selectedOperation: null,
+      activeOperationState: null,
+      workflowProgress: null,
+      activityLog: [],
+      primaryContextUsage: null,
+      isOperationSelectionLocked: true,
+      setSelectedOperation: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(),
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("abort-settlement:settling");
     expect(markup).toContain("abort-action:no");
   });
 
@@ -405,7 +482,7 @@ describe("noctis-team-screen", () => {
         activeMissionId="mission-1"
         initialMissionData={buildMission({
           workflowProgress: {
-            workflowLabel: "openspec-dev",
+            workflowLabel: "test-review-cycle-flow",
             currentStep: "review",
             currentStepIndex: 3,
             totalSteps: 5,
@@ -422,6 +499,46 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("workflow-progress:3/5:waiting_for_report:review");
   });
 
+  it("keeps Noctis shell panels visible while chat history is still loading", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+    agentSessionStateMock.mockReturnValue({
+      messages: [],
+      banterEntries: [{ id: "banter-1" }],
+      latestBanterEntryId: "banter-1",
+      partyMembers: [{ id: "ignis" }],
+      speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "loading",
+      isStartingMission: false,
+      isSessionActive: false,
+      isStreaming: false,
+      isLoadingHistory: true,
+      availableOperations: [],
+      selectedOperation: null,
+      activeOperationState: null,
+      workflowProgress: null,
+      activityLog: [],
+      primaryContextUsage: null,
+      isOperationSelectionLocked: true,
+      setSelectedOperation: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(),
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("party-status-panel");
+    expect(markup).toContain("banter-log");
+    expect(markup).toContain("history-phase:loading");
+    expect(markup).toContain("mission-output-browser");
+  });
+
   it("renders the Lunafreya surface without workflow or party chrome", () => {
     paramsMock.mockReturnValue({ id: "mission-luna" });
     agentSessionStateMock.mockReturnValue({
@@ -430,6 +547,8 @@ describe("noctis-team-screen", () => {
       latestBanterEntryId: null,
       partyMembers: [],
       speakingAgentId: null,
+      historyErrorMessage: null,
+      historyPhase: "loading",
       isStartingMission: false,
       isSessionActive: false,
       isStreaming: false,
@@ -473,6 +592,7 @@ describe("noctis-team-screen", () => {
     );
 
     expect(markup).toContain("workflow-selector:no");
+    expect(markup).toContain("history-phase:loading");
     expect(markup).toContain("primary-agent:lunafreya");
     expect(markup).toContain("header:Oracle Mission Surface");
     expect(markup).toContain("composer-status:Solo mission surface");

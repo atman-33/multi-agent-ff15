@@ -309,14 +309,10 @@ function toStringRecord(value: unknown): Record<string, string> {
   return result;
 }
 
-export function loadOperationFromFile(absolutePath: string): OperationDefinition {
-  if (!existsSync(absolutePath)) {
-    throw new Error(`Operation file not found: ${absolutePath}`);
-  }
-
-  const content = readFileSync(absolutePath, "utf-8");
-  const raw = parseYaml(content) as Record<string, unknown>;
-
+function loadOperationFromRecord(
+  raw: Record<string, unknown>,
+  absolutePath: string,
+): OperationDefinition {
   validateNoLegacyOperationFields(raw);
 
   const initialStep = String(raw.initial_step ?? "").trim();
@@ -362,6 +358,24 @@ export function loadOperationFromFile(absolutePath: string): OperationDefinition
     policies: toStringRecord(raw.policies),
     steps,
   };
+}
+
+export function loadOperationFromText(content: string, absolutePath: string): OperationDefinition {
+  const raw = parseYaml(content);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`Operation schema must be a mapping object: ${absolutePath}`);
+  }
+
+  return loadOperationFromRecord(raw as Record<string, unknown>, absolutePath);
+}
+
+export function loadOperationFromFile(absolutePath: string): OperationDefinition {
+  if (!existsSync(absolutePath)) {
+    throw new Error(`Operation file not found: ${absolutePath}`);
+  }
+
+  const content = readFileSync(absolutePath, "utf-8");
+  return loadOperationFromText(content, absolutePath);
 }
 
 export function loadOperationByName(operationName: string, language: string): OperationDefinition {

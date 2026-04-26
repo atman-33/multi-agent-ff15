@@ -13,6 +13,10 @@ import {
 } from "@/lib/mission-store";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "@/lib/operation-runtime/state";
+import {
+  REVIEW_CYCLE_TEST_OPERATION_NAME,
+  writeReviewCycleTestOperation,
+} from "@/lib/test-fixtures/operation-fixtures";
 
 vi.mock("@/lib/team-message.server", () => ({
   sendWorkerReport: vi.fn(),
@@ -38,6 +42,7 @@ function createTempRootWithBuiltins(): string {
   cpSync(join(repoRoot, "config"), join(root, "config"), { recursive: true });
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
   cpSync(join(repoRoot, "opencode.json"), join(root, "opencode.json"));
+  writeReviewCycleTestOperation(root);
   return root;
 }
 
@@ -133,7 +138,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-invalid-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-invalid",
@@ -171,7 +176,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-progress-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-progress",
@@ -193,6 +198,9 @@ describe("api.missions.$missionId.reports", () => {
       params: { missionId },
     } as never);
 
+    if (response.status !== 200) {
+      throw new Error(JSON.stringify(await readJson(response)));
+    }
     expect(response.status).toBe(200);
     await expect(readJson(response)).resolves.toMatchObject({
       sessionId: "noctis-session",
@@ -215,7 +223,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-missing-output-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "review",
       agent: "ignis",
       taskId: "task-review-missing",
@@ -260,7 +268,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-noctis-missing-output-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "spec-planning",
       agent: "noctis",
       taskId: "step_spec-planning_1",
@@ -298,7 +306,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-output-present-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "review",
       agent: "ignis",
       taskId: "task-review-present",
@@ -345,6 +353,133 @@ describe("api.missions.$missionId.reports", () => {
       orchestratedBy: "noctis",
       canonicalMessage: "Review approved with no blocking issues.",
     });
+  });
+
+  it("accepts manual verification reports when builtin outputs are declared on the step", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
+    const missionId = `mission-manual-verification-${crypto.randomUUID()}`;
+    const mission = seedMission({
+      missionId,
+      operationName: "idea-to-openspec-dev",
+      currentStep: "manual-verification",
+      agent: "prompto",
+      taskId: "step_manual-verification_1",
+      taskStatus: "running",
+    });
+    mission.operationState = {
+      ...mission.operationState!,
+      currentStep: "manual-verification",
+      status: "waiting_for_report",
+      stepHistory: [
+        {
+          step: "spec-planning",
+          agent: "noctis",
+          taskId: "step_spec-planning_1",
+          status: "completed",
+          dispatchedAt: "2026-04-01T00:00:00.000Z",
+          completedAt: "2026-04-01T00:05:00.000Z",
+          ruleMatched: 0,
+          ruleCondition: "Spec plan ready",
+          nextStep: "implement",
+          summary: "Spec plan ready.",
+        },
+        {
+          step: "review",
+          agent: "ignis",
+          taskId: "step_review_1",
+          status: "completed",
+          dispatchedAt: "2026-04-01T00:06:00.000Z",
+          completedAt: "2026-04-01T00:10:00.000Z",
+          ruleMatched: 0,
+          ruleCondition: "Approved — no blocking issues",
+          nextStep: "manual-verification",
+          summary: "Review approved.",
+        },
+        {
+          step: "manual-verification",
+          agent: "prompto",
+          taskId: "step_manual-verification_1",
+          status: "dispatched",
+          dispatchedAt: "2026-04-01T00:11:00.000Z",
+        },
+      ],
+    };
+    writeRequiredOutput({
+      missionId,
+      stepName: "spec-planning",
+      taskId: "step_spec-planning_1",
+      filename: "spec-plan.md",
+      content: [
+        "---",
+        "change_name: block-transferred-month-payroll-changes",
+        "change_path: openspec/changes/block-transferred-month-payroll-changes",
+        "proposal_path: openspec/changes/block-transferred-month-payroll-changes/proposal.md",
+        "design_path: openspec/changes/block-transferred-month-payroll-changes/design.md",
+        "tasks_path: openspec/changes/block-transferred-month-payroll-changes/tasks.md",
+        "---",
+        "",
+        "# Spec Plan",
+        "",
+        "Synthetic spec plan for manual verification transition testing.",
+        "",
+      ].join("\n"),
+    });
+    writeRequiredOutput({
+      missionId,
+      stepName: "review",
+      taskId: "step_review_1",
+      filename: "code-review.md",
+      content: "# Code Review\n\nApproved.\n",
+    });
+    writeRequiredOutput({
+      missionId,
+      stepName: "manual-verification",
+      taskId: "step_manual-verification_1",
+      filename: "manual-verification.md",
+      content: "# Manual Verification Guide\n\nReady for User.\n",
+    });
+    vi.mocked(sendWorkerReport).mockResolvedValue({
+      sessionId: "noctis-session",
+      messageId: "msg-manual-verification",
+    });
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAgent: "prompto",
+          taskId: "step_manual-verification_1",
+          next: "finalize-delivery",
+          message: "Manual verification guide created and ready for delivery.",
+        }),
+      }),
+      params: { missionId },
+    } as never);
+
+    const body = await readJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      sessionId: "noctis-session",
+      messageId: "msg-manual-verification",
+    });
+    expect(sendWorkerReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missionId,
+        fromAgent: "prompto",
+        taskId: "step_manual-verification_1",
+        next: "finalize-delivery",
+        message: "Manual verification guide created and ready for delivery.",
+        reportStatus: "completed",
+        artifacts: [],
+        workflowGuidance: expect.stringContaining(
+          "outputs/manual-verification/step_manual-verification_1/manual-verification.md",
+        ),
+      }),
+    );
+    expect(dispatchCurrentOperationStepToWorker).not.toHaveBeenCalled();
+    expect(getMission(missionId)?.operationState?.currentStep).toBe("finalize-delivery");
   });
 
   it("returns delegated child reports to the same Noctis-owned step", async () => {
@@ -408,12 +543,12 @@ describe("api.missions.$missionId.reports", () => {
     });
   });
 
-  it("auto-dispatches the next openspec-dev worker without relaying through Noctis", async () => {
+  it("auto-dispatches the next review-cycle test worker without relaying through Noctis", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
     const missionId = `mission-auto-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-auto",
@@ -470,7 +605,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-noctis-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "spec-planning",
       agent: "noctis",
       taskId: "step_spec-planning_1",

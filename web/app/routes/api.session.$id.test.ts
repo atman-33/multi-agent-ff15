@@ -230,4 +230,79 @@ describe("api.session.$id", () => {
     expect(data.messages[0]?.info.selectionAdjustment).toBeUndefined();
     expect(data.messages[1]?.info.selectionAdjustment).toBeUndefined();
   });
+
+  it("returns summary-mode session parts while preserving inspectable session content", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-sanitized",
+            role: "assistant",
+            agent: "Noctis",
+            providerID: "github-copilot",
+            modelID: "gpt-5.4",
+            time: { created: Date.parse("2026-04-18T10:20:00.000Z") },
+          },
+          parts: [
+            {
+              type: "text",
+              text: "<team-message from=\"noctis\" to=\"user\">Visible reply.</team-message>",
+              metadata: { ignored: true },
+              id: "text-1",
+            },
+            {
+              type: "reasoning",
+              text: "Need a follow-up.",
+              metadata: { openai: { trace: "discard" } },
+              time: { created: 1 },
+              sessionID: "session-3",
+            },
+            {
+              type: "tool",
+              tool: "apply_patch",
+              state: {
+                status: "completed",
+                input: { patch: "*** Begin Patch" },
+                output: "done",
+                error: "",
+                ignored: "discard",
+              },
+              metadata: { ignored: true },
+            },
+          ],
+        },
+      ],
+    });
+
+    const response = await loader({ params: { id: "session-3" } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      messages: Array<{
+        detailState?: string;
+        parts: unknown[];
+        summary?: {
+          content?: string;
+        };
+      }>;
+    }>(response);
+    expect(data.messages[0]?.detailState).toBe("summary");
+    expect(data.messages[0]?.parts).toEqual([
+      {
+        type: "reasoning",
+        text: "Need a follow-up.",
+      },
+      {
+        type: "tool",
+        tool: "apply_patch",
+        state: {
+          status: "completed",
+        },
+      },
+    ]);
+    expect(data.messages[0]?.summary).toMatchObject({
+      content: "Visible reply.",
+    });
+  });
 });

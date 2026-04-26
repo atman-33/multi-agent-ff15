@@ -146,6 +146,29 @@
       opacity: 0;
     }
   }
+  @keyframes transcript-loading-glow {
+    0%,
+    100% {
+      opacity: 0.45;
+      transform: scale(0.94);
+    }
+    50% {
+      opacity: 0.82;
+      transform: scale(1.05);
+    }
+  }
+  @keyframes transcript-loading-dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.42;
+      transform: translateY(0) scale(0.84);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-3px) scale(1);
+    }
+  }
   @keyframes agent-active {
     0%,
     100% {
@@ -532,6 +555,48 @@
     background: rgba(255, 255, 255, 0.32);
     animation: route-loading-dust 0.6s ease-out 0.24s infinite;
   }
+
+  .transcript-loading-capsule {
+    isolation: isolate;
+  }
+
+  .transcript-loading-glow {
+    border-radius: 9999px;
+    background: radial-gradient(
+      ellipse at center,
+      hsl(var(--primary) / 0.26) 0%,
+      rgba(96, 165, 250, 0.18) 34%,
+      rgba(15, 23, 42, 0.12) 58%,
+      transparent 78%
+    );
+    animation: transcript-loading-glow 1.8s ease-in-out infinite;
+    filter: blur(12px);
+  }
+
+  .transcript-loading-dot {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    background: hsl(var(--primary) / 0.92);
+    box-shadow:
+      0 0 0 1px rgba(191, 219, 254, 0.12),
+      0 0 18px rgba(59, 130, 246, 0.22);
+    animation: transcript-loading-dot 1.05s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  .transcript-loading-dot-2 {
+    animation-delay: 0.14s;
+    background: rgba(96, 165, 250, 0.94);
+    box-shadow:
+      0 0 0 1px rgba(191, 219, 254, 0.14),
+      0 0 22px rgba(96, 165, 250, 0.26);
+  }
+
+  .transcript-loading-dot-3 {
+    animation-delay: 0.28s;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -565,6 +630,21 @@
 
   .mission-start-loading-dust {
     display: none;
+  }
+
+  .transcript-loading-glow,
+  .transcript-loading-dot {
+    animation: none;
+  }
+
+  .transcript-loading-glow {
+    opacity: 0.85;
+    transform: none;
+  }
+
+  .transcript-loading-dot {
+    opacity: 0.82;
+    transform: none;
   }
 }
 

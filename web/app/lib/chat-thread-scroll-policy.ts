@@ -9,3 +9,9 @@ export function shouldAutoFollowThreadUpdate({
 }): boolean {
   return nearBottom && scrollSignal !== "none";
 }
+
+export function getAutoFollowScrollBehavior(
+  scrollSignal: SessionChatScrollSignal,
+): ScrollBehavior {
+  return scrollSignal === "streaming-growth" ? "auto" : "smooth";
+}

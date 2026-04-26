@@ -57,7 +57,7 @@ import type {
 import { isMissionSummaryRunning } from "@/lib/mission-list-running-state";
 import { cn } from "@/lib/utils";
 import type { PromptPart } from "@/lib/prompt-parts";
-import type { MessageInfo } from "@/routes/_layout.opencode.session.$id/types";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import { BanterLog } from "./banter-log";
 import { ChatArea } from "./chat-area";
 import { LunafreyaStatusPanel, type LunafreyaFacetOption } from "./lunafreya-status-panel";
@@ -68,9 +68,10 @@ import {
   MissionOutputBrowser,
 } from "./mission-output-browser";
 import {
+  buildMissionOutputDetailKey,
   buildMissionOutputDetailPath,
   buildMissionPath,
-  hasMissionOutputDetailRoute,
+  resolveMissionOutputDetailActive,
   resolveMissionInspectorTab,
 } from "./output-detail-routing";
 import { PartyStatusPanel } from "./party-status-panel";
@@ -91,6 +92,7 @@ export interface NoctisTeamScreenProps {
   language?: AppLanguage;
   initialMissionData?: MissionResumePayload | null;
   initialMessageInfos?: MessageInfo[] | null;
+  visualOutputDetailActive?: boolean;
 }
 
 export function NoctisTeamScreen({
@@ -99,6 +101,7 @@ export function NoctisTeamScreen({
   language = "other",
   initialMissionData,
   initialMessageInfos,
+  visualOutputDetailActive,
 }: NoctisTeamScreenProps) {
   const surface = getMissionSurface(
     requestedSurfaceId ??
@@ -120,11 +123,14 @@ export function NoctisTeamScreen({
   const routeOutputTaskId = outputDetailMatch?.params.taskId ?? null;
   const routeOutputFilename = outputDetailMatch?.params.filename ?? null;
   const effectiveMissionId = activeMissionId ?? routeMissionId;
-  const outputDetailActive = hasMissionOutputDetailRoute({
+  const outputDetailActive = resolveMissionOutputDetailActive(
+    {
     step: routeOutputStep,
     taskId: routeOutputTaskId,
     filename: routeOutputFilename,
-  });
+    },
+    visualOutputDetailActive,
+  );
 
   useEffect(() => {
     if (!effectiveMissionId) {
@@ -217,11 +223,18 @@ export function NoctisTeamScreen({
     [availableProjects, effectiveContextProjectIds],
   );
   const {
+    sessionId,
     messages,
+    liveDraft,
+    streamingMessageId,
+    streamingContent,
     banterEntries,
     latestBanterEntryId,
     partyMembers,
     speakingAgentId,
+    historyErrorMessage,
+    historyPhase,
+    abortSettlementPhase,
     isStartingMission,
     isSessionActive,
     isStreaming,
@@ -249,6 +262,7 @@ export function NoctisTeamScreen({
     selectedLunafreyaSkillIds,
   });
   const isMissionStartPending = !effectiveMissionId && isStartingMission;
+  const isAbortSettling = abortSettlementPhase !== "idle";
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
   const effectiveWorkflowProgress =
@@ -310,14 +324,13 @@ export function NoctisTeamScreen({
     !missionDetail?.workspacePath ||
     missionDetail.workspaceStatus !== "ready" ||
     isDeletingWorkspace;
-  const selectedOutputKey =
-    outputDetailActive && routeOutputStep && routeOutputTaskId && routeOutputFilename
-      ? getMissionOutputKey({
-          step: routeOutputStep,
-          taskId: routeOutputTaskId,
-          filename: routeOutputFilename,
-        })
-      : null;
+  const selectedOutputKey = outputDetailActive
+    ? buildMissionOutputDetailKey({
+        step: routeOutputStep,
+        taskId: routeOutputTaskId,
+        filename: routeOutputFilename,
+      })
+    : null;
 
   useEffect(() => {
     if (outputDetailActive) {
@@ -1103,7 +1116,17 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
-              isResponding={isMissionStartPending || isSessionActive || isLoadingHistory}
+              sessionId={sessionId}
+              isResponding={
+                isMissionStartPending || isSessionActive || isLoadingHistory || isAbortSettling
+              }
+              currentStreamingMessageId={streamingMessageId}
+              liveDraft={liveDraft}
+              streamingContent={streamingContent}
+              historyErrorMessage={historyErrorMessage}
+              historyPhase={historyPhase}
+              abortSettlementPhase={abortSettlementPhase}
+              isLoadingHistory={isLoadingHistory}
               isStartingMission={isMissionStartPending}
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
@@ -1139,7 +1162,9 @@ export function NoctisTeamScreen({
               onSelectedOperationChange={setSelectedOperation}
               onAbort={abort}
               onSend={handleSend}
-              showAbortAction={isSessionActive && !isLoadingHistory && !isMissionStartPending}
+              showAbortAction={
+                isSessionActive && !isAbortSettling && !isLoadingHistory && !isMissionStartPending
+              }
               showWorkflowSelector={surface.supportsWorkflowSelector}
               headerTitle={
                 isLunafreyaSurface ? "Oracle Mission Surface" : "Regalia Command Center"

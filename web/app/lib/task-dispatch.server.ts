@@ -87,7 +87,7 @@ function buildCompactTaskPrompt(input: {
   return lines.join("\n");
 }
 
-function resolveExecutionRootForWorkerDispatch(missionId: string): string {
+function resolveManagedRootsForWorkerDispatch(missionId: string) {
   const mission = getMission(missionId);
   if (!mission) {
     throw new Error("Mission not found");
@@ -111,7 +111,7 @@ function resolveExecutionRootForWorkerDispatch(missionId: string): string {
     clearMissionSessions(missionId);
   }
 
-  return executionRoot.executionRoot;
+  return executionRoot;
 }
 
 export async function dispatchCurrentOperationStepToWorker(input: {
@@ -251,7 +251,7 @@ export async function dispatchTaskToWorker(input: {
 
   const client = getOpencodeClient();
   const projectRoot = getProjectRoot();
-  const executionRoot = resolveExecutionRootForWorkerDispatch(input.missionId);
+  const managedRoots = resolveManagedRootsForWorkerDispatch(input.missionId);
   const existingSessionId = mission.workerSessions[input.agentId];
 
   const markDelegatedDispatchFailed = (summary: string) => {
@@ -353,7 +353,7 @@ export async function dispatchTaskToWorker(input: {
 
   const ledger = buildDelegationLedger(mission);
   const sessionResult = await client.session.create({
-    directory: executionRoot,
+    directory: managedRoots.sessionHostRoot,
     title: `mission:${input.missionId}:${input.agentId}`,
   });
 

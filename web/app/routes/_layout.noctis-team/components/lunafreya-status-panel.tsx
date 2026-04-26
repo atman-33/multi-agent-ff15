@@ -27,10 +27,10 @@ import {
   type OpencodeProvidersResponse,
 } from "@/lib/opencode-provider-catalog";
 import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
+import type { AgentStatus } from "@/lib/noctis-team-ui-types";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
-import type { AgentStatus } from "./character-card";
 import { CharacterCard } from "./character-card";
 
 export type LunafreyaFacetOption = {

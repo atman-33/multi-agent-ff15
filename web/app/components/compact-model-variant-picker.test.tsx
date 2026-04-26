@@ -24,17 +24,29 @@ vi.mock("@/components/ui/popover", () => ({
   ),
   PopoverContent: ({
     children,
+    collisionBoundary,
     collisionPadding: _collisionPadding,
     onOpenAutoFocus: _onOpenAutoFocus,
+    portalContainer,
+    side,
     sideOffset: _sideOffset,
     ...props
   }: {
     children: ReactNode;
+    collisionBoundary?: HTMLElement | HTMLElement[];
     collisionPadding?: number;
     onOpenAutoFocus?: (event: Event) => void;
+    portalContainer?: HTMLElement | null;
+    side?: string;
     sideOffset?: number;
   }) => (
-    <div data-slot="popover-content" {...props}>
+    <div
+      data-collision-boundary={collisionBoundary ? "set" : "unset"}
+      data-portal-container={portalContainer ? "set" : "unset"}
+      data-side={side}
+      data-slot="popover-content"
+      {...props}
+    >
       {children}
     </div>
   ),
@@ -66,7 +78,8 @@ describe("CompactModelVariantPicker", () => {
 
     expect(markup).toContain("GPT-5.4");
     expect(markup).toContain("GitHub Copilot");
-  expect(markup).toContain('data-slot="popover-trigger"');
+    expect(markup).toContain('data-slot="popover-trigger"');
+    expect(markup).toContain("w-[min(25rem,92vw)]");
     expect(markup).not.toContain("github-copilot / gpt-5.4");
     expect(markup).toContain("Open variants for GPT-5.4");
     expect(markup).toContain("Explicit variants");
@@ -98,5 +111,33 @@ describe("CompactModelVariantPicker", () => {
 
     expect(markup).not.toContain("Open variants for Grok Code Fast 1");
     expect(markup).not.toContain("Explicit variants");
+  });
+
+  it("forwards an explicit portal container to its popover content", () => {
+    const portalContainer = {} as HTMLElement;
+    const markup = renderToStaticMarkup(
+      <CompactModelVariantPicker
+        ariaLabel="Select model"
+        emptyLabel="Model"
+        modelItems={[
+          {
+            providerID: "github-copilot",
+            providerName: "GitHub Copilot",
+            modelID: "gpt-5.4",
+            modelName: "GPT-5.4",
+          },
+        ]}
+        onSelect={() => undefined}
+        portalContainer={portalContainer}
+        selectedModel={null}
+        variantsByModel={{
+          "github-copilot/gpt-5.4": ["high"],
+        }}
+      />
+    );
+
+    expect(markup).toContain('data-portal-container="set"');
+    expect(markup).toContain('data-collision-boundary="set"');
+    expect(markup).toContain('data-side="right"');
   });
 });

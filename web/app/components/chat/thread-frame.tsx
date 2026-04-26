@@ -2,7 +2,10 @@ import { ArrowDown } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { shouldAutoFollowThreadUpdate } from "@/lib/chat-thread-scroll-policy";
+import {
+  getAutoFollowScrollBehavior,
+  shouldAutoFollowThreadUpdate,
+} from "@/lib/chat-thread-scroll-policy";
 import type { SessionChatScrollSignal } from "@/lib/session-chat-rendering-orchestration";
 
 type ChatThreadFrameProps = {
@@ -70,7 +73,8 @@ export function ChatThreadFrame({
         scrollSignal,
       })
     ) {
-      window.setTimeout(() => scrollToBottom("smooth"), 0);
+      const behavior = getAutoFollowScrollBehavior(scrollSignal);
+      window.setTimeout(() => scrollToBottom(behavior), 0);
     }
   }, [autoFollowKey, scrollSignal, scrollToBottom]);
 

@@ -48,6 +48,8 @@ Examples:
 #### Related Issues
 - Link to issues being fixed or addressed
 - Use keywords: `Fixes #123`, `Closes #456`, `Related to #789`
+- Reserve closing keywords for issues that should auto-close when the PR is merged into the repository default branch
+- If the PR targets a non-default branch, prefer `Related to #789` instead of a closing keyword
 
 ## The Review Process
 

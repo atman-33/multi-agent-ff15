@@ -9,7 +9,12 @@ WEB_PORT=13000
 WEB_URL="http://localhost:${WEB_PORT}"
 WEB_LOG="runtime/logs/web.log"
 BUILD_OUTPUT="web/build/server/index.js"
+OPENCODE_CONTROL_SCRIPT="scripts/opencode_server_control.mts"
+ACTION="start"
 RUN_BUILD=false
+SERVER_STATE="stopped"
+SERVER_PID=""
+SERVER_CMD=""
 
 log_info() {
     echo -e "\033[1;33m[INFO]\033[0m $1"
@@ -31,11 +36,15 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
+    echo "      --stop     Stop the managed web server and app-owned OpenCode server"
+    echo "      --status   Print managed web and OpenCode server status"
     echo "  -h, --help     Show this help"
     echo ""
     echo "Examples:"
     echo "  ./standby.sh"
     echo "  ./standby.sh --build"
+    echo "  ./standby.sh --stop"
+    echo "  ./standby.sh --status"
     echo ""
 }
 
@@ -91,11 +100,74 @@ require_command() {
     fi
 }
 
+require_port_lookup() {
+    if command -v lsof >/dev/null 2>&1 || command -v ss >/dev/null 2>&1; then
+        return
+    fi
+
+    log_warn "Required command not found: lsof or ss"
+    exit 1
+}
+
+run_opencode_control() {
+    NODE_NO_WARNINGS=1 node --experimental-strip-types "$SCRIPT_DIR/$OPENCODE_CONTROL_SCRIPT" "$@" --root "$SCRIPT_DIR"
+}
+
+json_get() {
+        local json_input="$1"
+        local property_path="$2"
+
+        printf '%s' "$json_input" | node -e '
+const fs = require("node:fs");
+
+const propertyPath = process.argv[1];
+let value = JSON.parse(fs.readFileSync(0, "utf8"));
+
+for (const key of propertyPath.split(".")) {
+    if (!key.length) {
+        continue;
+    }
+
+    if (value === null || value === undefined || !(key in Object(value))) {
+        process.exit(1);
+    }
+
+    value = value[key];
+}
+
+if (value === null || value === undefined) {
+    process.exit(1);
+}
+
+process.stdout.write(typeof value === "string" ? value : JSON.stringify(value));
+' "$property_path"
+}
+
+set_action() {
+    local next_action="$1"
+
+    if [ "$ACTION" != "start" ] && [ "$ACTION" != "$next_action" ]; then
+        log_warn "Choose only one action: start, stop, or status."
+        show_help
+        exit 1
+    fi
+
+    ACTION="$next_action"
+}
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -b|--build)
                 RUN_BUILD=true
+                shift
+                ;;
+            --stop)
+                set_action "stop"
+                shift
+                ;;
+            --status)
+                set_action "status"
                 shift
                 ;;
             -h|--help)
@@ -109,6 +181,12 @@ parse_args() {
                 ;;
         esac
     done
+
+    if [ "$RUN_BUILD" = true ] && [ "$ACTION" != "start" ]; then
+        log_warn "--build can only be used when starting the web app."
+        show_help
+        exit 1
+    fi
 }
 
 ensure_dependencies() {
@@ -139,27 +217,320 @@ get_listening_pid() {
     fi
 }
 
+get_process_command() {
+    local process_pid="$1"
+
+    ps -p "$process_pid" -o args= 2>/dev/null || true
+}
+
+is_managed_server_command() {
+    local process_command="$1"
+
+    printf '%s\n' "$process_command" | grep -qiE 'react-router-serve|node.*(web/)?build/server/index.js|node.*(web/)?server\.js|npm --prefix web run start|npm run web:start'
+}
+
+refresh_server_state() {
+    local listening_pid
+    local listening_cmd
+
+    SERVER_STATE="stopped"
+    SERVER_PID=""
+    SERVER_CMD=""
+
+    listening_pid="$(get_listening_pid || true)"
+    if [ -z "$listening_pid" ]; then
+        return
+    fi
+
+    listening_cmd="$(get_process_command "$listening_pid")"
+
+    SERVER_PID="$listening_pid"
+    SERVER_CMD="$listening_cmd"
+
+    if is_managed_server_command "$listening_cmd"; then
+        SERVER_STATE="running"
+        return
+    fi
+
+    SERVER_STATE="occupied"
+}
+
+print_server_status() {
+    refresh_server_state
+
+    case "$SERVER_STATE" in
+        running)
+            log_success "Web server is running: ${WEB_URL} (PID: ${SERVER_PID})"
+            log_info "Log: ${WEB_LOG}"
+            return 0
+            ;;
+        stopped)
+            log_info "Web server is not running."
+            return 1
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is already in use by another process."
+            log_warn "$SERVER_CMD"
+            return 2
+            ;;
+    esac
+}
+
+print_opencode_status() {
+    local status_json
+    local state
+    local managed_by_app
+    local pid
+    local url
+    local error
+    local warning
+
+    if ! status_json="$(run_opencode_control status)"; then
+        log_warn "Failed to inspect OpenCode server status."
+        return 2
+    fi
+
+    if [ -z "$status_json" ]; then
+        log_warn "OpenCode server status returned no data."
+        return 2
+    fi
+
+    state="$(json_get "$status_json" "state" 2>/dev/null || true)"
+    managed_by_app="$(json_get "$status_json" "managedByApp" 2>/dev/null || true)"
+    pid="$(json_get "$status_json" "pid" 2>/dev/null || true)"
+    url="$(json_get "$status_json" "url" 2>/dev/null || true)"
+    error="$(json_get "$status_json" "error" 2>/dev/null || true)"
+    warning="$(json_get "$status_json" "warning" 2>/dev/null || true)"
+
+    case "$state" in
+        running)
+            if [ -n "$pid" ]; then
+                log_success "OpenCode server is running: ${url} (PID: ${pid})"
+            else
+                log_success "OpenCode server is running: ${url}"
+            fi
+            ;;
+        down)
+            if [ "$managed_by_app" = "true" ] && [ -n "$url" ]; then
+                if [ -n "$pid" ]; then
+                    log_warn "OpenCode server is down: ${url} (PID: ${pid})"
+                else
+                    log_warn "OpenCode server is down: ${url}"
+                fi
+
+                if [ -n "$error" ]; then
+                    log_warn "$error"
+                fi
+
+                if [ -n "$warning" ]; then
+                    log_warn "$warning"
+                fi
+
+                return 2
+            fi
+
+            log_info "OpenCode server is not running."
+            if [ -n "$warning" ]; then
+                log_warn "$warning"
+            fi
+            return 1
+            ;;
+        *)
+            log_warn "Unexpected OpenCode server status."
+            return 2
+            ;;
+    esac
+
+    if [ -n "$warning" ]; then
+        log_warn "$warning"
+    fi
+
+    return 0
+}
+
+print_managed_status() {
+    local web_status
+    local opencode_status
+
+    if print_server_status; then
+        web_status=0
+    else
+        web_status=$?
+    fi
+
+    echo ""
+
+    if print_opencode_status; then
+        opencode_status=0
+    else
+        opencode_status=$?
+    fi
+
+    if [ "$web_status" -eq 2 ] || [ "$opencode_status" -eq 2 ]; then
+        return 2
+    fi
+
+    if [ "$web_status" -ne 0 ] || [ "$opencode_status" -ne 0 ]; then
+        return 1
+    fi
+
+    return 0
+}
+
+stop_managed_server() {
+    refresh_server_state
+
+    case "$SERVER_STATE" in
+        stopped)
+            log_info "Web server is not running."
+            return 0
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is already in use by another process."
+            log_warn "$SERVER_CMD"
+            return 1
+            ;;
+    esac
+
+    log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${SERVER_PID})..."
+    kill "$SERVER_PID" 2>/dev/null || true
+    sleep 1
+
+    refresh_server_state
+    case "$SERVER_STATE" in
+        stopped)
+            log_success "Web server stopped."
+            return 0
+            ;;
+        running)
+            log_warn "Web server is still running after stop request."
+            return 1
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is now in use by another process."
+            log_warn "$SERVER_CMD"
+            return 1
+            ;;
+    esac
+}
+
+stop_managed_opencode_server() {
+    local result_json
+    local previous_record_state
+    local previous_pid
+    local previous_url
+    local error
+    local warning
+
+    if ! result_json="$(run_opencode_control stop)"; then
+        :
+    fi
+
+    if [ -z "$result_json" ]; then
+        log_warn "Failed to stop OpenCode server."
+        return 1
+    fi
+
+    previous_record_state="$(json_get "$result_json" "previousRecordState" 2>/dev/null || true)"
+    previous_pid="$(json_get "$result_json" "previousPid" 2>/dev/null || true)"
+    previous_url="$(json_get "$result_json" "previousUrl" 2>/dev/null || true)"
+    error="$(json_get "$result_json" "error" 2>/dev/null || true)"
+    warning="$(json_get "$result_json" "status.warning" 2>/dev/null || true)"
+
+    if [ -n "$error" ]; then
+        if [ -n "$previous_url" ] && [ -n "$previous_pid" ]; then
+            log_warn "Failed to stop OpenCode server: ${previous_url} (PID: ${previous_pid})"
+        else
+            log_warn "Failed to stop OpenCode server."
+        fi
+        log_warn "$error"
+
+        if [ -n "$warning" ]; then
+            log_warn "$warning"
+        fi
+
+        return 1
+    fi
+
+    case "$previous_record_state" in
+        valid|stale-unhealthy)
+            if [ -n "$previous_url" ] && [ -n "$previous_pid" ]; then
+                log_success "OpenCode server stopped: ${previous_url} (PID: ${previous_pid})"
+            elif [ -n "$previous_url" ]; then
+                log_success "OpenCode server stopped: ${previous_url}"
+            else
+                log_success "OpenCode server stopped."
+            fi
+            ;;
+        stale-dead)
+            log_info "Cleared stale OpenCode server state."
+            ;;
+        missing|"")
+            log_info "OpenCode server is not running."
+            ;;
+        *)
+            log_info "OpenCode server state is unchanged."
+            ;;
+    esac
+
+    if [ -n "$warning" ]; then
+        log_warn "$warning"
+    fi
+
+    return 0
+}
+
+stop_managed_services() {
+    local web_status
+    local opencode_status
+
+    if stop_managed_server; then
+        web_status=0
+    else
+        web_status=$?
+    fi
+
+    echo ""
+
+    if stop_managed_opencode_server; then
+        opencode_status=0
+    else
+        opencode_status=$?
+    fi
+
+    if [ "$web_status" -ne 0 ] || [ "$opencode_status" -ne 0 ]; then
+        return 1
+    fi
+
+    return 0
+}
+
 stop_existing_server() {
-    local existing_pid
+    refresh_server_state
 
-    existing_pid="$(get_listening_pid || true)"
-    if [ -z "$existing_pid" ]; then
-        return
+    case "$SERVER_STATE" in
+        stopped)
+            return
+            ;;
+        occupied)
+            log_warn "Port ${WEB_PORT} is already in use by another process."
+            log_warn "$SERVER_CMD"
+            exit 1
+            ;;
+    esac
+
+    log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${SERVER_PID})..."
+    kill "$SERVER_PID" 2>/dev/null || true
+    sleep 1
+
+    refresh_server_state
+    if [ "$SERVER_STATE" != "stopped" ]; then
+        log_warn "Port ${WEB_PORT} is not available after stopping the existing web server."
+        if [ -n "$SERVER_CMD" ]; then
+            log_warn "$SERVER_CMD"
+        fi
+        exit 1
     fi
-
-    local existing_cmd
-    existing_cmd="$(ps -p "$existing_pid" -o args= 2>/dev/null || true)"
-
-    if echo "$existing_cmd" | grep -qiE 'react-router-serve|node.*build/server/index.js|npm --prefix web run start|npm run web:start'; then
-        log_info "Stopping existing web server on port ${WEB_PORT} (PID: ${existing_pid})..."
-        kill "$existing_pid" 2>/dev/null || true
-        sleep 1
-        return
-    fi
-
-    log_warn "Port ${WEB_PORT} is already in use by another process."
-    log_warn "$existing_cmd"
-    exit 1
 }
 
 wait_for_server() {
@@ -196,7 +567,7 @@ open_browser() {
 start_server() {
     local start_command
 
-    start_command="cd '$SCRIPT_DIR' && PORT='$WEB_PORT' npm run web:start"
+    start_command="cd '$SCRIPT_DIR' && npm run web:start -- --port '$WEB_PORT'"
 
     if command -v setsid >/dev/null 2>&1; then
         setsid bash -lc "$start_command" > "$WEB_LOG" 2>&1 < /dev/null &
@@ -207,9 +578,29 @@ start_server() {
     echo $!
 }
 
+require_command node
 require_command npm
-require_command curl
 parse_args "$@"
+require_port_lookup
+
+case "$ACTION" in
+    status)
+        if print_managed_status; then
+            exit 0
+        else
+            exit $?
+        fi
+        ;;
+    stop)
+        if stop_managed_services; then
+            exit 0
+        else
+            exit $?
+        fi
+        ;;
+esac
+
+require_command curl
 
 mkdir -p runtime/logs
 

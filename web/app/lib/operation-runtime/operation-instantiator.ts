@@ -57,6 +57,7 @@ export interface ActivateOperationInput {
   missionId: string;
   message: string;
   selectedOperation?: string | null;
+  operationOverride?: OperationDefinition | null;
   allowReuseActiveOperation?: boolean;
   allowedWorkersOverride?: readonly WorkerAgentId[];
 }
@@ -84,6 +85,7 @@ export interface AugmentTaskPromptInput {
   agentId: WorkerAgentId;
   taskId: string;
   operationState?: OperationState;
+  operationOverride?: OperationDefinition | null;
 }
 
 export interface AugmentTaskPromptResult {
@@ -102,6 +104,7 @@ export interface ProcessStepReportInput {
   taskId: string;
   next?: WorkflowNext;
   operationState?: OperationState;
+  operationOverride?: OperationDefinition | null;
   allowedWorkersOverride?: readonly WorkerAgentId[];
 }
 
@@ -133,6 +136,13 @@ function detectOperationRef(message: string): string | null {
 
 function loadOperationForState(state: OperationState): OperationDefinition {
   return loadOperationByRef(getOperationRef(state));
+}
+
+function resolveOperationForInput(input: {
+  operationOverride?: OperationDefinition | null;
+  operationState: OperationState;
+}): OperationDefinition {
+  return input.operationOverride ?? loadOperationForState(input.operationState);
 }
 
 function buildActivationArtifact(input: {
@@ -327,13 +337,28 @@ function buildDelegatedReturnGuidance(input: {
   ]);
 }
 
+function cloneOperationState(state: OperationState): OperationState {
+  return {
+    ...state,
+    stepHistory: state.stepHistory.map((entry) => ({ ...entry })),
+    delegatedTasks: state.delegatedTasks.map((entry) => ({ ...entry })),
+    deviations: {
+      ...state.deviations,
+      history: state.deviations.history.map((entry) => ({ ...entry })),
+    },
+  };
+}
+
 export function createOperationInstantiator(): OperationInstantiator {
   return {
     activateOperation(input) {
       const existingState = getOperationState(input.missionId);
 
       if (existingState) {
-        const operation = loadOperationForState(existingState);
+        const operation = resolveOperationForInput({
+          operationOverride: input.operationOverride,
+          operationState: existingState,
+        });
         const currentStep = operation.steps.find(
           (step) => step.name === existingState.currentStep,
         ) ?? null;
@@ -375,7 +400,7 @@ export function createOperationInstantiator(): OperationInstantiator {
       const operationRef = Object.hasOwn(input, "selectedOperation")
         ? input.selectedOperation?.trim() || null
         : detectOperationRef(input.message);
-      if (!operationRef) {
+      if (!operationRef && !input.operationOverride) {
         return {
           activationText: null,
           additionalContext: null,
@@ -386,11 +411,21 @@ export function createOperationInstantiator(): OperationInstantiator {
         };
       }
 
-      const operation = loadOperationByRef(operationRef);
+      const operation = input.operationOverride ?? (operationRef ? loadOperationByRef(operationRef) : null);
+      if (!operation) {
+        return {
+          activationText: null,
+          additionalContext: null,
+          operation: null,
+          operationState: null,
+          step: null,
+          promptArtifact: null,
+        };
+      }
       const operationState = createOperationState(
         operation.name,
         operation.initial_step,
-        operationRef,
+        operationRef ?? `draft:${operation.name}`,
       );
       const step = operation.steps.find((candidate) => candidate.name === operation.initial_step) ?? null;
 
@@ -440,7 +475,10 @@ export function createOperationInstantiator(): OperationInstantiator {
         };
       }
 
-      const operation = loadOperationForState(operationState);
+      const operation = resolveOperationForInput({
+        operationOverride: input.operationOverride,
+        operationState,
+      });
       const step = operation.steps.find((candidate) => candidate.name === operationState.currentStep) ?? null;
 
       if (!step) {
@@ -479,25 +517,31 @@ export function createOperationInstantiator(): OperationInstantiator {
     },
 
     processStepReport(input) {
-      const operationState = input.operationState ?? getOperationState(input.missionId) ?? null;
+      const persistedOperationState = input.operationState ?? getOperationState(input.missionId) ?? null;
 
       if (
-        !operationState ||
-        (operationState.status !== "running" && operationState.status !== "waiting_for_report")
+        !persistedOperationState ||
+        (persistedOperationState.status !== "running" &&
+          persistedOperationState.status !== "waiting_for_report")
       ) {
         return {
           noctisGuidance: "",
           stateTransition: null,
           nextWorkerDispatch: null,
           operation: null,
-          operationState,
+          operationState: persistedOperationState,
           currentStep: null,
           nextStep: null,
           promptArtifact: null,
         };
       }
 
-      const operation = loadOperationForState(operationState);
+      const operationState = cloneOperationState(persistedOperationState);
+
+      const operation = resolveOperationForInput({
+        operationOverride: input.operationOverride,
+        operationState,
+      });
       const currentStep = operation.steps.find(
         (step) => step.name === operationState.currentStep,
       ) ?? null;

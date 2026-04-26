@@ -1,0 +1,95 @@
+name: test-review-cycle-flow
+description: Review cycle fixture for unit tests.
+initial_step: spec-planning
+steps:
+  - name: spec-planning
+    agent: noctis
+    job:
+      inline: Planner
+    instruction:
+      inline: Plan the change.
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format:
+            inline: |
+              ## Format
+
+              ````markdown
+              ---
+              change_name: synthetic-spec-plan
+              change_path: openspec/changes/synthetic-spec-plan
+              proposal_path: openspec/changes/synthetic-spec-plan/proposal.md
+              design_path: openspec/changes/synthetic-spec-plan/design.md
+              tasks_path: openspec/changes/synthetic-spec-plan/tasks.md
+              ---
+              ````
+
+              ## Rule
+
+              - `change_name` is required and must match the change directory name.
+              - `change_path` should point to the change directory when available.
+    rules:
+      - condition: Planned
+        next: implement
+  - name: implement
+    agent: gladiolus
+    job:
+      inline: Implementer
+    instruction:
+      inline: |
+        Read `{{ output("spec-planning", "latest", "spec-plan.md") }}` before coding.
+        Implement the approved plan.
+    rules:
+      - condition: Implemented
+        next: review
+      - condition: Blocked
+        next: ABORT
+  - name: review
+    agent: ignis
+    job:
+      inline: Reviewer
+    instruction:
+      inline: Review the implementation.
+    output_contracts:
+      report:
+        - name: code-review.md
+          format:
+            inline: |
+              ## Format
+
+              ````markdown
+              # Code Review
+
+              Summarize the review result in markdown.
+              ````
+
+              ## Rule
+
+              - Include the review verdict in the report body.
+    rules:
+      - condition: Approved
+        next: refactor
+      - condition: Fix needed
+        next: fix
+  - name: fix
+    agent: gladiolus
+    job:
+      inline: Fixer
+    instruction:
+      inline: |
+        Read `{{ output("review", "latest", "code-review.md") }}` and fix the blocking findings.
+    rules:
+      - condition: Fixed
+        next: review
+      - condition: Blocked
+        next: ABORT
+  - name: refactor
+    agent: prompto
+    job:
+      inline: Refactorer
+    instruction:
+      inline: Perform the final cleanup.
+    rules:
+      - condition: Done
+        next: COMPLETE

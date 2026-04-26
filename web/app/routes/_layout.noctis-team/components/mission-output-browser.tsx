@@ -200,7 +200,7 @@ export function MissionOutputBrowser({
                       return (
                         <button
                           className={cn(
-                            "w-full rounded-xl border p-3 text-left transition-colors",
+                            "w-full cursor-pointer rounded-xl border p-3 text-left transition-colors",
                             isSelected
                               ? "border-primary/40 bg-primary/10"
                               : "border-border/50 bg-card/40 hover:bg-card/70",

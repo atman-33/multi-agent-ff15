@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
+
+const { sessionChatRenderSnapshotMock } = vi.hoisted(() => ({
+  sessionChatRenderSnapshotMock: vi.fn(),
+}));
 
 vi.mock("@/components/chat/prompt-composer", () => ({
   PromptComposer: ({
@@ -37,14 +42,33 @@ vi.mock("@/components/chat/thread-frame", () => ({
 
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  SelectContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SelectContent: ({ children }: { children?: ReactNode }) => <div data-select-content="true">{children}</div>,
+  SelectItem: ({ children, value }: { children?: ReactNode; value?: string }) => (
+    <div data-select-item={value}>{children}</div>
+  ),
+  SelectTrigger: ({ children }: { children?: ReactNode }) => <div data-select-trigger="true">{children}</div>,
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
 }));
 
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
+}));
+
+vi.mock("@/components/chat/message-bubble-base", () => ({
+  MessageBubbleBase: ({
+    body,
+    details,
+    copyContent,
+  }: {
+    body?: ReactNode;
+    details?: ReactNode;
+    copyContent: string;
+  }) => (
+    <section data-copy-content={copyContent}>
+      {body}
+      {details}
+    </section>
+  ),
 }));
 
 vi.mock("@/components/ui/popover", () => ({
@@ -73,13 +97,18 @@ vi.mock("@/components/ui/switch", () => ({
 }));
 
 vi.mock("@/components/ui/tooltip", () => ({
-  Tooltip: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  TooltipContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  TooltipTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Tooltip: ({ children }: { children?: ReactNode }) => <div data-tooltip-root="true">{children}</div>,
+  TooltipContent: ({ children }: { children?: ReactNode }) => (
+    <div data-tooltip-content="true">{children}</div>
+  ),
+  TooltipTrigger: ({ children }: { children?: ReactNode }) => (
+    <div data-tooltip-trigger="true">{children}</div>
+  ),
 }));
 
 vi.mock("@/hooks/use-conversation-unit-inspectability", () => ({
   useConversationUnitInspectability: () => ({
+    getExpandedDetailEntries: () => ({}),
     isConversationUnitExpanded: () => false,
     expandedDetailEntriesByConversationUnit: {},
     toggleConversationUnit: () => undefined,
@@ -88,12 +117,7 @@ vi.mock("@/hooks/use-conversation-unit-inspectability", () => ({
 }));
 
 vi.mock("@/hooks/use-session-chat-render-snapshot", () => ({
-  useSessionChatRenderSnapshot: () => ({
-    autoFollowKey: "empty",
-    inspectabilityBoundaries: [],
-    scrollSignal: 0,
-    renderedMessages: [],
-  }),
+  useSessionChatRenderSnapshot: (input: unknown) => sessionChatRenderSnapshotMock(input),
 }));
 
 vi.mock("@/stores/chat-store", () => ({
@@ -104,6 +128,17 @@ vi.mock("@/stores/chat-store", () => ({
 import { ChatArea } from "./chat-area";
 
 describe("chat-area", () => {
+  beforeEach(() => {
+    sessionChatRenderSnapshotMock.mockReset();
+    sessionChatRenderSnapshotMock.mockReturnValue({
+      autoFollowKey: "empty",
+      inspectabilityBoundaries: [],
+      scrollSignal: "none",
+      renderedMessages: [],
+      streamingMessage: null,
+    });
+  });
+
   it("shows compact execution project controls without the old setup heading", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
@@ -251,10 +286,10 @@ describe("chat-area", () => {
         missionActionLabel="Mission Details"
         onMissionAction={() => undefined}
         availableOperations={[]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         workflowProgress={{
-          workflowLabel: "openspec-dev",
+          workflowLabel: "test-review-cycle-flow",
           currentStep: "review",
           currentStepIndex: 3,
           totalSteps: 5,
@@ -273,7 +308,7 @@ describe("chat-area", () => {
     expect(markup).toContain("3/5");
     expect(markup).toContain("Waiting");
     expect(markup).toContain("review");
-    expect(markup).toContain("openspec-dev");
+    expect(markup).toContain("test-review-cycle-flow");
     expect(markup).toContain("Pass 2");
   });
 
@@ -287,10 +322,10 @@ describe("chat-area", () => {
         missionActionLabel="Mission Details"
         onMissionAction={() => undefined}
         availableOperations={[]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         workflowProgress={{
-          workflowLabel: "openspec-dev",
+          workflowLabel: "test-review-cycle-flow",
           currentStep: "refactor",
           currentStepIndex: 5,
           totalSteps: 5,
@@ -320,10 +355,10 @@ describe("chat-area", () => {
         missionExecutionLabel="Core Repo"
         contextProjects={[]}
         availableOperations={[]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         workflowProgress={{
-          workflowLabel: "openspec-dev",
+          workflowLabel: "test-review-cycle-flow",
           currentStep: "review",
           currentStepIndex: 3,
           totalSteps: 5,
@@ -340,5 +375,426 @@ describe("chat-area", () => {
 
     expect(markup).not.toContain("Radio Incoming");
     expect(markup).not.toContain("Outputs");
+  });
+
+  it("shows an explicit loading state while mission history is still hydrating", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="loading"
+        isResponding={true}
+        isLoadingHistory={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("transcript-loading-capsule");
+    expect(markup).toContain("transcript-loading-dot transcript-loading-dot-1");
+    expect(markup).toContain("transcript-loading-dot transcript-loading-dot-3");
+    expect(markup).not.toContain("Loading Session History");
+    expect(markup).not.toContain("Refreshing the sanitized transcript for this mission.");
+    expect(markup).toContain("send-disabled");
+  });
+
+  it("suppresses the transcript loading capsule once visible transcript rows already exist", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        assistantPending: true,
+        messages: [
+          {
+            content: "Mission one reply",
+            detailContent: "Mission one reply",
+            id: "assistant-1",
+            kind: "assistant_message",
+            parts: [{ text: "Mission one reply", type: "text" }],
+            rawText: "Mission one reply",
+            role: "assistant",
+            sender: "noctis",
+            senderLabel: "Noctis",
+            source: "session",
+            timestamp: new Date("2026-04-19T00:00:00.000Z"),
+          },
+        ],
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="loading"
+        isResponding={true}
+        isLoadingHistory={true}
+        isSessionActive={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Mission one reply");
+    expect(markup).not.toContain("transcript-loading-capsule");
+    expect(markup).toContain("animate-bounce");
+  });
+
+  it("shows an explicit empty state when the mission transcript resolves without messages", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="empty"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("No Session History Yet");
+    expect(markup).toContain("This mission has not produced a transcript yet.");
+    expect(markup).toContain("send-enabled");
+  });
+
+  it("shows abort-settlement feedback while resend is blocked", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="ready"
+        abortSettlementPhase="settling"
+        isResponding={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Stopping Response");
+    expect(markup).toContain("Waiting for the managed session to become idle before sending again.");
+    expect(markup).toContain("send-disabled");
+  });
+
+  it("shows a stronger warning when abort settlement takes longer than usual", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="ready"
+        abortSettlementPhase="delayed"
+        isResponding={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Still Waiting for Session Idle");
+    expect(markup).toContain(
+      "Stopping is taking longer than usual. Keep editing your next prompt; send will re-enable when the managed session becomes idle.",
+    );
+    expect(markup).toContain("send-disabled");
+  });
+
+  it("shows operation description tooltips only on select options", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        contextProjects={[]}
+        availableOperations={[
+          {
+            value: "builtin:ja:test-review-cycle-flow.yaml",
+            label: "test-review-cycle-flow",
+            description: "Guided mission flow.",
+            isDefault: false,
+            name: "test-review-cycle-flow",
+            sourceKind: "builtin",
+            sourceLabel: "Builtin",
+          },
+        ]}
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup.match(/data-tooltip-content="true"/g)).toHaveLength(1);
+    expect(markup).toContain('data-select-item="builtin:ja:test-review-cycle-flow.yaml"');
+    expect(markup).toContain("Guided mission flow.");
+  });
+
+  it("shows a transcript error state distinct from an empty transcript", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyErrorMessage="Unable to load mission transcript."
+        historyPhase="error"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Transcript Load Failed");
+    expect(markup).toContain("Unable to load mission transcript.");
+    expect(markup).not.toContain("No Session History Yet");
+  });
+
+  it("renders temporary assistant streaming text through the shared snapshot while keeping the generic typing indicator visible", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        assistantPending: true,
+        messages: [],
+        streamingText: {
+          content: "Mission two is responding",
+          fallbackSender: "noctis",
+          fallbackSenderLabel: "Noctis",
+        },
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        streamingContent="Mission two is responding"
+        isResponding={true}
+        isSessionActive={true}
+        isStreaming={true}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
+      assistantPending: true,
+      continuityAssistant: {
+        sender: "noctis",
+        senderLabel: "Noctis",
+      },
+      currentStreamingMessageId: null,
+      liveDraft: null,
+      messages: [],
+      streamingText: {
+        content: "Mission two is responding",
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+      },
+    });
+    expect(markup).toContain("Mission two is responding");
+    expect(markup).toContain("animate-bounce");
+  });
+
+  it("passes a mission live draft into the shared snapshot contract", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        liveDraft: {
+          fallbackSender: "lunafreya",
+          fallbackSenderLabel: "Lunafreya",
+          messageId: "assistant-1",
+          parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+        },
+        messages: [],
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        liveDraft={{
+          messageId: "assistant-1",
+          parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+          sessionId: "session-1",
+        }}
+        isResponding={true}
+        isSessionActive={true}
+        isStreaming={true}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+        primaryAgentId="lunafreya"
+        primaryAgentLabel="Lunafreya"
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
+      assistantPending: true,
+      continuityAssistant: {
+        sender: "lunafreya",
+        senderLabel: "Lunafreya",
+      },
+      currentStreamingMessageId: null,
+      liveDraft: {
+        fallbackSender: "lunafreya",
+        fallbackSenderLabel: "Lunafreya",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      },
+      messages: [],
+      streamingText: null,
+    });
+    expect(markup).toContain("Intermediate activity only.");
+    expect(markup).toContain("Commentary");
+    expect(markup).toContain("Thinking through the next step");
+  });
+
+  it("uses only the visible body for primary-agent copy content", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce({
+      autoFollowKey: "copy-only-body",
+      confirmedInspectabilityBoundaries: [],
+      confirmedRenderedMessages: [],
+      input: {
+        assistantPending: false,
+        continuityAssistant: {
+          sender: "noctis",
+          senderLabel: "Noctis",
+        },
+        currentStreamingMessageId: null,
+        liveDraft: null,
+        messages: [],
+        streamingText: null,
+      },
+      inspectabilityBoundaries: [],
+      refreshKind: "initial",
+      renderedMessages: [
+        {
+          id: "assistant-1",
+          conversationUnitId: "assistant-1",
+          role: "assistant",
+          sender: "noctis",
+          senderLabel: "Noctis",
+          kind: "assistant_message",
+          content: "Main reply.",
+          detailContent: "Main reply.",
+          rawText: "Main reply.",
+          parts: [
+            { type: "text", text: "Main reply." },
+            { type: "reasoning", text: "Reasoning that should stay out of copy." },
+            {
+              type: "tool",
+              tool: "shell",
+              state: {
+                status: "completed",
+                output: "tool output",
+              },
+            },
+          ],
+          timestamp: new Date("2026-04-07T10:30:00.000Z"),
+          source: "session",
+          sourceMessageIds: ["assistant-1"],
+          detailRawText: "Main reply.",
+          messageDisplay: {
+            displayContent: "Main reply.",
+            promptContextSections: [],
+            promptContextSource: null,
+            rawWorkflowPrompt: null,
+            rawPromptPayload: null,
+            reportDetails: null,
+            selectionAdjustment: null,
+            resolvedSender: "noctis",
+            resolvedSenderIsUser: false,
+            resolvedSenderLabel: "Noctis",
+            workflowPresentation: null,
+          },
+        },
+      ],
+      scrollSignal: "none",
+      showPendingIndicator: false,
+      streamingMessage: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-copy-content="Main reply."');
+    expect(markup).not.toContain('data-copy-content="Main reply.\n\n## Reasoning');
+  });
+
+  it("marks the shared snapshot as assistant-pending before visible live content arrives", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        assistantPending: true,
+        messages: [],
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={true}
+        isSessionActive={true}
+        isStreaming={true}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith({
+      assistantPending: true,
+      continuityAssistant: {
+        sender: "noctis",
+        senderLabel: "Noctis",
+      },
+      currentStreamingMessageId: null,
+      liveDraft: null,
+      messages: [],
+      streamingText: null,
+    });
+    expect(markup).toContain("animate-bounce");
   });
 });

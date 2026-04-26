@@ -1,10 +1,11 @@
 import { Archive, Clock, FileText, RefreshCw, RotateCcw, User } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { Alert, AlertCircle, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSheetTransition } from "@/hooks/use-sheet-transition";
 import { cn } from "@/lib/utils";
 import type { ReportMeta } from "../api.reports";
 import type { Route } from "./+types/route";
@@ -18,31 +19,18 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
   const [tab, setTab] = useState<Tab>("active");
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const closeTimeoutRef = useRef<number | null>(null);
 
   const isDetailShowing = location.pathname !== "/reports" && location.pathname !== "/reports/";
-
-  useEffect(() => {
-    if (isDetailShowing) {
-      if (closeTimeoutRef.current !== null) {
-        window.clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
-      }
-
-      setIsSheetOpen(true);
-    }
-  }, [isDetailShowing]);
-
-  useEffect(() => {
-    return () => {
-      if (closeTimeoutRef.current !== null) {
-        window.clearTimeout(closeTimeoutRef.current);
-      }
-    };
-  }, []);
+  const detailRouteKey = isDetailShowing ? `${location.pathname}${location.search}` : null;
+  const sheetTransition = useSheetTransition({
+    activeKey: detailRouteKey,
+    closeDurationMs: SHEET_CLOSE_ANIMATION_MS,
+    onCloseComplete: () => {
+      navigate("/reports");
+    },
+  });
 
   const fetchReports = useCallback(async (currentTab: Tab) => {
     setLoadingList(true);
@@ -75,12 +63,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
   };
 
   const handleSelect = (report: ReportMeta) => {
-    if (closeTimeoutRef.current !== null) {
-      window.clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-
-    setIsSheetOpen(true);
+    sheetTransition.reopen();
 
     if (tab === "archived") {
       navigate(`/reports/${encodeURIComponent(report.filename)}?archived=true`);
@@ -89,18 +72,6 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
 
     navigate(`/reports/${encodeURIComponent(report.filename)}`);
   };
-
-  const closeDetail = useCallback(() => {
-    if (closeTimeoutRef.current !== null) {
-      window.clearTimeout(closeTimeoutRef.current);
-    }
-
-    setIsSheetOpen(false);
-    closeTimeoutRef.current = window.setTimeout(() => {
-      closeTimeoutRef.current = null;
-      navigate("/reports");
-    }, SHEET_CLOSE_ANIMATION_MS);
-  }, [navigate]);
 
   const archiveReport = useCallback(
     async (filename: string, action: "archive" | "restore") => {
@@ -182,6 +153,7 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
           <div className="flex flex-col">
             {reports.map((report) => {
               const isActive =
+                sheetTransition.isVisualRouteActive &&
                 decodeURIComponent(location.pathname) === `/reports/${report.filename}`;
               return (
                 <button
@@ -252,11 +224,12 @@ const ReportsLayout = (_props: Route.ComponentProps) => {
         </div>
 
         <Sheet
-          onOpenChange={(open) => (!open ? closeDetail() : setIsSheetOpen(true))}
-          open={isSheetOpen}
+          onOpenChange={sheetTransition.handleOpenChange}
+          open={sheetTransition.isSheetOpen}
         >
           <SheetContent
             className="w-[98vw] max-w-[98vw] p-0 sm:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
+            onAnimationEnd={sheetTransition.handleContentAnimationEnd}
             showCloseButton={false}
           >
             <Outlet context={{ archiveReport }} />

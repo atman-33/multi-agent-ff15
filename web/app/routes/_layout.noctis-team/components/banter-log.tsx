@@ -1,16 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getAgentTheme } from "@/lib/agent-theme";
+import type { BanterEntry } from "@/lib/noctis-team-ui-types";
 import { cn } from "@/lib/utils";
-
-export interface BanterEntry {
-  id: string;
-  speakerId: string;
-  speakerName: string;
-  speakerAvatar: string;
-  message: string;
-  timestamp: Date;
-}
 
 interface BanterLogProps {
   entries: BanterEntry[];

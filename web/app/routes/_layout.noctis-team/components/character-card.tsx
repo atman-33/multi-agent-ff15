@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
+import type { AgentStatus } from "@/lib/noctis-team-ui-types";
 import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
-
-export type AgentStatus = "idle" | "working" | "success" | "blocked";
 
 export interface CharacterCardProps {
   agentId?: string;

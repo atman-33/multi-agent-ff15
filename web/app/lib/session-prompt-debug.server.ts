@@ -11,6 +11,7 @@ type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]:
 export type SessionPromptDebugEvent = {
   route:
     | "api.opencode.session.start"
+    | "api.noctis.mission.continue"
     | "api.session.$id.prompt"
     | "api.session.$id.abort";
   stage:

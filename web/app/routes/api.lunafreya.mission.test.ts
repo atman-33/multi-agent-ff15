@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { deleteMission, getMission } from "@/lib/mission-store";
+import { createMission, deleteMission, getMission } from "@/lib/mission-store";
 
 const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
   promptAsyncMock: vi.fn(),
@@ -223,7 +223,7 @@ describe("Lunafreya mission routing", () => {
     expect(mission?.lunafreyaFacetSelection?.selectedJobId).toBeUndefined();
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        directory: join(root, "external-alpha"),
+        directory: root,
         title: `mission:${data.missionId}`,
       }),
     );
@@ -392,5 +392,44 @@ describe("Lunafreya mission routing", () => {
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
     expect(promptText).not.toContain("<lunafreya-skill-overlay>");
+  });
+
+  it("recreates a missing Lunafreya session from the app root on continue", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const mission = createMission(`mission-${crypto.randomUUID()}`, "", {
+      title: "Lunafreya direct mission",
+      objective: "Resume with a recreated primary session",
+      surfaceId: "lunafreya",
+      primaryAgentId: "lunafreya",
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-recreated" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-lunafreya-recreated" } });
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/lunafreya/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume with a recreated primary session.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson<{ lunafreyaSessionId: string }>(response)).resolves.toEqual({
+      lunafreyaSessionId: "session-lunafreya-recreated",
+    });
+    expect(sessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${mission.id}`,
+      }),
+    );
+    expect(getMission(mission.id)?.primarySessionId).toBe("session-lunafreya-recreated");
   });
 });
