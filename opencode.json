@@ -48,7 +48,7 @@
         "-c",
         "uvx --from git+https://github.com/oraios/serena serena start-mcp-server --open-web-dashboard false --context ide-assistant"
       ],
-      "enabled": true
+      "enabled": false
     }
   }
 }
