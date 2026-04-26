@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createMission, deleteMission } from "@/lib/mission-store";
 import { createOperationState, saveOperationState } from "@/lib/operation-runtime/state";
+import {
+  REVIEW_CYCLE_TEST_OPERATION_NAME,
+  REVIEW_CYCLE_TEST_OPERATION_REF,
+  writeReviewCycleTestOperation,
+} from "@/lib/test-fixtures/operation-fixtures";
 import { loader } from "./api.noctis.missions.$missionId";
 
 const tempRoots: string[] = [];
@@ -21,54 +26,7 @@ function createTempRoot(): string {
 }
 
 function seedWorkflowFixture(root: string): void {
-  writeFileSync(
-    join(root, "builtins", "ja", "operations", "openspec-dev.yaml"),
-    [
-      "name: openspec-dev",
-      "description: Guided OpenSpec delivery workflow.",
-      "initial_step: spec-planning",
-      "steps:",
-      "  - name: spec-planning",
-      "    agent: noctis",
-      "    instruction:",
-      "      inline: Plan the change.",
-      "    rules:",
-      "      - condition: Planned",
-      "        next: implement",
-      "  - name: implement",
-      "    agent: gladiolus",
-      "    instruction:",
-      "      inline: Implement the plan.",
-      "    rules:",
-      "      - condition: Implemented",
-      "        next: review",
-      "  - name: review",
-      "    agent: ignis",
-      "    instruction:",
-      "      inline: Review the implementation.",
-      "    rules:",
-      "      - condition: Approved",
-      "        next: refactor",
-      "      - condition: Fix needed",
-      "        next: fix",
-      "  - name: fix",
-      "    agent: gladiolus",
-      "    instruction:",
-      "      inline: Fix review findings.",
-      "    rules:",
-      "      - condition: Fixed",
-      "        next: review",
-      "  - name: refactor",
-      "    agent: prompto",
-      "    instruction:",
-      "      inline: Perform final cleanup.",
-      "    rules:",
-      "      - condition: Done",
-      "        next: COMPLETE",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
+  writeReviewCycleTestOperation(root);
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -108,9 +66,9 @@ describe("api.noctis.missions.$missionId", () => {
     });
 
     const operationState = createOperationState(
-      "openspec-dev",
+      REVIEW_CYCLE_TEST_OPERATION_NAME,
       "spec-planning",
-      "builtin:ja:openspec-dev.yaml",
+      REVIEW_CYCLE_TEST_OPERATION_REF,
     );
     operationState.currentStep = "review";
     operationState.status = "complete";
@@ -179,7 +137,7 @@ describe("api.noctis.missions.$missionId", () => {
     }>(response);
 
     expect(data.workflowProgress).toMatchObject({
-      workflowLabel: "openspec-dev",
+      workflowLabel: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "review",
       currentStepIndex: 3,
       totalSteps: 5,

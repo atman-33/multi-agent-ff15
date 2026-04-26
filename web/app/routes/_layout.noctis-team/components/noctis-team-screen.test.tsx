@@ -482,7 +482,7 @@ describe("noctis-team-screen", () => {
         activeMissionId="mission-1"
         initialMissionData={buildMission({
           workflowProgress: {
-            workflowLabel: "openspec-dev",
+            workflowLabel: "test-review-cycle-flow",
             currentStep: "review",
             currentStepIndex: 3,
             totalSteps: 5,

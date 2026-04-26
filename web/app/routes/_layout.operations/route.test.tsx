@@ -274,7 +274,7 @@ describe("operations route", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
     writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
-    writeOperation(root, "ja", "openspec-dev", "OpenSpec delivery flow.");
+    writeOperation(root, "ja", "test-review-cycle-flow", "Review-cycle test flow.");
 
     const loaderData = await loader({
       request: new Request("http://localhost/operations"),
@@ -290,7 +290,7 @@ describe("operations route", () => {
     });
     expect(loaderData.operations.map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
     ]);
     expect(loaderData.selectedOperation).toBe("builtin:ja:noctis-autonomous.yaml");
     expect(buildOperationsPreviewBundleMock).toHaveBeenCalledWith(

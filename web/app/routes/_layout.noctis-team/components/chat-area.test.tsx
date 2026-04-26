@@ -269,10 +269,10 @@ describe("chat-area", () => {
         missionActionLabel="Mission Details"
         onMissionAction={() => undefined}
         availableOperations={[]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         workflowProgress={{
-          workflowLabel: "openspec-dev",
+          workflowLabel: "test-review-cycle-flow",
           currentStep: "review",
           currentStepIndex: 3,
           totalSteps: 5,
@@ -291,7 +291,7 @@ describe("chat-area", () => {
     expect(markup).toContain("3/5");
     expect(markup).toContain("Waiting");
     expect(markup).toContain("review");
-    expect(markup).toContain("openspec-dev");
+    expect(markup).toContain("test-review-cycle-flow");
     expect(markup).toContain("Pass 2");
   });
 
@@ -305,10 +305,10 @@ describe("chat-area", () => {
         missionActionLabel="Mission Details"
         onMissionAction={() => undefined}
         availableOperations={[]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         workflowProgress={{
-          workflowLabel: "openspec-dev",
+          workflowLabel: "test-review-cycle-flow",
           currentStep: "refactor",
           currentStepIndex: 5,
           totalSteps: 5,
@@ -338,10 +338,10 @@ describe("chat-area", () => {
         missionExecutionLabel="Core Repo"
         contextProjects={[]}
         availableOperations={[]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         workflowProgress={{
-          workflowLabel: "openspec-dev",
+          workflowLabel: "test-review-cycle-flow",
           currentStep: "review",
           currentStepIndex: 3,
           totalSteps: 5,
@@ -509,16 +509,16 @@ describe("chat-area", () => {
         contextProjects={[]}
         availableOperations={[
           {
-            value: "builtin:ja:openspec-dev.yaml",
-            label: "openspec-dev",
+            value: "builtin:ja:test-review-cycle-flow.yaml",
+            label: "test-review-cycle-flow",
             description: "Guided mission flow.",
             isDefault: false,
-            name: "openspec-dev",
+            name: "test-review-cycle-flow",
             sourceKind: "builtin",
             sourceLabel: "Builtin",
           },
         ]}
-        selectedOperation="builtin:ja:openspec-dev.yaml"
+        selectedOperation="builtin:ja:test-review-cycle-flow.yaml"
         activeOperationState={null}
         isOperationSelectionLocked={false}
         onSelectedOperationChange={() => undefined}
@@ -527,7 +527,7 @@ describe("chat-area", () => {
     );
 
     expect(markup.match(/data-tooltip-content="true"/g)).toHaveLength(1);
-    expect(markup).toContain('data-select-item="builtin:ja:openspec-dev.yaml"');
+    expect(markup).toContain('data-select-item="builtin:ja:test-review-cycle-flow.yaml"');
     expect(markup).toContain("Guided mission flow.");
   });
 

@@ -111,13 +111,13 @@ describe("operation-debug operation options", () => {
     const root = createTempRoot("ja");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
-    writeOperation(root, "ja", "openspec-dev", "OpenSpec delivery flow.");
+    writeOperation(root, "ja", "test-review-cycle-flow", "Review-cycle test flow.");
     writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
 
     expect(resolveOperationDebugLanguage()).toBe("ja");
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
     ]);
   });
 
@@ -125,7 +125,7 @@ describe("operation-debug operation options", () => {
     const root = createTempRoot("en");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
-    writeOperation(root, "ja", "openspec-dev", "Japanese workflow.");
+    writeOperation(root, "ja", "test-review-cycle-flow", "Japanese workflow.");
     writeOperation(root, "en", "noctis-autonomous", "Default conversational flow.");
     writeOperation(root, "en", "english-review", "English review workflow.");
 
@@ -140,13 +140,13 @@ describe("operation-debug operation options", () => {
     const root = createTempRoot("en");
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
-    writeOperation(root, "ja", "openspec-dev", "OpenSpec delivery flow.");
+    writeOperation(root, "ja", "test-review-cycle-flow", "Review-cycle test flow.");
     writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
 
     expect(resolveOperationDebugLanguage()).toBe("ja");
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
+      "builtin:ja:test-review-cycle-flow.yaml",
     ]);
   });
 
@@ -155,10 +155,10 @@ describe("operation-debug operation options", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
     writeOperation(root, "ja", "noctis-autonomous", "Default conversational flow.");
-    writeOperation(root, "ja", "openspec-dev", "Builtin OpenSpec workflow.");
+    writeOperation(root, "ja", "test-review-cycle-flow", "Builtin review-cycle test workflow.");
     writeProjectManifest(root, "alpha", "Alpha Project");
     writeActiveProjectConfig(root, ["alpha"]);
-    writeProjectOperation(root, "alpha", "openspec-dev", "Alpha project workflow.");
+    writeProjectOperation(root, "alpha", "test-review-cycle-flow", "Alpha project workflow.");
 
     expect(listOperationDebugProjectFilterOptions()).toEqual([
       { value: "all", label: "All Registered Projects" },
@@ -166,8 +166,8 @@ describe("operation-debug operation options", () => {
     ]);
     expect(listOperationDebugOptions().map((operation) => operation.value)).toEqual([
       "builtin:ja:noctis-autonomous.yaml",
-      "builtin:ja:openspec-dev.yaml",
-      buildProjectOperationRef("alpha", "openspec-dev.yaml"),
+      "builtin:ja:test-review-cycle-flow.yaml",
+      buildProjectOperationRef("alpha", "test-review-cycle-flow.yaml"),
     ]);
   });
 

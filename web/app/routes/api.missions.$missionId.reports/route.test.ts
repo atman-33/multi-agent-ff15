@@ -13,6 +13,10 @@ import {
 } from "@/lib/mission-store";
 import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { createOperationState } from "@/lib/operation-runtime/state";
+import {
+  REVIEW_CYCLE_TEST_OPERATION_NAME,
+  writeReviewCycleTestOperation,
+} from "@/lib/test-fixtures/operation-fixtures";
 
 vi.mock("@/lib/team-message.server", () => ({
   sendWorkerReport: vi.fn(),
@@ -38,6 +42,7 @@ function createTempRootWithBuiltins(): string {
   cpSync(join(repoRoot, "config"), join(root, "config"), { recursive: true });
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
   cpSync(join(repoRoot, "opencode.json"), join(root, "opencode.json"));
+  writeReviewCycleTestOperation(root);
   return root;
 }
 
@@ -133,7 +138,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-invalid-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-invalid",
@@ -171,7 +176,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-progress-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-progress",
@@ -215,7 +220,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-missing-output-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "review",
       agent: "ignis",
       taskId: "task-review-missing",
@@ -260,7 +265,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-noctis-missing-output-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "spec-planning",
       agent: "noctis",
       taskId: "step_spec-planning_1",
@@ -298,7 +303,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-output-present-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "review",
       agent: "ignis",
       taskId: "task-review-present",
@@ -408,12 +413,12 @@ describe("api.missions.$missionId.reports", () => {
     });
   });
 
-  it("auto-dispatches the next openspec-dev worker without relaying through Noctis", async () => {
+  it("auto-dispatches the next review-cycle test worker without relaying through Noctis", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRootWithBuiltins();
     const missionId = `mission-auto-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "implement",
       agent: "gladiolus",
       taskId: "task-auto",
@@ -470,7 +475,7 @@ describe("api.missions.$missionId.reports", () => {
     const missionId = `mission-noctis-${crypto.randomUUID()}`;
     seedMission({
       missionId,
-      operationName: "openspec-dev",
+      operationName: REVIEW_CYCLE_TEST_OPERATION_NAME,
       currentStep: "spec-planning",
       agent: "noctis",
       taskId: "step_spec-planning_1",

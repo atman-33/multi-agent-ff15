@@ -125,11 +125,11 @@ describe("draft-apply.server", () => {
     const result = applyOperationsDraft({
       sourceOperationRef: "builtin:en:saved-flow.yaml",
       target: { kind: "builtin", projectId: null },
-      operation: createOperationDefinition(root, "renamed-flow"),
+      operation: createOperationDefinition(root, "saved-flow-renamed"),
     });
 
-    const renamedPath = join(root, "builtins", "en", "operations", "renamed-flow.yaml");
-    expect(result.operationRef).toBe("builtin:en:renamed-flow.yaml");
+    const renamedPath = join(root, "builtins", "en", "operations", "saved-flow-renamed.yaml");
+    expect(result.operationRef).toBe("builtin:en:saved-flow-renamed.yaml");
     expect(result.changes).toEqual([
       {
         action: "write",
@@ -141,7 +141,7 @@ describe("draft-apply.server", () => {
       },
     ]);
     expect(existsSync(originalPath)).toBe(false);
-    expect(loadOperationFromFile(renamedPath).name).toBe("renamed-flow");
+    expect(loadOperationFromFile(renamedPath).name).toBe("saved-flow-renamed");
   });
 
   it("applies project-targeted drafts into the selected registered project authoring directory", () => {
