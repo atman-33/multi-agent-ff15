@@ -5,6 +5,7 @@ import {
 } from "@/lib/noctis-mission-runtime-debug.server";
 
 const DEBUG_EVENTS: ReadonlySet<string> = new Set<NoctisMissionRuntimeDebugEvent["event"]>([
+  "mission-load",
   "primary-session-idle",
   "session-history-sync",
   "settled-evaluation",

@@ -491,7 +491,12 @@ function createId(): string {
 }
 
 type MissionClientDebugEventInput = {
-  event: "primary-session-idle" | "session-history-sync" | "settled-evaluation" | "session-settled-emitted";
+  event:
+    | "mission-load"
+    | "primary-session-idle"
+    | "session-history-sync"
+    | "settled-evaluation"
+    | "session-settled-emitted";
   stage: "observed" | "completed" | "failed";
   missionId: string | null | undefined;
   missionRouteBase: string;
@@ -916,8 +921,13 @@ export function useAgentSession({
   >({});
   const sessionHistorySyncInFlightRef = useRef<Set<string>>(new Set());
   const sessionHistorySyncQueuedRef = useRef<Map<string, SessionHistorySyncOptions>>(new Map());
+  const loadMissionHydrationInFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  const completedLoadMissionHydrationKeysRef = useRef<Set<string>>(new Set());
+  const lastLoadMissionSignatureRef = useRef<string | null>(null);
+  const loadMissionInvocationIdRef = useRef(0);
   const runtimeRefreshInFlightRef = useRef(false);
   const runtimeRefreshQueuedRef = useRef(false);
+  const applyMissionRuntimeSnapshotRef = useRef<((runtime: MissionRuntimeSnapshot) => void) | null>(null);
   const refreshMissionRuntimeRef = useRef<(() => Promise<void>) | null>(null);
 
   const sessionStates = useChatStore((state) => state.sessionStates);
@@ -1299,6 +1309,8 @@ export function useAgentSession({
     lastNoctisSettledEmitAtRef.current = null;
     sessionHistorySyncInFlightRef.current.clear();
     sessionHistorySyncQueuedRef.current.clear();
+    loadMissionHydrationInFlightRef.current.clear();
+    completedLoadMissionHydrationKeysRef.current.clear();
     setIsStreaming(false);
     lastSessionStateRef.current = null;
     lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
@@ -1457,6 +1469,76 @@ export function useAgentSession({
 
         sessionHistorySyncInFlightRef.current.delete(sessionId);
       })();
+    },
+    [syncSessionMessages],
+  );
+
+  const ensureLoadMissionHistoryHydrated = useCallback(
+    (missionId: string, sessionId: string, invocationId: number, signature: string) => {
+      const hydrationKey = `${missionId}:${sessionId}`;
+      if (completedLoadMissionHydrationKeysRef.current.has(hydrationKey)) {
+        appendMissionClientDebugLog({
+          event: "mission-load",
+          stage: "observed",
+          missionId,
+          missionRouteBase,
+          sessionId,
+          payload: {
+            phase: "hydrate-decision",
+            hydrateDecision: "skip-completed-same-key",
+            hydrateKey: hydrationKey,
+            invocationId,
+            signature,
+          },
+        });
+        return Promise.resolve();
+      }
+
+      const inFlightHydration = loadMissionHydrationInFlightRef.current.get(hydrationKey);
+      if (inFlightHydration) {
+        appendMissionClientDebugLog({
+          event: "mission-load",
+          stage: "observed",
+          missionId,
+          missionRouteBase,
+          sessionId,
+          payload: {
+            phase: "hydrate-decision",
+            hydrateDecision: "reuse-inflight",
+            hydrateKey: hydrationKey,
+            invocationId,
+            signature,
+          },
+        });
+        return inFlightHydration;
+      }
+
+      appendMissionClientDebugLog({
+        event: "mission-load",
+        stage: "observed",
+        missionId,
+        missionRouteBase,
+        sessionId,
+        payload: {
+          phase: "hydrate-decision",
+          hydrateDecision: "start",
+          hydrateKey: hydrationKey,
+          invocationId,
+          signature,
+        },
+      });
+
+      const hydrationPromise = syncSessionMessages(sessionId, {
+        missionId,
+        reason: "load-mission-initial-hydrate",
+      }).then(() => {
+        completedLoadMissionHydrationKeysRef.current.add(hydrationKey);
+      }).finally(() => {
+        loadMissionHydrationInFlightRef.current.delete(hydrationKey);
+      });
+
+      loadMissionHydrationInFlightRef.current.set(hydrationKey, hydrationPromise);
+      return hydrationPromise;
     },
     [syncSessionMessages],
   );
@@ -1964,6 +2046,10 @@ export function useAgentSession({
   }, [activeMissionId, applyMissionRuntimeSnapshot, missionRouteBase]);
 
   useEffect(() => {
+    applyMissionRuntimeSnapshotRef.current = applyMissionRuntimeSnapshot;
+  }, [applyMissionRuntimeSnapshot]);
+
+  useEffect(() => {
     refreshMissionRuntimeRef.current = refreshMissionRuntime;
 
     return () => {
@@ -2067,6 +2153,7 @@ export function useAgentSession({
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
         lastNoctisSettledEmitAtRef.current = null;
+        lastLoadMissionSignatureRef.current = null;
         banterTimelineMissionIdRef.current = null;
         setNoctisSessionId(null);
         setActiveOperationState(null);
@@ -2084,6 +2171,8 @@ export function useAgentSession({
         setPartyRuntime(createInitialPartyRuntimeState());
         sessionHistorySyncInFlightRef.current.clear();
         sessionHistorySyncQueuedRef.current.clear();
+        loadMissionHydrationInFlightRef.current.clear();
+        completedLoadMissionHydrationKeysRef.current.clear();
         setIsStreaming(false);
         lastSessionStateRef.current = null;
         lastWorkerSessionStatesRef.current = createInitialWorkerSessionStates();
@@ -2115,6 +2204,43 @@ export function useAgentSession({
           : null;
         const immediatePrimarySessionId =
           initialPrimarySessionId ?? pendingPrimarySessionId ?? initialNoctisSessionId;
+        const signature = JSON.stringify({
+          activeMissionId,
+          initialMessageCount: Array.isArray(initialMessageInfos) ? initialMessageInfos.length : 0,
+          initialMissionDataId: initialMissionData?.missionId ?? null,
+          initialNoctisSessionId,
+          initialPrimarySessionId,
+          pendingPrimarySessionId,
+        });
+        const previousSignature = lastLoadMissionSignatureRef.current;
+        const invocationId = loadMissionInvocationIdRef.current + 1;
+        loadMissionInvocationIdRef.current = invocationId;
+        const loadReason =
+          previousSignature === null
+            ? "mission-changed"
+            : previousSignature === signature
+              ? "same-signature-rerun"
+              : "initial-payload-changed";
+        lastLoadMissionSignatureRef.current = signature;
+
+        appendMissionClientDebugLog({
+          event: "mission-load",
+          stage: "observed",
+          missionId: activeMissionId,
+          missionRouteBase,
+          sessionId: immediatePrimarySessionId,
+          payload: {
+            hasPreloadedMessages,
+            immediatePrimarySessionId,
+            initialPrimarySessionId,
+            invocationId,
+            pendingPrimarySessionId,
+            phase: "start",
+            previousSignature,
+            reason: loadReason,
+            signature,
+          },
+        });
 
         if (immediatePrimarySessionId) {
           subscribeToSession(immediatePrimarySessionId);
@@ -2154,7 +2280,7 @@ export function useAgentSession({
         clearProgressBanter();
 
         const runtime = await loadMissionRuntimeSnapshot(activeMissionId, missionRouteBase);
-        applyMissionRuntimeSnapshot(runtime);
+        applyMissionRuntimeSnapshotRef.current?.(runtime);
 
         const primarySessionId = getMissionPrimarySessionIdFromPayload(runtime);
         if (primarySessionId) {
@@ -2165,9 +2291,41 @@ export function useAgentSession({
 
           if (shouldHydrateHistory) {
             setTranscriptState(createMissionTranscriptState(activeMissionId, "loading"));
-            await syncSessionMessages(primarySessionId, { missionId: activeMissionId });
+            await ensureLoadMissionHistoryHydrated(
+              activeMissionId,
+              primarySessionId,
+              invocationId,
+              signature,
+            );
+          } else {
+            appendMissionClientDebugLog({
+              event: "mission-load",
+              stage: "observed",
+              missionId: activeMissionId,
+              missionRouteBase,
+              sessionId: primarySessionId,
+              payload: {
+                hydrateDecision: "skip-preloaded",
+                hydrateKey: `${activeMissionId}:${primarySessionId}`,
+                invocationId,
+                phase: "hydrate-decision",
+                signature,
+              },
+            });
           }
         } else {
+          appendMissionClientDebugLog({
+            event: "mission-load",
+            stage: "observed",
+            missionId: activeMissionId,
+            missionRouteBase,
+            payload: {
+              hydrateDecision: "no-primary-session",
+              invocationId,
+              phase: "hydrate-decision",
+              signature,
+            },
+          });
           setSessionMessages([]);
           clearStreamingState();
           setTranscriptState(createMissionTranscriptState(activeMissionId, "empty"));
@@ -2178,6 +2336,7 @@ export function useAgentSession({
         hasHydratedNoctisSettledRef.current = false;
         lastNoctisSettledRef.current = false;
         lastNoctisSettledEmitAtRef.current = null;
+        lastLoadMissionSignatureRef.current = null;
         setNoctisSessionId(null);
         setActiveOperationState(null);
         setWorkflowProgress(null);
@@ -2197,6 +2356,8 @@ export function useAgentSession({
         );
         sessionHistorySyncInFlightRef.current.clear();
         sessionHistorySyncQueuedRef.current.clear();
+        loadMissionHydrationInFlightRef.current.clear();
+        completedLoadMissionHydrationKeysRef.current.clear();
         sessionStatusRef.current = null;
         clearProgressBanter();
         replaceServerSessionStates({});
@@ -2215,8 +2376,7 @@ export function useAgentSession({
     initialMessageInfos,
     initialMissionData,
     initialNoctisSessionId,
-    applyMissionRuntimeSnapshot,
-    syncSessionMessages,
+    ensureLoadMissionHistoryHydrated,
     missionRouteBase,
     primaryAgentId,
     replaceServerSessionStates,

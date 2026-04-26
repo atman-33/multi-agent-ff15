@@ -1341,6 +1341,148 @@ describe("useAgentSession", () => {
     });
   });
 
+  it("does not rehydrate the same primary session again when streaming starts", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let sessionLoadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1") {
+        sessionLoadCount += 1;
+        return createJsonResponse({
+          messages: [createAssistantMessage("message-1", "Mission one reply")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    expect(sessionLoadCount).toBe(1);
+
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events",
+        ),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              part: {
+                messageID: "message-2",
+                sessionID: "session-1",
+                text: "Mission one is responding",
+                type: "text",
+              },
+            },
+            type: "message.part.updated",
+          }),
+        }),
+      );
+    });
+
+    await flushEffects();
+    await flushEffects();
+    await flushEffects();
+
+    expect(sessionLoadCount).toBe(1);
+  });
+
+  it("does not rehydrate the same primary session again on same-mission rerenders after history is loaded", async () => {
+    const initialMission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let sessionLoadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(initialMission));
+      }
+
+      if (url === "/api/session/session-1") {
+        sessionLoadCount += 1;
+        return createJsonResponse({
+          messages: [createAssistantMessage("message-1", "Mission one reply")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: initialMission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    expect(sessionLoadCount).toBe(1);
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: { ...initialMission },
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await flushEffects();
+    await flushEffects();
+
+    expect(sessionLoadCount).toBe(1);
+  });
+
   it("enters abort settlement after abort succeeds and before idle is confirmed", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

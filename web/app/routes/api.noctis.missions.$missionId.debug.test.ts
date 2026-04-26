@@ -80,6 +80,49 @@ describe("api.noctis.missions.$missionId.debug", () => {
     });
   });
 
+  it("records mission-load debug events to the JSONL log", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const response = await action({
+      request: new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "client-hook",
+          event: "mission-load",
+          stage: "observed",
+          sessionId: "session-1",
+          payload: {
+            phase: "start",
+            reason: "same-signature-rerun",
+            signature: "mission-1:session-1",
+          },
+        }),
+      }),
+      params: { missionId: "mission-1" },
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson<{ recorded: boolean }>(response)).resolves.toEqual({ recorded: true });
+
+    const entries = readFileSync(getNoctisMissionRuntimeDebugLogPath(), "utf-8")
+      .trim()
+      .split(/\r?\n/);
+    expect(entries).toHaveLength(1);
+    expect(JSON.parse(entries[0] ?? "{}")).toMatchObject({
+      source: "client-hook",
+      event: "mission-load",
+      stage: "observed",
+      missionId: "mission-1",
+      sessionId: "session-1",
+      payload: {
+        phase: "start",
+        reason: "same-signature-rerun",
+        signature: "mission-1:session-1",
+      },
+    });
+  });
+
   it("rejects unknown client event names", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
 

@@ -11,6 +11,7 @@ type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]:
 export type NoctisMissionRuntimeDebugEvent = {
   source: "client-hook";
   event:
+    | "mission-load"
     | "primary-session-idle"
     | "session-history-sync"
     | "settled-evaluation"
