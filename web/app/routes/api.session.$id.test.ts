@@ -231,7 +231,7 @@ describe("api.session.$id", () => {
     expect(data.messages[1]?.info.selectionAdjustment).toBeUndefined();
   });
 
-  it("strips unused part metadata while preserving inspectable session content", async () => {
+  it("returns summary-mode session parts while preserving inspectable session content", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionMessagesMock.mockResolvedValue({
       data: [
@@ -280,14 +280,15 @@ describe("api.session.$id", () => {
 
     const data = await readJson<{
       messages: Array<{
+        detailState?: string;
         parts: unknown[];
+        summary?: {
+          content?: string;
+        };
       }>;
     }>(response);
+    expect(data.messages[0]?.detailState).toBe("summary");
     expect(data.messages[0]?.parts).toEqual([
-      {
-        type: "text",
-        text: "<team-message from=\"noctis\" to=\"user\">Visible reply.</team-message>",
-      },
       {
         type: "reasoning",
         text: "Need a follow-up.",
@@ -297,11 +298,11 @@ describe("api.session.$id", () => {
         tool: "apply_patch",
         state: {
           status: "completed",
-          input: { patch: "*** Begin Patch" },
-          output: "done",
-          error: "",
         },
       },
     ]);
+    expect(data.messages[0]?.summary).toMatchObject({
+      content: "Visible reply.",
+    });
   });
 });
