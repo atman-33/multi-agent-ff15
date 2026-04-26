@@ -15,7 +15,7 @@ import {
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId } from "@/lib/types/mission";
 import type { MessageDetailState, MessageInfo, MessagePart } from "@/lib/opencode-session-types";
-import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "./message-parts";
+import { extractReasoning, extractText, extractTools } from "./message-parts";
 
 type Props = {
   content: string;
@@ -190,10 +190,7 @@ const MessageDetailSheet = ({
 
   const displayContent = resolvedMessageDisplay.displayContent;
   const senderLabel = resolvedMessageDisplay.resolvedSenderLabel;
-  const copyContent = useMemo(
-    () => buildMessageMarkdown(displayContent, reasoning, tools),
-    [displayContent, reasoning, tools],
-  );
+  const copyContent = displayContent.trim() ? displayContent : "";
   const hasVisibleBody = displayContent.trim().length > 0;
   const hasIntermediateDetails =
     reasoning.trim().length > 0 ||

@@ -54,6 +54,23 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
 }));
 
+vi.mock("@/components/chat/message-bubble-base", () => ({
+  MessageBubbleBase: ({
+    body,
+    details,
+    copyContent,
+  }: {
+    body?: ReactNode;
+    details?: ReactNode;
+    copyContent: string;
+  }) => (
+    <section data-copy-content={copyContent}>
+      {body}
+      {details}
+    </section>
+  ),
+}));
+
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -658,6 +675,89 @@ describe("chat-area", () => {
     expect(markup).toContain("Intermediate activity only.");
     expect(markup).toContain("Commentary");
     expect(markup).toContain("Thinking through the next step");
+  });
+
+  it("uses only the visible body for primary-agent copy content", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce({
+      autoFollowKey: "copy-only-body",
+      confirmedInspectabilityBoundaries: [],
+      confirmedRenderedMessages: [],
+      input: {
+        assistantPending: false,
+        continuityAssistant: {
+          sender: "noctis",
+          senderLabel: "Noctis",
+        },
+        currentStreamingMessageId: null,
+        liveDraft: null,
+        messages: [],
+        streamingText: null,
+      },
+      inspectabilityBoundaries: [],
+      refreshKind: "initial",
+      renderedMessages: [
+        {
+          id: "assistant-1",
+          conversationUnitId: "assistant-1",
+          role: "assistant",
+          sender: "noctis",
+          senderLabel: "Noctis",
+          kind: "assistant_message",
+          content: "Main reply.",
+          detailContent: "Main reply.",
+          rawText: "Main reply.",
+          parts: [
+            { type: "text", text: "Main reply." },
+            { type: "reasoning", text: "Reasoning that should stay out of copy." },
+            {
+              type: "tool",
+              tool: "shell",
+              state: {
+                status: "completed",
+                output: "tool output",
+              },
+            },
+          ],
+          timestamp: new Date("2026-04-07T10:30:00.000Z"),
+          source: "session",
+          sourceMessageIds: ["assistant-1"],
+          detailRawText: "Main reply.",
+          messageDisplay: {
+            displayContent: "Main reply.",
+            promptContextSections: [],
+            promptContextSource: null,
+            rawWorkflowPrompt: null,
+            rawPromptPayload: null,
+            reportDetails: null,
+            selectionAdjustment: null,
+            resolvedSender: "noctis",
+            resolvedSenderIsUser: false,
+            resolvedSenderLabel: "Noctis",
+            workflowPresentation: null,
+          },
+        },
+      ],
+      scrollSignal: "none",
+      showPendingIndicator: false,
+      streamingMessage: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-copy-content="Main reply."');
+    expect(markup).not.toContain('data-copy-content="Main reply.\n\n## Reasoning');
   });
 
   it("marks the shared snapshot as assistant-pending before visible live content arrives", () => {

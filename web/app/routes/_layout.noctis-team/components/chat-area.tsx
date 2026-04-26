@@ -69,7 +69,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import MessageDetailSheet from "./message-detail-sheet";
-import { buildMessageMarkdown, extractReasoning, extractTools } from "./message-parts";
+import { extractReasoning, extractTools } from "./message-parts";
 
 interface ChatAreaProps {
   sessionId?: string | null;
@@ -392,16 +392,7 @@ const MessageBubble = memo(
     const avatarSrc = getSenderAvatar(message.sender);
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
-    const messageMarkdown = useMemo(
-      () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
-      [messageDisplay.displayContent, reasoning, tools],
-    );
-    const copyContent =
-      isPrimaryAgent && messageMarkdown.trim()
-        ? messageMarkdown
-        : messageDisplay.displayContent.trim()
-          ? messageDisplay.displayContent
-          : message.detailRawText;
+    const copyContent = messageDisplay.displayContent.trim() ? messageDisplay.displayContent : "";
     const hasDetails =
       reasoning.trim().length > 0 ||
       tools.length > 0 ||

@@ -2,9 +2,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/chat/message-detail-sheet-base", () => ({
-  MessageDetailSheetBase: ({ title, children }: { title: string; children: React.ReactNode }) => (
+  MessageDetailSheetBase: ({
+    title,
+    children,
+    copyContent,
+  }: {
+    title: string;
+    children: React.ReactNode;
+    copyContent: string;
+  }) => (
     <section>
       <h1>{title}</h1>
+      <div data-copy-content={copyContent} />
       <div>{children}</div>
     </section>
   ),
@@ -73,19 +82,32 @@ Respond after reviewing the worker report.
         messageRole="assistant"
         onOpenChange={() => undefined}
         open={true}
-        parts={[{ type: "text", text: rawText }]}
+        parts={[
+          { type: "text", text: rawText },
+          { type: "reasoning", text: "Verify the worker report before replying." },
+          {
+            type: "tool",
+            tool: "shell",
+            state: {
+              status: "completed",
+              output: "tool output",
+            },
+          },
+        ]}
         rawTextContent={rawText}
         senderLabel="Assistant"
       />,
     );
 
     expect(markup).toContain("Ignis message detail");
+    expect(markup).toContain('data-copy-content="普通、集中"');
     expect(markup).toContain("Prompt Context");
     expect(markup).toContain("Operation");
     expect(markup).toContain("Operation Note");
     expect(markup).toContain("Instruction");
     expect(markup).toContain("Raw Prompt Payload");
     expect(markup).toContain("普通、集中");
+    expect(markup).not.toContain("data-copy-content=\"普通、集中\n\n## Reasoning");
   });
 
   it("does not render a raw payload block when the stored payload matches the visible body", () => {

@@ -6,7 +6,7 @@ import {
   MessageIntermediateDetails,
   MessageIntermediateDetailsToggle,
 } from "@/components/chat/message-intermediate-details";
-import { buildMessageMarkdown, extractReasoning, extractTools } from "@/lib/chat-message-parts";
+import { extractReasoning, extractTools } from "@/lib/chat-message-parts";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 
 export type SessionMessageBubbleProps = {
@@ -37,18 +37,10 @@ export const SessionMessageBubble = memo(({
   const messageDisplay = message.messageDisplay;
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
-  const messageMarkdown = useMemo(
-    () => buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools),
-    [messageDisplay.displayContent, reasoning, tools],
-  );
   const displayContent = showCursor
     ? `${messageDisplay.displayContent}▌`
     : messageDisplay.displayContent;
-  const copyContent = messageMarkdown.trim()
-    ? messageMarkdown
-    : messageDisplay.displayContent.trim()
-      ? messageDisplay.displayContent
-      : message.detailRawText;
+  const copyContent = messageDisplay.displayContent.trim() ? messageDisplay.displayContent : "";
   const hasDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||

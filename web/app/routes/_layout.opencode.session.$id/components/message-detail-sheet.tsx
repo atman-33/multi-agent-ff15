@@ -2,7 +2,7 @@ import { ArrowUpRight, FileText } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
-import { buildMessageMarkdown, extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
+import { extractReasoning, extractText, extractTools } from "@/lib/chat-message-parts";
 import { getModelKey } from "@/lib/model-variant-selection";
 import type { SessionMessageDisplay } from "@/lib/session-message-presentation";
 import type { SessionSelection } from "@/lib/session-selection-adjustment";
@@ -65,10 +65,9 @@ const MessageDetailSheet = ({
   );
   const reasoning = useMemo(() => extractReasoning(parts ?? []), [parts]);
   const tools = useMemo(() => extractTools(parts ?? []), [parts]);
-  const copyContent = useMemo(
-    () => buildMessageMarkdown(resolvedMessageDisplay.displayContent, reasoning, tools),
-    [resolvedMessageDisplay.displayContent, reasoning, tools],
-  );
+  const copyContent = resolvedMessageDisplay.displayContent.trim()
+    ? resolvedMessageDisplay.displayContent
+    : "";
   const hasVisibleBody = resolvedMessageDisplay.displayContent.trim().length > 0;
   const selectionAdjustment = resolvedMessageDisplay.selectionAdjustment;
   const hasIntermediateDetails =

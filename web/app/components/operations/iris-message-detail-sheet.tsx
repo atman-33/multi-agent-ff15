@@ -2,7 +2,7 @@ import { ArrowUpRight, FileText } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { MessageDetailSheetBase } from "@/components/chat/message-detail-sheet-base";
 import { MessageMarkdown } from "@/components/chat/message-markdown";
-import { buildMessageMarkdown, extractReasoning, extractTools } from "@/lib/chat-message-parts";
+import { extractReasoning, extractTools } from "@/lib/chat-message-parts";
 import { getPromptContextSourceLabel } from "@/lib/chat-workflow-presentation";
 import { getModelKey } from "@/lib/model-variant-selection";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
@@ -48,18 +48,7 @@ export function IrisMessageDetailSheet({
   const messageDisplay = message.messageDisplay;
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
-  const copyContent = useMemo(() => {
-    const markdown = buildMessageMarkdown(messageDisplay.displayContent, reasoning, tools);
-    if (markdown.trim()) {
-      return markdown;
-    }
-
-    if (messageDisplay.displayContent.trim()) {
-      return messageDisplay.displayContent;
-    }
-
-    return message.detailRawText;
-  }, [message.detailRawText, messageDisplay.displayContent, reasoning, tools]);
+  const copyContent = messageDisplay.displayContent.trim() ? messageDisplay.displayContent : "";
   const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
   const selectionAdjustment = messageDisplay.selectionAdjustment;
   const hasIntermediateDetails =

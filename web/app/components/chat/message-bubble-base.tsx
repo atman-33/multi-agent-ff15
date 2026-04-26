@@ -89,7 +89,7 @@ export function MessageBubbleBase({
 
         <div className="mt-1 flex h-7 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
             onClick={() => setDetailOpen(true)}
             type="button"
           >
@@ -97,7 +97,7 @@ export function MessageBubbleBase({
             Open detail
           </button>
           <button
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
             onClick={handleCopy}
             type="button"
           >

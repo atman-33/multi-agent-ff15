@@ -2,9 +2,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/chat/message-detail-sheet-base", () => ({
-  MessageDetailSheetBase: ({ title, children }: { title: string; children: React.ReactNode }) => (
+  MessageDetailSheetBase: ({
+    title,
+    children,
+    copyContent,
+  }: {
+    title: string;
+    children: React.ReactNode;
+    copyContent: string;
+  }) => (
     <section>
       <h1>{title}</h1>
+      <div data-copy-content={copyContent} />
       <div>{children}</div>
     </section>
   ),
@@ -30,6 +39,18 @@ Implemented the requested change.
         content="Implemented the requested change."
         onOpenChange={() => undefined}
         open={true}
+        parts={[
+          { type: "text", text: "Implemented the requested change." },
+          { type: "reasoning", text: "Double-check the handoff before responding." },
+          {
+            type: "tool",
+            tool: "shell",
+            state: {
+              status: "completed",
+              output: "tool output",
+            },
+          },
+        ]}
         rawTextContent={rawPrompt}
         sender="user"
         workflowPresentation={{
@@ -54,10 +75,12 @@ Implemented the requested change.
     );
 
     expect(markup).toContain("Ignis message detail");
+    expect(markup).toContain('data-copy-content="Implemented the requested change."');
     expect(markup).not.toContain("User message detail");
     expect(markup).toContain("Prompt Context");
     expect(markup).toContain("Operation");
     expect(markup).toContain("Instruction");
     expect(markup).toContain("Raw Prompt Payload");
+    expect(markup).not.toContain("data-copy-content=\"&lt;operation-prompt&gt;");
   });
 });

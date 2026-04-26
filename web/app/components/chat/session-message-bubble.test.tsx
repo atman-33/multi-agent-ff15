@@ -7,12 +7,14 @@ vi.mock("@/components/chat/message-bubble-base", () => ({
   MessageBubbleBase: ({
     avatar,
     body,
+    copyContent,
     renderDetailSheet,
     senderLabel,
     senderMetaSupplement,
   }: {
     avatar?: React.ReactNode;
     body: React.ReactNode;
+    copyContent: string;
     renderDetailSheet: (args: {
       open: boolean;
       onOpenChange: (open: boolean) => void;
@@ -25,6 +27,7 @@ vi.mock("@/components/chat/message-bubble-base", () => ({
       <div>{senderLabel}</div>
       <div>{senderMetaSupplement}</div>
       <div>{body}</div>
+      <div>{`copy:${copyContent}`}</div>
       <div>{renderDetailSheet({ open: false, onOpenChange: () => undefined })}</div>
     </section>
   ),
@@ -124,5 +127,31 @@ describe("session-message-bubble", () => {
     expect(markup).toContain("avatar:Hephaestus (Deep Agent)");
     expect(markup).toContain("detail:Hephaestus (Deep Agent)");
     expect(markup).toContain("Adjusted");
+  });
+
+  it("uses only the visible message body for copy content", () => {
+    const message = createMessage();
+    message.parts = [
+      { type: "text", text: "Adjusted reply." },
+      { type: "reasoning", text: "Thinking through follow-up steps." },
+      {
+        type: "tool",
+        tool: "shell",
+        state: {
+          status: "completed",
+          output: "tool output",
+        },
+      },
+    ];
+
+    const markup = renderToStaticMarkup(
+      <SessionMessageBubble message={message} renderDetailSheet={() => null} />,
+    );
+
+    expect(markup).toContain("copy:Adjusted reply.");
+    expect(markup).not.toContain("Reasoning");
+    expect(markup).not.toContain("Tool 1: shell");
+    expect(markup).not.toContain("Thinking through follow-up steps.");
+    expect(markup).not.toContain("tool output");
   });
 });
