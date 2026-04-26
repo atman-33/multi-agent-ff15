@@ -21,8 +21,9 @@ steps:
         6. OpenSpec artifact の作成手順は `.opencode/command/opsx-ff.md` を使う。branch 名と OpenSpec change 名は同じ意図の名前にそろえる。
         7. design を書く前に `.opencode/skills/improve-codebase-architecture/SKILL.md` を読み、deep module と boundary-first の観点を設計に反映する。
         8. 生成する OpenSpec artifact の本文は `{{ setting("language", "name") }}` で記述する。
-        9. OpenSpec の参照先と作成先は current workspace に固定せず、`<tooling-context>` の `openspec_root` を project root として扱い、その配下の `openspec/` を使う。`activate_project` がある場合は、その active project に対応する `openspec_root` を優先する。
-        10. artifact 作成後は change 名と change path を明示して User に確認を依頼し、明示的な承認が出るまで次 step に進まない。
+        9. frontend の自動テストを十分に書けない場合でも、OpenSpec artifact では manual verification guide / checklist / report を deliverable や task として定義しない。必要なら coverage gap や確認観点だけを記述し、この operation の最終 manual verification document は後段の `manual-verification` step だけで作成する。
+        10. OpenSpec の参照先と作成先は current workspace に固定せず、`<tooling-context>` の `openspec_root` を project root として扱い、その配下の `openspec/` を使う。`activate_project` がある場合は、その active project に対応する `openspec_root` を優先する。
+        11. User が実装前に artifact の確認や承認を明示的に求めている場合だけ、artifact 作成後に change 名と change path を示して確認を依頼し、承認が出るまで待つ。それ以外は change 名と change path を報告したら承認待ちせず次 step に進む。
     skills:
       - file: ../facets/skills/agent-relationships/SKILL.md
     output_contracts:
@@ -31,7 +32,7 @@ steps:
           format:
             file: ../facets/output-contracts/spec-plan.md
     rules:
-      - condition: OpenSpec artifacts generated and approved by User
+      - condition: OpenSpec artifacts generated, and approval was obtained only if User explicitly requested artifact review before implementation
         next: implement
 
   - name: implement
