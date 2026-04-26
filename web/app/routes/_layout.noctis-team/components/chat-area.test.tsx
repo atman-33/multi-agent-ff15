@@ -554,9 +554,10 @@ describe("chat-area", () => {
     expect(markup).not.toContain("No Session History Yet");
   });
 
-  it("renders temporary assistant streaming text through the shared snapshot and hides the generic typing indicator once content exists", () => {
+  it("renders temporary assistant streaming text through the shared snapshot while keeping the generic typing indicator visible", () => {
     sessionChatRenderSnapshotMock.mockReturnValueOnce(
       buildSessionChatRenderSnapshot({
+        assistantPending: true,
         messages: [],
         streamingText: {
           content: "Mission two is responding",
@@ -599,7 +600,7 @@ describe("chat-area", () => {
       },
     });
     expect(markup).toContain("Mission two is responding");
-    expect(markup).not.toContain("animate-bounce");
+    expect(markup).toContain("animate-bounce");
   });
 
   it("passes a mission live draft into the shared snapshot contract", () => {
@@ -654,6 +655,7 @@ describe("chat-area", () => {
       messages: [],
       streamingText: null,
     });
+    expect(markup).toContain("Intermediate activity only.");
     expect(markup).toContain("Commentary");
     expect(markup).toContain("Thinking through the next step");
   });

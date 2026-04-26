@@ -610,7 +610,7 @@ export function buildSessionChatRenderSnapshot({
     streamingMessage,
   );
 
-  const showPendingIndicator = assistantPending && !streamingMessage;
+  const showPendingIndicator = assistantPending;
 
   return {
     input: {

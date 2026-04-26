@@ -53,7 +53,7 @@ export function SessionMessageList({
           showCursor={true}
         />
       ) : null}
-      {showPendingIndicator && !streamingMessage ? pendingIndicator ?? null : null}
+      {showPendingIndicator ? pendingIndicator ?? null : null}
     </div>
   );
 }

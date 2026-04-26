@@ -69,7 +69,7 @@ describe("session-message-list", () => {
       />,
     );
 
-    expect(markup.match(/data-message-id=/g)?.length ?? 0).toBe(2);
+    expect(markup.match(/data-message-id=/g)?.length ?? 0).toBe(3);
     expect(markup).toContain("了解。今、みんなに聞いている。");
     expect(markup).toContain(">1</span>");
     expect(markup).toContain("進行中の返信");
@@ -99,7 +99,7 @@ describe("session-message-list", () => {
     expect(markup).not.toContain("data-message-id=");
   });
 
-  it("suppresses the pending indicator when a visible streaming unit already occupies the tail", () => {
+  it("keeps the pending indicator visible when a streaming unit occupies the tail", () => {
     const snapshot = buildSessionChatRenderSnapshot({
       assistantPending: true,
       messages: toSessionPresentationMessages([]),
@@ -124,6 +124,6 @@ describe("session-message-list", () => {
     );
 
     expect(markup).toContain("Still working");
-    expect(markup).not.toContain('data-pending-indicator="true"');
+    expect(markup).toContain('data-pending-indicator="true"');
   });
 });

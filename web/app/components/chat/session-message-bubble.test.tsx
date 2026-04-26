@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
 import type { RenderedSessionMessage } from "@/lib/session-message-presentation";
 
 vi.mock("@/components/chat/message-bubble-base", () => ({
@@ -85,6 +86,32 @@ function createMessage(): RenderedSessionMessage {
 }
 
 describe("session-message-bubble", () => {
+  it("shows an intermediate activity placeholder for reasoning-only streaming messages", () => {
+    const snapshot = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: null,
+        fallbackSenderLabel: "Assistant",
+        messageId: "assistant-1",
+        parts: [{ text: "Thinking through the next step", type: "reasoning" }],
+      },
+      messages: [],
+    });
+
+    if (!snapshot.streamingMessage) {
+      throw new Error("Expected a streaming message for the live draft test.");
+    }
+
+    const markup = renderToStaticMarkup(
+      <SessionMessageBubble
+        message={snapshot.streamingMessage}
+        renderDetailSheet={() => null}
+        showCursor={true}
+      />,
+    );
+
+    expect(markup).toContain("Intermediate activity only.");
+  });
+
   it("renders surface-provided avatar and detail sheet hooks while preserving assistant metadata", () => {
     const markup = renderToStaticMarkup(
       <SessionMessageBubble

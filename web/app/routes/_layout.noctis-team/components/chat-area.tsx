@@ -407,7 +407,7 @@ const MessageBubble = memo(
       tools.length > 0 ||
       Boolean(messageDisplay.reportDetails?.trim()) ||
       messageDisplay.promptContextSections.length > 0;
-    const hasVisibleBody = messageDisplay.displayContent.trim().length > 0 || showCursor;
+    const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
     const detailSummary = useMemo(
       () =>
         buildIntermediateDetailSummary(

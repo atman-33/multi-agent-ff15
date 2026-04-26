@@ -325,7 +325,7 @@ Implemented the requested change.
     expect(snapshot.streamingMessage).toBeNull();
   });
 
-  it("suppresses the pending indicator once live draft or streaming text produces visible tail content", () => {
+  it("keeps the pending indicator visible while assistant work is still in flight", () => {
     const draftSnapshot = buildSessionChatRenderSnapshot({
       assistantPending: true,
       liveDraft: {
@@ -347,9 +347,9 @@ Implemented the requested change.
     });
 
     expect(draftSnapshot.streamingMessage).not.toBeNull();
-    expect(draftSnapshot.showPendingIndicator).toBe(false);
+    expect(draftSnapshot.showPendingIndicator).toBe(true);
     expect(textSnapshot.streamingMessage?.messageDisplay.displayContent).toBe("Visible reply");
-    expect(textSnapshot.showPendingIndicator).toBe(false);
+    expect(textSnapshot.showPendingIndicator).toBe(true);
   });
 
   it("derives follow keys from reasoning-only live draft growth", () => {
