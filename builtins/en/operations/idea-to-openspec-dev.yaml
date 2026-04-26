@@ -1,0 +1,176 @@
+name: idea-to-openspec-dev
+description: >
+  Idea-driven OpenSpec delivery operation.
+  Noctis clarifies the request with grill-me, creates OpenSpec change artifacts, Gladiolus implements with TDD, Ignis reviews, Prompto prepares manual verification docs, and Noctis closes out delivery after User verification.
+initial_step: clarify-requirements
+
+steps:
+  - name: clarify-requirements
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Clarify Requirements — Instructions
+
+        1. Before starting, read `.opencode/skills/grill-me/SKILL.md` and use that workflow to ask User one question at a time in this step.
+        2. Keep questions limited to what is necessary to create the OpenSpec artifacts, and investigate anything that can be answered from the codebase before asking.
+        3. The artifact produced in this step becomes fixed input for downstream steps. At a minimum, record the following in `change-brief.md`, and write its body in the language specified by User or in `{{ setting("language", "name") }}` if none is specified.
+           - `Change Key`: a stable kebab-case key that uniquely identifies this request. Downstream steps use it as the seed for the OpenSpec change name and feature branch, and it must stay stable across reruns for the same request.
+           - Problem, success criteria, constraints, in-scope items, and out-of-scope items
+           - The language explicitly requested by User. If none is specified, default to `{{ setting("language", "name") }}`.
+        4. Once the specification is solid enough that the next step can create the OpenSpec artifacts without more interviews, output the artifact.
+        5. End as cancelled only if User wants to stop at this stage.
+    output_contracts:
+      report:
+        - name: change-brief.md
+          format:
+            file: ../facets/output-contracts/change-brief.md
+    rules:
+      - condition: Requirements clarified and brief recorded
+        next: spec-planning
+      - condition: User cancelled before planning
+        next: cancelled
+
+  - name: spec-planning
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Idea-to-Spec Planning — Instructions
+
+        1. As the first action, run `git fetch origin --prune` to retrieve the latest remote history.
+        2. Since spec investigation must be based on the latest code, first move to the tip of `origin/main` with `git switch --detach origin/main` and inspect the current state there.
+        3. Read `{{ output("clarify-requirements", "latest", "change-brief.md") }}` and treat all settled points there as the source of truth. Ask follow-up questions only when information required to create coherent OpenSpec artifacts is still missing.
+        4. Before creating OpenSpec artifacts, use `Change Key` as the default OpenSpec change name. If the clarified scope shows that a better kebab-case name is needed, you may adjust it while keeping the same intent, but explicitly state the final chosen change name.
+        5. Once the change name is decided, create and switch to the corresponding feature branch from `origin/main`, using `feature/<change-name>` as the base form. If a matching branch already exists in the execution workspace, it may be reused.
+        6. Use `.opencode/command/opsx-ff.md` for the OpenSpec artifact creation procedure. Keep the branch name and the OpenSpec change name aligned to the same intent.
+        7. Before writing the design, read `.opencode/skills/improve-codebase-architecture/SKILL.md` and reflect deep-module and boundary-first viewpoints in the design.
+        8. Write the generated OpenSpec artifacts in the language recorded in `change-brief.md` under `Requested Language`, or in `{{ setting("language", "name") }}` if no explicit request was recorded.
+        9. Even if frontend automation cannot be made sufficient, do not define a manual verification guide, checklist, or report as an OpenSpec deliverable or task. If needed, record only the coverage gap or verification scope there; the final manual verification document for this operation is created only in the later `manual-verification` step.
+        10. Do not pin references or creation targets to the current workspace. Treat `openspec_root` from `<tooling-context>` as the project root and use the `openspec/` directory under it. If `activate_project` is available, prefer the `openspec_root` for the active project.
+        11. Only if User explicitly asked to review or approve the artifacts before implementation, state the change name and change path after artifact creation, ask for confirmation, and wait for approval. Otherwise, report the change name and change path and proceed to the next step without waiting.
+    skills:
+      - file: ../facets/skills/agent-relationships/SKILL.md
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format:
+            file: ../facets/output-contracts/spec-plan.md
+    rules:
+      - condition: OpenSpec artifacts generated, and approval was obtained only if User explicitly requested artifact review before implementation
+        next: implement
+
+  - name: implement
+    agent: gladiolus
+    job:
+      file: ../facets/jobs/implementer.md
+    instruction:
+      inline: |
+        # Implement With TDD — Instructions
+
+        1. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and use the frontmatter `change_name` as the OpenSpec change name. If `change_path` is present, use it first; otherwise use `openspec/changes/<change_name>/` under `openspec_root` from `<tooling-context>`.
+        2. Use `.opencode/command/opsx-apply.md` for the implementation flow.
+        3. Before implementing, read `.opencode/skills/tdd/SKILL.md` and proceed with vertical-slice TDD based on the public interface.
+        4. If `change_name` or `change_path` cannot be resolved, report the step as blocked.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    rules:
+      - condition: Implementation complete and relevant tests pass
+        next: review
+      - condition: Cannot proceed with implementation
+        next: ABORT
+
+  - name: review
+    agent: ignis
+    job:
+      file: ../facets/jobs/reviewer.md
+    instruction:
+      inline: |
+        # Review Against Change Artifacts — Instructions
+
+        1. Review according to `.opencode/command/opsx-verify.md`. Do not modify code.
+        2. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and resolve `change_name` and `change_path` as the verification target. If `change_path` is absent, use `openspec/changes/<change_name>/` under `openspec_root` from `<tooling-context>`.
+        3. Verify consistency with the requirements, tasks, and design, and format the output according to the `code-review` output contract. Write the review report body in `{{ setting("language", "name") }}`.
+        4. If there are blocking or critical findings, record the gaps and inconsistencies concretely so the implementation step can address them.
+    policies:
+      - file: ../facets/policies/coding-standards.md
+    output_contracts:
+      report:
+        - name: code-review.md
+          format:
+            file: ../facets/output-contracts/code-review.md
+    rules:
+      - condition: Approved — no blocking issues
+        next: manual-verification
+      - condition: Blocking or critical issues found
+        next: implement
+      - condition: Review cannot proceed
+        next: ABORT
+
+  - name: manual-verification
+    agent: prompto
+    job:
+      file: ../facets/jobs/verification-writer.md
+    instruction:
+      inline: |
+        # Manual Verification Docs — Instructions
+
+        1. Use the workflow and scaffold from `.opencode/skills/manual-verification-docs/SKILL.md` to create a user-facing manual verification document.
+        2. Determine the target scope from the implementation diff, the change information in `{{ output("spec-planning", "latest", "spec-plan.md") }}`, and, if needed, the findings in `{{ output("review", "latest", "code-review.md") }}`.
+          3. Create exactly one manual verification document at the mission-scoped file path specified by this step's output contract. Do not create duplicate copies in the app repository or execution workspace.
+          4. Follow the skill's structuring rules, but write the generated document body in `{{ setting("language", "name") }}`.
+          5. After creation, report a summary of the generated file path, target scope, and main scenarios.
+      output_contracts:
+        report:
+          - name: manual-verification.md
+            format:
+              file: ../facets/output-contracts/manual-verification.md
+    rules:
+      - condition: Manual verification document created
+        next: finalize-delivery
+      - condition: Cannot create the document
+        next: ABORT
+
+  - name: finalize-delivery
+    agent: noctis
+    job:
+      file: ../facets/jobs/noctis-autonomous.md
+    instruction:
+      inline: |
+        # Finalize Delivery — Instructions
+
+        1. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}`, `{{ output("review", "latest", "code-review.md") }}`, and `{{ output("manual-verification", "latest", "manual-verification.md") }}`. Resolve `change_name` from the spec plan and prefer `change_path` if it is present. If neither can be resolved, report the step as blocked.
+        2. Ask User to run the checks in `manual-verification.md` and confirm whether any problem was found. If User reports problems, summarize the symptoms, unverified items, and reproduction notes, and return to the implement step without archiving, committing, or creating a PR.
+        3. If User reports no problems, use `.opencode/command/opsx-archive.md` to archive the target change. Do not ask User to choose the change; use `change_name`. Always sync delta specs into main specs before archiving, and do not ask User whether to sync.
+        4. After archiving, inspect the git working tree. If there are merge conflicts, unrelated local changes, or you cannot safely identify the files produced by this workflow, stop as blocked. If it is safe to commit, stage only the changes created or updated by this workflow and commit them using `feat: <change_name>` for `feature/` or `feat/` branches, `fix: <change_name>` for `fix/`, `bugfix/`, or `hotfix/` branches, `docs: <change_name>` for `docs/` branches, and `chore: <change_name>` otherwise. If there is nothing new to commit, keep the current HEAD.
+        5. Publish the current branch to the remote.
+        6. Use `.opencode/skills/pr-assistant/SKILL.md` to prepare the PR title and body in `{{ setting("language", "name") }}` and create the PR immediately from the current branch to the repository default branch without an extra approval turn. If needed, rewrite the generated draft into that language before creating the PR.
+        7. Record the manual verification verdict, archive path, spec sync status, chosen commit SHA, PR title, PR URL, and notable notes in `delivery-closeout.md`.
+    output_contracts:
+      report:
+        - name: delivery-closeout.md
+          format:
+            file: ../facets/output-contracts/delivery-closeout.md
+    rules:
+      - condition: User reported issues during manual verification
+        next: implement
+      - condition: Delivery finalized and closeout report recorded
+        next: COMPLETE
+      - condition: Could not finalize delivery safely
+        next: ABORT
+
+  - name: cancelled
+    agent: noctis
+    job:
+      file: ../facets/jobs/planner.md
+    instruction:
+      inline: |
+        # Cancelled — Instructions
+
+        1. User wanted to stop before OpenSpec artifact creation, so end this workflow.
+        2. If a reason for cancellation was given, summarize it briefly and mention any prerequisite for resuming.
+    rules:
+      - condition: Cancellation acknowledged
+        next: ABORT
