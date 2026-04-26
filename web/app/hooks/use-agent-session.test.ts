@@ -625,6 +625,199 @@ describe("useAgentSession", () => {
     });
   });
 
+  it("coalesces overlapping fire-and-forget history sync requests for the same session", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const deferredSession = createDeferredResponse();
+    let sessionLoadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse({ noctisSessionId: "session-1" });
+      }
+
+      if (url === "/api/session/session-1") {
+        sessionLoadCount += 1;
+
+        if (sessionLoadCount === 1) {
+          return deferredSession.promise;
+        }
+
+        return createJsonResponse({
+          messages: [
+            createAssistantMessage("message-1", "Mission one reply"),
+            createAssistantMessage("message-2", "Mission one follow-up reply"),
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events",
+        ),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Continue mission" }]);
+    });
+
+    await waitFor(() => sessionLoadCount === 1);
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              sessionID: "session-1",
+            },
+            type: "session.idle",
+          }),
+        }),
+      );
+    });
+
+    expect(sessionLoadCount).toBe(1);
+  });
+
+  it("runs one queued history sync after the in-flight sync finishes", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const deferredSession = createDeferredResponse();
+    let sessionLoadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse({ noctisSessionId: "session-1" });
+      }
+
+      if (url === "/api/session/session-1") {
+        sessionLoadCount += 1;
+
+        if (sessionLoadCount === 1) {
+          return deferredSession.promise;
+        }
+
+        return createJsonResponse({
+          messages: [
+            createAssistantMessage("message-1", "Mission one reply"),
+            createAssistantMessage("message-2", "Mission one follow-up reply"),
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events",
+        ),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onmessage === "function");
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Continue mission" }]);
+    });
+
+    await waitFor(() => sessionLoadCount === 1);
+
+    await act(async () => {
+      sessionEventSource?.onmessage?.call(
+        sessionEventSource as unknown as EventSource,
+        new MessageEvent("message", {
+          data: JSON.stringify({
+            properties: {
+              sessionID: "session-1",
+            },
+            type: "session.idle",
+          }),
+        }),
+      );
+    });
+
+    deferredSession.resolve(
+      createJsonResponse({
+        messages: [createAssistantMessage("message-1", "Mission one reply")],
+      }),
+    );
+
+    await waitFor(() => sessionLoadCount === 2);
+    await waitFor(() => latestSnapshot?.messages.at(-1) === "Mission one follow-up reply");
+
+    expect(sessionLoadCount).toBe(2);
+  });
+
   it("clears the live tail once history includes the current streaming message while the session stays busy", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     const deferredSession = createDeferredResponse();
@@ -1515,6 +1708,175 @@ describe("useAgentSession", () => {
       await Promise.resolve();
     });
     await waitFor(() => runtimeFetchCount > baselineFetchCount);
+  });
+
+  it("does not emit session-settled banter while runtime status remains busy", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let runtimeFetchCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        runtimeFetchCount += 1;
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: { "session-1": "busy" },
+        });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/banter") {
+        return createJsonResponse({
+          recorded: true,
+          entry: {
+            id: "banter-1",
+            missionId: "mission-1",
+            kind: "ambient",
+            speakerAgent: "noctis",
+            cue: "session-settled",
+            renderedMessage: "Settled while still busy",
+            createdAt: "2026-04-26T00:00:00.000Z",
+          },
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${String(init?.method ?? "GET")}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      useChatStore.getState().setOptimisticSessionState("session-1", "busy", 60_000);
+    });
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      useChatStore.getState().clearOptimisticSessionState("session-1");
+    });
+
+    const baselineFetchCount = runtimeFetchCount;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
+
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/missions/mission-1/banter"),
+    ).toBe(false);
+  });
+
+  it("suppresses repeated session-settled banter within the cooldown window", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let runtimeFetchCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        runtimeFetchCount += 1;
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: {},
+        });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/banter") {
+        return createJsonResponse({
+          recorded: true,
+          entry: {
+            id: `banter-${fetchMock.mock.calls.length}`,
+            missionId: "mission-1",
+            kind: "ambient",
+            speakerAgent: "noctis",
+            cue: "session-settled",
+            renderedMessage: "Settled",
+            createdAt: "2026-04-26T00:00:00.000Z",
+          },
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url} ${String(init?.method ?? "GET")}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      useChatStore.getState().setOptimisticSessionState("session-1", "busy", 60_000);
+    });
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      useChatStore.getState().clearOptimisticSessionState("session-1");
+    });
+    let baselineFetchCount = runtimeFetchCount;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
+
+    await act(async () => {
+      useChatStore.getState().setOptimisticSessionState("session-1", "busy", 60_000);
+    });
+    baselineFetchCount = runtimeFetchCount;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
+
+    await act(async () => {
+      useChatStore.getState().clearOptimisticSessionState("session-1");
+    });
+    baselineFetchCount = runtimeFetchCount;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
+
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input) === "/api/noctis/missions/mission-1/banter"),
+    ).toHaveLength(1);
   });
 
   it("triggers a targeted runtime refresh when the primary stream disconnects", async () => {
