@@ -364,7 +364,7 @@ function buildSyntheticOperationState(missionId: string): {
       "",
     ].join("\n"),
   });
-  operationInstantiator.processStepReport({
+  const reportResult = operationInstantiator.processStepReport({
     missionId,
     operationState: state,
     reportBody: "Synthetic report from worker",
@@ -373,8 +373,9 @@ function buildSyntheticOperationState(missionId: string): {
     next: "implement",
   });
 
-  const taskId = ensureActiveStepTaskId(state, "gladiolus");
-  return { state, taskId, specPlanningTaskId };
+  const nextState = reportResult.operationState ?? state;
+  const taskId = ensureActiveStepTaskId(nextState, "gladiolus");
+  return { state: nextState, taskId, specPlanningTaskId };
 }
 
 function buildSyntheticAutonomousOperationState() {

@@ -381,7 +381,7 @@ export function buildOperationDebugBundle(input: {
     selectedOperation: input.operationRef,
     allowedWorkersOverride: previewAllowedWorkers,
   });
-  const operationState =
+  let operationState =
     activationResult.operationState ??
     createOperationState(operation.name, operation.initial_step, input.operationRef);
   let pendingNoctisPromptArtifact: OperationPromptArtifact | null =
@@ -756,6 +756,8 @@ export function buildOperationDebugBundle(input: {
             reportTransport: delegatedReportTransport,
             workflowGuidance: delegatedReturnResult.noctisGuidance,
           });
+
+          operationState = delegatedReturnResult.operationState ?? operationState;
         }
 
         break;
@@ -781,6 +783,7 @@ export function buildOperationDebugBundle(input: {
         reportResult,
       });
       const workflowGuidance = reportResult.noctisGuidance || "";
+      operationState = reportResult.operationState ?? operationState;
       pendingNoctisPromptArtifact = reportResult.promptArtifact;
       const ruleEvaluation = [
         runtimeDecision.runtimeDecision,

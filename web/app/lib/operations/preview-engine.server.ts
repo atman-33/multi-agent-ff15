@@ -336,7 +336,7 @@ function buildDraftPreviewBundle(
     operationOverride: operation,
     allowedWorkersOverride: previewAllowedWorkers,
   });
-  const operationState =
+  let operationState =
     activationResult.operationState ??
     createOperationState(operation.name, operation.initial_step, operationRef);
   let pendingNoctisPromptArtifact: OperationPromptArtifact | null = activationResult.promptArtifact;
@@ -734,6 +734,8 @@ function buildDraftPreviewBundle(
             reportTransport: delegatedReportTransport,
             workflowGuidance: delegatedReturnResult.noctisGuidance,
           });
+
+          operationState = delegatedReturnResult.operationState ?? operationState;
         }
 
         break;
@@ -760,6 +762,7 @@ function buildDraftPreviewBundle(
         reportResult,
       });
       const workflowGuidance = reportResult.noctisGuidance || "";
+      operationState = reportResult.operationState ?? operationState;
       pendingNoctisPromptArtifact = reportResult.promptArtifact;
       const ruleEvaluation = [
         runtimeDecision.runtimeDecision,
