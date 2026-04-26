@@ -1,7 +1,7 @@
 name: github-issue-openspec-dev
 description: >
   GitHub issue driven OpenSpec delivery operation.
-  Noctis creates and gets approval for change artifacts, Gladiolus implements with TDD, Ignis reviews, and Prompto prepares manual verification docs.
+  Noctis creates change artifacts, Gladiolus implements with TDD, Ignis reviews, Prompto prepares manual verification docs, and Noctis closes out delivery after User verification.
 initial_step: spec-planning
 
 steps:
@@ -102,6 +102,34 @@ steps:
               file: ../facets/output-contracts/manual-verification.md
     rules:
       - condition: Manual verification document created
-        next: COMPLETE
+        next: finalize-delivery
       - condition: Cannot create the document
+        next: ABORT
+
+  - name: finalize-delivery
+    agent: noctis
+    job:
+      file: ../facets/jobs/noctis-autonomous.md
+    instruction:
+      inline: |
+        # Finalize Delivery — Instructions
+
+        1. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}`, `{{ output("review", "latest", "code-review.md") }}`, and `{{ output("manual-verification", "latest", "manual-verification.md") }}`. Resolve `change_name` from the spec plan and prefer `change_path` if it is present. If neither can be resolved, report the step as blocked.
+        2. Ask User to run the checks in `manual-verification.md` and confirm whether any problem was found. If User reports problems, summarize the symptoms, unverified items, and reproduction notes, and return to the implement step without archiving, committing, or creating a PR.
+        3. If User reports no problems, use `.opencode/command/opsx-archive.md` to archive the target change. Do not ask User to choose the change; use `change_name`. Always sync delta specs into main specs before archiving, and do not ask User whether to sync.
+        4. After archiving, inspect the git working tree. If there are merge conflicts, unrelated local changes, or you cannot safely identify the files produced by this workflow, stop as blocked. If it is safe to commit, stage only the changes created or updated by this workflow and commit them using `feat: <change_name>` for `feature/` or `feat/` branches, `fix: <change_name>` for `fix/`, `bugfix/`, or `hotfix/` branches, `docs: <change_name>` for `docs/` branches, and `chore: <change_name>` otherwise. If there is nothing new to commit, keep the current HEAD.
+        5. Publish the current branch to the remote.
+        6. Use `.opencode/skills/pr-assistant/SKILL.md` to prepare the PR title and body in `{{ setting("language", "name") }}` and create the PR immediately from the current branch to the repository default branch without an extra approval turn. If needed, rewrite the generated draft into that language before creating the PR.
+        7. Record the manual verification verdict, archive path, spec sync status, chosen commit SHA, PR title, PR URL, and notable notes in `delivery-closeout.md`.
+    output_contracts:
+      report:
+        - name: delivery-closeout.md
+          format:
+            file: ../facets/output-contracts/delivery-closeout.md
+    rules:
+      - condition: User reported issues during manual verification
+        next: implement
+      - condition: Delivery finalized and closeout report recorded
+        next: COMPLETE
+      - condition: Could not finalize delivery safely
         next: ABORT

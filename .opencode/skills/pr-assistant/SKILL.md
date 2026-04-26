@@ -1,6 +1,6 @@
 ---
 name: pr-assistant
-description: Analyzes git changes and assists with creating comprehensive pull requests. Use when user wants to create a PR, review changes before PR, or needs help drafting PR descriptions. Triggers on phrases like 'create PR', 'make a pull request', 'draft PR description', 'what changed in this branch', 'prepare PR'.
+description: Analyzes git changes, drafts localized PR titles and bodies, and assists with creating comprehensive pull requests. Use when user wants to create a PR, review changes before PR, or needs help drafting PR descriptions. Triggers on phrases like 'create PR', 'make a pull request', 'draft PR description', 'what changed in this branch', 'prepare PR'.
 ---
 
 # PR Assistant
@@ -12,6 +12,8 @@ Assists with creating well-structured pull requests by analyzing changes and gen
 **Default: human-in-the-loop**. Prepare a draft, show it to the user, and ask for approval before creating the PR.
 
 **Explicit fast-path**. If the user clearly asks you to create the PR immediately, you may generate the draft, run sanity checks, and create the PR without a separate approval turn.
+
+**Requested language is binding**. If the caller or user specifies a language, the final PR title and body must be written in that language. Treat generated commit-derived prose as draft material and rewrite it when needed.
 
 ## Workflow
 
@@ -84,6 +86,12 @@ Always save both the analysis JSON and the generated PR body.
 
 Use `scripts/generate_pr_body.py` with the appropriate template from `assets/templates/`.
 
+If a requested language is provided:
+- Choose the matching localized template when available, for example `pr-template-feature-ja.md`, `pr-template-bugfix-ja.md`, or `pr-template-docs-ja.md`
+- Run `generate_pr_body.py --language <requested-language>` so auto-generated prose and checklist items match that language
+- Treat the generated body as a draft and rewrite any remaining commit-derived text into the requested language before presentation or creation
+- The final PR title must also be written in the requested language
+
 Auto-fill sections:
 - **Summary**: Commit themes, capped to a short list
 - **Changes breakdown**: Diff stats plus category or top-level area summaries
@@ -126,13 +134,39 @@ Would you like me to:
 4. Add/remove reviewers
 ```
 
-If the user explicitly requested immediate PR creation, briefly summarize the generated draft and then create the PR.
+If the user explicitly requested immediate PR creation, or the calling workflow explicitly says to create the PR without another approval turn, briefly summarize the generated draft and then create or update the PR.
 
 If the draft contains closing keywords, explicitly call out which issues will auto-close when the PR is merged.
 
 ### 7. Create the PR
 
-Once the user approves, or when the user explicitly requested immediate creation, use `gh` CLI:
+Once the user approves, or when the user explicitly requested immediate creation, ensure the branch is published and then use `gh` CLI.
+
+Before creating or updating the PR:
+
+```bash
+git push -u origin "$CURRENT_BRANCH"
+```
+
+If an open PR already exists for the current branch, update it instead of creating a duplicate:
+
+```bash
+EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq '.[0].number')
+
+if [ -n "$EXISTING_PR" ]; then
+  gh pr edit "$EXISTING_PR" \
+    --title "PR Title" \
+    --body-file "$PR_BODY_FILE"
+else
+  gh pr create \
+    --title "PR Title" \
+    --body-file "$PR_BODY_FILE" \
+    --base main \
+    --head current-branch
+fi
+```
+
+If no open PR exists, create it with `gh pr create`:
 
 ```bash
 gh pr create \
@@ -202,6 +236,7 @@ If issues arise:
 - Merge conflicts → Show conflicts, suggest resolving first
 - No GitHub CLI → Inform user, offer to create PR body for manual submission
 - API rate limits → Suggest waiting or manual creation
+- Requested language not directly supported by a bundled template → fall back to the nearest template, then rewrite the final title/body into the requested language before creating the PR
 
 ## Output Format
 
