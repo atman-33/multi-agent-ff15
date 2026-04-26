@@ -52,7 +52,7 @@ Hello from User.
     expect(markup).toContain("Injected");
     expect(markup).toContain("Workspace Context");
     expect(markup).toContain("Tooling Context");
-    expect(markup).toContain("Raw Prompt Payload");
+    expect(markup).toContain("Raw Message Payload");
     expect(markup).toContain("project_root: /tmp/example");
     expect(markup).toContain("Hello from User.");
     expect(markup).not.toContain("Internal Context");
@@ -105,7 +105,7 @@ Respond after reviewing the worker report.
     expect(markup).toContain("Operation");
     expect(markup).toContain("Operation Note");
     expect(markup).toContain("Instruction");
-    expect(markup).toContain("Raw Prompt Payload");
+    expect(markup).toContain("Raw Message Payload");
     expect(markup).toContain("普通、集中");
     expect(markup).not.toContain("data-copy-content=\"普通、集中\n\n## Reasoning");
   });
@@ -125,7 +125,7 @@ Respond after reviewing the worker report.
       />,
     );
 
-    expect(markup).not.toContain("Raw Prompt Payload");
+    expect(markup).not.toContain("Raw Message Payload");
   });
 
   it("renders requested and actual selection details for adjusted assistant replies", () => {

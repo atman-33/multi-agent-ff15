@@ -4,6 +4,7 @@ import MessageDetailSheet from "./message-detail-sheet";
 
 type Props = {
   renderedMessages: RenderedSessionMessage[];
+  sessionId?: string | null;
   showPendingIndicator?: boolean;
   streamingMessage: RenderedSessionMessage | null;
   isConversationUnitExpanded: (conversationUnitId: string) => boolean;
@@ -28,6 +29,7 @@ function PendingIndicator() {
 
 const MessageList = ({
   renderedMessages,
+  sessionId = null,
   showPendingIndicator = false,
   streamingMessage,
   isConversationUnitExpanded,
@@ -46,12 +48,15 @@ const MessageList = ({
         open ? (
           <MessageDetailSheet
             content={message.messageDisplay.displayContent}
+            detailState={message.detailState}
             messageDisplay={message.messageDisplay}
+            messageIds={message.sourceMessageIds}
             messageRole={message.role}
             onOpenChange={onOpenChange}
             open={open}
             parts={message.parts}
             rawTextContent={message.detailRawText}
+            sessionId={sessionId}
             senderLabel={message.senderLabel}
           />
         ) : null

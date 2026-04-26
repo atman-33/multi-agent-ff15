@@ -531,6 +531,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
               onToggleConversationUnit={inspectability.toggleConversationUnit}
               onToggleDetailEntry={inspectability.toggleDetailEntry}
               renderedMessages={renderSnapshot.renderedMessages}
+              sessionId={sessionId}
               showPendingIndicator={renderSnapshot.showPendingIndicator}
               streamingMessage={renderSnapshot.streamingMessage}
             />

@@ -80,7 +80,7 @@ Implemented the requested change.
     expect(markup).toContain("Prompt Context");
     expect(markup).toContain("Operation");
     expect(markup).toContain("Instruction");
-    expect(markup).toContain("Raw Prompt Payload");
+    expect(markup).toContain("Raw Message Payload");
     expect(markup).not.toContain("data-copy-content=\"&lt;operation-prompt&gt;");
   });
 });
