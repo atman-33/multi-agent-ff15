@@ -343,20 +343,18 @@ export function IrisAuthoringSheet({
                   </div>
                 </div>
               ) : (
-                <>
-                  <SessionMessageList
-                    getExpandedDetailEntries={inspectability.getExpandedDetailEntries}
-                    isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
-                    onToggleConversationUnit={inspectability.toggleConversationUnit}
-                    onToggleDetailEntry={inspectability.toggleDetailEntry}
-                    pendingIndicator={<IrisPendingBubble />}
-                    renderAvatar={renderIrisAvatar}
-                    renderDetailSheet={renderIrisDetailSheet}
-                    renderedMessages={renderedMessages}
-                    showPendingIndicator={showPendingIndicator}
-                    streamingMessage={streamingMessage}
-                  />
-                </>
+                <SessionMessageList
+                  getExpandedDetailEntries={inspectability.getExpandedDetailEntries}
+                  isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
+                  onToggleConversationUnit={inspectability.toggleConversationUnit}
+                  onToggleDetailEntry={inspectability.toggleDetailEntry}
+                  pendingIndicator={<IrisPendingBubble />}
+                  renderAvatar={renderIrisAvatar}
+                  renderDetailSheet={renderIrisDetailSheet}
+                  renderedMessages={renderedMessages}
+                  showPendingIndicator={showPendingIndicator}
+                  streamingMessage={streamingMessage}
+                />
               )
             }
           </ChatThreadFrame>

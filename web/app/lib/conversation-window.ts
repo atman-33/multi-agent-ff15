@@ -29,11 +29,13 @@ export function calculateConversationWindow({
   let visibleStartIndex = 0;
   let consumedHeight = 0;
 
-  while (
-    visibleStartIndex < itemCount &&
-    consumedHeight + itemHeights[visibleStartIndex]! <= scrollTop
-  ) {
-    consumedHeight += itemHeights[visibleStartIndex]!;
+  while (visibleStartIndex < itemCount) {
+    const nextHeight = itemHeights[visibleStartIndex];
+    if (nextHeight === undefined || consumedHeight + nextHeight > scrollTop) {
+      break;
+    }
+
+    consumedHeight += nextHeight;
     visibleStartIndex += 1;
   }
 
@@ -41,7 +43,12 @@ export function calculateConversationWindow({
   let visibleHeight = 0;
 
   while (visibleEndIndex < itemCount && visibleHeight < viewportHeight) {
-    visibleHeight += itemHeights[visibleEndIndex]!;
+    const nextHeight = itemHeights[visibleEndIndex];
+    if (nextHeight === undefined) {
+      break;
+    }
+
+    visibleHeight += nextHeight;
     visibleEndIndex += 1;
   }
 

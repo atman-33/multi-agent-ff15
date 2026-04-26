@@ -1540,7 +1540,7 @@ export function useAgentSession({
       loadMissionHydrationInFlightRef.current.set(hydrationKey, hydrationPromise);
       return hydrationPromise;
     },
-    [syncSessionMessages],
+    [syncSessionMessages, missionRouteBase],
   );
 
   const handleAgentEvent = useCallback(
@@ -1738,6 +1738,7 @@ export function useAgentSession({
       clearAbortSettlement,
       clearProgressBanter,
       handleAgentEvent,
+      missionRouteBase,
       primaryAgentId,
       resolvePendingActive,
       requestSessionHistorySync,
@@ -2003,6 +2004,7 @@ export function useAgentSession({
       clearAbortSettlement,
       isLunafreyaSurface,
       isStreaming,
+      missionRouteBase,
       pendingMissionSessionId,
       persistAmbientBanter,
       primaryAgentId,

@@ -179,11 +179,11 @@ function resolveOutputPlaceholderPath(input: {
 
 function resolveSettingPlaceholderValue(key: string, mode: string): string {
   if (key !== "language") {
-    throw new Error(`Unsupported setting placeholder key \"${key}\".`);
+    throw new Error(`Unsupported setting placeholder key "${key}".`);
   }
 
   if (mode !== "name") {
-    throw new Error(`Unsupported setting placeholder mode \"${mode}\" for key \"${key}\".`);
+    throw new Error(`Unsupported setting placeholder mode "${mode}" for key "${key}".`);
   }
 
   const language = readAppConfig(getProjectRoot()).language;
@@ -210,7 +210,7 @@ function resolveRootPlaceholderValue(scope: string, missionId: string): string {
     const mission = getMission(missionId);
 
     if (!mission) {
-      throw new Error(`Could not resolve execution root for missing mission \"${missionId}\".`);
+      throw new Error(`Could not resolve execution root for missing mission "${missionId}".`);
     }
 
     return resolveMissionExecutionRoot({
@@ -219,7 +219,7 @@ function resolveRootPlaceholderValue(scope: string, missionId: string): string {
     }).executionRoot;
   }
 
-  throw new Error(`Unsupported root placeholder scope \"${scope}\".`);
+  throw new Error(`Unsupported root placeholder scope "${scope}".`);
 }
 
 function resolveInstructionPlaceholders(input: {

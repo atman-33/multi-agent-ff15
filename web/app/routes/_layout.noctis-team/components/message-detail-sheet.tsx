@@ -48,7 +48,6 @@ const MessageDetailSheet = ({
   const nextToolKeyRef = useRef(0);
   const [loadedMessages, setLoadedMessages] = useState<MessageInfo[] | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const messageIdsKey = useMemo(() => (messageIds ?? []).join(":"), [messageIds]);
 
   useEffect(() => {
     if (
@@ -98,7 +97,7 @@ const MessageDetailSheet = ({
     return () => {
       cancelled = true;
     };
-  }, [detailState, messageIds, messageIdsKey, open, sessionId]);
+  }, [detailState, messageIds, open, sessionId]);
 
   const hydratedRenderedMessage = useMemo(() => {
     if (!loadedMessages || loadedMessages.length === 0) {

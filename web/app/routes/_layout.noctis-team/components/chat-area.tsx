@@ -602,6 +602,8 @@ function useTranscriptWindow(
   }, []);
 
   const windowState = useMemo(() => {
+    void measurementVersion;
+
     if (
       renderedMessages.length === 0 ||
       !viewportState.ready ||

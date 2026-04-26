@@ -736,7 +736,7 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
         setIsIrisLoading(false);
       }
     }
-  }, [liveThread.clearStreaming, liveThread.streamingMessageId]);
+  }, []);
 
   const sessionStatuses = useSessionStatusFeed({
     enabled: Boolean(irisSessionId),
