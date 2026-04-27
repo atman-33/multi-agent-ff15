@@ -432,4 +432,62 @@ describe("Lunafreya mission routing", () => {
     );
     expect(getMission(mission.id)?.primarySessionId).toBe("session-lunafreya-recreated");
   });
+
+  it("blocks continue for Lunafreya missions with an unsupported runtime format", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const missionId = `mission-luna-unsupported-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+
+    mkdirSync(join(root, "runtime", "noctis-missions", missionId), { recursive: true });
+    writeFileSync(
+      join(root, "runtime", "noctis-missions", missionId, "mission.json"),
+      `${JSON.stringify(
+        {
+          id: missionId,
+          noctisSessionId: "",
+          primaryAgentId: "lunafreya",
+          primarySessionId: "session-luna-legacy",
+          surfaceId: "lunafreya",
+          executionProjectId: "alpha",
+          executionTargetMode: "execution_project",
+          contextProjectIds: [],
+          workerSessions: {},
+          allowedWorkers: [],
+          taskGraph: [],
+          delegationLedger: {
+            missionId,
+            activeTasks: [],
+            completedSummaries: {},
+          },
+          agentModels: {},
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-10T00:00:00.000Z",
+          title: "Unsupported Lunafreya mission",
+          status: "active",
+          messageLog: [],
+          activityLog: [],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/lunafreya/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId,
+          message: "Attempt to resume an unsupported Lunafreya mission.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: "Mission uses an unsupported runtime format and can no longer be resumed.",
+    });
+  });
 });

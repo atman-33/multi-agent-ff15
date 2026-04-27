@@ -5,6 +5,11 @@ import {
   normalizeExecutionProjectId,
 } from "@/lib/execution-context";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import {
+  buildCurrentMissionRuntimeMetadata,
+  normalizeMissionSchemaVersion,
+  normalizeMissionTransportMode,
+} from "@/lib/mission-runtime-compatibility.server";
 import type {
   AmbientBanterEntry,
   ActivityActorId,
@@ -261,6 +266,8 @@ function readMissionFromDisk(id: string): Mission | null {
       parsed.executionTargetMode,
       parsed.executionProjectId,
     );
+    parsed.transportMode = normalizeMissionTransportMode(parsed.transportMode);
+    parsed.schemaVersion = normalizeMissionSchemaVersion(parsed.schemaVersion);
     parsed.surfaceId = normalizeMissionSurfaceId(parsed.surfaceId);
     parsed.primaryAgentId = normalizeMissionPrimaryAgentId(parsed.primaryAgentId);
     parsed.primarySessionId = normalizeOptionalString(parsed.primarySessionId);
@@ -391,6 +398,7 @@ export function createMission(
   const surfaceId = options?.surfaceId ?? (primaryAgentId === "lunafreya" ? "lunafreya" : "noctis_team");
   const mission: Mission = {
     id,
+    ...buildCurrentMissionRuntimeMetadata(),
     noctisSessionId: primaryAgentId === "noctis" ? noctisSessionId : "",
     surfaceId,
     primaryAgentId,

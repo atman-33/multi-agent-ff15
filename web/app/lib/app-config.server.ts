@@ -7,11 +7,13 @@ export interface AppConfig {
   executionWorkspaceRoot?: string;
   language: string;
   sharedSkillsRoot?: string;
+  transportMode: "app-owned" | "tmux-resident";
 }
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
   language: "en",
   sharedSkillsRoot: "skills",
+  transportMode: "app-owned",
 };
 
 function getSettingsPath(root: string): string {
@@ -34,6 +36,10 @@ function normalizeSharedSkillsRoot(value: unknown): string {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : (DEFAULT_APP_CONFIG.sharedSkillsRoot ?? "skills");
+}
+
+function normalizeTransportMode(value: unknown): AppConfig["transportMode"] {
+  return value === "tmux-resident" ? "tmux-resident" : DEFAULT_APP_CONFIG.transportMode;
 }
 
 function readAppConfigDocument(root: string) {
@@ -61,16 +67,19 @@ export function readAppConfig(root: string): AppConfig {
     ...(executionWorkspaceRoot ? { executionWorkspaceRoot } : {}),
     language: normalizeLanguage(parsed?.language),
     sharedSkillsRoot: normalizeSharedSkillsRoot(parsed?.shared_skills_root),
+    transportMode: normalizeTransportMode(parsed?.transport_mode),
   };
 }
 
 export function writeAppConfig(root: string, nextConfig: AppConfig): AppConfig {
   const language = normalizeLanguage(nextConfig.language);
   const sharedSkillsRoot = normalizeSharedSkillsRoot(nextConfig.sharedSkillsRoot);
+  const transportMode = normalizeTransportMode(nextConfig.transportMode);
   const document = readAppConfigDocument(root);
 
   document.set("language", language);
   document.set("shared_skills_root", sharedSkillsRoot);
+  document.set("transport_mode", transportMode);
   if (
     typeof nextConfig.executionWorkspaceRoot === "string" &&
     nextConfig.executionWorkspaceRoot.trim().length > 0

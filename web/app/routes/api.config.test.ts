@@ -58,6 +58,7 @@ describe("api.config", () => {
         executionWorkspaceRoot: "../custom-workspaces",
         language: "en",
         sharedSkillsRoot: "../shared-skills",
+        transportMode: "app-owned",
       },
       settingsPath: "config/settings.yaml",
     });
@@ -85,6 +86,7 @@ describe("api.config", () => {
         executionWorkspaceRoot: "../custom-workspaces",
         language: "ja",
         sharedSkillsRoot: "../shared-skills",
+        transportMode: "app-owned",
       },
       settingsPath: "config/settings.yaml",
       success: true,
@@ -120,6 +122,7 @@ describe("api.config", () => {
         executionWorkspaceRoot: "../custom-workspaces",
         language: "en",
         sharedSkillsRoot: "external-skills",
+        transportMode: "app-owned",
       },
       settingsPath: "config/settings.yaml",
       success: true,

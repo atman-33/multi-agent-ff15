@@ -29,6 +29,7 @@ describe("app-config.server", () => {
     expect(readAppConfig(root)).toEqual({
       language: "en",
       sharedSkillsRoot: "skills",
+      transportMode: "app-owned",
     });
   });
 
@@ -46,12 +47,14 @@ describe("app-config.server", () => {
 
     const updated = writeAppConfig(root, {
       language: "ja",
+      transportMode: "app-owned",
       sharedSkillsRoot: "skills/shared",
     });
 
     expect(updated).toEqual({
       language: "ja",
       sharedSkillsRoot: "skills/shared",
+      transportMode: "app-owned",
     });
     expect(readFileSync(settingsPath, "utf-8")).toContain("language: ja");
     expect(readFileSync(settingsPath, "utf-8")).toContain("shared_skills_root: skills/shared");
@@ -80,11 +83,13 @@ describe("app-config.server", () => {
       language: "en",
       executionWorkspaceRoot: "../custom-workspaces",
       sharedSkillsRoot: "../shared-skills",
+      transportMode: "app-owned",
     });
 
     const updated = writeAppConfig(root, {
       language: "ja",
       executionWorkspaceRoot: "../fresh-workspaces",
+      transportMode: "app-owned",
       sharedSkillsRoot: "skills/catalog",
     });
 
@@ -92,11 +97,51 @@ describe("app-config.server", () => {
       language: "ja",
       executionWorkspaceRoot: "../fresh-workspaces",
       sharedSkillsRoot: "skills/catalog",
+      transportMode: "app-owned",
     });
     expect(readFileSync(settingsPath, "utf-8")).toContain(
       'execution_workspace_root: "../fresh-workspaces"',
     );
     expect(readFileSync(settingsPath, "utf-8")).toContain('shared_skills_root: "skills/catalog"');
+    expect(readFileSync(settingsPath, "utf-8")).toContain("theme: desert");
+  });
+
+  it("reads and writes a tmux transport mode override", () => {
+    const root = createTempRoot();
+    const configDir = join(root, "config");
+    const settingsPath = join(configDir, "settings.yaml");
+
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      settingsPath,
+      [
+        "language: en",
+        'transport_mode: "tmux-resident"',
+        'shared_skills_root: "skills"',
+        "theme: desert",
+        "",
+      ].join("\n"),
+      "utf-8"
+    );
+
+    expect(readAppConfig(root)).toEqual({
+      language: "en",
+      transportMode: "tmux-resident",
+      sharedSkillsRoot: "skills",
+    });
+
+    const updated = writeAppConfig(root, {
+      language: "ja",
+      transportMode: "app-owned",
+      sharedSkillsRoot: "skills/shared",
+    });
+
+    expect(updated).toEqual({
+      language: "ja",
+      transportMode: "app-owned",
+      sharedSkillsRoot: "skills/shared",
+    });
+    expect(readFileSync(settingsPath, "utf-8")).toContain('transport_mode: "app-owned"');
     expect(readFileSync(settingsPath, "utf-8")).toContain("theme: desert");
   });
 });

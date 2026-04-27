@@ -282,8 +282,11 @@ export function NoctisTeamScreen({
     : "auto";
   const newMissionContextHint =
     "Context projects start empty for new missions.";
+  const resumeBlockedCode = effectiveMissionId ? missionDetail?.resumeBlockedCode ?? null : null;
+  const resumeBlockedReason = effectiveMissionId ? missionDetail?.resumeBlockedReason ?? null : null;
   const isLegacyMissionBlocked =
-    Boolean(effectiveMissionId) && Boolean(missionDetail) && !missionDetail?.executionProjectId;
+    resumeBlockedCode === "missing_execution_project";
+  const isUnsupportedMission = resumeBlockedCode === "unsupported_mission_runtime";
   const workspaceStatusLabel =
     isDirectExecutionMission
       ? "Registered project"
@@ -305,6 +308,14 @@ export function NoctisTeamScreen({
           "This legacy mission can be viewed, but it cannot resume until an execution project is assigned.",
         actionLabel: "Assign Execution Project",
       }
+    : isUnsupportedMission
+      ? {
+          toneClassName: "border-rose-500/30 bg-rose-500/10 text-rose-100",
+          message:
+            resumeBlockedReason ??
+            "Mission uses an unsupported runtime format and can no longer be resumed.",
+          actionLabel: "Mission Details",
+        }
     : !isDirectExecutionMission && missionDetail?.workspaceStatus === "deleted"
       ? {
           toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
@@ -823,6 +834,14 @@ export function NoctisTeamScreen({
         return;
       }
 
+      if (isUnsupportedMission) {
+        toast.error(
+          missionDetail?.resumeBlockedReason ??
+            "Mission uses an unsupported runtime format and can no longer be resumed.",
+        );
+        return;
+      }
+
       const missionId = await send(parts);
       if (!effectiveMissionId && missionId) {
         if (typeof window !== "undefined") {
@@ -836,7 +855,9 @@ export function NoctisTeamScreen({
       draftExecutionProjectId,
       effectiveMissionId,
       isLegacyMissionBlocked,
+      isUnsupportedMission,
       loadMissions,
+      missionDetail?.resumeBlockedReason,
       missionRouteBase,
       navigate,
       send,

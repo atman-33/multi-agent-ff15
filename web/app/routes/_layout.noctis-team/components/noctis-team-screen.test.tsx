@@ -336,6 +336,9 @@ describe("noctis-team-screen", () => {
           executionProjectId: null,
           workspacePath: null,
           workspaceStatus: null,
+          resumeBlockedCode: "missing_execution_project",
+          resumeBlockedReason:
+            "Assign an execution project before resuming this legacy mission.",
           sessions: {
             noctis: null,
             ignis: null,
@@ -349,6 +352,25 @@ describe("noctis-team-screen", () => {
 
     expect(markup).toContain("cannot resume until an execution project is assigned");
     expect(markup).toContain("Assign Execution Project");
+  });
+
+  it("shows an unsupported runtime alert for incompatible missions", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({
+          resumeBlockedCode: "unsupported_mission_runtime",
+          resumeBlockedReason: "Mission uses an unsupported runtime format and can no longer be resumed.",
+        })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Mission uses an unsupported runtime format and can no longer be resumed.");
+    expect(markup).toContain("mission-action:Mission Details");
+    expect(markup).not.toContain("Assign Execution Project");
   });
 
   it("shows workspace status and delete controls for an execution-backed mission", () => {

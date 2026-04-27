@@ -1,4 +1,5 @@
 import { buildMissionBanterTimeline } from "@/lib/banter/timeline";
+import { getMissionResumeBlock } from "@/lib/mission-runtime-compatibility.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readSessionContextUsage } from "@/lib/session-context.server";
 import type { SessionStatus } from "@/lib/session-status";
@@ -66,10 +67,13 @@ export function buildMissionSessionsPayload(mission: Mission): MissionSessionPay
 export function buildMissionResumePayload(mission: Mission) {
   const primaryAgentId = getMissionPrimaryAgentId(mission);
   const primarySessionId = getMissionPrimarySessionId(mission);
+  const resumeBlock = getMissionResumeBlock(mission);
 
   return {
     missionId: mission.id,
+    schemaVersion: mission.schemaVersion ?? null,
     surfaceId: getMissionSurfaceId(mission),
+    transportMode: mission.transportMode ?? null,
     primaryAgentId,
     primarySessionId,
     title: mission.title,
@@ -85,9 +89,8 @@ export function buildMissionResumePayload(mission: Mission) {
     branch: mission.branch ?? null,
     workspacePath: mission.workspacePath ?? null,
     workspaceStatus: mission.workspaceStatus ?? null,
-    resumeBlockedReason: mission.executionProjectId
-      ? null
-      : "Assign an execution project before resuming this legacy mission.",
+    resumeBlockedCode: resumeBlock?.code ?? null,
+    resumeBlockedReason: resumeBlock?.message ?? null,
     sessions: buildMissionSessionsPayload(mission),
     agentModels: mission.agentModels,
     delegationLedger: mission.delegationLedger,
