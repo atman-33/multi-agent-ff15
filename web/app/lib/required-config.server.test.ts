@@ -34,6 +34,7 @@ describe("ensureRequiredWebConfigFiles", () => {
     expect(existsSync(join(root, "config", "current_projects.yaml"))).toBe(false);
     expect(readFileSync(settingsPath, "utf-8")).toContain("language: en");
     expect(readFileSync(settingsPath, "utf-8")).toContain('shared_skills_root: "skills"');
+    expect(readFileSync(settingsPath, "utf-8")).toContain('transport_mode: "app-owned"');
   });
 
   it("does not overwrite existing config files", () => {

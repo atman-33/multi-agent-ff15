@@ -4,6 +4,7 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
+import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import {
   appendMissionActivity,
   clearMissionSessions,
@@ -118,6 +119,10 @@ export const action = async ({ request }: { request: Request }) => {
   const mission = getMission(missionId);
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
+  }
+  const compatibilityIssue = getMissionCompatibilityIssue(mission);
+  if (compatibilityIssue) {
+    return Response.json({ error: compatibilityIssue.message }, { status: 409 });
   }
   if (!mission.executionProjectId) {
     return Response.json(

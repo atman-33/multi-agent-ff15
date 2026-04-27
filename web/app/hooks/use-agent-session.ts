@@ -34,8 +34,10 @@ import type {
   DelegationLedger,
   LunafreyaFacetSelection,
   MissionActivityLogEntry,
+  MissionResumeBlockCode,
   MissionPrimaryAgentId,
   MissionSurfaceId,
+  MissionTransportMode,
   MissionWorkflowProgress,
   MissionExecutionTargetMode,
   OperationState,
@@ -353,7 +355,9 @@ export interface MissionSummary {
 
 export type MissionResumePayload = {
   missionId: string;
+  schemaVersion?: number | null;
   surfaceId?: MissionSurfaceId | null;
+  transportMode?: MissionTransportMode | null;
   primaryAgentId?: MissionPrimaryAgentId | null;
   primarySessionId?: string | null;
   title: string;
@@ -369,6 +373,7 @@ export type MissionResumePayload = {
   branch?: string | null;
   workspacePath?: string | null;
   workspaceStatus?: "ready" | "missing" | "deleted" | null;
+  resumeBlockedCode?: MissionResumeBlockCode | null;
   resumeBlockedReason?: string | null;
   sessions: {
     primary?: string | null;

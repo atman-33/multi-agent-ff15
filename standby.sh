@@ -10,11 +10,15 @@ WEB_URL="http://localhost:${WEB_PORT}"
 WEB_LOG="runtime/logs/web.log"
 BUILD_OUTPUT="web/build/server/index.js"
 OPENCODE_CONTROL_SCRIPT="scripts/opencode_server_control.mts"
+APP_CONFIG_CONTROL_SCRIPT="scripts/app_config_control.mts"
+TMUX_TRANSPORT_CONTROL_SCRIPT="scripts/tmux_transport_runtime.mts"
 ACTION="start"
 RUN_BUILD=false
 SERVER_STATE="stopped"
 SERVER_PID=""
 SERVER_CMD=""
+SET_TRANSPORT_MODE=""
+TRANSPORT_MODE="app-owned"
 
 log_info() {
     echo -e "\033[1;33m[INFO]\033[0m $1"
@@ -36,6 +40,8 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
+    echo "      --set-transport <mode>"
+    echo "                 Persist transport_mode in config/settings.yaml"
     echo "      --stop     Stop the managed web server and app-owned OpenCode server"
     echo "      --status   Print managed web and OpenCode server status"
     echo "  -h, --help     Show this help"
@@ -43,6 +49,8 @@ show_help() {
     echo "Examples:"
     echo "  ./standby.sh"
     echo "  ./standby.sh --build"
+    echo "  ./standby.sh --set-transport tmux-resident"
+    echo "  ./standby.sh --set-transport app-owned"
     echo "  ./standby.sh --stop"
     echo "  ./standby.sh --status"
     echo ""
@@ -113,6 +121,38 @@ run_opencode_control() {
     NODE_NO_WARNINGS=1 node --experimental-strip-types "$SCRIPT_DIR/$OPENCODE_CONTROL_SCRIPT" "$@" --root "$SCRIPT_DIR"
 }
 
+run_app_config_control() {
+    NODE_NO_WARNINGS=1 node --experimental-strip-types "$SCRIPT_DIR/$APP_CONFIG_CONTROL_SCRIPT" "$@" --root "$SCRIPT_DIR"
+}
+
+run_tmux_transport_control() {
+    NODE_NO_WARNINGS=1 node --experimental-strip-types "$SCRIPT_DIR/$TMUX_TRANSPORT_CONTROL_SCRIPT" "$@" --root "$SCRIPT_DIR"
+}
+
+read_transport_mode() {
+    local settings_path="$SCRIPT_DIR/config/settings.yaml"
+    local configured_mode=""
+
+    if [ -f "$settings_path" ]; then
+        configured_mode="$(awk -F ':' '/^transport_mode:/ {
+            value=$2
+            sub(/^[[:space:]]+/, "", value)
+            gsub(/["\047]/, "", value)
+            print value
+            exit
+        }' "$settings_path")"
+    fi
+
+    case "$configured_mode" in
+        tmux-resident)
+            echo "tmux-resident"
+            ;;
+        *)
+            echo "app-owned"
+            ;;
+    esac
+}
+
 json_get() {
         local json_input="$1"
         local property_path="$2"
@@ -147,7 +187,7 @@ set_action() {
     local next_action="$1"
 
     if [ "$ACTION" != "start" ] && [ "$ACTION" != "$next_action" ]; then
-        log_warn "Choose only one action: start, stop, or status."
+        log_warn "Choose only one action: start, stop, status, or set-transport."
         show_help
         exit 1
     fi
@@ -170,6 +210,16 @@ parse_args() {
                 set_action "status"
                 shift
                 ;;
+            --set-transport)
+                if [[ $# -lt 2 || "$2" == -* ]]; then
+                    log_warn "--set-transport requires app-owned or tmux-resident"
+                    show_help
+                    exit 1
+                fi
+                set_action "set-transport"
+                SET_TRANSPORT_MODE="$2"
+                shift 2
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -187,6 +237,26 @@ parse_args() {
         show_help
         exit 1
     fi
+}
+
+set_transport_mode() {
+    local result_json
+    local updated_mode
+
+    if ! result_json="$(run_app_config_control set-transport "$SET_TRANSPORT_MODE")"; then
+        log_warn "Failed to update transport mode."
+        return 1
+    fi
+
+    updated_mode="$(json_get "$result_json" "config.transportMode" 2>/dev/null || true)"
+    if [ -z "$updated_mode" ]; then
+        log_warn "Transport mode update returned no transportMode."
+        return 1
+    fi
+
+    log_success "Transport mode updated: ${updated_mode}"
+    log_info "Updated config/settings.yaml"
+    return 0
 }
 
 ensure_dependencies() {
@@ -348,6 +418,48 @@ print_opencode_status() {
     return 0
 }
 
+print_tmux_transport_status() {
+    local status_json
+    local state
+    local session_name
+    local dispatcher_pid
+    local manifest_exists
+
+    if ! status_json="$(run_tmux_transport_control status)"; then
+        log_warn "Failed to inspect tmux transport status."
+        return 2
+    fi
+
+    state="$(json_get "$status_json" "state" 2>/dev/null || true)"
+    session_name="$(json_get "$status_json" "sessionName" 2>/dev/null || true)"
+    dispatcher_pid="$(json_get "$status_json" "dispatcherPid" 2>/dev/null || true)"
+    manifest_exists="$(json_get "$status_json" "endpointManifestExists" 2>/dev/null || true)"
+
+    case "$state" in
+        running)
+            if [ -n "$dispatcher_pid" ]; then
+                log_success "Tmux transport is running: session ${session_name} (dispatcher PID: ${dispatcher_pid})"
+            else
+                log_success "Tmux transport is running: session ${session_name}"
+            fi
+            return 0
+            ;;
+        down)
+            if [ "$manifest_exists" = "true" ]; then
+                log_warn "Tmux transport is down but runtime artifacts still exist."
+                return 2
+            fi
+
+            log_info "Tmux transport is not running."
+            return 1
+            ;;
+        *)
+            log_warn "Unexpected tmux transport status."
+            return 2
+            ;;
+    esac
+}
+
 print_managed_status() {
     local web_status
     local opencode_status
@@ -360,7 +472,13 @@ print_managed_status() {
 
     echo ""
 
-    if print_opencode_status; then
+    if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
+        if print_tmux_transport_status; then
+            opencode_status=0
+        else
+            opencode_status=$?
+        fi
+    elif print_opencode_status; then
         opencode_status=0
     else
         opencode_status=$?
@@ -480,6 +598,18 @@ stop_managed_opencode_server() {
     return 0
 }
 
+stop_tmux_transport() {
+    local result_json
+
+    if ! result_json="$(run_tmux_transport_control stop)"; then
+        log_warn "Failed to stop tmux transport runtime."
+        return 1
+    fi
+
+    log_success "Tmux transport runtime stopped."
+    return 0
+}
+
 stop_managed_services() {
     local web_status
     local opencode_status
@@ -492,7 +622,13 @@ stop_managed_services() {
 
     echo ""
 
-    if stop_managed_opencode_server; then
+    if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
+        if stop_tmux_transport; then
+            opencode_status=0
+        else
+            opencode_status=$?
+        fi
+    elif stop_managed_opencode_server; then
         opencode_status=0
     else
         opencode_status=$?
@@ -579,8 +715,20 @@ start_server() {
 }
 
 require_command node
-require_command npm
 parse_args "$@"
+TRANSPORT_MODE="$(read_transport_mode)"
+
+case "$ACTION" in
+    set-transport)
+        if set_transport_mode; then
+            exit 0
+        else
+            exit 1
+        fi
+        ;;
+esac
+
+require_command npm
 require_port_lookup
 
 case "$ACTION" in
@@ -606,6 +754,19 @@ mkdir -p runtime/logs
 
 show_battle_cry
 show_party_roll_call
+
+log_info "Selected transport mode: ${TRANSPORT_MODE}"
+
+if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
+    require_command tmux
+    log_info "Bootstrapping tmux-resident OpenCode transport..."
+    if run_tmux_transport_control start >/dev/null; then
+        log_success "Tmux transport runtime is ready."
+    else
+        log_warn "Failed to start tmux transport runtime."
+        exit 1
+    fi
+fi
 
 log_info "Preparing production web app..."
 ensure_dependencies

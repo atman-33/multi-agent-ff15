@@ -77,6 +77,51 @@ afterEach(() => {
 });
 
 describe("api.noctis.missions.$missionId.runtime", () => {
+  it("rejects legacy missions that predate the current runtime format", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-legacy-runtime-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    mkdirSync(join(root, "runtime", "noctis-missions", missionId), { recursive: true });
+    writeFileSync(
+      join(root, "runtime", "noctis-missions", missionId, "mission.json"),
+      `${JSON.stringify(
+        {
+          id: missionId,
+          noctisSessionId: "session-noctis-legacy",
+          primarySessionId: "session-noctis-legacy",
+          workerSessions: {},
+          allowedWorkers: [],
+          taskGraph: [],
+          delegationLedger: {
+            missionId,
+            activeTasks: [],
+            completedSummaries: {},
+          },
+          agentModels: {},
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-10T00:00:00.000Z",
+          title: "Legacy runtime mission",
+          status: "active",
+          messageLog: [],
+          activityLog: [],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const response = await loader({ params: { missionId } } as never);
+
+    expect(response.status).toBe(409);
+    expect(await readJson<{ code: string; error: string }>(response)).toEqual({
+      code: "unsupported_mission_runtime",
+      error: "Mission uses an unsupported runtime format and can no longer be resumed.",
+    });
+  });
+
   it("returns shell-only runtime payload without duplicated session history", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

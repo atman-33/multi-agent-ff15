@@ -20,6 +20,7 @@ import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
+import { getConfiguredMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
 
@@ -106,8 +107,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 
   try {
-    const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const transportStatus = await getConfiguredMissionTransportStatus(projectRoot);
+    if (!transportStatus.isReady) {
+      return Response.json(
+        {
+          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
+        },
+        { status: 503 },
+      );
+    }
+    const client = getOpencodeClient();
     const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
     if (!executionProject) {
       return Response.json({ error: "Execution project is not registered." }, { status: 409 });

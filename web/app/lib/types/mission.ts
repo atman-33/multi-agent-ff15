@@ -46,6 +46,10 @@ export type MissionWorkspaceStatus = "ready" | "missing" | "deleted";
 
 export type MissionExecutionTargetMode = "mission_workspace" | "execution_project";
 
+export type MissionTransportMode = "app-owned" | "tmux-resident";
+
+export type MissionResumeBlockCode = "missing_execution_project" | "unsupported_mission_runtime";
+
 export type MissionSurfaceId = "noctis_team" | "lunafreya";
 
 export type MissionPrimaryAgentId = "noctis" | "lunafreya";
@@ -104,7 +108,9 @@ export interface AgentRuntime {
 
 export interface Mission {
   id: string;
+  schemaVersion?: number;
   noctisSessionId: string;
+  transportMode?: MissionTransportMode;
   surfaceId?: MissionSurfaceId;
   primaryAgentId?: MissionPrimaryAgentId;
   primarySessionId?: string;

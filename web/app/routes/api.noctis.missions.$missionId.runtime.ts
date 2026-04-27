@@ -1,4 +1,5 @@
 import { missionMatchesSurface } from "@/lib/mission-api.server";
+import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import { buildMissionSurfaceHydrationPayload } from "@/lib/mission-surface-hydration.server";
 import { getMission } from "@/lib/mission-store";
 import type { Route } from "./+types/api.noctis.missions.$missionId.runtime";
@@ -12,6 +13,17 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
   const mission = getMission(missionId);
   if (!mission || !missionMatchesSurface(mission, "noctis_team")) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
+  }
+
+  const compatibilityIssue = getMissionCompatibilityIssue(mission);
+  if (compatibilityIssue) {
+    return Response.json(
+      {
+        code: compatibilityIssue.code,
+        error: compatibilityIssue.message,
+      },
+      { status: 409 },
+    );
   }
 
   try {

@@ -44,7 +44,10 @@ function initializeGitProject(projectRoot: string): void {
   execSync('git commit -m "init"', { cwd: projectRoot, stdio: "ignore" });
 }
 
-function createTempRoot(options?: { gitBacked?: boolean }): string {
+function createTempRoot(options?: {
+  gitBacked?: boolean;
+  transportMode?: "app-owned" | "tmux-resident";
+}): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-mission-workspace-"));
   tempRoots.push(root);
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
@@ -60,7 +63,12 @@ function createTempRoot(options?: { gitBacked?: boolean }): string {
 
   writeFileSync(
     join(root, "config", "settings.yaml"),
-    ['language: ja', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+    [
+      'language: ja',
+      `transport_mode: "${options?.transportMode ?? "app-owned"}"`,
+      'execution_workspace_root: ".worktrees"',
+      '',
+    ].join("\n"),
     "utf-8",
   );
   writeFileSync(
@@ -176,6 +184,28 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(response.status).toBe(409);
     expect(await readJson<{ error: string }>(response)).toEqual({
       error: "Execution project must point to a git repository.",
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses mission start when tmux transport bootstrap is unhealthy", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot({ transportMode: "tmux-resident" });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Start through tmux transport.",
+          executionProjectId: "alpha",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(503);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: expect.stringContaining("Missing tmux transport endpoint manifest"),
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
   });
@@ -399,5 +429,92 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(await readJson<{ error: string }>(response)).toEqual({
       error: "Mission requires an execution project before it can be resumed.",
     });
+  });
+
+  it("blocks continue for missions with an unsupported runtime format", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const missionId = `mission-unsupported-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+
+    mkdirSync(join(root, "runtime", "noctis-missions", missionId), { recursive: true });
+    writeFileSync(
+      join(root, "runtime", "noctis-missions", missionId, "mission.json"),
+      `${JSON.stringify(
+        {
+          id: missionId,
+          noctisSessionId: "session-legacy",
+          primarySessionId: "session-legacy",
+          executionProjectId: "alpha",
+          executionTargetMode: "execution_project",
+          contextProjectIds: [],
+          workerSessions: {},
+          allowedWorkers: [],
+          taskGraph: [],
+          delegationLedger: {
+            missionId,
+            activeTasks: [],
+            completedSummaries: {},
+          },
+          agentModels: {},
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-10T00:00:00.000Z",
+          title: "Unsupported mission",
+          status: "active",
+          messageLog: [],
+          activityLog: [],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId,
+          message: "Attempt to resume an unsupported mission.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: "Mission uses an unsupported runtime format and can no longer be resumed.",
+    });
+  });
+
+  it("refuses mission continue when tmux transport bootstrap is unhealthy", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot({ transportMode: "tmux-resident" });
+    const mission = createMission(`mission-tmux-${crypto.randomUUID()}`, "", {
+      title: "Tmux mission",
+      objective: "Resume through tmux transport",
+      allowedWorkers: [],
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume through tmux transport.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(503);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: expect.stringContaining("Missing tmux transport endpoint manifest"),
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
   });
 });

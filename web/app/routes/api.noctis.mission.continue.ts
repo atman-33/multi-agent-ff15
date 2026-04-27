@@ -1,4 +1,5 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
   clearMissionSessions,
@@ -16,6 +17,7 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
+import { getConfiguredMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { Route } from "./+types/api.noctis.mission.continue";
 
 export const action = async ({ request }: Route.ActionArgs) => {
@@ -79,6 +81,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
   if (!mission) {
     return Response.json({ error: "Mission not found" }, { status: 404 });
   }
+  const compatibilityIssue = getMissionCompatibilityIssue(mission);
+  if (compatibilityIssue) {
+    return Response.json({ error: compatibilityIssue.message }, { status: 409 });
+  }
   if (!mission.executionProjectId) {
     return Response.json(
       { error: "Mission requires an execution project before it can be resumed." },
@@ -98,8 +104,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const { model, variant } = splitModelSelection(effectiveModel);
 
   try {
-    const client = getOpencodeClient();
     const appRoot = getProjectRoot();
+    const transportStatus = await getConfiguredMissionTransportStatus(appRoot);
+    if (!transportStatus.isReady) {
+      return Response.json(
+        {
+          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
+        },
+        { status: 503 },
+      );
+    }
+    const client = getOpencodeClient();
     const missionDebugContext = {
       allowedWorkers,
       executionProjectId: mission.executionProjectId,
