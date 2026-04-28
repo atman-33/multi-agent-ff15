@@ -4,13 +4,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const AGENT_IDS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris"] as const;
+const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
 const DEFAULT_PORTS: Record<(typeof AGENT_IDS)[number], number> = {
   noctis: 4401,
-  lunafreya: 4402,
   ignis: 4403,
   gladiolus: 4404,
   prompto: 4405,
+  lunafreya: 4402,
   iris: 4406,
 };
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
@@ -188,12 +188,11 @@ function ensureTmuxSession(root: string): void {
   }
 
   const layoutCommands = [
+    ["split-window", "-h", "-f", "-l", "66%", "-t", `${SESSION_NAME}:main.0`],
+    ["split-window", "-h", "-l", "50%", "-t", `${SESSION_NAME}:main.1`],
     ["split-window", "-v", "-l", "50%", "-t", `${SESSION_NAME}:main.0`],
-    ["split-window", "-h", "-l", "50%", "-t", `${SESSION_NAME}:main.0`],
-    ["split-window", "-h", "-l", "75%", "-t", `${SESSION_NAME}:main.2`],
-    ["split-window", "-h", "-l", "66%", "-t", `${SESSION_NAME}:main.3`],
-    ["split-window", "-h", "-l", "50%", "-t", `${SESSION_NAME}:main.4`],
-    ["select-layout", "-t", `${SESSION_NAME}:main`, "tiled"],
+    ["split-window", "-v", "-l", "50%", "-t", `${SESSION_NAME}:main.2`],
+    ["split-window", "-v", "-l", "50%", "-t", `${SESSION_NAME}:main.4`],
   ];
 
   for (const command of layoutCommands) {

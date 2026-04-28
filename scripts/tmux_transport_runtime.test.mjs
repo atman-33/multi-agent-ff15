@@ -127,7 +127,7 @@ function seedPrimaryAgentOutbox(root, missionId) {
         updatedAt: "2026-04-28T00:00:00.000Z",
         status: "pending",
         payload: {
-          agent: "noctis",
+          agent: "lunafreya",
           sessionId: "session-dispatch-1",
           parts: [{ type: "text", text: "queued prompt body" }],
           system: "queued system body",
@@ -219,6 +219,10 @@ test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", asy
   assert.match(tmuxLog, /new-session/);
   assert.equal((tmuxLog.match(/send-keys -t/g) ?? []).length >= 6, true);
   assert.equal((tmuxLog.match(/opencode --agent/g) ?? []).length, 6);
+  assert.match(
+    tmuxLog,
+    /send-keys -t ff15:main\.0 .*opencode --agent noctis[\s\S]*send-keys -t ff15:main\.1 .*opencode --agent ignis[\s\S]*send-keys -t ff15:main\.2 .*opencode --agent gladiolus[\s\S]*send-keys -t ff15:main\.3 .*opencode --agent prompto[\s\S]*send-keys -t ff15:main\.4 .*opencode --agent lunafreya[\s\S]*send-keys -t ff15:main\.5 .*opencode --agent iris/,
+  );
 
   const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
   assert.equal(stopResult.code, 0, stopResult.stderr);
@@ -252,6 +256,7 @@ test("dispatcher submits queued primary-agent outbox items and retains submitted
   const tmuxLog = readFileSync(join(root, "tmux.log"), "utf-8");
   assert.match(tmuxLog, /queued prompt body/);
   assert.match(tmuxLog, /queued system body/);
+  assert.match(tmuxLog, /send-keys -t ff15:main\.4 -l/);
 
   const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
   assert.equal(stopResult.code, 0, stopResult.stderr);

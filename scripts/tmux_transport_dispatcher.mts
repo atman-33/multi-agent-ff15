@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const AGENT_IDS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris"] as const;
+const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
 const LOOP_INTERVAL_MS = 200;
 const MISSION_STORE_DIR = "noctis-missions";
