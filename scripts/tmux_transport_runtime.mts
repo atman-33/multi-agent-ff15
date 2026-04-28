@@ -18,6 +18,7 @@ const ENDPOINT_MANIFEST_FILE = "opencode-endpoints.json";
 const PORT_RANGE_START = 4401;
 const PORT_RANGE_END = 4499;
 const SESSION_NAME = "ff15";
+const AGENT_LAUNCH_DELAY_MS = 1_000;
 const SCRIPT_DIR = fileURLToPath(new URL(".", import.meta.url));
 
 type AgentEndpointRecord = {
@@ -74,6 +75,10 @@ function runTmux(root: string, args: string[]): { code: number; stderr: string; 
     stderr: result.stderr ?? "",
     stdout: result.stdout ?? "",
   };
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -224,7 +229,7 @@ function writeEndpointManifest(root: string, assignedPorts: Record<(typeof AGENT
   return agents;
 }
 
-function launchAgentRoster(root: string, agents: AgentEndpointRecord[]): void {
+async function launchAgentRoster(root: string, agents: AgentEndpointRecord[]): Promise<void> {
   for (const [index, agent] of agents.entries()) {
     const target = `${SESSION_NAME}:main.${index}`;
     const launchCommand = [
@@ -242,6 +247,10 @@ function launchAgentRoster(root: string, agents: AgentEndpointRecord[]): void {
     const sendEnter = runTmux(root, ["send-keys", "-t", target, "Enter"]);
     if (sendEnter.code !== 0) {
       throw new Error(sendEnter.stderr || `Failed to confirm roster launch command for ${agent.agentId}`);
+    }
+
+    if (index < agents.length - 1) {
+      await sleep(AGENT_LAUNCH_DELAY_MS);
     }
   }
 }
@@ -298,7 +307,7 @@ async function start(root: string): Promise<void> {
   ensureTmuxSession(root);
   const assignedPorts = await allocateAgentPorts();
   const agents = writeEndpointManifest(root, assignedPorts);
-  launchAgentRoster(root, agents);
+  await launchAgentRoster(root, agents);
   const dispatcher = await ensureDispatcher(root);
 
   process.stdout.write(

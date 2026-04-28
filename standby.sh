@@ -14,6 +14,7 @@ APP_CONFIG_CONTROL_SCRIPT="scripts/app_config_control.mts"
 TMUX_TRANSPORT_CONTROL_SCRIPT="scripts/tmux_transport_runtime.mts"
 ACTION="start"
 RUN_BUILD=false
+ATTACH_SESSION=false
 SERVER_STATE="stopped"
 SERVER_PID=""
 SERVER_CMD=""
@@ -40,14 +41,16 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
+    echo "      --attach   Attach to ff15 after startup (tmux-resident only)"
     echo "      --set-transport <mode>"
     echo "                 Persist transport_mode in config/settings.yaml"
     echo "      --stop     Stop the managed web server and app-owned OpenCode server"
-    echo "      --status   Print managed web and OpenCode server status"
+    echo "      --status   Print managed web, OpenCode, and dispatcher status"
     echo "  -h, --help     Show this help"
     echo ""
     echo "Examples:"
     echo "  ./standby.sh"
+    echo "  ./standby.sh --attach"
     echo "  ./standby.sh --build"
     echo "  ./standby.sh --set-transport tmux-resident"
     echo "  ./standby.sh --set-transport app-owned"
@@ -202,6 +205,10 @@ parse_args() {
                 RUN_BUILD=true
                 shift
                 ;;
+            --attach)
+                ATTACH_SESSION=true
+                shift
+                ;;
             --stop)
                 set_action "stop"
                 shift
@@ -234,6 +241,12 @@ parse_args() {
 
     if [ "$RUN_BUILD" = true ] && [ "$ACTION" != "start" ]; then
         log_warn "--build can only be used when starting the web app."
+        show_help
+        exit 1
+    fi
+
+    if [ "$ATTACH_SESSION" = true ] && [ "$ACTION" != "start" ]; then
+        log_warn "--attach can only be used when starting the web app."
         show_help
         exit 1
     fi
@@ -463,6 +476,7 @@ print_tmux_transport_status() {
 print_managed_status() {
     local web_status
     local opencode_status
+    local tmux_status
 
     if print_server_status; then
         web_status=0
@@ -475,17 +489,33 @@ print_managed_status() {
     if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
         if print_tmux_transport_status; then
             opencode_status=0
+            tmux_status=0
+        else
+            opencode_status=$?
+            tmux_status=$opencode_status
+        fi
+    else
+        if print_opencode_status; then
+            opencode_status=0
         else
             opencode_status=$?
         fi
-    elif print_opencode_status; then
-        opencode_status=0
-    else
-        opencode_status=$?
+
+        echo ""
+
+        if print_tmux_transport_status; then
+            tmux_status=0
+        else
+            tmux_status=$?
+        fi
     fi
 
-    if [ "$web_status" -eq 2 ] || [ "$opencode_status" -eq 2 ]; then
+    if [ "$web_status" -eq 2 ] || [ "$opencode_status" -eq 2 ] || [ "$tmux_status" -eq 2 ]; then
         return 2
+    fi
+
+    if [ "$TRANSPORT_MODE" = "tmux-resident" ] && [ "$tmux_status" -ne 0 ]; then
+        return 1
     fi
 
     if [ "$web_status" -ne 0 ] || [ "$opencode_status" -ne 0 ]; then
@@ -700,6 +730,46 @@ open_browser() {
     return 1
 }
 
+attach_tmux_session() {
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        log_warn "Cannot attach tmux session without an interactive terminal."
+        return 1
+    fi
+
+    if [ -n "${TMUX:-}" ]; then
+        log_info "Switching tmux client to session ff15..."
+        tmux switch-client -t ff15
+        return $?
+    fi
+
+    log_info "Attaching to tmux session ff15..."
+    tmux attach-session -t ff15
+}
+
+ensure_tmux_transport_ready() {
+    local status_json
+    local state
+
+    if [ "$ATTACH_SESSION" = true ]; then
+        if status_json="$(run_tmux_transport_control status 2>/dev/null)"; then
+            state="$(json_get "$status_json" "state" 2>/dev/null || true)"
+            if [ "$state" = "running" ]; then
+                log_info "Reusing existing tmux transport runtime."
+                return 0
+            fi
+        fi
+    fi
+
+    log_info "Bootstrapping tmux-resident OpenCode transport..."
+    if run_tmux_transport_control start >/dev/null; then
+        log_success "Tmux transport runtime is ready."
+        return 0
+    fi
+
+    log_warn "Failed to start tmux transport runtime."
+    return 1
+}
+
 start_server() {
     local start_command
 
@@ -717,6 +787,11 @@ start_server() {
 require_command node
 parse_args "$@"
 TRANSPORT_MODE="$(read_transport_mode)"
+
+if [ "$ATTACH_SESSION" = true ] && [ "$TRANSPORT_MODE" != "tmux-resident" ]; then
+    log_warn "--attach requires transport_mode=tmux-resident."
+    exit 1
+fi
 
 case "$ACTION" in
     set-transport)
@@ -759,11 +834,7 @@ log_info "Selected transport mode: ${TRANSPORT_MODE}"
 
 if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
     require_command tmux
-    log_info "Bootstrapping tmux-resident OpenCode transport..."
-    if run_tmux_transport_control start >/dev/null; then
-        log_success "Tmux transport runtime is ready."
-    else
-        log_warn "Failed to start tmux transport runtime."
+    if ! ensure_tmux_transport_ready; then
         exit 1
     fi
 fi
@@ -800,3 +871,12 @@ else
 fi
 
 log_success "Standby complete. Web server PID: ${WEB_PID}"
+
+if [ "$ATTACH_SESSION" = true ]; then
+    if attach_tmux_session; then
+        exit 0
+    fi
+
+    log_warn "Failed to attach to tmux session ff15."
+    exit 1
+fi

@@ -8,9 +8,11 @@ import {
   createMission,
   deleteMission,
   getMission,
+  getMissionPrimarySessionId,
   setWorkerSession,
 } from "@/lib/mission-store";
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 
 const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
   promptAsyncMock: vi.fn(),
@@ -100,6 +102,44 @@ function createTempRoot(options?: {
   );
 
   return root;
+}
+
+function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  writeFileSync(
+    join(root, "runtime", "opencode-endpoints.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        startedAt: "2026-04-28T00:00:00.000Z",
+        agents: [
+          {
+            agentId: "noctis",
+            port: 4401,
+            url: "http://127.0.0.1:4401",
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+  writeFileSync(
+    join(root, "runtime", "tmux-transport-dispatcher.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        owner: "standby",
+        mode: "tmux-resident",
+        pid: process.pid,
+        startedAt: "2026-04-28T00:00:00.000Z",
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -208,6 +248,59 @@ describe("Noctis mission execution workspace lifecycle", () => {
       error: expect.stringContaining("Missing tmux transport endpoint manifest"),
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("enqueues tmux-resident mission start payloads instead of dispatching them inline", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-tmux-start" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Start through tmux transport.",
+          executionProjectId: "alpha",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string; noctisSessionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    expect(data.noctisSessionId).toBe("session-tmux-start");
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+
+    const queuedItems = listPrimaryAgentOutboxItems(data.missionId);
+    expect(queuedItems).toHaveLength(1);
+    expect(queuedItems[0]).toMatchObject({
+      status: "pending",
+      payload: {
+        agent: "noctis",
+        sessionId: "session-tmux-start",
+        parts: [
+          {
+            type: "text",
+            text: expect.stringContaining("<user-request from=\"user\" to=\"noctis\">") as never,
+          },
+        ],
+      },
+    });
+
+    const mission = getMission(data.missionId);
+    expect(mission?.activityLog).toContainEqual(
+      expect.objectContaining({
+        kind: "system_event",
+        body: "Queued primary-agent tmux delivery.",
+      }),
+    );
+    expect(mission?.activityLog.map((entry) => entry.body).join("\n") ?? "").not.toContain(
+      "Start through tmux transport.",
+    );
   });
 
   it("defaults new missions to the execution project root when executionTargetMode is omitted", async () => {
@@ -561,6 +654,53 @@ describe("Noctis mission execution workspace lifecycle", () => {
       noctisSessionId: "session-app-owned",
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("enqueues tmux-resident mission continue payloads instead of dispatching them inline", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    const mission = createMission(`mission-tmux-enqueue-${crypto.randomUUID()}`, "session-tmux-existing", {
+      title: "Tmux queued mission",
+      objective: "Resume through tmux outbox",
+      allowedWorkers: [],
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume through tmux transport.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await readJson<{ noctisSessionId: string }>(response)).toEqual({
+      noctisSessionId: "session-tmux-existing",
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+
+    const queuedItems = listPrimaryAgentOutboxItems(mission.id);
+    expect(queuedItems).toHaveLength(1);
+    expect(queuedItems[0]).toMatchObject({
+      status: "pending",
+      payload: {
+        agent: "noctis",
+        sessionId: getMissionPrimarySessionId(getMission(mission.id)) ?? "session-tmux-existing",
+      },
+    });
+
+    const activityBody = getMission(mission.id)?.activityLog.map((entry) => entry.body).join("\n") ?? "";
+    expect(activityBody).toContain("Queued primary-agent tmux delivery.");
+    expect(activityBody).not.toContain("Resume through tmux transport.");
   });
 
   it("refuses mission continue when tmux transport bootstrap is unhealthy", async () => {

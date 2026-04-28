@@ -66,4 +66,57 @@ describe("tmux-transport-bootstrap.server", () => {
       isReady: false,
     });
   });
+
+  it("accepts a healthy dispatcher state file that includes runtime queue metadata", async () => {
+    const root = createTempRoot();
+
+    writeFileSync(
+      join(root, "runtime", "opencode-endpoints.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          startedAt: "2026-04-27T00:00:00.000Z",
+          agents: [
+            {
+              agentId: "noctis",
+              port: 4401,
+              url: "http://127.0.0.1:4401",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      join(root, "runtime", "tmux-transport-dispatcher.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          owner: "standby",
+          mode: "tmux-resident",
+          pid: process.pid,
+          startedAt: "2026-04-27T00:00:00.000Z",
+          processedCount: 2,
+          queuedCount: 1,
+          lastActivityAt: "2026-04-27T00:01:00.000Z",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const status = await getTmuxTransportBootstrapStatus(root);
+
+    expect(status).toMatchObject({
+      agentCount: 1,
+      dispatcherPid: process.pid,
+      dispatcherState: "valid",
+      endpointManifestState: "valid",
+      error: null,
+      isReady: true,
+    });
+  });
 });
