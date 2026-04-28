@@ -8,6 +8,7 @@ const LOOP_INTERVAL_MS = 200;
 const MISSION_STORE_DIR = "noctis-missions";
 const SESSION_NAME = "ff15";
 const STALE_LEASE_MS = 5_000;
+const TMUX_INTERACTION_DELAY_SECONDS = "0.5";
 
 type AgentId = (typeof AGENT_IDS)[number];
 type PrimaryAgentOutboxStatus = "pending" | "leased" | "submitted";
@@ -273,6 +274,59 @@ function runTmux(root: string, args: string[]): { code: number; stderr: string; 
   };
 }
 
+function waitForTmuxInteraction(root: string): void {
+  const result = spawnSync("sleep", [TMUX_INTERACTION_DELAY_SECONDS], {
+    cwd: root,
+    encoding: "utf-8",
+  });
+
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(
+      result.stderr ?? `Failed to wait ${TMUX_INTERACTION_DELAY_SECONDS}s between tmux inputs`,
+    );
+  }
+}
+
+function sendTmuxKeys(
+  root: string,
+  target: string,
+  args: string[],
+  errorMessage: string,
+  interactionState: { hasSentInput: boolean },
+): void {
+  if (interactionState.hasSentInput) {
+    waitForTmuxInteraction(root);
+  }
+
+  const result = runTmux(root, ["send-keys", "-t", target, ...args]);
+  if (result.code !== 0) {
+    throw new Error(result.stderr || errorMessage);
+  }
+
+  interactionState.hasSentInput = true;
+}
+
+function readCatalogModelSelectionText(
+  root: string,
+  model: NonNullable<PrimaryAgentOutboxItem["payload"]["model"]>,
+): string | null {
+  const modelKey = `${model.providerID}/${model.modelID}`;
+  const catalogPath = join(root, "runtime", "opencode-model-catalog.json");
+  if (!existsSync(catalogPath)) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(catalogPath, "utf-8")) as {
+      namesByModel?: Record<string, unknown>;
+    };
+    const displayName = parsed.namesByModel?.[modelKey];
+    return typeof displayName === "string" && displayName.length > 0 ? displayName : null;
+  } catch {
+    return null;
+  }
+}
+
 function buildDispatchText(item: PrimaryAgentOutboxItem): string {
   const header = [
     `[primary-agent-dispatch] mission=${item.missionId}`,
@@ -293,47 +347,75 @@ function buildDispatchText(item: PrimaryAgentOutboxItem): string {
     .join("\n\n");
 }
 
-function applyModelSelection(root: string, target: string, item: PrimaryAgentOutboxItem): void {
+function applyModelSelection(
+  root: string,
+  target: string,
+  item: PrimaryAgentOutboxItem,
+  interactionState: { hasSentInput: boolean },
+): void {
   if (!item.payload.model) {
     return;
   }
 
-  const openModelPicker = runTmux(root, ["send-keys", "-t", target, "/models"]);
-  if (openModelPicker.code !== 0) {
-    throw new Error(openModelPicker.stderr || `Failed to open model picker for ${target}`);
-  }
-
-  const submitModelPicker = runTmux(root, ["send-keys", "-t", target, "Enter"]);
-  if (submitModelPicker.code !== 0) {
-    throw new Error(submitModelPicker.stderr || `Failed to confirm model picker for ${target}`);
-  }
-
   const modelRef = `${item.payload.model.providerID}/${item.payload.model.modelID}`;
-  const sendModel = runTmux(root, ["send-keys", "-t", target, modelRef]);
-  if (sendModel.code !== 0) {
-    throw new Error(sendModel.stderr || `Failed to select model ${modelRef} for ${target}`);
-  }
-
-  const submitModel = runTmux(root, ["send-keys", "-t", target, "Enter"]);
-  if (submitModel.code !== 0) {
-    throw new Error(submitModel.stderr || `Failed to confirm model ${modelRef} for ${target}`);
-  }
+  const selectionText = readCatalogModelSelectionText(root, item.payload.model) ?? modelRef;
+  sendTmuxKeys(root, target, ["C-p"], `Failed to open command palette for ${target}`, interactionState);
+  sendTmuxKeys(
+    root,
+    target,
+    ["-l", "Switch model"],
+    `Failed to queue model command for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(root, target, ["Enter"], `Failed to submit model command for ${target}`, interactionState);
+  sendTmuxKeys(
+    root,
+    target,
+    ["-l", selectionText],
+    `Failed to select model ${selectionText} for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    target,
+    ["Enter"],
+    `Failed to confirm model ${selectionText} for ${target}`,
+    interactionState,
+  );
 
   if (!item.payload.variant) {
     return;
   }
 
-  const sendVariant = runTmux(root, ["send-keys", "-t", target, item.payload.variant]);
-  if (sendVariant.code !== 0) {
-    throw new Error(sendVariant.stderr || `Failed to select variant ${item.payload.variant} for ${target}`);
-  }
-
-  const submitVariant = runTmux(root, ["send-keys", "-t", target, "Enter"]);
-  if (submitVariant.code !== 0) {
-    throw new Error(
-      submitVariant.stderr || `Failed to confirm variant ${item.payload.variant} for ${target}`,
-    );
-  }
+  sendTmuxKeys(root, target, ["C-p"], `Failed to reopen command palette for ${target}`, interactionState);
+  sendTmuxKeys(
+    root,
+    target,
+    ["-l", "Switch model variant"],
+    `Failed to queue model variant command for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    target,
+    ["Enter"],
+    `Failed to submit model variant command for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    target,
+    ["-l", item.payload.variant],
+    `Failed to select variant ${item.payload.variant} for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    target,
+    ["Enter"],
+    `Failed to confirm variant ${item.payload.variant} for ${target}`,
+    interactionState,
+  );
 }
 
 function submitClaimedItem(root: string, item: PrimaryAgentOutboxItem): void {
@@ -344,16 +426,10 @@ function submitClaimedItem(root: string, item: PrimaryAgentOutboxItem): void {
 
   const target = `${SESSION_NAME}:main.${paneIndex}`;
   const payload = buildDispatchText(item);
-  applyModelSelection(root, target, item);
-  const sendPayload = runTmux(root, ["send-keys", "-t", target, "-l", payload]);
-  if (sendPayload.code !== 0) {
-    throw new Error(sendPayload.stderr || `Failed to send outbox payload to ${target}`);
-  }
-
-  const sendEnter = runTmux(root, ["send-keys", "-t", target, "Enter"]);
-  if (sendEnter.code !== 0) {
-    throw new Error(sendEnter.stderr || `Failed to submit outbox payload to ${target}`);
-  }
+  const interactionState = { hasSentInput: false };
+  applyModelSelection(root, target, item, interactionState);
+  sendTmuxKeys(root, target, ["-l", payload], `Failed to send outbox payload to ${target}`, interactionState);
+  sendTmuxKeys(root, target, ["Enter"], `Failed to submit outbox payload to ${target}`, interactionState);
 
   writeItem(root, {
     ...item,

@@ -352,6 +352,42 @@ Implemented the requested change.
     expect(textSnapshot.showPendingIndicator).toBe(true);
   });
 
+  it("replaces a pending-only tail with authoritative assistant history without leaving duplicate tail state", () => {
+    const pendingSnapshot = buildSessionChatRenderSnapshot({
+      assistantPending: true,
+      messages: [],
+    });
+
+    const settledSnapshot = buildSessionChatRenderSnapshot({
+      assistantPending: false,
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          sender: "noctis",
+          senderLabel: "Noctis",
+          kind: "assistant_message",
+          content: "Mission reply settled.",
+          detailContent: "Mission reply settled.",
+          rawText: "Mission reply settled.",
+          parts: [{ type: "text", text: "Mission reply settled." }],
+          timestamp: new Date("2026-04-28T10:00:05.000Z"),
+          source: "session",
+        },
+      ],
+      previousSnapshot: pendingSnapshot,
+    });
+
+    expect(pendingSnapshot.showPendingIndicator).toBe(true);
+    expect(settledSnapshot.showPendingIndicator).toBe(false);
+    expect(settledSnapshot.streamingMessage).toBeNull();
+    expect(settledSnapshot.renderedMessages).toHaveLength(1);
+    expect(settledSnapshot.renderedMessages[0]?.messageDisplay.displayContent).toBe(
+      "Mission reply settled.",
+    );
+    expectRefreshKind(settledSnapshot.refreshKind, "tail-append");
+  });
+
   it("derives follow keys from reasoning-only live draft growth", () => {
     const initial = buildSessionChatRenderSnapshot({
       liveDraft: {

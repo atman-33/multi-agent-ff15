@@ -408,24 +408,27 @@ function normalizeDelegationLedger(
   };
 }
 
-export type MissionTranscriptPhase = "idle" | "loading" | "ready" | "empty" | "error";
+export type MissionTranscriptPhase = "idle" | "loading" | "pending" | "ready" | "empty" | "error";
 export type AbortSettlementPhase = "idle" | "settling" | "delayed";
 
 type MissionTranscriptState = {
   errorMessage: string | null;
   missionId: string | null;
   phase: MissionTranscriptPhase;
+  sessionId: string | null;
 };
 
 function createMissionTranscriptState(
   missionId: string | null,
   phase: MissionTranscriptPhase,
   errorMessage: string | null = null,
+  sessionId: string | null = null,
 ): MissionTranscriptState {
   return {
     errorMessage,
     missionId,
     phase,
+    sessionId,
   };
 }
 
@@ -717,7 +720,10 @@ function getVisibleMissionMessages(
     return [];
   }
 
-  if (transcriptState.phase === "loading" && sessionMessages.length > 0) {
+  if (
+    (transcriptState.phase === "loading" || transcriptState.phase === "pending") &&
+    sessionMessages.length > 0
+  ) {
     return sessionMessages;
   }
 
@@ -934,6 +940,7 @@ export function useAgentSession({
   const runtimeRefreshQueuedRef = useRef(false);
   const applyMissionRuntimeSnapshotRef = useRef<((runtime: MissionRuntimeSnapshot) => void) | null>(null);
   const refreshMissionRuntimeRef = useRef<(() => Promise<void>) | null>(null);
+  const transcriptStateRef = useRef<MissionTranscriptState>(transcriptState);
 
   const sessionStates = useChatStore((state) => state.sessionStates);
   const setServerSessionState = useChatStore((state) => state.setServerSessionState);
@@ -981,6 +988,10 @@ export function useAgentSession({
       },
     });
   }
+
+  useEffect(() => {
+    transcriptStateRef.current = transcriptState;
+  }, [transcriptState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1373,7 +1384,9 @@ export function useAgentSession({
 
         setSessionMessages((current) => {
           if (nextMessages.length === 0) {
-            return options?.preserveStreaming ? current : initialMessages;
+            return options?.preserveStreaming || options?.trackStreamingMessage
+              ? current
+              : (transcriptMissionId ? [] : initialMessages);
           }
 
           return options?.preserveStreaming
@@ -1382,10 +1395,12 @@ export function useAgentSession({
         });
 
         setTranscriptState(
-          createMissionTranscriptState(
-            transcriptMissionId,
-            resolveMissionTranscriptPhase(nextMessages),
-          )
+          nextMessages.length === 0 && options?.trackStreamingMessage
+            ? createMissionTranscriptState(transcriptMissionId, "pending", null, sessionId)
+            : createMissionTranscriptState(
+                transcriptMissionId,
+                resolveMissionTranscriptPhase(nextMessages),
+              )
         );
 
         if (shouldClearSyncedLiveTail) {
@@ -1891,10 +1906,16 @@ export function useAgentSession({
 
       if (noctisSessionIdRef.current !== nextPrimarySessionId) {
         const transcriptMissionId = runtime.missionId ?? activeMissionIdRef.current;
+        const shouldClearVisibleTranscriptOnSessionSwitch =
+          transcriptStateRef.current.missionId === transcriptMissionId &&
+          transcriptStateRef.current.phase !== "ready";
         noctisSessionIdRef.current = nextPrimarySessionId;
         setNoctisSessionId(nextPrimarySessionId);
         clearStreamingState();
         if (nextPrimarySessionId) {
+          if (shouldClearVisibleTranscriptOnSessionSwitch) {
+            setSessionMessages([]);
+          }
           setTranscriptState(createMissionTranscriptState(transcriptMissionId, "loading"));
           subscribeToSession(nextPrimarySessionId);
           void syncSessionMessages(nextPrimarySessionId, {
@@ -2485,6 +2506,7 @@ export function useAgentSession({
 
             handleAgentEvent({ type: "session.created" });
             subscribeToSession(sessionId);
+            setTranscriptState(createMissionTranscriptState(data.missionId, "pending", null, sessionId));
             await waitForActiveStatus(sessionId);
             requestSessionHistorySync(sessionId, {
               trackStreamingMessage: true,
@@ -2540,6 +2562,14 @@ export function useAgentSession({
 
           const sessionId = responseSessionId ?? noctisSessionIdRef.current;
           if (sessionId) {
+            setTranscriptState(
+              createMissionTranscriptState(
+                activeMissionIdRef.current ?? missionIdRef.current,
+                "pending",
+                null,
+                sessionId,
+              ),
+            );
             requestSessionHistorySync(sessionId, {
               trackStreamingMessage: true,
               reason: "mission-continue-response",

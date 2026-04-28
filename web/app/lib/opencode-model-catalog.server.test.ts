@@ -25,6 +25,7 @@ function verboseOutput(): string {
     "github-copilot/gpt-5.4",
     "{",
     '  "id": "gpt-5.4",',
+    '  "name": "GPT-5.4",',
     '  "variants": {',
     '    "medium": {},',
     '    "high": {}',
@@ -32,7 +33,8 @@ function verboseOutput(): string {
     "}",
     "github-copilot/claude-haiku-4.5",
     "{",
-    '  "id": "claude-haiku-4.5"',
+    '  "id": "claude-haiku-4.5",',
+    '  "name": "Claude Haiku 4.5"',
     "}",
     "",
   ].join("\n");
@@ -91,6 +93,10 @@ describe("opencode-model-catalog.server", () => {
 
     expect(parseOpencodeModelsVerboseOutput(verboseOutput())).toEqual({
       models: ["github-copilot/gpt-5.4", "github-copilot/claude-haiku-4.5"],
+      namesByModel: {
+        "github-copilot/claude-haiku-4.5": "Claude Haiku 4.5",
+        "github-copilot/gpt-5.4": "GPT-5.4",
+      },
       variantsByModel: {
         "github-copilot/claude-haiku-4.5": [],
         "github-copilot/gpt-5.4": ["medium", "high"],
@@ -110,6 +116,10 @@ describe("opencode-model-catalog.server", () => {
     expect(existsSync(filePath)).toBe(true);
     expect(JSON.parse(readFileSync(filePath, "utf-8"))).toMatchObject({
       models: ["github-copilot/gpt-5.4", "github-copilot/claude-haiku-4.5"],
+      namesByModel: {
+        "github-copilot/claude-haiku-4.5": "Claude Haiku 4.5",
+        "github-copilot/gpt-5.4": "GPT-5.4",
+      },
       opencodeVersion: "1.2.3",
       sourceCommand: "opencode models --verbose",
       variantsByModel: {
