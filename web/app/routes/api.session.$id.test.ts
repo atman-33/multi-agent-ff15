@@ -1,9 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sessionMessagesMock } = vi.hoisted(() => ({
+const { resolveSessionRouteTargetMock, resolvedSessionMessagesMock, sessionMessagesMock } = vi.hoisted(() => ({
+  resolveSessionRouteTargetMock: vi.fn(),
+  resolvedSessionMessagesMock: vi.fn(),
   sessionMessagesMock: vi.fn(),
 }));
 
@@ -13,6 +15,10 @@ vi.mock("@/lib/opencode-client", () => ({
       messages: sessionMessagesMock,
     },
   }),
+}));
+
+vi.mock("@/lib/session-owner-routing.server", () => ({
+  resolveSessionRouteTarget: resolveSessionRouteTargetMock,
 }));
 
 import { createMission, deleteMission, setWorkerSession } from "@/lib/mission-store";
@@ -37,6 +43,8 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 afterEach(() => {
+  resolveSessionRouteTargetMock.mockReset();
+  resolvedSessionMessagesMock.mockReset();
   sessionMessagesMock.mockReset();
 
   for (const missionId of missionIds.splice(0)) {
@@ -58,6 +66,66 @@ afterEach(() => {
 });
 
 describe("api.session.$id", () => {
+  beforeEach(() => {
+    resolveSessionRouteTargetMock.mockImplementation(() => ({
+      client: {
+        session: {
+          messages: sessionMessagesMock,
+        },
+      },
+      endpointUrl: null,
+      managedSession: null,
+      mode: "default",
+      ownerAgent: null,
+    }));
+  });
+
+  it("loads managed session transcript through the resolved owner-aware client", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      executionProjectId: "alpha",
+      contextProjectIds: ["beta"],
+    });
+    setWorkerSession(missionId, "ignis", "session-ignis");
+
+    sessionMessagesMock.mockRejectedValue(new Error("default client should not be used"));
+    resolvedSessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-managed",
+            role: "assistant",
+            agent: "ignis",
+            time: { created: Date.parse("2026-04-28T10:00:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Managed route reply." }],
+        },
+      ],
+    });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          messages: resolvedSessionMessagesMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4403",
+      managedSession: {
+        missionId,
+        ownerAgent: "ignis",
+      },
+      mode: "managed",
+      ownerAgent: "ignis",
+    });
+
+    const response = await loader({ params: { id: "session-ignis" } } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ messages: Array<{ info: { id: string } }> }>(response);
+    expect(data.messages[0]?.info.id).toBe("assistant-managed");
+  });
+
   it("returns mission-owned execution context for managed sessions", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     const missionId = `mission-${crypto.randomUUID()}`;

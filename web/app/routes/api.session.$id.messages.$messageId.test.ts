@@ -1,7 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { listSessionRequestAnchorsMock, sessionMessagesMock } = vi.hoisted(() => ({
+const {
+  listSessionRequestAnchorsMock,
+  resolveSessionRouteTargetMock,
+  resolvedSessionMessagesMock,
+  sessionMessagesMock,
+} = vi.hoisted(() => ({
   listSessionRequestAnchorsMock: vi.fn(),
+  resolveSessionRouteTargetMock: vi.fn(),
+  resolvedSessionMessagesMock: vi.fn(),
   sessionMessagesMock: vi.fn(),
 }));
 
@@ -13,6 +20,10 @@ vi.mock("@/lib/opencode-client", () => ({
   }),
 }));
 
+vi.mock("@/lib/session-owner-routing.server", () => ({
+  resolveSessionRouteTarget: resolveSessionRouteTargetMock,
+}));
+
 vi.mock("@/lib/session-request-anchors.server", () => ({
   listSessionRequestAnchors: listSessionRequestAnchorsMock,
 }));
@@ -20,9 +31,69 @@ vi.mock("@/lib/session-request-anchors.server", () => ({
 import { loader } from "./api.session.$id.messages.$messageId";
 
 describe("api.session.$id.messages.$messageId", () => {
+  beforeEach(() => {
+    resolveSessionRouteTargetMock.mockImplementation(() => ({
+      client: {
+        session: {
+          messages: sessionMessagesMock,
+        },
+      },
+      endpointUrl: null,
+      managedSession: null,
+      mode: "default",
+      ownerAgent: null,
+    }));
+  });
+
   afterEach(() => {
     listSessionRequestAnchorsMock.mockReset();
+    resolveSessionRouteTargetMock.mockReset();
+    resolvedSessionMessagesMock.mockReset();
     sessionMessagesMock.mockReset();
+  });
+
+  it("loads managed session detail through the resolved owner-aware client", async () => {
+    listSessionRequestAnchorsMock.mockReturnValue({});
+    sessionMessagesMock.mockRejectedValue(new Error("default client should not be used"));
+    resolvedSessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-managed",
+            role: "assistant",
+            agent: "ignis",
+            time: { created: Date.parse("2026-04-28T10:00:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Managed detail body." }],
+        },
+      ],
+    });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          messages: resolvedSessionMessagesMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4403",
+      managedSession: {
+        missionId: "mission-managed",
+        ownerAgent: "ignis",
+      },
+      mode: "managed",
+      ownerAgent: "ignis",
+    });
+
+    const response = await loader({
+      params: { id: "session-managed", messageId: "assistant-managed" },
+    } as never);
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      message: expect.objectContaining({
+        info: expect.objectContaining({ id: "assistant-managed" }),
+      }),
+    });
   });
 
   it("returns full message detail for on-demand transcript expansion", async () => {

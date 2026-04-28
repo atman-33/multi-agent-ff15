@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { getOpencodeClient } from "@/lib/opencode-client";
+import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import type { Route } from "./+types/api.session.$id.open-terminal";
 
 type SessionSummary = {
@@ -91,7 +91,7 @@ export const action = async ({ params }: Route.ActionArgs) => {
   }
 
   try {
-    const client = getOpencodeClient();
+    const { client } = resolveSessionRouteTarget(sessionId);
     const result = await client.session.list();
 
     if (result.error) {
