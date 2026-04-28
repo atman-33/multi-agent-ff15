@@ -488,6 +488,81 @@ describe("Noctis mission execution workspace lifecycle", () => {
     });
   });
 
+  it("continues to require tmux readiness based on the mission transport snapshot", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const mission = createMission(`mission-tmux-snapshot-${crypto.randomUUID()}`, "session-tmux", {
+      title: "Tmux snapshot mission",
+      objective: "Keep using the stored tmux transport mode",
+      allowedWorkers: [],
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "app-owned"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume through the stored tmux transport mode.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(503);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: expect.stringContaining("Missing tmux transport endpoint manifest"),
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("continues app-owned missions even after the global transport mode changes to tmux-resident", async () => {
+    const root = createTempRoot({ transportMode: "app-owned" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const mission = createMission(`mission-app-owned-snapshot-${crypto.randomUUID()}`, "session-app-owned", {
+      title: "App-owned snapshot mission",
+      objective: "Keep using the stored app-owned transport mode",
+      allowedWorkers: [],
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-app-owned-continue" } });
+
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume through the stored app-owned transport mode.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await readJson<{ noctisSessionId: string }>(response)).toEqual({
+      noctisSessionId: "session-app-owned",
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
   it("refuses mission continue when tmux transport bootstrap is unhealthy", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot({ transportMode: "tmux-resident" });
     const mission = createMission(`mission-tmux-${crypto.randomUUID()}`, "", {

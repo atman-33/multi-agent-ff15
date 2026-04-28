@@ -98,6 +98,29 @@ describe("mission store", () => {
     expect(reloaded?.workspaceStatus).toBe("ready");
   });
 
+  it("persists transport snapshots and primary session ownership metadata", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-transport-state", "session-primary-owner", {
+      title: "Transport State Mission",
+      objective: "Verify transport snapshot persistence",
+    });
+    missionIds.push(mission.id);
+
+    expect(mission.transportMode).toBe("app-owned");
+    expect(mission.sessionOwners).toEqual({
+      "session-primary-owner": "noctis",
+    });
+
+    deleteMission(mission.id);
+
+    const reloaded = getMission(mission.id);
+    expect(reloaded?.transportMode).toBe("app-owned");
+    expect(reloaded?.sessionOwners).toEqual({
+      "session-primary-owner": "noctis",
+    });
+  });
+
   it("persists Lunafreya mission surface metadata and facet selections", () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
 
@@ -324,5 +347,33 @@ describe("mission store", () => {
         activitySessionIds: ["session-primary", "session-ignis", "session-prompto"],
       }),
     ]);
+  });
+
+  it("persists lazy worker session ownership metadata only after the worker session is created", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-worker-owners", "session-primary", {
+      title: "Worker ownership mission",
+      objective: "Verify lazy worker ownership persistence",
+    });
+    missionIds.push(mission.id);
+
+    expect(mission.sessionOwners).toEqual({
+      "session-primary": "noctis",
+    });
+
+    setWorkerSession(mission.id, "ignis", "session-ignis");
+
+    expect(getMission(mission.id)?.sessionOwners).toEqual({
+      "session-primary": "noctis",
+      "session-ignis": "ignis",
+    });
+
+    deleteMission(mission.id);
+
+    expect(getMission(mission.id)?.sessionOwners).toEqual({
+      "session-primary": "noctis",
+      "session-ignis": "ignis",
+    });
   });
 });
