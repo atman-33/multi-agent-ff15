@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createMission, deleteMission } from "@/lib/mission-store";
+import { enqueuePrimaryAgentOutboxItem } from "@/lib/mission-primary-agent-outbox.server";
 import { createOperationState, saveOperationState } from "@/lib/operation-runtime/state";
 import {
   REVIEW_CYCLE_TEST_OPERATION_NAME,
@@ -173,6 +174,54 @@ describe("api.noctis.missions.$missionId", () => {
       expect.objectContaining({
         missionId,
         transportMode: "tmux-resident",
+      }),
+    );
+  });
+
+  it("returns retained primary-agent outbox artifacts in the mission detail payload", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-outbox-detail-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Outbox detail mission",
+      objective: "Inspect retained transport artifacts",
+    });
+
+    enqueuePrimaryAgentOutboxItem({
+      missionId,
+      itemId: "item-detail-1",
+      createdAt: "2026-04-28T00:00:00.000Z",
+      payload: {
+        agent: "noctis",
+        sessionId: "session-noctis",
+        parts: [{ type: "text", text: "Inspect this queued payload." }],
+      },
+    });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    await expect(
+      readJson<{
+        primaryAgentOutbox: Array<{
+          id: string;
+          payload: { sessionId: string };
+          status: string;
+        }>;
+      }>(response),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        primaryAgentOutbox: [
+          expect.objectContaining({
+            id: "item-detail-1",
+            status: "pending",
+            payload: expect.objectContaining({
+              sessionId: "session-noctis",
+            }),
+          }),
+        ],
       }),
     );
   });

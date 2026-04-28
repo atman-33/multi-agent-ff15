@@ -93,6 +93,92 @@ function isProcessAlive(pid) {
   }
 }
 
+async function waitFor(predicate, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  return predicate();
+}
+
+function seedPrimaryAgentOutbox(root, missionId) {
+  const pendingDir = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    missionId,
+    "transport",
+    "primary-agent-outbox",
+    "pending",
+  );
+  mkdirSync(pendingDir, { recursive: true });
+  writeFileSync(
+    join(pendingDir, "item-dispatch-1.json"),
+    `${JSON.stringify(
+      {
+        id: "item-dispatch-1",
+        missionId,
+        createdAt: "2026-04-28T00:00:00.000Z",
+        updatedAt: "2026-04-28T00:00:00.000Z",
+        status: "pending",
+        payload: {
+          agent: "lunafreya",
+          sessionId: "session-dispatch-1",
+          parts: [{ type: "text", text: "queued prompt body" }],
+          system: "queued system body",
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
+function seedStaleLeasedPrimaryAgentOutbox(root, missionId) {
+  const leasedDir = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    missionId,
+    "transport",
+    "primary-agent-outbox",
+    "leased",
+  );
+  mkdirSync(leasedDir, { recursive: true });
+  writeFileSync(
+    join(leasedDir, "item-stale-1.json"),
+    `${JSON.stringify(
+      {
+        id: "item-stale-1",
+        missionId,
+        createdAt: "2026-04-28T00:00:00.000Z",
+        updatedAt: "2026-04-28T00:00:01.000Z",
+        status: "leased",
+        lease: {
+          attempt: 1,
+          leasedAt: "2026-04-28T00:00:01.000Z",
+          owner: "dispatcher:old",
+          staleAfterMs: 1,
+        },
+        payload: {
+          agent: "noctis",
+          sessionId: "session-stale-1",
+          parts: [{ type: "text", text: "recovered stale prompt" }],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
 test.afterEach(() => {
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
@@ -106,7 +192,9 @@ test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", asy
   const root = createTempRoot();
   installFakeTmux(root);
 
+  const startedAt = Date.now();
   const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  const elapsedMs = Date.now() - startedAt;
   assert.equal(startResult.code, 0, startResult.stderr);
 
   const manifestPath = join(root, "runtime", "opencode-endpoints.json");
@@ -118,6 +206,7 @@ test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", asy
   assert.equal(manifest.version, 1);
   assert.equal(Array.isArray(manifest.agents), true);
   assert.equal(manifest.agents.length, 6);
+  assert.ok(elapsedMs >= (manifest.agents.length - 1) * 900, `expected staggered startup, got ${elapsedMs}ms`);
 
   const dispatcherState = JSON.parse(readFileSync(dispatcherStatePath, "utf-8"));
   assert.equal(dispatcherState.version, 1);
@@ -130,6 +219,74 @@ test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", asy
   assert.match(tmuxLog, /new-session/);
   assert.equal((tmuxLog.match(/send-keys -t/g) ?? []).length >= 6, true);
   assert.equal((tmuxLog.match(/opencode --agent/g) ?? []).length, 6);
+  assert.match(
+    tmuxLog,
+    /send-keys -t ff15:main\.0 .*opencode --agent noctis[\s\S]*send-keys -t ff15:main\.1 .*opencode --agent ignis[\s\S]*send-keys -t ff15:main\.2 .*opencode --agent gladiolus[\s\S]*send-keys -t ff15:main\.3 .*opencode --agent prompto[\s\S]*send-keys -t ff15:main\.4 .*opencode --agent lunafreya[\s\S]*send-keys -t ff15:main\.5 .*opencode --agent iris/,
+  );
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
+test("dispatcher submits queued primary-agent outbox items and retains submitted artifacts", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedPrimaryAgentOutbox(root, "mission-dispatch");
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  const submittedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch",
+    "transport",
+    "primary-agent-outbox",
+    "submitted",
+    "item-dispatch-1.json",
+  );
+  assert.equal(await waitFor(() => existsSync(submittedPath), 3_000), true);
+
+  const submitted = JSON.parse(readFileSync(submittedPath, "utf-8"));
+  assert.equal(submitted.status, "submitted");
+  assert.equal(typeof submitted.submission.dispatcherPid, "number");
+  assert.equal(submitted.submission.submittedBy.startsWith("dispatcher:"), true);
+
+  const tmuxLog = readFileSync(join(root, "tmux.log"), "utf-8");
+  assert.match(tmuxLog, /queued prompt body/);
+  assert.match(tmuxLog, /queued system body/);
+  assert.match(tmuxLog, /send-keys -t ff15:main\.4 -l/);
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
+test("dispatcher reclaims stale leases before submitting retained artifacts", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedStaleLeasedPrimaryAgentOutbox(root, "mission-stale");
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  const submittedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-stale",
+    "transport",
+    "primary-agent-outbox",
+    "submitted",
+    "item-stale-1.json",
+  );
+  assert.equal(await waitFor(() => existsSync(submittedPath), 3_000), true);
+
+  const submitted = JSON.parse(readFileSync(submittedPath, "utf-8"));
+  assert.equal(submitted.status, "submitted");
+  assert.equal(submitted.lease.attempt, 2);
+  assert.equal(submitted.lease.recoveredFrom.owner, "dispatcher:old");
+  assert.equal(submitted.submission.submittedBy.startsWith("dispatcher:"), true);
 
   const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
   assert.equal(stopResult.code, 0, stopResult.stderr);

@@ -1,5 +1,6 @@
 import { buildMissionBanterTimeline } from "@/lib/banter/timeline";
 import { getMissionResumeBlock } from "@/lib/mission-runtime-compatibility.server";
+import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { readSessionContextUsage } from "@/lib/session-context.server";
 import type { SessionStatus } from "@/lib/session-status";
@@ -97,6 +98,7 @@ export function buildMissionResumePayload(mission: Mission) {
     operationState: mission.operationState ?? null,
     workflowProgress: buildMissionWorkflowProgress(mission.operationState),
     lunafreyaFacetSelection: mission.lunafreyaFacetSelection ?? null,
+    primaryAgentOutbox: listPrimaryAgentOutboxItems(mission.id),
     activityLog: mission.activityLog,
   };
 }

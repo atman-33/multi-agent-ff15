@@ -4,13 +4,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const AGENT_IDS = ["noctis", "lunafreya", "ignis", "gladiolus", "prompto", "iris"] as const;
+const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
 const DEFAULT_PORTS: Record<(typeof AGENT_IDS)[number], number> = {
   noctis: 4401,
-  lunafreya: 4402,
   ignis: 4403,
   gladiolus: 4404,
   prompto: 4405,
+  lunafreya: 4402,
   iris: 4406,
 };
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
@@ -18,6 +18,7 @@ const ENDPOINT_MANIFEST_FILE = "opencode-endpoints.json";
 const PORT_RANGE_START = 4401;
 const PORT_RANGE_END = 4499;
 const SESSION_NAME = "ff15";
+const AGENT_LAUNCH_DELAY_MS = 1_000;
 const SCRIPT_DIR = fileURLToPath(new URL(".", import.meta.url));
 
 type AgentEndpointRecord = {
@@ -74,6 +75,10 @@ function runTmux(root: string, args: string[]): { code: number; stderr: string; 
     stderr: result.stderr ?? "",
     stdout: result.stdout ?? "",
   };
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -183,12 +188,11 @@ function ensureTmuxSession(root: string): void {
   }
 
   const layoutCommands = [
+    ["split-window", "-h", "-f", "-l", "66%", "-t", `${SESSION_NAME}:main.0`],
+    ["split-window", "-h", "-l", "50%", "-t", `${SESSION_NAME}:main.1`],
     ["split-window", "-v", "-l", "50%", "-t", `${SESSION_NAME}:main.0`],
-    ["split-window", "-h", "-l", "50%", "-t", `${SESSION_NAME}:main.0`],
-    ["split-window", "-h", "-l", "75%", "-t", `${SESSION_NAME}:main.2`],
-    ["split-window", "-h", "-l", "66%", "-t", `${SESSION_NAME}:main.3`],
-    ["split-window", "-h", "-l", "50%", "-t", `${SESSION_NAME}:main.4`],
-    ["select-layout", "-t", `${SESSION_NAME}:main`, "tiled"],
+    ["split-window", "-v", "-l", "50%", "-t", `${SESSION_NAME}:main.2`],
+    ["split-window", "-v", "-l", "50%", "-t", `${SESSION_NAME}:main.4`],
   ];
 
   for (const command of layoutCommands) {
@@ -224,7 +228,7 @@ function writeEndpointManifest(root: string, assignedPorts: Record<(typeof AGENT
   return agents;
 }
 
-function launchAgentRoster(root: string, agents: AgentEndpointRecord[]): void {
+async function launchAgentRoster(root: string, agents: AgentEndpointRecord[]): Promise<void> {
   for (const [index, agent] of agents.entries()) {
     const target = `${SESSION_NAME}:main.${index}`;
     const launchCommand = [
@@ -242,6 +246,10 @@ function launchAgentRoster(root: string, agents: AgentEndpointRecord[]): void {
     const sendEnter = runTmux(root, ["send-keys", "-t", target, "Enter"]);
     if (sendEnter.code !== 0) {
       throw new Error(sendEnter.stderr || `Failed to confirm roster launch command for ${agent.agentId}`);
+    }
+
+    if (index < agents.length - 1) {
+      await sleep(AGENT_LAUNCH_DELAY_MS);
     }
   }
 }
@@ -298,7 +306,7 @@ async function start(root: string): Promise<void> {
   ensureTmuxSession(root);
   const assignedPorts = await allocateAgentPorts();
   const agents = writeEndpointManifest(root, assignedPorts);
-  launchAgentRoster(root, agents);
+  await launchAgentRoster(root, agents);
   const dispatcher = await ensureDispatcher(root);
 
   process.stdout.write(

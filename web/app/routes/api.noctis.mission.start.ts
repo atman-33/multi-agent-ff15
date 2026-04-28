@@ -17,6 +17,7 @@ import {
 } from "@/lib/operation-definition/operation-catalog";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
+import { queuePrimaryAgentTmuxDispatch } from "@/lib/primary-agent-outbox-dispatch.server";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
@@ -217,6 +218,24 @@ export const action = async ({ request }: Route.ActionArgs) => {
       isNewMission: true,
       selectedOperation,
     });
+
+    if (transportStatus.transportMode === "tmux-resident") {
+      queuePrimaryAgentTmuxDispatch({
+        missionId,
+        sessionId,
+        agent: noctisAgentProfile,
+        parts: composed.payloadParts,
+        system: ledger,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      return Response.json({
+        missionId,
+        noctisSessionId: sessionId,
+        operationState: getOperationState(missionId) ?? null,
+      });
+    }
 
     const promptResult = await client.session.promptAsync({
       sessionID: sessionId,

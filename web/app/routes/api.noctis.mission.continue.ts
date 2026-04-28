@@ -14,6 +14,7 @@ import {
   getNoctisExecutionMode,
 } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { queuePrimaryAgentTmuxDispatch } from "@/lib/primary-agent-outbox-dispatch.server";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
@@ -172,6 +173,38 @@ export const action = async ({ request }: Route.ActionArgs) => {
       sessionId,
       isNewMission: false,
     });
+
+    if (transportStatus.transportMode === "tmux-resident") {
+      appendSessionPromptDebugLog({
+        route: "api.noctis.mission.continue",
+        stage: "prompt-dispatched",
+        requestId,
+        sessionId,
+        payload: {
+          sessionID: sessionId,
+          model: model ?? null,
+          variant: variant ?? null,
+          agent: noctisAgentProfile,
+          parts: composed.payloadParts,
+          mission: {
+            missionId,
+            sessionRecreated,
+            ...missionDebugContext,
+          },
+        },
+      });
+
+      queuePrimaryAgentTmuxDispatch({
+        missionId,
+        sessionId,
+        agent: noctisAgentProfile,
+        parts: composed.payloadParts,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      return Response.json({ noctisSessionId: sessionId });
+    }
 
     appendSessionPromptDebugLog({
       route: "api.noctis.mission.continue",
