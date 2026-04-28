@@ -16,6 +16,7 @@ import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToPrimaryAgentPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
+import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 
 function listBuiltinLanguages(language: string): string[] {
@@ -110,8 +111,17 @@ export const action = async ({ request }: { request: Request }) => {
   }
 
   try {
-    const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const transportStatus = await getMissionTransportStatus(projectRoot);
+    if (!transportStatus.isReady) {
+      return Response.json(
+        {
+          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
+        },
+        { status: 503 },
+      );
+    }
+    const client = getOpencodeClient();
     const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
     if (!executionProject) {
       return Response.json({ error: "Execution project is not registered." }, { status: 409 });

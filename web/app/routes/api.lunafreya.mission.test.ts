@@ -192,6 +192,33 @@ describe("Lunafreya mission routing", () => {
     });
   });
 
+  it("refuses Lunafreya mission start when tmux transport bootstrap is unhealthy", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Guide me through tmux transport.",
+          executionProjectId: "alpha",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(503);
+    await expect(readJson<{ error: string }>(response)).resolves.toEqual({
+      error: expect.stringContaining("Missing tmux transport endpoint manifest"),
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
   it("starts a Lunafreya mission with the implicit default Job when no explicit override is selected", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -431,6 +458,49 @@ describe("Lunafreya mission routing", () => {
       }),
     );
     expect(getMission(mission.id)?.primarySessionId).toBe("session-lunafreya-recreated");
+  });
+
+  it("continues to require tmux readiness for Lunafreya based on the mission transport snapshot", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+
+    const mission = createMission(`mission-luna-tmux-${crypto.randomUUID()}`, "session-luna-tmux", {
+      title: "Lunafreya tmux snapshot mission",
+      objective: "Keep using the stored tmux transport mode",
+      surfaceId: "lunafreya",
+      primaryAgentId: "lunafreya",
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "app-owned"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/lunafreya/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume through the stored tmux transport mode.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(503);
+    await expect(readJson<{ error: string }>(response)).resolves.toEqual({
+      error: expect.stringContaining("Missing tmux transport endpoint manifest"),
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
   });
 
   it("blocks continue for Lunafreya missions with an unsupported runtime format", async () => {

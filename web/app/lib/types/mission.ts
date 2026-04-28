@@ -114,6 +114,7 @@ export interface Mission {
   surfaceId?: MissionSurfaceId;
   primaryAgentId?: MissionPrimaryAgentId;
   primarySessionId?: string;
+  sessionOwners?: Record<string, AgentId>;
   workerSessions: Partial<Record<WorkerAgentId, string>>;
   executionProjectId?: string;
   executionTargetMode?: MissionExecutionTargetMode;

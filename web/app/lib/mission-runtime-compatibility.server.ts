@@ -43,14 +43,6 @@ export function getMissionCompatibilityIssue(mission: Mission): MissionResumeBlo
     };
   }
 
-  const transportMode = normalizeMissionTransportMode(mission.transportMode);
-  if (transportMode !== getConfiguredMissionTransportMode()) {
-    return {
-      code: "unsupported_mission_runtime",
-      message: UNSUPPORTED_MISSION_RUNTIME_MESSAGE,
-    };
-  }
-
   return null;
 }
 

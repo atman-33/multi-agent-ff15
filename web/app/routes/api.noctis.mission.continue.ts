@@ -17,7 +17,7 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
-import { getConfiguredMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
+import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { Route } from "./+types/api.noctis.mission.continue";
 
 export const action = async ({ request }: Route.ActionArgs) => {
@@ -105,7 +105,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   try {
     const appRoot = getProjectRoot();
-    const transportStatus = await getConfiguredMissionTransportStatus(appRoot);
+    const transportStatus = await getMissionTransportStatus(appRoot, mission.transportMode);
     if (!transportStatus.isReady) {
       return Response.json(
         {

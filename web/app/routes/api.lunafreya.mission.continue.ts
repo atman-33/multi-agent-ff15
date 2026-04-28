@@ -21,6 +21,7 @@ import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-c
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { composeUserToPrimaryAgentPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
+import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 
 function listBuiltinLanguages(language: string): string[] {
@@ -153,8 +154,17 @@ export const action = async ({ request }: { request: Request }) => {
   const { model, variant } = splitModelSelection(effectiveModel);
 
   try {
-    const client = getOpencodeClient();
     const appRoot = getProjectRoot();
+    const transportStatus = await getMissionTransportStatus(appRoot, mission.transportMode);
+    if (!transportStatus.isReady) {
+      return Response.json(
+        {
+          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
+        },
+        { status: 503 },
+      );
+    }
+    const client = getOpencodeClient();
     const executionRoot = resolveMissionExecutionRoot({
       appRoot,
       mission,

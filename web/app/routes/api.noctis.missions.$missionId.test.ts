@@ -146,4 +146,34 @@ describe("api.noctis.missions.$missionId", () => {
       isTerminal: true,
     });
   });
+
+  it("keeps read-only mission inspection available when tmux transport is unhealthy", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    mkdirSync(join(root, "config"), { recursive: true });
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+
+    const missionId = `mission-readonly-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-readonly", {
+      title: "Readonly mission",
+      objective: "Inspect mission details while tmux is unhealthy",
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    await expect(readJson<{ missionId: string; transportMode: string | null }>(response)).resolves.toEqual(
+      expect.objectContaining({
+        missionId,
+        transportMode: "tmux-resident",
+      }),
+    );
+  });
 });

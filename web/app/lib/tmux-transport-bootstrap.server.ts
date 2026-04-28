@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { readAppConfig, type AppConfig } from "@/lib/app-config.server";
+import type { MissionTransportMode } from "@/lib/types/mission";
 
 export const TMUX_TRANSPORT_ENDPOINT_MANIFEST_FILE = "opencode-endpoints.json";
 export const TMUX_TRANSPORT_DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
@@ -230,12 +231,24 @@ export async function getConfiguredMissionTransportStatus(
 ): Promise<ConfiguredMissionTransportStatus> {
   const { transportMode } = readAppConfig(root);
 
-  if (transportMode !== "tmux-resident") {
+  return getMissionTransportStatus(root, transportMode);
+}
+
+export async function getMissionTransportStatus(
+  root: string,
+  transportMode?: MissionTransportMode | null,
+): Promise<ConfiguredMissionTransportStatus> {
+  const effectiveTransportMode =
+    transportMode === "app-owned" || transportMode === "tmux-resident"
+      ? transportMode
+      : readAppConfig(root).transportMode;
+
+  if (effectiveTransportMode !== "tmux-resident") {
     return {
       bootstrapStatus: null,
       error: null,
       isReady: true,
-      transportMode,
+      transportMode: effectiveTransportMode,
     };
   }
 
@@ -244,6 +257,6 @@ export async function getConfiguredMissionTransportStatus(
     bootstrapStatus,
     error: bootstrapStatus.error,
     isReady: bootstrapStatus.isReady,
-    transportMode,
+    transportMode: effectiveTransportMode,
   };
 }

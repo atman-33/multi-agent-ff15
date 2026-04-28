@@ -58,6 +58,55 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function normalizeMissionSessionOwners(value: unknown): Record<string, AgentId> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const normalizedOwners: Record<string, AgentId> = {};
+  for (const [sessionId, ownerAgent] of Object.entries(value as Record<string, unknown>)) {
+    const normalizedSessionId = normalizeOptionalString(sessionId);
+    if (!normalizedSessionId) {
+      continue;
+    }
+
+    if (
+      ownerAgent !== "noctis" &&
+      ownerAgent !== "lunafreya" &&
+      ownerAgent !== "ignis" &&
+      ownerAgent !== "gladiolus" &&
+      ownerAgent !== "prompto"
+    ) {
+      continue;
+    }
+
+    normalizedOwners[normalizedSessionId] = ownerAgent;
+  }
+
+  return normalizedOwners;
+}
+
+function setMissionSessionOwner(
+  mission: Mission,
+  sessionId: string,
+  ownerAgent: AgentId,
+  previousSessionId?: string | null,
+): void {
+  const normalizedSessionId = normalizeOptionalString(sessionId);
+  if (!normalizedSessionId) {
+    return;
+  }
+
+  const normalizedPreviousSessionId = normalizeOptionalString(previousSessionId);
+  const sessionOwners = mission.sessionOwners ?? {};
+  if (normalizedPreviousSessionId && normalizedPreviousSessionId !== normalizedSessionId) {
+    delete sessionOwners[normalizedPreviousSessionId];
+  }
+
+  sessionOwners[normalizedSessionId] = ownerAgent;
+  mission.sessionOwners = sessionOwners;
+}
+
 function normalizeMissionSurfaceId(value: unknown): MissionSurfaceId | undefined {
   return value === "lunafreya" || value === "noctis_team" ? value : undefined;
 }
@@ -271,6 +320,7 @@ function readMissionFromDisk(id: string): Mission | null {
     parsed.surfaceId = normalizeMissionSurfaceId(parsed.surfaceId);
     parsed.primaryAgentId = normalizeMissionPrimaryAgentId(parsed.primaryAgentId);
     parsed.primarySessionId = normalizeOptionalString(parsed.primarySessionId);
+    parsed.sessionOwners = normalizeMissionSessionOwners(parsed.sessionOwners);
     parsed.contextProjectIds = normalizeContextProjectIds(
       parsed.executionProjectId,
       parsed.contextProjectIds,
@@ -394,15 +444,19 @@ export function createMission(
     options?.executionTargetMode,
     executionProjectId,
   );
+  const normalizedPrimarySessionId = noctisSessionId.trim();
   const primaryAgentId = options?.primaryAgentId ?? "noctis";
   const surfaceId = options?.surfaceId ?? (primaryAgentId === "lunafreya" ? "lunafreya" : "noctis_team");
   const mission: Mission = {
     id,
     ...buildCurrentMissionRuntimeMetadata(),
-    noctisSessionId: primaryAgentId === "noctis" ? noctisSessionId : "",
+    noctisSessionId: primaryAgentId === "noctis" ? normalizedPrimarySessionId : "",
     surfaceId,
     primaryAgentId,
-    primarySessionId: noctisSessionId,
+    primarySessionId: normalizedPrimarySessionId,
+    sessionOwners: normalizedPrimarySessionId
+      ? { [normalizedPrimarySessionId]: primaryAgentId }
+      : {},
     workerSessions: {},
     executionProjectId,
     ...(executionTargetMode ? { executionTargetMode } : {}),
@@ -519,7 +573,9 @@ export function setWorkerSession(
 ): void {
   const mission = getMission(missionId);
   if (!mission) return;
+  const previousSessionId = mission.workerSessions[agentId];
   mission.workerSessions[agentId] = sessionId;
+  setMissionSessionOwner(mission, sessionId, agentId, previousSessionId);
   touchMission(mission);
 }
 
@@ -535,12 +591,19 @@ export function setMissionPrimarySession(
   const mission = getMission(missionId);
   if (!mission) return;
   const normalizedSessionId = sessionId.trim();
+  const previousSessionId =
+    agentId === "noctis"
+      ? normalizeOptionalString(mission.noctisSessionId)
+      : getMissionPrimaryAgentId(mission) === agentId
+        ? getMissionPrimarySessionId(mission)
+        : null;
   if (agentId === "noctis") {
     mission.noctisSessionId = normalizedSessionId;
   }
   if (getMissionPrimaryAgentId(mission) === agentId) {
     mission.primarySessionId = normalizedSessionId;
   }
+  setMissionSessionOwner(mission, normalizedSessionId, agentId, previousSessionId);
   touchMission(mission);
 }
 
@@ -598,6 +661,7 @@ export function clearMissionSessions(missionId: string): void {
   if (!mission) return;
   mission.noctisSessionId = "";
   mission.primarySessionId = "";
+  mission.sessionOwners = {};
   mission.workerSessions = {};
   touchMission(mission);
 }
