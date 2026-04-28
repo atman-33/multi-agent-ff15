@@ -1,7 +1,6 @@
 ---
 description: "Create a thin .github skill entrypoint for a canonical .opencode skill"
 argument-hint: "Skill name and optional constraints"
-agent: "agent"
 ---
 
 Create a workspace-scoped GitHub Copilot skill at `.github/skills/<skill-name>/SKILL.md` that acts as a thin compatibility entrypoint to the canonical opencode skill at `.opencode/skills/<skill-name>/SKILL.md`.

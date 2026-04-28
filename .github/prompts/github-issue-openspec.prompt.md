@@ -1,8 +1,6 @@
 ---
 description: Create apply-ready OpenSpec artifacts from a GitHub issue URL
-name: GitHub Issue to OpenSpec FF
 argument-hint: <github-issue-url>
-agent: agent
 ---
 
 Create apply-ready OpenSpec artifacts from a GitHub issue.

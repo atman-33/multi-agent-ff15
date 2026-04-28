@@ -1,7 +1,6 @@
 ---
 description: "Create implementation GitHub issues from a PRD issue or raw PRD text, then set parent and blocked-by relationships"
 argument-hint: "PRD issue number/URL or PRD text"
-agent: "agent"
 ---
 
 Create implementation GitHub issues from a PRD source.
