@@ -17,7 +17,7 @@ steps:
         2. 仕様検討では最新コードを基準にするため、まず `git switch --detach origin/main` で `origin/main` の先頭に移動して現状を確認する。
         3. User から渡された GitHub issue URL を読み、issue の目的、受け入れ条件、関連リンクを整理する。parent issue の情報が明示されていれば、それも確認して scope と制約を統合する。
         4. OpenSpec artifact を作る前に、issue 内容から適切な kebab-case の change 名を決める。
-        5. change 名が決まったら、その内容に対応する feature branch を `feature/<change-name>` を基本形として `origin/main` から作成し、そこへ切り替える。すでに対応する branch が execution workspace に存在する場合はそれを再利用してよい。
+        5. change 名が決まったら、その GitHub issue 番号と組み合わせた feature branch を `feature/<issue-number>-<change-name>` を基本形として `origin/main` から作成し、そこへ切り替える。すでに対応する branch が execution workspace に存在する場合はそれを再利用してよい。
         6. OpenSpec artifact の作成手順は `.opencode/command/opsx-ff.md` を使う。branch 名と OpenSpec change 名は同じ意図の名前にそろえる。
         7. design を書く前に `.opencode/skills/improve-codebase-architecture/SKILL.md` を読み、deep module と boundary-first の観点を設計に反映する。
         8. 生成する OpenSpec artifact の本文は `{{ setting("language", "name") }}` で記述する。

@@ -1,17 +1,23 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMission, deleteMission, getMission, setWorkerSession } from "@/lib/mission-store";
 
 const {
   abortMock,
   appendSessionPromptDebugLogMock,
+  resolveSessionRouteTargetMock,
+  resolvedAbortMock,
+  resolvedSessionListMock,
   sessionListMock,
 } = vi.hoisted(() => ({
   abortMock: vi.fn(),
   appendSessionPromptDebugLogMock: vi.fn(),
+  resolveSessionRouteTargetMock: vi.fn(),
+  resolvedAbortMock: vi.fn(),
+  resolvedSessionListMock: vi.fn(),
   sessionListMock: vi.fn(),
 }));
 
@@ -26,6 +32,10 @@ vi.mock("@/lib/opencode-client", () => ({
 
 vi.mock("@/lib/session-prompt-debug.server", () => ({
   appendSessionPromptDebugLog: appendSessionPromptDebugLogMock,
+}));
+
+vi.mock("@/lib/session-owner-routing.server", () => ({
+  resolveSessionRouteTarget: resolveSessionRouteTargetMock,
 }));
 
 import { action } from "./api.session.$id.abort";
@@ -66,6 +76,21 @@ afterEach(() => {
 });
 
 describe("api.session.$id.abort", () => {
+  beforeEach(() => {
+    resolveSessionRouteTargetMock.mockImplementation(() => ({
+      client: {
+        session: {
+          abort: abortMock,
+          list: sessionListMock,
+        },
+      },
+      endpointUrl: null,
+      managedSession: null,
+      mode: "default",
+      ownerAgent: null,
+    }));
+  });
+
   it("records managed abort activity and debug logs", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     const missionId = `mission-${crypto.randomUUID()}`;
@@ -77,6 +102,22 @@ describe("api.session.$id.abort", () => {
       data: [{ id: "session-ignis", title: `mission:${missionId}:ignis` }],
     });
     abortMock.mockResolvedValue({ data: { ok: true } });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          abort: abortMock,
+          list: sessionListMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4403",
+      managedSession: {
+        missionId,
+        ownerAgent: "ignis",
+        ownerLabel: "Ignis",
+      },
+      mode: "managed",
+      ownerAgent: "ignis",
+    });
 
     const response = await action({ params: { id: "session-ignis" } } as never);
 
@@ -105,5 +146,41 @@ describe("api.session.$id.abort", () => {
         }),
       }),
     );
+  });
+
+  it("aborts managed sessions through the resolved owner-aware client", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", { executionProjectId: "alpha" });
+    setWorkerSession(missionId, "ignis", "session-ignis");
+
+    sessionListMock.mockRejectedValue(new Error("default client should not be used"));
+    abortMock.mockRejectedValue(new Error("default client should not be used"));
+    resolvedSessionListMock.mockResolvedValue({
+      data: [{ id: "session-ignis", title: `mission:${missionId}:ignis` }],
+    });
+    resolvedAbortMock.mockResolvedValue({ data: { ok: true } });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          abort: resolvedAbortMock,
+          list: resolvedSessionListMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4403",
+      managedSession: {
+        missionId,
+        ownerAgent: "ignis",
+        ownerLabel: "Ignis",
+      },
+      mode: "managed",
+      ownerAgent: "ignis",
+    });
+
+    const response = await action({ params: { id: "session-ignis" } } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
   });
 });

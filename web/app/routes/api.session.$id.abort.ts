@@ -1,12 +1,13 @@
-import { findManagedSession } from "@/lib/managed-session.server";
 import { appendMissionActivity } from "@/lib/mission-store";
-import { getOpencodeClient } from "@/lib/opencode-client";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
+import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import type { Route } from "./+types/api.session.$id.abort";
 
-async function resolveSessionTitle(sessionId: string): Promise<string | null> {
+async function resolveSessionTitle(
+  client: ReturnType<typeof resolveSessionRouteTarget>["client"],
+  sessionId: string,
+): Promise<string | null> {
   try {
-    const client = getOpencodeClient();
     const result = await client.session.list();
     if (result.error) {
       return null;
@@ -25,11 +26,12 @@ export const action = async ({ params }: Route.ActionArgs) => {
   }
 
   const requestId = crypto.randomUUID();
-  const managedSession = findManagedSession(sessionId);
+  let managedSession: ReturnType<typeof resolveSessionRouteTarget>["managedSession"] = null;
 
   try {
-    const client = getOpencodeClient();
-    const rawSessionTitle = managedSession ? await resolveSessionTitle(sessionId) : null;
+    const { client, managedSession: resolvedManagedSession } = resolveSessionRouteTarget(sessionId);
+    managedSession = resolvedManagedSession;
+    const rawSessionTitle = managedSession ? await resolveSessionTitle(client, sessionId) : null;
 
     appendSessionPromptDebugLog({
       route: "api.session.$id.abort",

@@ -1,5 +1,5 @@
-import { getOpencodeClient } from "@/lib/opencode-client";
 import { readEffectiveSessionExecutionContext } from "@/lib/managed-session.server";
+import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import {
   sanitizeSessionMessages,
   type RawSessionMessage,
@@ -16,7 +16,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
   const executionContext = readEffectiveSessionExecutionContext(sessionId);
 
   try {
-    const client = getOpencodeClient();
+    const { client } = resolveSessionRouteTarget(sessionId);
     const result = await client.session.messages({ sessionID: sessionId });
 
     if (result.error) {

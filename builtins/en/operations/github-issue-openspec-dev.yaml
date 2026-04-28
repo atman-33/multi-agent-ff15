@@ -17,7 +17,7 @@ steps:
         2. Since spec investigation must be based on the latest code, first move to the tip of `origin/main` with `git switch --detach origin/main` and inspect the current state there.
         3. Read the GitHub issue URL provided by User and organize the issue goal, acceptance criteria, and related links. If parent issue information is explicitly given, inspect that as well and integrate its scope and constraints.
         4. Before creating OpenSpec artifacts, decide on an appropriate kebab-case change name from the issue contents.
-        5. Once the change name is decided, create and switch to the corresponding feature branch from `origin/main`, using `feature/<change-name>` as the base form. If a matching branch already exists in the execution workspace, it may be reused.
+        5. Once the change name is decided, create and switch to the corresponding feature branch from `origin/main`, using `feature/<issue-number>-<change-name>` as the base form. If a matching branch already exists in the execution workspace, it may be reused.
         6. Use `.opencode/command/opsx-ff.md` for the OpenSpec artifact creation procedure. Keep the branch name and the OpenSpec change name aligned to the same intent.
         7. Before writing the design, read `.opencode/skills/improve-codebase-architecture/SKILL.md` and reflect deep-module and boundary-first viewpoints in the design.
         8. Write the generated OpenSpec artifacts in `{{ setting("language", "name") }}`.
