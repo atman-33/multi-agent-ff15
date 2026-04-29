@@ -1,9 +1,16 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sessionMessagesMock, sessionStatusMock } = vi.hoisted(() => ({
+const {
+  listSessionStatusTargetsMock,
+  resolveSessionRouteTargetMock,
+  sessionMessagesMock,
+  sessionStatusMock,
+} = vi.hoisted(() => ({
+  listSessionStatusTargetsMock: vi.fn(),
+  resolveSessionRouteTargetMock: vi.fn(),
   sessionMessagesMock: vi.fn(),
   sessionStatusMock: vi.fn(),
 }));
@@ -15,6 +22,11 @@ vi.mock("@/lib/opencode-client", () => ({
       status: sessionStatusMock,
     },
   }),
+}));
+
+vi.mock("@/lib/session-owner-routing.server", () => ({
+  listSessionStatusTargets: listSessionStatusTargetsMock,
+  resolveSessionRouteTarget: resolveSessionRouteTargetMock,
 }));
 
 import {
@@ -54,7 +66,25 @@ async function readJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+beforeEach(() => {
+  listSessionStatusTargetsMock.mockReturnValue([]);
+  resolveSessionRouteTargetMock.mockImplementation((sessionId: string) => ({
+    client: {
+      session: {
+        messages: sessionMessagesMock,
+      },
+    },
+    endpointUrl: null,
+    managedSession: null,
+    mode: "default",
+    ownerAgent: null,
+    sessionId,
+  }));
+});
+
 afterEach(() => {
+  listSessionStatusTargetsMock.mockReset();
+  resolveSessionRouteTargetMock.mockReset();
   sessionMessagesMock.mockReset();
   sessionStatusMock.mockReset();
 
