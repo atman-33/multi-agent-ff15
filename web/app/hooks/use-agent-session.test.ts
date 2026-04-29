@@ -770,13 +770,13 @@ describe("useAgentSession", () => {
       );
     });
 
-    await waitFor(() => latestSnapshot?.historyPhase === "empty");
+    await flushEffects();
 
     await act(async () => {
       await latestSnapshot?.send([{ type: "text", text: "Continue mission" }]);
     });
 
-    await waitFor(() => sessionLoadCount >= 2);
+    await waitFor(() => latestSnapshot?.historyPhase === "pending");
 
     expect(latestSnapshot).toMatchObject({
       historyPhase: "pending",
@@ -1938,6 +1938,69 @@ describe("useAgentSession", () => {
     expect(
       fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/continue"),
     ).toBe(true);
+  });
+
+  it("surfaces tmux activation-block errors from mission continue responses", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({ messages: [] });
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse(
+          { error: "Tmux write focus is still held by mission mission-2." },
+          { ok: false, status: 409 },
+        );
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Mission one reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await flushEffects();
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Retry request" }]);
+    });
+
+    await flushEffects();
+
+    expect(requireSnapshot(latestSnapshot, "Expected post-send snapshot.").messages).toContain(
+      "Something went wrong. Tmux write focus is still held by mission mission-2.",
+    );
+
+    expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/continue")).toBe(
+      true,
+    );
   });
 
   it("backs off idle runtime polling after the primary stream is healthy", async () => {

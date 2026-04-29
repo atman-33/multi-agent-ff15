@@ -40,6 +40,7 @@ type PrimaryAgentOutboxItem = {
       type: "text";
     }>;
     sessionId: string;
+    sessionTitle?: string;
     system?: string;
     variant?: string;
   };
@@ -347,6 +348,46 @@ function buildDispatchText(item: PrimaryAgentOutboxItem): string {
     .join("\n\n");
 }
 
+function resolveManagedSessionTitle(item: PrimaryAgentOutboxItem): string {
+  if (typeof item.payload.sessionTitle === "string" && item.payload.sessionTitle.length > 0) {
+    return item.payload.sessionTitle;
+  }
+
+  return `mission:${item.missionId}`;
+}
+
+function activateManagedSession(
+  root: string,
+  target: string,
+  item: PrimaryAgentOutboxItem,
+  interactionState: { hasSentInput: boolean },
+): void {
+  const sessionTitle = resolveManagedSessionTitle(item);
+  sendTmuxKeys(root, target, ["C-p"], `Failed to open command palette for ${target}`, interactionState);
+  sendTmuxKeys(
+    root,
+    target,
+    ["-l", "Switch session"],
+    `Failed to queue session switch command for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(root, target, ["Enter"], `Failed to submit session switch command for ${target}`, interactionState);
+  sendTmuxKeys(
+    root,
+    target,
+    ["-l", sessionTitle],
+    `Failed to select session ${sessionTitle} for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    target,
+    ["Enter"],
+    `Failed to confirm session ${sessionTitle} for ${target}`,
+    interactionState,
+  );
+}
+
 function applyModelSelection(
   root: string,
   target: string,
@@ -427,6 +468,7 @@ function submitClaimedItem(root: string, item: PrimaryAgentOutboxItem): void {
   const target = `${SESSION_NAME}:main.${paneIndex}`;
   const payload = buildDispatchText(item);
   const interactionState = { hasSentInput: false };
+  activateManagedSession(root, target, item, interactionState);
   applyModelSelection(root, target, item, interactionState);
   sendTmuxKeys(root, target, ["-l", payload], `Failed to send outbox payload to ${target}`, interactionState);
   sendTmuxKeys(root, target, ["Enter"], `Failed to submit outbox payload to ${target}`, interactionState);

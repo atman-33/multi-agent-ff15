@@ -12,6 +12,7 @@ import {
   updateMissionExecutionContext,
   updateTask,
 } from "@/lib/mission-store";
+import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { loadOperationByRef } from "@/lib/operation-definition/operation-catalog";
@@ -26,6 +27,10 @@ import {
 } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
+import {
+  activateTmuxMissionWriteFocus,
+  getTmuxMissionWriteConflict,
+} from "@/lib/tmux-mission-activation.server";
 import type { AgentId, MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
@@ -171,6 +176,8 @@ export async function dispatchTaskToWorker(input: {
   if (!mission) {
     throw new Error("Mission not found");
   }
+  const projectRoot = getProjectRoot();
+  const client = getOpencodeClient();
 
   const handoffFromAgent = input.fromAgent ?? "noctis";
   const orchestratedBy = input.orchestratedBy ?? "noctis";
@@ -192,6 +199,19 @@ export async function dispatchTaskToWorker(input: {
     if (!effectiveWorkers.includes(input.agentId)) {
       throw new Error(`Delegation to ${input.agentId} is not allowed for the active step`);
     }
+  }
+
+  if (mission.transportMode === "tmux-resident") {
+    const conflict = await getTmuxMissionWriteConflict({
+      appRoot: projectRoot,
+      missionId: input.missionId,
+      client,
+    });
+    if (conflict) {
+      throw new Error(`Tmux write focus is still held by mission ${conflict.activeMissionId}.`);
+    }
+
+    activateTmuxMissionWriteFocus({ appRoot: projectRoot, missionId: input.missionId });
   }
 
   const reusableTask = explicitTaskId
@@ -249,8 +269,6 @@ export async function dispatchTaskToWorker(input: {
     agentId: input.agentId,
   });
 
-  const client = getOpencodeClient();
-  const projectRoot = getProjectRoot();
   const managedRoots = resolveManagedRootsForWorkerDispatch(input.missionId);
   const existingSessionId = mission.workerSessions[input.agentId];
 
@@ -354,7 +372,7 @@ export async function dispatchTaskToWorker(input: {
   const ledger = buildDelegationLedger(mission);
   const sessionResult = await client.session.create({
     directory: managedRoots.sessionHostRoot,
-    title: `mission:${input.missionId}:${input.agentId}`,
+    title: getManagedSessionTitle(input.missionId, input.agentId),
   });
 
   if (sessionResult.error) {

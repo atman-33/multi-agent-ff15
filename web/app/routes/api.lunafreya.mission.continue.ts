@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
+import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import {
@@ -219,7 +220,7 @@ export const action = async ({ request }: { request: Request }) => {
     if (!sessionId) {
       const sessionResult = await client.session.create({
         directory: executionRoot.sessionHostRoot,
-        title: `mission:${missionId}`,
+        title: getManagedSessionTitle(missionId, "lunafreya"),
       });
 
       if (sessionResult.error) {

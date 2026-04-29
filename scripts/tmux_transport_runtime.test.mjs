@@ -140,6 +140,7 @@ function seedPrimaryAgentOutbox(root, missionId, options = {}) {
         payload: {
           agent: "lunafreya",
           sessionId: "session-dispatch-1",
+          ...(options.sessionTitle ? { sessionTitle: options.sessionTitle } : {}),
           parts: [{ type: "text", text: "queued prompt body" }],
           ...(options.model ? { model: options.model } : {}),
           system: "queued system body",
@@ -331,6 +332,7 @@ test("dispatcher uses command palette flow for tmux model and variant selection"
     "github-copilot/gpt-5-mini": "GPT-5-mini",
   });
   seedPrimaryAgentOutbox(root, "mission-display-name", {
+    sessionTitle: "mission:mission-display-name:lunafreya",
     model: {
       providerID: "github-copilot",
       modelID: "gpt-5-mini",
@@ -354,6 +356,10 @@ test("dispatcher uses command palette flow for tmux model and variant selection"
   assert.equal(await waitFor(() => existsSync(submittedPath), 3_000), true);
 
   const tmuxLog = readFileSync(join(root, "tmux.log"), "utf-8");
+  const switchSessionCommandIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l Switch session");
+  const sessionTitleIndex = tmuxLog.indexOf(
+    "send-keys -t ff15:main.4 -l mission:mission-display-name:lunafreya",
+  );
   const switchModelCommandIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l Switch model");
   const displayNameIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l GPT-5-mini");
   const switchVariantCommandIndex = tmuxLog.indexOf(
@@ -363,18 +369,22 @@ test("dispatcher uses command palette flow for tmux model and variant selection"
   const payloadIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l [primary-agent-dispatch]");
 
   assert.match(tmuxLog, /send-keys -t ff15:main\.4 C-p/);
+  assert.equal(switchSessionCommandIndex >= 0, true, tmuxLog);
+  assert.equal(sessionTitleIndex >= 0, true, tmuxLog);
   assert.equal(switchModelCommandIndex >= 0, true, tmuxLog);
   assert.equal(displayNameIndex >= 0, true, tmuxLog);
   assert.equal(switchVariantCommandIndex >= 0, true, tmuxLog);
   assert.equal(variantIndex >= 0, true, tmuxLog);
   assert.equal(payloadIndex >= 0, true, tmuxLog);
+  assert.equal(switchSessionCommandIndex < sessionTitleIndex, true, tmuxLog);
+  assert.equal(sessionTitleIndex < switchModelCommandIndex, true, tmuxLog);
   assert.equal(switchModelCommandIndex < displayNameIndex, true, tmuxLog);
   assert.equal(displayNameIndex < switchVariantCommandIndex, true, tmuxLog);
   assert.equal(switchVariantCommandIndex < variantIndex, true, tmuxLog);
   assert.equal(variantIndex < payloadIndex, true, tmuxLog);
   assert.match(
     tmuxLog,
-    /send-keys -t ff15:main\.4 C-p\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l Switch model/,
+    /send-keys -t ff15:main\.4 C-p\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l Switch session\nsleep 0\.5\nsend-keys -t ff15:main\.4 Enter\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l mission:mission-display-name:lunafreya\nsleep 0\.5\nsend-keys -t ff15:main\.4 Enter\nsleep 0\.5\nsend-keys -t ff15:main\.4 C-p\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l Switch model/,
   );
   assert.match(
     tmuxLog,
@@ -384,9 +394,37 @@ test("dispatcher uses command palette flow for tmux model and variant selection"
     tmuxLog,
     /send-keys -t ff15:main\.4 -l high\nsleep 0\.5\nsend-keys -t ff15:main\.4 Enter\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l \[primary-agent-dispatch\]/,
   );
-  assert.equal((tmuxLog.match(/^sleep 0\.5$/gm) ?? []).length, 11, tmuxLog);
+  assert.equal((tmuxLog.match(/^sleep 0\.5$/gm) ?? []).length, 16, tmuxLog);
   assert.doesNotMatch(tmuxLog, /send-keys -t ff15:main\.4 \/models/);
   assert.doesNotMatch(tmuxLog, /send-keys -t ff15:main\.4 github-copilot\/gpt-5-mini/);
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
+test("dispatcher falls back to the legacy raw primary-session title when queued items omit sessionTitle", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedPrimaryAgentOutbox(root, "mission-legacy-title");
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  const submittedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-legacy-title",
+    "transport",
+    "primary-agent-outbox",
+    "submitted",
+    "item-dispatch-1.json",
+  );
+  assert.equal(await waitFor(() => existsSync(submittedPath), 3_000), true);
+
+  const tmuxLog = readFileSync(join(root, "tmux.log"), "utf-8");
+  assert.match(tmuxLog, /send-keys -t ff15:main\.4 -l Switch session/);
+  assert.match(tmuxLog, /send-keys -t ff15:main\.4 -l mission:mission-legacy-title/);
 
   const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
   assert.equal(stopResult.code, 0, stopResult.stderr);

@@ -1,9 +1,11 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { resolveManagedSessionActivationTitle } from "@/lib/managed-session-activation.server";
 import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import {
   provisionMissionExecutionWorkspace,
   resolveManagedMissionStartRoots,
 } from "@/lib/mission-execution-workspace.server";
+import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
@@ -21,6 +23,10 @@ import { queuePrimaryAgentTmuxDispatch } from "@/lib/primary-agent-outbox-dispat
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
+import {
+  activateTmuxMissionWriteFocus,
+  getTmuxMissionWriteConflict,
+} from "@/lib/tmux-mission-activation.server";
 import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
@@ -118,7 +124,26 @@ export const action = async ({ request }: Route.ActionArgs) => {
         { status: 503 },
       );
     }
+    const missionId = crypto.randomUUID();
+    const missionCreatedAt = new Date().toISOString();
     const client = getOpencodeClient();
+    if (transportStatus.transportMode === "tmux-resident") {
+      const conflict = await getTmuxMissionWriteConflict({
+        appRoot: projectRoot,
+        missionId,
+        client,
+      });
+      if (conflict) {
+        return Response.json(
+          {
+            error: `Tmux write focus is still held by mission ${conflict.activeMissionId}.`,
+          },
+          { status: 409 },
+        );
+      }
+
+      activateTmuxMissionWriteFocus({ appRoot: projectRoot, missionId, updatedAt: missionCreatedAt });
+    }
     const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
     if (!executionProject) {
       return Response.json({ error: "Execution project is not registered." }, { status: 409 });
@@ -151,8 +176,6 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (!selectedOperation) {
       return Response.json({ error: "No operation is available" }, { status: 409 });
     }
-    const missionId = crypto.randomUUID();
-    const missionCreatedAt = new Date().toISOString();
     const executionWorkspace =
       executionTargetMode === "mission_workspace"
         ? provisionMissionExecutionWorkspace({
@@ -172,7 +195,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     const sessionResult = await client.session.create({
       directory: managedRoots.sessionHostRoot,
-      title: `mission:${missionId}`,
+      title: getManagedSessionTitle(missionId, "noctis"),
     });
 
     if (sessionResult.error) {
@@ -223,6 +246,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
       queuePrimaryAgentTmuxDispatch({
         missionId,
         sessionId,
+        sessionTitle: await resolveManagedSessionActivationTitle({
+          client,
+          missionId,
+          agentId: noctisAgentProfile,
+          sessionId,
+        }),
         agent: noctisAgentProfile,
         parts: composed.payloadParts,
         system: ledger,

@@ -92,7 +92,7 @@ describe("api.sessions", () => {
       data: [
         {
           id: "session-noctis",
-          title: `mission:${missionId}`,
+          title: `mission:${missionId}:noctis`,
           directory: root,
           time: { created: 1, updated: 2 },
         },

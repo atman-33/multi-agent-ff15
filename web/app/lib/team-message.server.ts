@@ -14,11 +14,16 @@ import {
   setWorkerSession,
   updateMissionExecutionContext,
 } from "@/lib/mission-store";
+import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeTeamMessagePrompt } from "@/lib/prompt-composition-engine";
 import { getActivityActorLabel } from "@/lib/team-message-format";
+import {
+  activateTmuxMissionWriteFocus,
+  getTmuxMissionWriteConflict,
+} from "@/lib/tmux-mission-activation.server";
 import type {
   ActivityActorId,
   AgentId,
@@ -112,8 +117,9 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     throw new Error("Mission requires an execution workspace before team messages can be delivered.");
   }
 
+  const projectRoot = getProjectRoot();
   const executionRoot = resolveMissionExecutionRoot({
-    appRoot: getProjectRoot(),
+    appRoot: projectRoot,
     mission,
   });
   if (executionRoot.workspacePath && executionRoot.workspaceStatus) {
@@ -128,6 +134,18 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
   }
 
   const client = getOpencodeClient();
+  if (mission.transportMode === "tmux-resident") {
+    const conflict = await getTmuxMissionWriteConflict({
+      appRoot: projectRoot,
+      missionId,
+      client,
+    });
+    if (conflict) {
+      throw new Error(`Tmux write focus is still held by mission ${conflict.activeMissionId}.`);
+    }
+
+    activateTmuxMissionWriteFocus({ appRoot: projectRoot, missionId });
+  }
 
   if (!isWorkerAgentId(toAgent)) {
     const existingPrimarySessionId = mission.primarySessionId || mission.noctisSessionId;
@@ -137,7 +155,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
 
     const sessionResult = await client.session.create({
       directory: executionRoot.sessionHostRoot,
-      title: `mission:${missionId}`,
+      title: getManagedSessionTitle(missionId, toAgent),
     });
 
     const sessionId = sessionResult.data?.id;
@@ -156,7 +174,7 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
 
   const sessionResult = await client.session.create({
     directory: executionRoot.sessionHostRoot,
-    title: `mission:${missionId}:${toAgent}`,
+    title: getManagedSessionTitle(missionId, toAgent),
   });
 
   const sessionId = sessionResult.data?.id;

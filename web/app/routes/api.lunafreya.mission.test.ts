@@ -251,7 +251,7 @@ describe("Lunafreya mission routing", () => {
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         directory: root,
-        title: `mission:${data.missionId}`,
+        title: `mission:${data.missionId}:lunafreya`,
       }),
     );
 
@@ -454,7 +454,7 @@ describe("Lunafreya mission routing", () => {
     expect(sessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         directory: root,
-        title: `mission:${mission.id}`,
+        title: `mission:${mission.id}:lunafreya`,
       }),
     );
     expect(getMission(mission.id)?.primarySessionId).toBe("session-lunafreya-recreated");

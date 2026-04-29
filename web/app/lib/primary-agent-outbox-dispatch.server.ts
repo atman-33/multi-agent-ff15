@@ -13,6 +13,7 @@ export function queuePrimaryAgentTmuxDispatch(input: {
   parts: TextPromptPart[];
   queuedAt?: string;
   sessionId: string;
+  sessionTitle?: string;
   system?: string;
   variant?: string;
 }): PrimaryAgentOutboxItem {
@@ -23,6 +24,7 @@ export function queuePrimaryAgentTmuxDispatch(input: {
     payload: {
       agent: input.agent,
       sessionId: input.sessionId,
+      ...(input.sessionTitle ? { sessionTitle: input.sessionTitle } : {}),
       parts: input.parts,
       ...(input.system ? { system: input.system } : {}),
       ...(input.model ? { model: input.model } : {}),
