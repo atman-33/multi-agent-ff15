@@ -5,6 +5,7 @@ import { join } from "node:path";
 const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
 const LOOP_INTERVAL_MS = 200;
+const NEXT_DISPATCH_DELAY_MS = 3_000;
 const MISSION_STORE_DIR = "noctis-missions";
 const SESSION_NAME = "ff15";
 const STALE_LEASE_MS = 5_000;
@@ -493,15 +494,18 @@ function countQueuedItems(root: string): number {
 
 const root = parseRoot(process.argv.slice(2));
 let processedCount = 0;
+let nextDispatchNotBefore = 0;
 const dispatcherStartedAt = new Date().toISOString();
 
 const tick = () => {
   try {
-    const now = new Date().toISOString();
-    const claimed = claimNextItem(root, now);
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const claimed = nowDate.getTime() >= nextDispatchNotBefore ? claimNextItem(root, now) : null;
     if (claimed) {
       submitClaimedItem(root, claimed);
       processedCount += 1;
+      nextDispatchNotBefore = Date.now() + NEXT_DISPATCH_DELAY_MS;
     }
 
     writeState(root, {
