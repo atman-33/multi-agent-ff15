@@ -367,6 +367,9 @@ describe("api.session.$id", () => {
         tool: "apply_patch",
         state: {
           status: "completed",
+          input: { patch: "*** Begin Patch" },
+          output: "done",
+          error: "",
         },
       },
     ]);
