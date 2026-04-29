@@ -220,7 +220,7 @@ export interface MissionActivitySource {
   taskId?: string;
   next?: WorkflowNext;
   reportStatus?: ReportStatus;
-  deliveryStatus?: "sent" | "failed";
+  deliveryStatus?: "queued" | "sent" | "failed";
   lunafreyaFacetSnapshot?: LunafreyaFacetSnapshot;
 }
 
@@ -249,7 +249,7 @@ export interface BanterEntryPayload {
 
 export interface BanterTransport {
   deliveredToSessionId?: string;
-  deliveryStatus?: "sent" | "failed";
+  deliveryStatus?: "queued" | "sent" | "failed";
   error?: string;
   sessionId?: string;
 }
@@ -297,7 +297,7 @@ export interface TeamMessage {
 
 export interface MissionMessageLogEntry extends TeamMessage {
   deliveredToSessionId: string;
-  deliveryStatus: "sent" | "failed";
+  deliveryStatus: "queued" | "sent" | "failed";
   error?: string;
 }
 

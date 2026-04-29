@@ -26,11 +26,9 @@ import {
   saveOperationState,
 } from "@/lib/operation-runtime/state";
 import { composeWorkerTaskPrompt } from "@/lib/prompt-composition-engine";
+import { queueTmuxAgentDispatch } from "@/lib/primary-agent-outbox-dispatch.server";
 import { getRuntimeScriptPath } from "@/lib/runtime-script-path";
-import {
-  activateTmuxMissionWriteFocus,
-  getTmuxMissionWriteConflict,
-} from "@/lib/tmux-mission-activation.server";
+import { resolveTmuxWriteTarget } from "@/lib/session-owner-routing.server";
 import type { AgentId, MissionMessageLogEntry, Task, WorkerAgentId } from "@/lib/types/mission";
 
 function createTaskId(): string {
@@ -177,7 +175,7 @@ export async function dispatchTaskToWorker(input: {
     throw new Error("Mission not found");
   }
   const projectRoot = getProjectRoot();
-  const client = getOpencodeClient();
+  const defaultClient = getOpencodeClient();
 
   const handoffFromAgent = input.fromAgent ?? "noctis";
   const orchestratedBy = input.orchestratedBy ?? "noctis";
@@ -199,19 +197,6 @@ export async function dispatchTaskToWorker(input: {
     if (!effectiveWorkers.includes(input.agentId)) {
       throw new Error(`Delegation to ${input.agentId} is not allowed for the active step`);
     }
-  }
-
-  if (mission.transportMode === "tmux-resident") {
-    const conflict = await getTmuxMissionWriteConflict({
-      appRoot: projectRoot,
-      missionId: input.missionId,
-      client,
-    });
-    if (conflict) {
-      throw new Error(`Tmux write focus is still held by mission ${conflict.activeMissionId}.`);
-    }
-
-    activateTmuxMissionWriteFocus({ appRoot: projectRoot, missionId: input.missionId });
   }
 
   const reusableTask = explicitTaskId
@@ -270,7 +255,19 @@ export async function dispatchTaskToWorker(input: {
   });
 
   const managedRoots = resolveManagedRootsForWorkerDispatch(input.missionId);
-  const existingSessionId = mission.workerSessions[input.agentId];
+  let workerClient = defaultClient;
+  let existingSessionId = mission.workerSessions[input.agentId];
+  let tmuxWriteTarget: Awaited<ReturnType<typeof resolveTmuxWriteTarget>> | null = null;
+
+  if (mission.transportMode === "tmux-resident") {
+    tmuxWriteTarget = await resolveTmuxWriteTarget({
+      missionId: input.missionId,
+      agentId: input.agentId,
+      sessionHostRoot: managedRoots.sessionHostRoot,
+    });
+    workerClient = tmuxWriteTarget.client;
+    existingSessionId = tmuxWriteTarget.sessionId;
+  }
 
   const markDelegatedDispatchFailed = (summary: string) => {
     if (!isDelegatedChildDispatch || !operationState) {
@@ -285,9 +282,11 @@ export async function dispatchTaskToWorker(input: {
     saveOperationState(input.missionId, operationState);
   };
 
+  const ledger = buildDelegationLedger(mission);
+
   const appendLog = (
     sessionId: string,
-    deliveryStatus: "sent" | "failed",
+    deliveryStatus: "queued" | "sent" | "failed",
     error?: string,
   ): MissionMessageLogEntry => {
     const entry: MissionMessageLogEntry = {
@@ -324,7 +323,43 @@ export async function dispatchTaskToWorker(input: {
         originalPrompt: taskPrompt,
         operationStateOverride: operationState,
       });
-      const promptResult = await client.session.promptAsync({
+      if (mission.transportMode === "tmux-resident" && tmuxWriteTarget) {
+        const entry = appendLog(existingSessionId, "queued");
+        const banterEntries = recordDirectedTaskDelegation({
+          missionId: input.missionId,
+          fromAgent: handoffFromAgent,
+          toAgent: input.agentId,
+          orchestratedBy,
+          taskId,
+          stepName: input.stepName,
+          canonicalMessage: input.canonicalMessage ?? input.message,
+          createdAt: entry.createdAt,
+          transport: {
+            deliveredToSessionId: entry.deliveredToSessionId,
+            deliveryStatus: entry.deliveryStatus,
+            error: entry.error,
+            sessionId: entry.deliveredToSessionId,
+          },
+        });
+        queueTmuxAgentDispatch({
+          missionId: input.missionId,
+          agent: input.agentId,
+          sessionId: existingSessionId,
+          sessionTitle: tmuxWriteTarget.sessionTitle,
+          parts: composed.payloadParts,
+          ...(tmuxWriteTarget.createdSession ? { system: ledger } : {}),
+          ...(model ? { model } : {}),
+          ...(variant ? { variant } : {}),
+          activityBody: "Queued tmux worker delivery.",
+          recordLinks: {
+            conversationEntryIds: banterEntries.map((banterEntry) => banterEntry.id),
+            messageLogEntryId: entry.id,
+          },
+        });
+        return { sessionId: existingSessionId, taskId };
+      }
+
+      const promptResult = await workerClient.session.promptAsync({
         sessionID: existingSessionId,
         parts: composed.payloadParts,
         agent: input.agentId,
@@ -369,8 +404,7 @@ export async function dispatchTaskToWorker(input: {
     }
   }
 
-  const ledger = buildDelegationLedger(mission);
-  const sessionResult = await client.session.create({
+  const sessionResult = await defaultClient.session.create({
     directory: managedRoots.sessionHostRoot,
     title: getManagedSessionTitle(input.missionId, input.agentId),
   });
@@ -403,7 +437,7 @@ export async function dispatchTaskToWorker(input: {
       originalPrompt: taskPrompt,
       operationStateOverride: operationState,
     });
-    const promptResult = await client.session.promptAsync({
+    const promptResult = await defaultClient.session.promptAsync({
       sessionID: sessionId,
       parts: composed.payloadParts,
       agent: input.agentId,

@@ -963,6 +963,80 @@ export function appendMissionActivity(
   touchMission(mission);
 }
 
+export function reconcileMissionTmuxDispatchStatuses(
+  missionId: string,
+  updates: Array<{
+    activityEntryId?: string;
+    conversationEntryIds?: string[];
+    deliveryStatus: "queued" | "sent";
+    messageLogEntryId?: string;
+    sessionId: string;
+  }>,
+): void {
+  const mission = getMission(missionId);
+  if (!mission || updates.length === 0) {
+    return;
+  }
+
+  let changed = false;
+
+  for (const update of updates) {
+    if (update.messageLogEntryId) {
+      const entry = mission.messageLog.find((candidate) => candidate.id === update.messageLogEntryId);
+      if (entry && entry.deliveryStatus !== update.deliveryStatus) {
+        entry.deliveryStatus = update.deliveryStatus;
+        changed = true;
+      }
+    }
+
+    if (update.activityEntryId) {
+      const activity = mission.activityLog.find((candidate) => candidate.id === update.activityEntryId);
+      if (activity?.source && activity.source.deliveryStatus !== update.deliveryStatus) {
+        activity.source.deliveryStatus = update.deliveryStatus;
+        changed = true;
+      }
+    }
+
+    if (update.conversationEntryIds && update.conversationEntryIds.length > 0) {
+      for (const entryId of update.conversationEntryIds) {
+        const conversationEntry = mission.conversationLog.find((candidate) => candidate.id === entryId);
+        if (!conversationEntry) {
+          continue;
+        }
+
+        if (!conversationEntry.transport) {
+          conversationEntry.transport = {
+            deliveredToSessionId: update.sessionId,
+            deliveryStatus: update.deliveryStatus,
+            sessionId: update.sessionId,
+          };
+          changed = true;
+          continue;
+        }
+
+        if (conversationEntry.transport.deliveryStatus !== update.deliveryStatus) {
+          conversationEntry.transport.deliveryStatus = update.deliveryStatus;
+          changed = true;
+        }
+
+        if (conversationEntry.transport.sessionId !== update.sessionId) {
+          conversationEntry.transport.sessionId = update.sessionId;
+          changed = true;
+        }
+
+        if (conversationEntry.transport.deliveredToSessionId !== update.sessionId) {
+          conversationEntry.transport.deliveredToSessionId = update.sessionId;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  if (changed) {
+    touchMission(mission);
+  }
+}
+
 export function buildDelegationLedger(mission: Mission): string {
   const ledger: DelegationLedger = mission.delegationLedger;
   return JSON.stringify(ledger, null, 2);

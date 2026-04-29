@@ -1,5 +1,4 @@
 import { getMission, getMissionPrimarySessionId } from "@/lib/mission-store";
-import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 import { isSessionStatusActive, type SessionStatus } from "@/lib/session-status";
 import { readTmuxActiveMission, writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 import type { Mission } from "@/lib/types/mission";
@@ -23,24 +22,6 @@ function getRelevantMissionSessionIds(mission: Mission): string[] {
   ].filter((sessionId, index, values): sessionId is string => {
     return typeof sessionId === "string" && sessionId.length > 0 && values.indexOf(sessionId) === index;
   });
-}
-
-function hasActiveDelegationWork(mission: Mission): boolean {
-  if (mission.delegationLedger.activeTasks.length > 0) {
-    return true;
-  }
-
-  return (
-    mission.operationState?.delegatedTasks?.some(
-      (task: { status?: string }) => task.status === "dispatched",
-    ) ?? false
-  );
-}
-
-function hasPendingPrimaryOutboxWork(missionId: string): boolean {
-  return listPrimaryAgentOutboxItems(missionId).some(
-    (item) => item.status === "pending" || item.status === "leased",
-  );
 }
 
 function coerceStatusesById(result: Record<string, unknown> | undefined, sessionIds: string[]): Record<string, SessionStatus> {
@@ -77,10 +58,6 @@ export async function getTmuxMissionWriteConflict(input: {
   const mission = getMission(activeMission.missionId);
   if (!mission) {
     return null;
-  }
-
-  if (hasPendingPrimaryOutboxWork(mission.id) || hasActiveDelegationWork(mission)) {
-    return { activeMissionId: mission.id };
   }
 
   const relevantSessionIds = getRelevantMissionSessionIds(mission);
