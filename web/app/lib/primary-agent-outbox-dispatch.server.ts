@@ -2,16 +2,19 @@ import { appendMissionActivity } from "./mission-store";
 import {
   enqueuePrimaryAgentOutboxItem,
   type PrimaryAgentOutboxItem,
+  type TmuxDispatchRecordLinks,
 } from "./mission-primary-agent-outbox.server";
 import type { TextPromptPart } from "./prompt-parts";
 import type { AgentId, ModelSelection } from "./types/mission";
 
-export function queuePrimaryAgentTmuxDispatch(input: {
+export function queueTmuxAgentDispatch(input: {
   agent: AgentId;
+  activityBody: string;
   missionId: string;
   model?: Pick<ModelSelection, "providerID" | "modelID">;
   parts: TextPromptPart[];
   queuedAt?: string;
+  recordLinks?: TmuxDispatchRecordLinks;
   sessionId: string;
   sessionTitle?: string;
   system?: string;
@@ -29,6 +32,7 @@ export function queuePrimaryAgentTmuxDispatch(input: {
       ...(input.system ? { system: input.system } : {}),
       ...(input.model ? { model: input.model } : {}),
       ...(input.variant ? { variant: input.variant } : {}),
+      ...(input.recordLinks ? { recordLinks: input.recordLinks } : {}),
     },
   });
 
@@ -37,7 +41,7 @@ export function queuePrimaryAgentTmuxDispatch(input: {
     actor: "system",
     speaker: "system",
     kind: "system_event",
-    body: "Queued primary-agent tmux delivery.",
+    body: input.activityBody,
     createdAt: queuedAt,
     source: {
       type: "system",
@@ -46,4 +50,21 @@ export function queuePrimaryAgentTmuxDispatch(input: {
   });
 
   return item;
+}
+
+export function queuePrimaryAgentTmuxDispatch(input: {
+  agent: AgentId;
+  missionId: string;
+  model?: Pick<ModelSelection, "providerID" | "modelID">;
+  parts: TextPromptPart[];
+  queuedAt?: string;
+  sessionId: string;
+  sessionTitle?: string;
+  system?: string;
+  variant?: string;
+}): PrimaryAgentOutboxItem {
+  return queueTmuxAgentDispatch({
+    ...input,
+    activityBody: "Queued primary-agent tmux delivery.",
+  });
 }

@@ -24,11 +24,7 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     }
 
     const anchors = listSessionRequestAnchors(sessionId);
-    const messages = sanitizeSessionMessages(
-      (result.data ?? []) as RawSessionMessage[],
-      anchors,
-      { detailState: "summary" },
-    );
+    const messages = sanitizeSessionMessages((result.data ?? []) as RawSessionMessage[], anchors);
 
     return Response.json({ executionContext, messages });
   } catch {

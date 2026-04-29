@@ -15,9 +15,31 @@ import {
   getMissionPrimaryAgentId,
   getMissionPrimarySessionId,
   getMissionSurfaceId,
+  reconcileMissionTmuxDispatchStatuses,
 } from "./mission-store";
 import { getMissionSurfaceForMission } from "./mission-surface";
 import { buildMissionWorkflowProgress } from "./mission-workflow-progress.server";
+
+function reconcileQueuedDispatchState(mission: Mission) {
+  const primaryAgentOutbox = listPrimaryAgentOutboxItems(mission.id);
+  const updates = primaryAgentOutbox
+    .map((item) => {
+      const recordLinks = item.payload.recordLinks;
+      if (!recordLinks) {
+        return null;
+      }
+
+      return {
+        ...recordLinks,
+        deliveryStatus: item.status === "submitted" ? ("sent" as const) : ("queued" as const),
+        sessionId: item.payload.sessionId,
+      };
+    })
+    .filter((update): update is NonNullable<typeof update> => update !== null);
+
+  reconcileMissionTmuxDispatchStatuses(mission.id, updates);
+  return primaryAgentOutbox;
+}
 
 type MissionSessionPayload = {
   primary: string | null;
@@ -69,6 +91,7 @@ export function buildMissionResumePayload(mission: Mission) {
   const primaryAgentId = getMissionPrimaryAgentId(mission);
   const primarySessionId = getMissionPrimarySessionId(mission);
   const resumeBlock = getMissionResumeBlock(mission);
+  const primaryAgentOutbox = reconcileQueuedDispatchState(mission);
 
   return {
     missionId: mission.id,
@@ -98,7 +121,7 @@ export function buildMissionResumePayload(mission: Mission) {
     operationState: mission.operationState ?? null,
     workflowProgress: buildMissionWorkflowProgress(mission.operationState),
     lunafreyaFacetSelection: mission.lunafreyaFacetSelection ?? null,
-    primaryAgentOutbox: listPrimaryAgentOutboxItems(mission.id),
+    primaryAgentOutbox,
     activityLog: mission.activityLog,
   };
 }

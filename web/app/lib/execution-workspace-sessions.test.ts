@@ -5,24 +5,41 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { buildMissionResumePayload } from "@/lib/mission-api.server";
+import {
+  listTmuxDispatchItems,
+  markTmuxDispatchItemSubmitted,
+} from "@/lib/mission-primary-agent-outbox.server";
 import { provisionMissionExecutionWorkspace } from "@/lib/mission-execution-workspace.server";
 import {
+  addTask,
   createMission,
   deleteMission,
   getMission,
   setWorkerSession,
+  updateTask,
 } from "@/lib/mission-store";
 import { dispatchTaskToWorker } from "@/lib/task-dispatch.server";
 import { writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 import { sendSimpleMessage, sendWorkerReport } from "@/lib/team-message.server";
 
-const { promptAsyncMock, sessionCreateMock, sessionStatusMock } = vi.hoisted(() => ({
+const { createProjectOpencodeClientMock, ownerSessionCreateMock, promptAsyncMock, sessionCreateMock, sessionStatusMock } = vi.hoisted(() => ({
+  createProjectOpencodeClientMock: vi.fn((baseUrl: string) => ({
+    baseUrl,
+    session: {
+      create: ownerSessionCreateMock,
+      promptAsync: promptAsyncMock,
+      status: sessionStatusMock,
+    },
+  })),
+  ownerSessionCreateMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
   sessionStatusMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
+  createProjectOpencodeClient: createProjectOpencodeClientMock,
   getOpencodeClient: () => ({
     session: {
       create: sessionCreateMock,
@@ -51,6 +68,7 @@ function createTempRoot(options?: { transportMode?: "app-owned" | "tmux-resident
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-execution-sessions-"));
   tempRoots.push(root);
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
+  mkdirSync(join(root, "runtime"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
   writeFileSync(join(root, "opencode.json"), "{}\n", "utf-8");
 
@@ -86,6 +104,25 @@ function createTempRoot(options?: { transportMode?: "app-owned" | "tmux-resident
   );
 
   return root;
+}
+
+function writeEndpointManifest(
+  root: string,
+  agents: Array<{ agentId: string; port: number; url: string }>,
+): void {
+  writeFileSync(
+    join(root, "runtime", "opencode-endpoints.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        startedAt: "2026-04-29T00:00:00.000Z",
+        agents,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
 }
 
 function createExecutionMission(root: string): {
@@ -285,6 +322,203 @@ describe("execution workspace sessions", () => {
     expect(promptAsyncMock).not.toHaveBeenCalled();
   });
 
+  it("creates tmux worker dispatch sessions on the worker owner endpoint", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-owner" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-worker-owner" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Create the tmux worker session on the worker endpoint.",
+    });
+
+    expect(createProjectOpencodeClientMock).toHaveBeenCalledWith("http://127.0.0.1:4403");
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${missionId}:ignis`,
+      }),
+    );
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("creates tmux worker dispatch sessions on the Prompto owner endpoint", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "prompto",
+        port: 4404,
+        url: "http://127.0.0.1:4404",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-prompto-owner" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "prompto",
+      message: "Prompto should receive delegated tmux work.",
+    });
+
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${missionId}:prompto`,
+      }),
+    );
+    const queueItems = listTmuxDispatchItems(missionId);
+    expect(queueItems).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          sessionId: "session-prompto-owner",
+          agent: "prompto",
+        }),
+      }),
+    ]);
+  });
+
+  it("queues tmux worker dispatches instead of prompting inline", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-queued" } });
+
+    const result = await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Queue this worker dispatch through tmux transport.",
+    });
+
+    expect(result).toEqual({
+      sessionId: "session-ignis-queued",
+      taskId: expect.any(String) as string,
+    });
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+    expect(listTmuxDispatchItems(missionId)).toEqual([
+      expect.objectContaining({
+        status: "pending",
+        payload: expect.objectContaining({
+          agent: "ignis",
+          sessionId: "session-ignis-queued",
+          sessionTitle: `mission:${missionId}:ignis`,
+        }),
+      }),
+    ]);
+  });
+
+  it("records queued transport state for tmux worker dispatches", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-pending" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Track queued transport state for this worker dispatch.",
+    });
+
+    expect(getMission(missionId)?.messageLog).toContainEqual(
+      expect.objectContaining({
+        toAgent: "ignis",
+        deliveredToSessionId: "session-ignis-pending",
+        deliveryStatus: "queued",
+      }),
+    );
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "queued",
+          sessionId: "session-ignis-pending",
+        }),
+      }),
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "queued",
+          sessionId: "session-ignis-pending",
+        }),
+      }),
+    ]);
+  });
+
+  it("reconciles submitted tmux worker dispatches to sent transport state", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-submitted" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Reconcile queued tmux worker dispatch to sent state.",
+    });
+
+    const [item] = listTmuxDispatchItems(missionId);
+    markTmuxDispatchItemSubmitted({
+      missionId,
+      itemId: item.id,
+      submittedAt: "2026-05-01T00:00:00.000Z",
+      submittedBy: "dispatcher:test",
+    });
+
+    const mission = getMission(missionId);
+    expect(mission).toBeTruthy();
+    buildMissionResumePayload(mission!);
+
+    expect(getMission(missionId)?.messageLog).toContainEqual(
+      expect.objectContaining({
+        deliveredToSessionId: "session-ignis-submitted",
+        deliveryStatus: "sent",
+      }),
+    );
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "sent",
+          sessionId: "session-ignis-submitted",
+        }),
+      }),
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "sent",
+          sessionId: "session-ignis-submitted",
+        }),
+      }),
+    ]);
+  });
+
   it("uses the mission execution workspace for team-message worker sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -393,6 +627,235 @@ describe("execution workspace sessions", () => {
 
     expect(sessionCreateMock).not.toHaveBeenCalled();
     expect(promptAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it("does not block team-message delivery for completed tasks on the previous tmux mission", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const activeMission = createExecutionMission(root);
+    const targetMission = createExecutionMission(root);
+    addTask(activeMission.missionId, {
+      id: "task-completed-focus-release",
+      assignedTo: "ignis",
+      dependencies: [],
+      status: "pending",
+      message: "Complete and release tmux focus.",
+    });
+    updateTask(
+      activeMission.missionId,
+      "task-completed-focus-release",
+      "completed",
+      "Completed work should not hold tmux focus.",
+    );
+    writeTmuxActiveMission(root, {
+      missionId: activeMission.missionId,
+      updatedAt: "2026-04-29T00:00:00.000Z",
+    });
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    sessionStatusMock.mockResolvedValue({
+      data: {
+        "session-noctis": "idle",
+      },
+      error: null,
+    });
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-completed-task-release" } });
+
+    const result = await sendSimpleMessage({
+      missionId: targetMission.missionId,
+      toAgent: "ignis",
+      body: "Completed tasks should not keep writable focus.",
+      fromActor: "user",
+    });
+
+    expect(result).toMatchObject({
+      sessionId: "session-ignis-completed-task-release",
+      messageId: expect.any(String) as string,
+    });
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${targetMission.missionId}:ignis`,
+      }),
+    );
+  });
+
+  it("creates tmux team-message worker sessions on the worker owner endpoint", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-message-owner" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-message-owner" } });
+
+    await sendSimpleMessage({
+      missionId,
+      toAgent: "ignis",
+      body: "Route this tmux message through the worker endpoint.",
+      fromActor: "user",
+    });
+
+    expect(createProjectOpencodeClientMock).toHaveBeenCalledWith("http://127.0.0.1:4403");
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${missionId}:ignis`,
+      }),
+    );
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("queues tmux team messages instead of prompting inline", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-message-queued" } });
+
+    const result = await sendSimpleMessage({
+      missionId,
+      toAgent: "ignis",
+      body: "Queue this tmux team message.",
+      fromActor: "user",
+    });
+
+    expect(result).toMatchObject({
+      sessionId: "session-ignis-message-queued",
+      messageId: expect.any(String) as string,
+    });
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+    expect(listTmuxDispatchItems(missionId)).toEqual([
+      expect.objectContaining({
+        status: "pending",
+        payload: expect.objectContaining({
+          agent: "ignis",
+          sessionId: "session-ignis-message-queued",
+          sessionTitle: `mission:${missionId}:ignis`,
+        }),
+      }),
+    ]);
+  });
+
+  it("records queued transport state for tmux team messages", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-message-pending" } });
+
+    await sendSimpleMessage({
+      missionId,
+      toAgent: "ignis",
+      body: "Track queued transport state for this tmux message.",
+      fromActor: "user",
+    });
+
+    expect(getMission(missionId)?.messageLog).toContainEqual(
+      expect.objectContaining({
+        toAgent: "ignis",
+        deliveredToSessionId: "session-ignis-message-pending",
+        deliveryStatus: "queued",
+      }),
+    );
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "queued",
+          sessionId: "session-ignis-message-pending",
+        }),
+      }),
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "queued",
+          sessionId: "session-ignis-message-pending",
+        }),
+      }),
+    ]);
+  });
+
+  it("reconciles submitted tmux team messages to sent transport state", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4403,
+        url: "http://127.0.0.1:4403",
+      },
+    ]);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-ignis-message-submitted" } });
+
+    await sendSimpleMessage({
+      missionId,
+      toAgent: "ignis",
+      body: "Reconcile tmux submission to sent state.",
+      fromActor: "user",
+    });
+
+    const [item] = listTmuxDispatchItems(missionId);
+    markTmuxDispatchItemSubmitted({
+      missionId,
+      itemId: item.id,
+      submittedAt: "2026-05-01T00:00:00.000Z",
+      submittedBy: "dispatcher:test",
+    });
+
+    const mission = getMission(missionId);
+    expect(mission).toBeTruthy();
+    buildMissionResumePayload(mission!);
+
+    expect(getMission(missionId)?.messageLog).toContainEqual(
+      expect.objectContaining({
+        deliveredToSessionId: "session-ignis-message-submitted",
+        deliveryStatus: "sent",
+      }),
+    );
+    expect(getMission(missionId)?.activityLog).toContainEqual(
+      expect.objectContaining({
+        source: expect.objectContaining({
+          deliveryStatus: "sent",
+          sessionId: "session-ignis-message-submitted",
+        }),
+      }),
+    );
+    expect(getMission(missionId)?.conversationLog).toEqual([
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "sent",
+          sessionId: "session-ignis-message-submitted",
+        }),
+      }),
+      expect.objectContaining({
+        transport: expect.objectContaining({
+          deliveryStatus: "sent",
+          sessionId: "session-ignis-message-submitted",
+        }),
+      }),
+    ]);
   });
 
   it("records report-return banter when a worker sends a report back to Noctis", async () => {

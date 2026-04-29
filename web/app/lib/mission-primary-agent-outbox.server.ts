@@ -10,6 +10,7 @@ const PRIMARY_AGENT_OUTBOX_DIR = "primary-agent-outbox";
 const OUTBOX_STATUSES = ["pending", "leased", "submitted"] as const;
 
 export type PrimaryAgentOutboxStatus = (typeof OUTBOX_STATUSES)[number];
+export type TmuxDispatchStatus = PrimaryAgentOutboxStatus;
 
 export interface PrimaryAgentOutboxRecoveredLease {
   attempt: number;
@@ -17,6 +18,7 @@ export interface PrimaryAgentOutboxRecoveredLease {
   owner: string;
   staleAfterMs: number;
 }
+export type TmuxDispatchRecoveredLease = PrimaryAgentOutboxRecoveredLease;
 
 export interface PrimaryAgentOutboxLease {
   attempt: number;
@@ -25,12 +27,21 @@ export interface PrimaryAgentOutboxLease {
   staleAfterMs: number;
   recoveredFrom?: PrimaryAgentOutboxRecoveredLease;
 }
+export type TmuxDispatchLease = PrimaryAgentOutboxLease;
 
 export interface PrimaryAgentOutboxSubmission {
   dispatcherPid?: number;
   submittedAt: string;
   submittedBy: string;
 }
+export type TmuxDispatchSubmission = PrimaryAgentOutboxSubmission;
+
+export interface PrimaryAgentOutboxRecordLinks {
+  activityEntryId?: string;
+  conversationEntryIds?: string[];
+  messageLogEntryId?: string;
+}
+export type TmuxDispatchRecordLinks = PrimaryAgentOutboxRecordLinks;
 
 export interface PrimaryAgentOutboxPayload {
   agent: AgentId;
@@ -40,7 +51,9 @@ export interface PrimaryAgentOutboxPayload {
   system?: string;
   model?: Pick<ModelSelection, "providerID" | "modelID">;
   variant?: string;
+  recordLinks?: PrimaryAgentOutboxRecordLinks;
 }
+export type TmuxDispatchPayload = PrimaryAgentOutboxPayload;
 
 export interface PrimaryAgentOutboxItem {
   id: string;
@@ -52,6 +65,7 @@ export interface PrimaryAgentOutboxItem {
   lease?: PrimaryAgentOutboxLease;
   submission?: PrimaryAgentOutboxSubmission;
 }
+export type TmuxDispatchItem = PrimaryAgentOutboxItem;
 
 function isOutboxStatus(value: unknown): value is PrimaryAgentOutboxStatus {
   return OUTBOX_STATUSES.some((status) => status === value);
@@ -87,6 +101,36 @@ function normalizePromptParts(value: unknown): TextPromptPart[] | null {
   return parts.length === value.length ? parts : null;
 }
 
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return entries.length === value.length && entries.length > 0 ? entries : undefined;
+}
+
+function normalizeRecordLinks(value: unknown): PrimaryAgentOutboxRecordLinks | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const activityEntryId = normalizeString(record.activityEntryId);
+  const conversationEntryIds = normalizeStringArray(record.conversationEntryIds);
+  const messageLogEntryId = normalizeString(record.messageLogEntryId);
+
+  if (!activityEntryId && !conversationEntryIds && !messageLogEntryId) {
+    return undefined;
+  }
+
+  return {
+    ...(activityEntryId ? { activityEntryId } : {}),
+    ...(conversationEntryIds ? { conversationEntryIds } : {}),
+    ...(messageLogEntryId ? { messageLogEntryId } : {}),
+  };
+}
+
 function normalizePayload(value: unknown): PrimaryAgentOutboxPayload | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -118,6 +162,9 @@ function normalizePayload(value: unknown): PrimaryAgentOutboxPayload | null {
         }
       : {}),
     ...(normalizeString(record.variant) ? { variant: normalizeString(record.variant) } : {}),
+    ...(normalizeRecordLinks(record.recordLinks)
+      ? { recordLinks: normalizeRecordLinks(record.recordLinks) }
+      : {}),
   };
 }
 
@@ -341,8 +388,21 @@ export function enqueuePrimaryAgentOutboxItem(input: {
   return item;
 }
 
+export function enqueueTmuxDispatchItem(input: {
+  missionId: string;
+  itemId?: string;
+  createdAt?: string;
+  payload: TmuxDispatchPayload;
+}): TmuxDispatchItem {
+  return enqueuePrimaryAgentOutboxItem(input);
+}
+
 export function listPrimaryAgentOutboxItems(missionId: string): PrimaryAgentOutboxItem[] {
   return OUTBOX_STATUSES.flatMap((status) => readItemsForStatus(missionId, status)).sort(compareItems);
+}
+
+export function listTmuxDispatchItems(missionId: string): TmuxDispatchItem[] {
+  return listPrimaryAgentOutboxItems(missionId);
 }
 
 export function leasePrimaryAgentOutboxItem(input: {
@@ -388,6 +448,15 @@ export function leasePrimaryAgentOutboxItem(input: {
   return nextItem;
 }
 
+export function leaseTmuxDispatchItem(input: {
+  missionId: string;
+  leaseOwner: string;
+  leasedAt: string;
+  staleAfterMs: number;
+}): TmuxDispatchItem | null {
+  return leasePrimaryAgentOutboxItem(input);
+}
+
 export function markPrimaryAgentOutboxItemSubmitted(input: {
   missionId: string;
   itemId: string;
@@ -409,6 +478,42 @@ export function markPrimaryAgentOutboxItemSubmitted(input: {
       submittedAt,
       submittedBy: input.submittedBy,
       ...(typeof input.dispatcherPid === "number" ? { dispatcherPid: input.dispatcherPid } : {}),
+    },
+  };
+
+  writeItem(item, record.status);
+  return item;
+}
+
+export function markTmuxDispatchItemSubmitted(input: {
+  missionId: string;
+  itemId: string;
+  submittedAt: string;
+  submittedBy: string;
+  dispatcherPid?: number;
+}): TmuxDispatchItem {
+  return markPrimaryAgentOutboxItemSubmitted(input);
+}
+
+export function updateTmuxDispatchItemRecordLinks(input: {
+  missionId: string;
+  itemId: string;
+  recordLinks: TmuxDispatchRecordLinks;
+}): TmuxDispatchItem {
+  const record = findItem(input.missionId, input.itemId);
+  if (!record) {
+    throw new Error(`Tmux dispatch item not found: ${input.itemId}`);
+  }
+
+  const item: TmuxDispatchItem = {
+    ...record.item,
+    updatedAt: new Date().toISOString(),
+    payload: {
+      ...record.item.payload,
+      recordLinks: {
+        ...(record.item.payload.recordLinks ?? {}),
+        ...input.recordLinks,
+      },
     },
   };
 

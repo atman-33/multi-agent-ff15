@@ -129,21 +129,21 @@ function seedPrimaryAgentOutbox(root, missionId, options = {}) {
   );
   mkdirSync(pendingDir, { recursive: true });
   writeFileSync(
-    join(pendingDir, "item-dispatch-1.json"),
+    join(pendingDir, `${options.itemId ?? "item-dispatch-1"}.json`),
     `${JSON.stringify(
       {
-        id: "item-dispatch-1",
+        id: options.itemId ?? "item-dispatch-1",
         missionId,
-        createdAt: "2026-04-28T00:00:00.000Z",
-        updatedAt: "2026-04-28T00:00:00.000Z",
+        createdAt: options.createdAt ?? "2026-04-28T00:00:00.000Z",
+        updatedAt: options.updatedAt ?? options.createdAt ?? "2026-04-28T00:00:00.000Z",
         status: "pending",
         payload: {
-          agent: "lunafreya",
-          sessionId: "session-dispatch-1",
+          agent: options.agent ?? "lunafreya",
+          sessionId: options.sessionId ?? "session-dispatch-1",
           ...(options.sessionTitle ? { sessionTitle: options.sessionTitle } : {}),
-          parts: [{ type: "text", text: "queued prompt body" }],
+          parts: [{ type: "text", text: options.text ?? "queued prompt body" }],
           ...(options.model ? { model: options.model } : {}),
-          system: "queued system body",
+          system: options.system ?? "queued system body",
           ...(options.variant ? { variant: options.variant } : {}),
         },
       },
@@ -295,6 +295,57 @@ test("dispatcher submits queued primary-agent outbox items and retains submitted
   assert.equal(stopResult.code, 0, stopResult.stderr);
 });
 
+test("dispatcher waits 1000ms before starting the next queued dispatch", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedPrimaryAgentOutbox(root, "mission-dispatch-gap", {
+    itemId: "item-dispatch-1",
+    createdAt: "2026-04-28T00:00:00.000Z",
+    updatedAt: "2026-04-28T00:00:00.000Z",
+    sessionId: "session-dispatch-1",
+    text: "queued prompt body one",
+  });
+  seedPrimaryAgentOutbox(root, "mission-dispatch-gap", {
+    itemId: "item-dispatch-2",
+    createdAt: "2026-04-28T00:00:01.000Z",
+    updatedAt: "2026-04-28T00:00:01.000Z",
+    sessionId: "session-dispatch-2",
+    text: "queued prompt body two",
+  });
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  const firstSubmittedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch-gap",
+    "transport",
+    "primary-agent-outbox",
+    "submitted",
+    "item-dispatch-1.json",
+  );
+  const secondSubmittedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch-gap",
+    "transport",
+    "primary-agent-outbox",
+    "submitted",
+    "item-dispatch-2.json",
+  );
+
+  assert.equal(await waitFor(() => existsSync(firstSubmittedPath), 3_000), true);
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  assert.equal(existsSync(secondSubmittedPath), false);
+  assert.equal(await waitFor(() => existsSync(secondSubmittedPath), 3_000), true);
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
 test("dispatcher reclaims stale leases before submitting retained artifacts", async () => {
   const root = createTempRoot();
   installFakeTmux(root);
@@ -366,7 +417,7 @@ test("dispatcher uses command palette flow for tmux model and variant selection"
     "send-keys -t ff15:main.4 -l Switch model variant",
   );
   const variantIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l high");
-  const payloadIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l [primary-agent-dispatch]");
+  const payloadIndex = tmuxLog.indexOf("send-keys -t ff15:main.4 -l [tmux-dispatch]");
 
   assert.match(tmuxLog, /send-keys -t ff15:main\.4 C-p/);
   assert.equal(switchSessionCommandIndex >= 0, true, tmuxLog);
@@ -392,7 +443,7 @@ test("dispatcher uses command palette flow for tmux model and variant selection"
   );
   assert.match(
     tmuxLog,
-    /send-keys -t ff15:main\.4 -l high\nsleep 0\.5\nsend-keys -t ff15:main\.4 Enter\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l \[primary-agent-dispatch\]/,
+    /send-keys -t ff15:main\.4 -l high\nsleep 0\.5\nsend-keys -t ff15:main\.4 Enter\nsleep 0\.5\nsend-keys -t ff15:main\.4 -l \[tmux-dispatch\]/,
   );
   assert.equal((tmuxLog.match(/^sleep 0\.5$/gm) ?? []).length, 16, tmuxLog);
   assert.doesNotMatch(tmuxLog, /send-keys -t ff15:main\.4 \/models/);

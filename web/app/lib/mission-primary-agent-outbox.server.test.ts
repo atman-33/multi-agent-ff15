@@ -6,9 +6,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createMission, deleteMission, getMissionDir } from "./mission-store";
 import {
   enqueuePrimaryAgentOutboxItem,
+  enqueueTmuxDispatchItem,
   leasePrimaryAgentOutboxItem,
+  leaseTmuxDispatchItem,
   listPrimaryAgentOutboxItems,
+  listTmuxDispatchItems,
   markPrimaryAgentOutboxItemSubmitted,
+  markTmuxDispatchItemSubmitted,
+  updateTmuxDispatchItemRecordLinks,
 } from "./mission-primary-agent-outbox.server";
 
 const tempRoots: string[] = [];
@@ -194,5 +199,87 @@ describe("mission primary-agent outbox", () => {
       },
       staleAfterMs: 1_000,
     });
+  });
+
+  it("provides generic tmux dispatch lifecycle helpers for worker-targeted items", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-outbox-generic", "session-primary-generic", {
+      title: "Generic Dispatch Mission",
+      objective: "Verify generic dispatch lifecycle helpers",
+    });
+    missionIds.push(mission.id);
+
+    const item = enqueueTmuxDispatchItem({
+      missionId: mission.id,
+      itemId: "item-generic-1",
+      createdAt: "2026-04-28T00:20:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis-1",
+        sessionTitle: `mission:${mission.id}:ignis`,
+        parts: [{ type: "text", text: "generic queued prompt" }],
+      },
+    });
+
+    expect(listTmuxDispatchItems(mission.id)).toEqual([item]);
+
+    const leased = leaseTmuxDispatchItem({
+      missionId: mission.id,
+      leaseOwner: "dispatcher-generic",
+      leasedAt: "2026-04-28T00:21:00.000Z",
+      staleAfterMs: 30_000,
+    });
+
+    expect(leased?.status).toBe("leased");
+
+    const submitted = markTmuxDispatchItemSubmitted({
+      missionId: mission.id,
+      itemId: "item-generic-1",
+      submittedAt: "2026-04-28T00:22:00.000Z",
+      submittedBy: "dispatcher-generic",
+      dispatcherPid: 7171,
+    });
+
+    expect(submitted.status).toBe("submitted");
+    expect(listTmuxDispatchItems(mission.id)).toEqual([submitted]);
+  });
+
+  it("stores record links on queued tmux dispatch items", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-outbox-record-links", "session-primary-links", {
+      title: "Record Link Mission",
+      objective: "Verify tmux dispatch record-link persistence",
+    });
+    missionIds.push(mission.id);
+
+    enqueueTmuxDispatchItem({
+      missionId: mission.id,
+      itemId: "item-links-1",
+      createdAt: "2026-04-28T00:30:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis-links",
+        parts: [{ type: "text", text: "linked prompt" }],
+      },
+    });
+
+    const updated = updateTmuxDispatchItemRecordLinks({
+      missionId: mission.id,
+      itemId: "item-links-1",
+      recordLinks: {
+        activityEntryId: "activity_msg_links",
+        conversationEntryIds: ["banter-a", "banter-b"],
+        messageLogEntryId: "msg_links",
+      },
+    });
+
+    expect(updated.payload.recordLinks).toEqual({
+      activityEntryId: "activity_msg_links",
+      conversationEntryIds: ["banter-a", "banter-b"],
+      messageLogEntryId: "msg_links",
+    });
+    expect(listTmuxDispatchItems(mission.id)).toEqual([updated]);
   });
 });

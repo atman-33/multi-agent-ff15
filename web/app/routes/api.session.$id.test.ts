@@ -299,7 +299,7 @@ describe("api.session.$id", () => {
     expect(data.messages[1]?.info.selectionAdjustment).toBeUndefined();
   });
 
-  it("returns summary-mode session parts while preserving inspectable session content", async () => {
+  it("returns full session parts for transcript-first history responses", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionMessagesMock.mockResolvedValue({
       data: [
@@ -350,13 +350,14 @@ describe("api.session.$id", () => {
       messages: Array<{
         detailState?: string;
         parts: unknown[];
-        summary?: {
-          content?: string;
-        };
       }>;
     }>(response);
-    expect(data.messages[0]?.detailState).toBe("summary");
+    expect(data.messages[0]?.detailState).toBe("full");
     expect(data.messages[0]?.parts).toEqual([
+      {
+        type: "text",
+        text: '<team-message from="noctis" to="user">Visible reply.</team-message>',
+      },
       {
         type: "reasoning",
         text: "Need a follow-up.",
@@ -366,11 +367,52 @@ describe("api.session.$id", () => {
         tool: "apply_patch",
         state: {
           status: "completed",
+          input: { patch: "*** Begin Patch" },
+          output: "done",
+          error: "",
         },
       },
     ]);
-    expect(data.messages[0]?.summary).toMatchObject({
-      content: "Visible reply.",
+  });
+
+  it("preserves routed worker report envelopes in initial session history", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "worker-report-1",
+            role: "user",
+            agent: "noctis",
+            time: { created: Date.parse("2026-04-29T12:14:00.000Z") },
+          },
+          parts: [
+            {
+              type: "text",
+              text: [
+                "<operation-prompt>",
+                '<worker-report from="ignis" to="noctis" next="COMPLETE">',
+                "Implemented the requested change.",
+                "</worker-report>",
+                "</operation-prompt>",
+              ].join("\n"),
+            },
+          ],
+        },
+      ],
     });
+
+    const response = await loader({ params: { id: "session-worker-report" } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      messages: Array<{
+        detailState?: string;
+        parts: Array<{ type: string; text?: string }>;
+      }>;
+    }>(response);
+
+    expect(data.messages[0]?.detailState).toBe("full");
+    expect(data.messages[0]?.parts[0]?.text).toContain('<worker-report from="ignis" to="noctis"');
   });
 });

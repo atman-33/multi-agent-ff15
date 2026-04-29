@@ -5,15 +5,16 @@ import { join } from "node:path";
 const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
 const LOOP_INTERVAL_MS = 200;
+const NEXT_DISPATCH_DELAY_MS = 3_000;
 const MISSION_STORE_DIR = "noctis-missions";
 const SESSION_NAME = "ff15";
 const STALE_LEASE_MS = 5_000;
 const TMUX_INTERACTION_DELAY_SECONDS = "0.5";
 
 type AgentId = (typeof AGENT_IDS)[number];
-type PrimaryAgentOutboxStatus = "pending" | "leased" | "submitted";
+type TmuxDispatchStatus = "pending" | "leased" | "submitted";
 
-type PrimaryAgentOutboxItem = {
+type TmuxDispatchItem = {
   createdAt: string;
   id: string;
   lease?: {
@@ -44,7 +45,7 @@ type PrimaryAgentOutboxItem = {
     system?: string;
     variant?: string;
   };
-  status: PrimaryAgentOutboxStatus;
+  status: TmuxDispatchStatus;
   submission?: {
     dispatcherPid?: number;
     submittedAt: string;
@@ -73,7 +74,7 @@ function getMissionStorePath(root: string): string {
 function getOutboxStateDir(
   root: string,
   missionId: string,
-  status: PrimaryAgentOutboxStatus,
+  status: TmuxDispatchStatus,
 ): string {
   return join(getMissionStorePath(root), missionId, "transport", "primary-agent-outbox", status);
 }
@@ -81,7 +82,7 @@ function getOutboxStateDir(
 function getOutboxItemPath(
   root: string,
   missionId: string,
-  status: PrimaryAgentOutboxStatus,
+  status: TmuxDispatchStatus,
   itemId: string,
 ): string {
   return join(getOutboxStateDir(root, missionId, status), `${itemId}.json`);
@@ -111,7 +112,7 @@ function cleanup(root: string): void {
   rmSync(getDispatcherStatePath(root), { force: true });
 }
 
-function isOutboxStatus(value: unknown): value is PrimaryAgentOutboxStatus {
+function isOutboxStatus(value: unknown): value is TmuxDispatchStatus {
   return value === "pending" || value === "leased" || value === "submitted";
 }
 
@@ -119,7 +120,7 @@ function isAgentId(value: unknown): value is AgentId {
   return AGENT_IDS.some((agentId) => agentId === value);
 }
 
-function normalizeItem(value: unknown): PrimaryAgentOutboxItem | null {
+function normalizeItem(value: unknown): TmuxDispatchItem | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -156,7 +157,7 @@ function normalizeItem(value: unknown): PrimaryAgentOutboxItem | null {
     return null;
   }
 
-  return record as PrimaryAgentOutboxItem;
+  return record as TmuxDispatchItem;
 }
 
 function listMissionIds(root: string): string[] {
@@ -174,8 +175,8 @@ function listMissionIds(root: string): string[] {
 function readItemsForStatus(
   root: string,
   missionId: string,
-  status: PrimaryAgentOutboxStatus,
-): PrimaryAgentOutboxItem[] {
+  status: TmuxDispatchStatus,
+): TmuxDispatchItem[] {
   const dir = getOutboxStateDir(root, missionId, status);
   if (!existsSync(dir)) {
     return [];
@@ -190,14 +191,14 @@ function readItemsForStatus(
         return null;
       }
     })
-    .filter((item): item is PrimaryAgentOutboxItem => item !== null);
+    .filter((item): item is TmuxDispatchItem => item !== null);
 }
 
-function compareItems(left: PrimaryAgentOutboxItem, right: PrimaryAgentOutboxItem): number {
+function compareItems(left: TmuxDispatchItem, right: TmuxDispatchItem): number {
   return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
 }
 
-function isStale(item: PrimaryAgentOutboxItem, now: string): boolean {
+function isStale(item: TmuxDispatchItem, now: string): boolean {
   if (!item.lease) {
     return false;
   }
@@ -211,7 +212,7 @@ function isStale(item: PrimaryAgentOutboxItem, now: string): boolean {
   return checkedAt - leasedAt > item.lease.staleAfterMs;
 }
 
-function writeItem(root: string, item: PrimaryAgentOutboxItem): void {
+function writeItem(root: string, item: TmuxDispatchItem): void {
   for (const status of ["pending", "leased", "submitted"] as const) {
     mkdirSync(getOutboxStateDir(root, item.missionId, status), { recursive: true });
     rmSync(getOutboxItemPath(root, item.missionId, status, item.id), { force: true });
@@ -224,7 +225,7 @@ function writeItem(root: string, item: PrimaryAgentOutboxItem): void {
   );
 }
 
-function claimNextItem(root: string, now: string): PrimaryAgentOutboxItem | null {
+function claimNextItem(root: string, now: string): TmuxDispatchItem | null {
   const candidates = listMissionIds(root).flatMap((missionId) => {
     const pending = readItemsForStatus(root, missionId, "pending");
     const staleLeased = readItemsForStatus(root, missionId, "leased").filter((item) => isStale(item, now));
@@ -236,7 +237,7 @@ function claimNextItem(root: string, now: string): PrimaryAgentOutboxItem | null
     return null;
   }
 
-  const claimed: PrimaryAgentOutboxItem = {
+  const claimed: TmuxDispatchItem = {
     ...candidate,
     status: "leased",
     updatedAt: now,
@@ -309,7 +310,7 @@ function sendTmuxKeys(
 
 function readCatalogModelSelectionText(
   root: string,
-  model: NonNullable<PrimaryAgentOutboxItem["payload"]["model"]>,
+  model: NonNullable<TmuxDispatchItem["payload"]["model"]>,
 ): string | null {
   const modelKey = `${model.providerID}/${model.modelID}`;
   const catalogPath = join(root, "runtime", "opencode-model-catalog.json");
@@ -328,9 +329,9 @@ function readCatalogModelSelectionText(
   }
 }
 
-function buildDispatchText(item: PrimaryAgentOutboxItem): string {
+function buildDispatchText(item: TmuxDispatchItem): string {
   const header = [
-    `[primary-agent-dispatch] mission=${item.missionId}`,
+    `[tmux-dispatch] mission=${item.missionId}`,
     `session=${item.payload.sessionId}`,
     `agent=${item.payload.agent}`,
   ].join(" ");
@@ -348,7 +349,7 @@ function buildDispatchText(item: PrimaryAgentOutboxItem): string {
     .join("\n\n");
 }
 
-function resolveManagedSessionTitle(item: PrimaryAgentOutboxItem): string {
+function resolveManagedSessionTitle(item: TmuxDispatchItem): string {
   if (typeof item.payload.sessionTitle === "string" && item.payload.sessionTitle.length > 0) {
     return item.payload.sessionTitle;
   }
@@ -359,7 +360,7 @@ function resolveManagedSessionTitle(item: PrimaryAgentOutboxItem): string {
 function activateManagedSession(
   root: string,
   target: string,
-  item: PrimaryAgentOutboxItem,
+  item: TmuxDispatchItem,
   interactionState: { hasSentInput: boolean },
 ): void {
   const sessionTitle = resolveManagedSessionTitle(item);
@@ -391,7 +392,7 @@ function activateManagedSession(
 function applyModelSelection(
   root: string,
   target: string,
-  item: PrimaryAgentOutboxItem,
+  item: TmuxDispatchItem,
   interactionState: { hasSentInput: boolean },
 ): void {
   if (!item.payload.model) {
@@ -459,10 +460,10 @@ function applyModelSelection(
   );
 }
 
-function submitClaimedItem(root: string, item: PrimaryAgentOutboxItem): void {
+function submitClaimedItem(root: string, item: TmuxDispatchItem): void {
   const paneIndex = AGENT_IDS.indexOf(item.payload.agent);
   if (paneIndex === -1) {
-    throw new Error(`Unsupported primary-agent outbox target: ${item.payload.agent}`);
+    throw new Error(`Unsupported tmux dispatch target: ${item.payload.agent}`);
   }
 
   const target = `${SESSION_NAME}:main.${paneIndex}`;
@@ -493,15 +494,18 @@ function countQueuedItems(root: string): number {
 
 const root = parseRoot(process.argv.slice(2));
 let processedCount = 0;
+let nextDispatchNotBefore = 0;
 const dispatcherStartedAt = new Date().toISOString();
 
 const tick = () => {
   try {
-    const now = new Date().toISOString();
-    const claimed = claimNextItem(root, now);
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const claimed = nowDate.getTime() >= nextDispatchNotBefore ? claimNextItem(root, now) : null;
     if (claimed) {
       submitClaimedItem(root, claimed);
       processedCount += 1;
+      nextDispatchNotBefore = Date.now() + NEXT_DISPATCH_DELAY_MS;
     }
 
     writeState(root, {

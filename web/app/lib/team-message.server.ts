@@ -15,15 +15,14 @@ import {
   updateMissionExecutionContext,
 } from "@/lib/mission-store";
 import { getManagedSessionTitle } from "@/lib/managed-session-titles";
+import { updateTmuxDispatchItemRecordLinks } from "@/lib/mission-primary-agent-outbox.server";
 import { splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeTeamMessagePrompt } from "@/lib/prompt-composition-engine";
+import { queueTmuxAgentDispatch } from "@/lib/primary-agent-outbox-dispatch.server";
+import { resolveTmuxWriteTarget } from "@/lib/session-owner-routing.server";
 import { getActivityActorLabel } from "@/lib/team-message-format";
-import {
-  activateTmuxMissionWriteFocus,
-  getTmuxMissionWriteConflict,
-} from "@/lib/tmux-mission-activation.server";
 import type {
   ActivityActorId,
   AgentId,
@@ -107,7 +106,12 @@ function serializeMeta(message: TeamMessage, displayFrom: ActivityActorId): stri
   ].join("\n");
 }
 
-async function resolveTargetSession(missionId: string, toAgent: AgentId): Promise<string> {
+async function resolveTargetSession(missionId: string, toAgent: AgentId): Promise<{
+  client: ReturnType<typeof getOpencodeClient>;
+  mode: "direct" | "tmux";
+  sessionId: string;
+  sessionTitle: string;
+}> {
   const mission = getMission(missionId);
   if (!mission) {
     throw new Error("Mission not found");
@@ -133,24 +137,31 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     clearMissionSessions(missionId);
   }
 
-  const client = getOpencodeClient();
   if (mission.transportMode === "tmux-resident") {
-    const conflict = await getTmuxMissionWriteConflict({
-      appRoot: projectRoot,
+    const writeTarget = await resolveTmuxWriteTarget({
       missionId,
-      client,
+      agentId: toAgent,
+      sessionHostRoot: executionRoot.sessionHostRoot,
     });
-    if (conflict) {
-      throw new Error(`Tmux write focus is still held by mission ${conflict.activeMissionId}.`);
-    }
-
-    activateTmuxMissionWriteFocus({ appRoot: projectRoot, missionId });
+    return {
+      client: writeTarget.client,
+      mode: "tmux",
+      sessionId: writeTarget.sessionId,
+      sessionTitle: writeTarget.sessionTitle,
+    };
   }
+
+  const client = getOpencodeClient();
 
   if (!isWorkerAgentId(toAgent)) {
     const existingPrimarySessionId = mission.primarySessionId || mission.noctisSessionId;
     if (existingPrimarySessionId) {
-      return existingPrimarySessionId;
+      return {
+        client,
+        mode: "direct",
+        sessionId: existingPrimarySessionId,
+        sessionTitle: getManagedSessionTitle(missionId, toAgent),
+      };
     }
 
     const sessionResult = await client.session.create({
@@ -164,12 +175,22 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
     }
 
     setMissionPrimarySession(missionId, toAgent, sessionId);
-    return sessionId;
+    return {
+      client,
+      mode: "direct",
+      sessionId,
+      sessionTitle: getManagedSessionTitle(missionId, toAgent),
+    };
   }
 
-  const existing = mission.workerSessions[toAgent];
-  if (existing) {
-    return existing;
+  const existingWorkerSessionId = mission.workerSessions[toAgent];
+  if (existingWorkerSessionId) {
+    return {
+      client,
+      mode: "direct",
+      sessionId: existingWorkerSessionId,
+      sessionTitle: getManagedSessionTitle(missionId, toAgent),
+    };
   }
 
   const sessionResult = await client.session.create({
@@ -183,12 +204,23 @@ async function resolveTargetSession(missionId: string, toAgent: AgentId): Promis
   }
 
   setWorkerSession(missionId, toAgent, sessionId);
-  return sessionId;
+  return {
+    client,
+    mode: "direct",
+    sessionId,
+    sessionTitle: getManagedSessionTitle(missionId, toAgent),
+  };
 }
 
 async function deliverMissionMessage(
   input: SendTeamMessageInput
-): Promise<{ sessionId: string; messageId: string; createdAt: string }> {
+): Promise<{
+  sessionId: string;
+  messageId: string;
+  createdAt: string;
+  deliveryStatus: "queued" | "sent";
+  outboxItemId?: string;
+}> {
   assertHubSafe(input.fromAgent, input.toAgent);
   assertIntentContract(input);
 
@@ -211,7 +243,8 @@ async function deliverMissionMessage(
     createdAt: new Date().toISOString(),
   };
 
-  const sessionId = await resolveTargetSession(input.missionId, input.toAgent);
+  const target = await resolveTargetSession(input.missionId, input.toAgent);
+  const sessionId = target.sessionId;
   const projectRoot = getProjectRoot();
 
   const system = serializeMeta(message, input.activitySpeaker ?? input.fromAgent);
@@ -236,11 +269,56 @@ async function deliverMissionMessage(
     workflowExtensionOverride: input.workflowGuidance,
   });
 
-  const client = getOpencodeClient();
   const { model, variant } = splitModelSelection(mission.agentModels[input.toAgent]);
 
+  if (target.mode === "tmux") {
+    const queuedEntry: MissionMessageLogEntry = {
+      ...message,
+      deliveredToSessionId: sessionId,
+      deliveryStatus: "queued",
+    };
+    appendMissionMessage(input.missionId, queuedEntry);
+    appendMissionActivity(input.missionId, {
+      id: `activity_${message.id}`,
+      actor: input.activityActor ?? input.fromAgent,
+      speaker: input.activitySpeaker ?? input.fromAgent,
+      kind: input.activityKind ?? "team_message",
+      body: input.body,
+      createdAt: message.createdAt,
+      source: {
+        type: "team_message",
+        sessionId,
+        messageId: message.id,
+        taskId: message.taskId,
+        next: message.next,
+        reportStatus: message.reportStatus,
+        deliveryStatus: "queued",
+      },
+    });
+
+    const queuedItem = queueTmuxAgentDispatch({
+      missionId: input.missionId,
+      agent: input.toAgent,
+      sessionId,
+      sessionTitle: target.sessionTitle,
+      parts: composed.payloadParts,
+      system,
+      ...(model ? { model } : {}),
+      ...(variant ? { variant } : {}),
+      activityBody: "Queued tmux team-message delivery.",
+    });
+
+    return {
+      createdAt: message.createdAt,
+      deliveryStatus: "queued",
+      messageId: message.id,
+      outboxItemId: queuedItem.id,
+      sessionId,
+    };
+  }
+
   try {
-    const _result = await client.session.promptAsync({
+    const _result = await target.client.session.promptAsync({
       sessionID: sessionId,
       parts: composed.payloadParts,
       agent: input.toAgent,
@@ -272,7 +350,12 @@ async function deliverMissionMessage(
         deliveryStatus: "sent",
       },
     });
-    return { sessionId, messageId: message.id, createdAt: message.createdAt };
+    return {
+      createdAt: message.createdAt,
+      deliveryStatus: "sent",
+      messageId: message.id,
+      sessionId,
+    };
   } catch (error) {
     const failedEntry: MissionMessageLogEntry = {
       ...message,
@@ -302,19 +385,35 @@ export async function sendSimpleMessage(input: {
     activityKind: "team_message",
   });
 
-  recordDirectedTaskDelegation({
+  const banterEntries = recordDirectedTaskDelegation({
     missionId: input.missionId,
     fromAgent: "noctis",
     toAgent: input.toAgent,
     orchestratedBy: "noctis",
     canonicalMessage: input.body,
     createdAt: delivery.createdAt,
-    transport: {
-      deliveredToSessionId: delivery.sessionId,
-      deliveryStatus: "sent",
-      sessionId: delivery.sessionId,
-    },
+    ...((delivery.deliveryStatus === "sent" || delivery.deliveryStatus === "queued")
+      ? {
+          transport: {
+            deliveredToSessionId: delivery.sessionId,
+            deliveryStatus: delivery.deliveryStatus,
+            sessionId: delivery.sessionId,
+          },
+        }
+      : {}),
   });
+
+  if (delivery.deliveryStatus === "queued" && delivery.outboxItemId) {
+    updateTmuxDispatchItemRecordLinks({
+      missionId: input.missionId,
+      itemId: delivery.outboxItemId,
+      recordLinks: {
+        activityEntryId: `activity_${delivery.messageId}`,
+        conversationEntryIds: banterEntries.map((entry) => entry.id),
+        messageLogEntryId: delivery.messageId,
+      },
+    });
+  }
 
   return delivery;
 }
@@ -345,7 +444,7 @@ export async function sendWorkerReport(input: {
     workflowGuidance: input.workflowGuidance,
   });
 
-  recordDirectedReportReturn({
+  const banterEntries = recordDirectedReportReturn({
     missionId: input.missionId,
     fromAgent: input.fromAgent,
     toAgent: "noctis",
@@ -355,12 +454,28 @@ export async function sendWorkerReport(input: {
     reportStatus: input.reportStatus ?? "completed",
     reportBody: input.message,
     createdAt: delivery.createdAt,
-    transport: {
-      deliveredToSessionId: delivery.sessionId,
-      deliveryStatus: "sent",
-      sessionId: delivery.sessionId,
-    },
+    ...((delivery.deliveryStatus === "sent" || delivery.deliveryStatus === "queued")
+      ? {
+          transport: {
+            deliveredToSessionId: delivery.sessionId,
+            deliveryStatus: delivery.deliveryStatus,
+            sessionId: delivery.sessionId,
+          },
+        }
+      : {}),
   });
+
+  if (delivery.deliveryStatus === "queued" && delivery.outboxItemId) {
+    updateTmuxDispatchItemRecordLinks({
+      missionId: input.missionId,
+      itemId: delivery.outboxItemId,
+      recordLinks: {
+        activityEntryId: `activity_${delivery.messageId}`,
+        conversationEntryIds: banterEntries.map((entry) => entry.id),
+        messageLogEntryId: delivery.messageId,
+      },
+    });
+  }
 
   return delivery;
 }
