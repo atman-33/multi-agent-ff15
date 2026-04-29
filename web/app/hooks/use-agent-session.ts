@@ -1849,6 +1849,7 @@ export function useAgentSession({
         return current === nextSelectedOperation ? current : nextSelectedOperation;
       });
 
+      const currentPrimarySessionId = noctisSessionIdRef.current;
       const nextPrimarySessionId = getMissionPrimarySessionIdFromPayload(runtime);
       const runtimePrimaryStatus = nextPrimarySessionId
         ? (runtime.sessionStatuses[nextPrimarySessionId] ?? null)
@@ -1904,6 +1905,15 @@ export function useAgentSession({
 
       clearPendingMissionSession(runtime.missionId);
 
+      const shouldResyncPendingTranscriptFromRuntime = Boolean(
+        nextPrimarySessionId &&
+          currentPrimarySessionId === nextPrimarySessionId &&
+          isPrimarySettled &&
+          transcriptStateRef.current.phase === "pending" &&
+          transcriptStateRef.current.missionId === runtime.missionId &&
+          transcriptStateRef.current.sessionId === nextPrimarySessionId,
+      );
+
       if (noctisSessionIdRef.current !== nextPrimarySessionId) {
         const transcriptMissionId = runtime.missionId ?? activeMissionIdRef.current;
         const shouldClearVisibleTranscriptOnSessionSwitch =
@@ -1943,6 +1953,13 @@ export function useAgentSession({
         if (nextPrimarySessionId && !eventSourceRef.current) {
           subscribeToSession(nextPrimarySessionId);
         }
+      }
+
+      if (shouldResyncPendingTranscriptFromRuntime && nextPrimarySessionId) {
+        requestSessionHistorySync(nextPrimarySessionId, {
+          missionId: runtime.missionId,
+          reason: "runtime-primary-settled-sync",
+        });
       }
 
       setWorkerSessionIds((current) => {
@@ -2034,6 +2051,7 @@ export function useAgentSession({
       pendingMissionSessionId,
       persistAmbientBanter,
       primaryAgentId,
+      requestSessionHistorySync,
       setServerSessionState,
       subscribeToSession,
       syncSessionMessages,

@@ -786,6 +786,209 @@ describe("useAgentSession", () => {
     });
   });
 
+  it("settles a pending transcript when runtime polling reports the same primary session idle", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let runtimeStatus: "busy" | "idle" = "busy";
+    let sessionLoadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: { "session-1": runtimeStatus },
+        });
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse({ noctisSessionId: "session-1" });
+      }
+
+      if (url === "/api/session/session-1") {
+        sessionLoadCount += 1;
+
+        if (sessionLoadCount < 3) {
+          return createJsonResponse({ messages: [] });
+        }
+
+        return createJsonResponse({
+          messages: [createAssistantMessage("message-2", "Mission one follow-up reply")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "empty");
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events",
+        ),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onopen === "function");
+
+    await act(async () => {
+      sessionEventSource?.onopen?.call(
+        sessionEventSource as unknown as EventSource,
+        new Event("open"),
+      );
+    });
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Continue mission" }]);
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "pending");
+    expect(sessionLoadCount).toBe(2);
+
+    runtimeStatus = "idle";
+
+    await act(async () => {
+      vi.advanceTimersByTime(20_000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(sessionLoadCount).toBe(3);
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission one follow-up reply"],
+      streamingContent: "",
+    });
+  });
+
+  it("settles a pending transcript when runtime polling settles the same primary session without a status", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    let sessionLoadCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: {},
+        });
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse({ noctisSessionId: "session-1" });
+      }
+
+      if (url === "/api/session/session-1") {
+        sessionLoadCount += 1;
+
+        if (sessionLoadCount < 3) {
+          return createJsonResponse({ messages: [] });
+        }
+
+        return createJsonResponse({
+          messages: [createAssistantMessage("message-2", "Mission one follow-up reply")],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "empty");
+    await waitFor(
+      () =>
+        MockEventSource.instances.some(
+          (instance) => instance.url === "/api/session/session-1/events",
+        ),
+    );
+
+    const sessionEventSource = MockEventSource.instances.find(
+      (instance) => instance.url === "/api/session/session-1/events",
+    );
+    await waitFor(() => typeof sessionEventSource?.onopen === "function");
+
+    await act(async () => {
+      sessionEventSource?.onopen?.call(
+        sessionEventSource as unknown as EventSource,
+        new Event("open"),
+      );
+    });
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Continue mission" }]);
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "pending");
+    expect(sessionLoadCount).toBe(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(20_000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(sessionLoadCount).toBe(3);
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Mission one follow-up reply"],
+      streamingContent: "",
+    });
+  });
+
   it("clears a stale pending transcript when the same mission switches to a new primary session", async () => {
     const initialMission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     let runtimeMission = initialMission;
