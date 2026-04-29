@@ -14,6 +14,22 @@ function createMissionSummary(activitySessionIds: string[]): MissionSummary {
 }
 
 describe("mission-list-running-state", () => {
+  it("prefers summary agent statuses when they are available", () => {
+    expect(
+      isMissionSummaryRunning(
+        {
+          ...createMissionSummary(["session-primary"]),
+          agentStatuses: {
+            noctis: "busy",
+          },
+        },
+        {
+          "session-primary": "idle",
+        },
+      ),
+    ).toBe(true);
+  });
+
   it("returns true when the primary mission session is active", () => {
     expect(
       isMissionSummaryRunning(createMissionSummary(["session-primary"]), {

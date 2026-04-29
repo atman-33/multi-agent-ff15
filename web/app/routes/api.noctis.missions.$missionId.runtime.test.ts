@@ -134,11 +134,14 @@ describe("api.noctis.missions.$missionId.runtime", () => {
     });
 
     sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "idle" } });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
 
     const response = await loader({ params: { missionId } } as never);
     expect(response.status).toBe(200);
 
     const data = await readJson<{
+      latestPrimaryMessageCreatedAt?: string | null;
+      latestPrimaryMessageId?: string | null;
       primaryMessages?: unknown;
       noctisMessages?: unknown;
       primarySessionId: string | null;
@@ -146,10 +149,52 @@ describe("api.noctis.missions.$missionId.runtime", () => {
     }>(response);
 
     expect(data.primarySessionId).toBe("session-noctis");
+    expect(data.latestPrimaryMessageId).toBeNull();
+    expect(data.latestPrimaryMessageCreatedAt).toBeNull();
     expect(data.primaryMessages).toBeUndefined();
     expect(data.noctisMessages).toBeUndefined();
     expect(data.sessionStatuses["session-noctis"]).toBe("idle");
-    expect(sessionMessagesMock).not.toHaveBeenCalled();
+    expect(sessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-noctis" });
+  });
+
+  it("includes latest primary-message freshness metadata for active mission hydration", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-runtime-freshness-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", {
+      title: "Freshness mission",
+      objective: "Verify runtime freshness metadata",
+    });
+
+    sessionStatusMock.mockResolvedValue({ data: { "session-noctis": "busy" } });
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "message-2",
+            role: "assistant",
+            time: { created: Date.parse("2026-04-29T00:02:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Fresh runtime reply" }],
+        },
+      ],
+    });
+
+    const response = await loader({ params: { missionId } } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      latestPrimaryMessageCreatedAt?: string | null;
+      latestPrimaryMessageId?: string | null;
+      primarySessionId: string | null;
+    }>(response);
+
+    expect(data.primarySessionId).toBe("session-noctis");
+    expect(data.latestPrimaryMessageId).toBe("message-2");
+    expect(data.latestPrimaryMessageCreatedAt).toBe("2026-04-29T00:02:00.000Z");
+    expect(sessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-noctis" });
   });
 
   it("returns derived workflow progress for the active mission workflow", async () => {

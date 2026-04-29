@@ -60,7 +60,7 @@ const PROGRESS_BANTER_DELAYS = {
 const ABORT_SETTLEMENT_DELAY_MS = 10000;
 const MISSION_RUNTIME_RECOVERY_POLL_MS = 2000;
 const MISSION_RUNTIME_SETTLING_POLL_MS = 4000;
-const MISSION_RUNTIME_ACTIVE_POLL_MS = 10000;
+const MISSION_RUNTIME_ACTIVE_POLL_MS = 3000;
 const MISSION_RUNTIME_IDLE_POLL_MS = 15000;
 const MISSION_RUNTIME_HIDDEN_POLL_MS = 30000;
 const MISSION_SETTLED_BANTER_COOLDOWN_MS = 30000;
@@ -301,9 +301,22 @@ function areContextUsageByAgentEqual(
   );
 }
 
-function getMissionRuntimePollInterval({
+function getRuntimePrimaryFreshnessKey(payload: {
+  latestPrimaryMessageCreatedAt?: string | null;
+  latestPrimaryMessageId?: string | null;
+  primarySessionId?: string | null;
+}): string | null {
+  if (!payload.primarySessionId) {
+    return null;
+  }
+
+  return `${payload.primarySessionId}:${payload.latestPrimaryMessageId ?? ""}:${payload.latestPrimaryMessageCreatedAt ?? ""}`;
+}
+
+export function getMissionRuntimePollInterval({
   abortSettlementPhase,
   hasActiveDelegation,
+  hasPendingTranscript,
   isDocumentVisible,
   isPrimaryStreamConnected,
   isSessionActive,
@@ -311,6 +324,7 @@ function getMissionRuntimePollInterval({
 }: {
   abortSettlementPhase: AbortSettlementPhase;
   hasActiveDelegation: boolean;
+  hasPendingTranscript: boolean;
   isDocumentVisible: boolean;
   isPrimaryStreamConnected: boolean;
   isSessionActive: boolean;
@@ -324,12 +338,12 @@ function getMissionRuntimePollInterval({
     return MISSION_RUNTIME_RECOVERY_POLL_MS;
   }
 
-  if (abortSettlementPhase !== "idle") {
-    return MISSION_RUNTIME_SETTLING_POLL_MS;
+  if (hasPendingTranscript || isStreaming || isSessionActive || hasActiveDelegation) {
+    return MISSION_RUNTIME_ACTIVE_POLL_MS;
   }
 
-  if (isStreaming || isSessionActive || hasActiveDelegation) {
-    return MISSION_RUNTIME_ACTIVE_POLL_MS;
+  if (abortSettlementPhase !== "idle") {
+    return MISSION_RUNTIME_SETTLING_POLL_MS;
   }
 
   return MISSION_RUNTIME_IDLE_POLL_MS;
@@ -364,6 +378,8 @@ export type MissionResumePayload = {
   objective?: string;
   createdAt: string;
   updatedAt: string;
+  latestPrimaryMessageCreatedAt?: string | null;
+  latestPrimaryMessageId?: string | null;
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
   executionProjectId?: string | null;
@@ -516,6 +532,7 @@ type SessionHistorySyncOptions = {
   missionId?: string | null;
   preserveStreaming?: boolean;
   trackStreamingMessage?: boolean;
+  expectedLatestAssistantMessageId?: string | null;
   reason?: string;
 };
 
@@ -555,6 +572,8 @@ function mergeSessionHistorySyncOptions(
     missionId: next?.missionId ?? current?.missionId,
     preserveStreaming: Boolean(current?.preserveStreaming || next?.preserveStreaming),
     trackStreamingMessage: Boolean(current?.trackStreamingMessage || next?.trackStreamingMessage),
+    expectedLatestAssistantMessageId:
+      next?.expectedLatestAssistantMessageId ?? current?.expectedLatestAssistantMessageId ?? null,
     reason: next?.reason ?? current?.reason,
   };
 }
@@ -640,6 +659,17 @@ function toSessionChatMessages(
       source: message.source,
     };
   });
+}
+
+function getLatestAssistantMessageId(
+  messages: ChatMessage[],
+  primaryAgentId: MissionPrimaryAgentId,
+): string | null {
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.sender === primaryAgentId);
+
+  return latestAssistantMessage?.id ?? null;
 }
 
 async function loadSessionMessages(
@@ -926,7 +956,6 @@ export function useAgentSession({
     visibleTranscriptState.phase === "loading" &&
     messages.length === 0;
   const sessionStatusRef = useRef<SessionStatus | null>(null);
-  const pendingActiveResolversRef = useRef<Map<string, Array<() => void>>>(new Map());
   const progressTimersRef = useRef<
     Partial<Record<string, Partial<Record<"early" | "late", ReturnType<typeof setTimeout>>>>>
   >({});
@@ -938,6 +967,7 @@ export function useAgentSession({
   const loadMissionInvocationIdRef = useRef(0);
   const runtimeRefreshInFlightRef = useRef(false);
   const runtimeRefreshQueuedRef = useRef(false);
+  const runtimePrimaryFreshnessKeyRef = useRef<string | null>(null);
   const applyMissionRuntimeSnapshotRef = useRef<((runtime: MissionRuntimeSnapshot) => void) | null>(null);
   const refreshMissionRuntimeRef = useRef<(() => Promise<void>) | null>(null);
   const transcriptStateRef = useRef<MissionTranscriptState>(transcriptState);
@@ -1050,7 +1080,11 @@ export function useAgentSession({
   }, [activeMissionId]);
 
   const sessionStatus = noctisSessionId ? (sessionStates[noctisSessionId] ?? null) : null;
-  const isSessionActive = isSessionStatusActive(sessionStatus);
+  const hasPendingPrimaryTranscript =
+    activeMissionId !== null &&
+    visibleTranscriptState.phase === "pending" &&
+    (visibleTranscriptState.sessionId === null || visibleTranscriptState.sessionId === noctisSessionId);
+  const isSessionActive = isSessionStatusActive(sessionStatus) || hasPendingPrimaryTranscript;
   const partyMembers = useMemo<PartyMember[]>(
     () =>
       PARTY_MEMBER_META.map((member) => {
@@ -1151,47 +1185,6 @@ export function useAgentSession({
     setNoctisSessionId((current) => current ?? initialNoctisSessionId);
     noctisSessionIdRef.current = noctisSessionIdRef.current ?? initialNoctisSessionId;
   }, [initialNoctisSessionId]);
-
-  const resolvePendingActive = useCallback((sessionId: string, status: SessionStatus) => {
-    if (!isSessionStatusActive(status)) {
-      return;
-    }
-
-    const resolvers = pendingActiveResolversRef.current.get(sessionId);
-    if (!resolvers || resolvers.length === 0) {
-      return;
-    }
-
-    pendingActiveResolversRef.current.delete(sessionId);
-    for (const resolve of resolvers) {
-      resolve();
-    }
-  }, []);
-
-  const waitForActiveStatus = useCallback(async (sessionId: string, timeoutMs = 1200) => {
-    const currentStatus = useChatStore.getState().sessionStates[sessionId] ?? null;
-    if (isSessionStatusActive(currentStatus)) {
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      const finish = () => {
-        window.clearTimeout(timeout);
-        const resolvers = pendingActiveResolversRef.current.get(sessionId) ?? [];
-        const nextResolvers = resolvers.filter((entry) => entry !== finish);
-        if (nextResolvers.length === 0) {
-          pendingActiveResolversRef.current.delete(sessionId);
-        } else {
-          pendingActiveResolversRef.current.set(sessionId, nextResolvers);
-        }
-        resolve();
-      };
-
-      const timeout = window.setTimeout(finish, timeoutMs);
-      const resolvers = pendingActiveResolversRef.current.get(sessionId) ?? [];
-      pendingActiveResolversRef.current.set(sessionId, [...resolvers, finish]);
-    });
-  }, []);
 
   const clearBanterEntries = useCallback(() => {
     banterFeedPresenterRef.current?.clear();
@@ -1323,6 +1316,7 @@ export function useAgentSession({
     hasHydratedNoctisSettledRef.current = false;
     lastNoctisSettledRef.current = false;
     lastNoctisSettledEmitAtRef.current = null;
+    runtimePrimaryFreshnessKeyRef.current = null;
     sessionHistorySyncInFlightRef.current.clear();
     sessionHistorySyncQueuedRef.current.clear();
     loadMissionHydrationInFlightRef.current.clear();
@@ -1372,6 +1366,12 @@ export function useAgentSession({
         const latestAssistant = [...nextMessages]
           .reverse()
           .find((message) => message.sender === primaryAgentId);
+        const shouldKeepPendingTrackedReply = Boolean(
+          options?.trackStreamingMessage &&
+            !currentStreamingMessageId &&
+            ((latestAssistant?.id ?? null) === (options.expectedLatestAssistantMessageId ?? null) ||
+              nextMessages.length === 0),
+        );
         const containsStreamingMessageId = Boolean(
           currentStreamingMessageId &&
             nextMessages.some((message) => message.id === currentStreamingMessageId)
@@ -1389,13 +1389,17 @@ export function useAgentSession({
               : (transcriptMissionId ? [] : initialMessages);
           }
 
+          if (shouldKeepPendingTrackedReply) {
+            return current;
+          }
+
           return options?.preserveStreaming
             ? mergeRuntimeSessionMessages(current, nextMessages, primaryAgentId)
             : nextMessages;
         });
 
         setTranscriptState(
-          nextMessages.length === 0 && options?.trackStreamingMessage
+          shouldKeepPendingTrackedReply
             ? createMissionTranscriptState(transcriptMissionId, "pending", null, sessionId)
             : createMissionTranscriptState(
                 transcriptMissionId,
@@ -1422,6 +1426,8 @@ export function useAgentSession({
           payload: {
             durationMs: Date.now() - syncStartedAt,
             effectiveSessionStatus,
+            expectedLatestAssistantMessageId: options?.expectedLatestAssistantMessageId ?? null,
+            keptPendingTrackedReply: shouldKeepPendingTrackedReply,
             messageCount: nextMessages.length,
             preserveStreaming: Boolean(options?.preserveStreaming),
             reason: options?.reason ?? "unspecified",
@@ -1433,7 +1439,7 @@ export function useAgentSession({
           return;
         }
 
-        streamingMessageIdRef.current = latestAssistant?.id ?? null;
+        streamingMessageIdRef.current = shouldKeepPendingTrackedReply ? null : (latestAssistant?.id ?? null);
       } catch (error) {
         appendMissionClientDebugLog({
           event: "session-history-sync",
@@ -1693,7 +1699,6 @@ export function useAgentSession({
           handleAgentEvent({
             type: "message.part.updated",
             messageId: liveEvent.messageId ?? undefined,
-            part: liveEvent.part,
             sessionId: liveEvent.sessionId ?? undefined,
             text: liveEvent.part.type === "text" ? liveEvent.part.text : undefined,
           });
@@ -1736,7 +1741,6 @@ export function useAgentSession({
             if (nextStatus === "idle") {
               clearAbortSettlement();
             }
-            resolvePendingActive(activeSessionId, nextStatus);
             if (nextStatus === "retry" && lastSessionStateRef.current !== "retry") {
               clearProgressBanter(primaryAgentId);
               handleAgentEvent({ type: "task.retrying", agentId: primaryAgentId });
@@ -1760,7 +1764,6 @@ export function useAgentSession({
       handleAgentEvent,
       missionRouteBase,
       primaryAgentId,
-      resolvePendingActive,
       requestSessionHistorySync,
       setServerSessionState,
     ]
@@ -1851,6 +1854,12 @@ export function useAgentSession({
 
       const currentPrimarySessionId = noctisSessionIdRef.current;
       const nextPrimarySessionId = getMissionPrimarySessionIdFromPayload(runtime);
+      const previousPrimaryFreshnessKey = runtimePrimaryFreshnessKeyRef.current;
+      const nextPrimaryFreshnessKey = getRuntimePrimaryFreshnessKey({
+        latestPrimaryMessageCreatedAt: runtime.latestPrimaryMessageCreatedAt,
+        latestPrimaryMessageId: runtime.latestPrimaryMessageId,
+        primarySessionId: nextPrimarySessionId,
+      });
       const runtimePrimaryStatus = nextPrimarySessionId
         ? (runtime.sessionStatuses[nextPrimarySessionId] ?? null)
         : null;
@@ -1913,6 +1922,15 @@ export function useAgentSession({
           transcriptStateRef.current.missionId === runtime.missionId &&
           transcriptStateRef.current.sessionId === nextPrimarySessionId,
       );
+      const shouldResyncTranscriptFromRuntimeFreshness = Boolean(
+        nextPrimarySessionId &&
+          currentPrimarySessionId === nextPrimarySessionId &&
+          previousPrimaryFreshnessKey !== null &&
+          previousPrimaryFreshnessKey !== nextPrimaryFreshnessKey &&
+          transcriptStateRef.current.missionId === runtime.missionId,
+      );
+
+      runtimePrimaryFreshnessKeyRef.current = nextPrimaryFreshnessKey;
 
       if (noctisSessionIdRef.current !== nextPrimarySessionId) {
         const transcriptMissionId = runtime.missionId ?? activeMissionIdRef.current;
@@ -1958,7 +1976,16 @@ export function useAgentSession({
       if (shouldResyncPendingTranscriptFromRuntime && nextPrimarySessionId) {
         requestSessionHistorySync(nextPrimarySessionId, {
           missionId: runtime.missionId,
+          preserveStreaming: true,
           reason: "runtime-primary-settled-sync",
+        });
+      }
+
+      if (shouldResyncTranscriptFromRuntimeFreshness && nextPrimarySessionId) {
+        requestSessionHistorySync(nextPrimarySessionId, {
+          missionId: runtime.missionId,
+          preserveStreaming: true,
+          reason: "runtime-primary-freshness-sync",
         });
       }
 
@@ -2164,6 +2191,7 @@ export function useAgentSession({
       getMissionRuntimePollInterval({
         abortSettlementPhase,
         hasActiveDelegation,
+        hasPendingTranscript: transcriptStateRef.current.phase === "pending",
         isDocumentVisible,
         isPrimaryStreamConnected,
         isSessionActive,
@@ -2434,6 +2462,10 @@ export function useAgentSession({
   const send = useCallback(
     async (parts: PromptPart[]) => {
       const text = stringifyPromptParts(parts);
+      const expectedLatestAssistantMessageId = getLatestAssistantMessageId(
+        sessionMessages,
+        primaryAgentId,
+      );
       if (
         activeMissionId &&
         visibleTranscriptState.phase === "loading"
@@ -2525,11 +2557,6 @@ export function useAgentSession({
             handleAgentEvent({ type: "session.created" });
             subscribeToSession(sessionId);
             setTranscriptState(createMissionTranscriptState(data.missionId, "pending", null, sessionId));
-            await waitForActiveStatus(sessionId);
-            requestSessionHistorySync(sessionId, {
-              trackStreamingMessage: true,
-              reason: "mission-start-session-created",
-            });
             return data.missionId;
           });
         } else {
@@ -2589,6 +2616,7 @@ export function useAgentSession({
               ),
             );
             requestSessionHistorySync(sessionId, {
+              expectedLatestAssistantMessageId,
               trackStreamingMessage: true,
               reason: "mission-continue-response",
             });
@@ -2629,6 +2657,7 @@ export function useAgentSession({
       missionContinueEndpoint,
       missionStartEndpoint,
       primaryAgentId,
+      sessionMessages,
       visibleTranscriptState,
       selectedOperation,
       selectedLunafreyaJobId,
@@ -2637,7 +2666,6 @@ export function useAgentSession({
       setOptimisticSessionState,
       subscribeToSession,
       requestSessionHistorySync,
-      waitForActiveStatus,
       clearStreamingState,
       selectedContextProjectIds,
       selectedExecutionProjectId,

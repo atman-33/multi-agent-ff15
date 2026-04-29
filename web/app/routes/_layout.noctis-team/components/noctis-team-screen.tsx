@@ -1,5 +1,5 @@
 import { Ellipsis, History, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMatch, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { WorkspaceLaunchActions } from "@/components/workspace-launch-actions";
@@ -30,7 +30,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type MissionResumePayload,
-  type MissionSummary,
   useAgentSession,
 } from "@/hooks/use-agent-session";
 import { useProjectRegistry } from "@/hooks/use-project-registry";
@@ -52,6 +51,7 @@ import {
 import type {
   MissionExecutionTargetMode,
   MissionOutputSummary,
+  MissionSummary,
   MissionSurfaceId,
 } from "@/lib/types/mission";
 import { isMissionSummaryRunning } from "@/lib/mission-list-running-state";
@@ -75,6 +75,7 @@ import {
   resolveMissionInspectorTab,
 } from "./output-detail-routing";
 import { PartyStatusPanel } from "./party-status-panel";
+import { reconcileFreshMissionIds } from "./mission-summary-freshness";
 
 type BulkMissionAction = "archive" | "restore";
 
@@ -145,6 +146,8 @@ export function NoctisTeamScreen({
   }, [effectiveMissionId, surface.lastMissionStorageKey]);
 
   const [missions, setMissions] = useState<MissionSummary[]>([]);
+  const [missionCounts, setMissionCounts] = useState({ active: 0, archived: 0 });
+  const [freshMissionIds, setFreshMissionIds] = useState<string[]>([]);
   const [missionView, setMissionView] = useState<"active" | "archived">(initialView);
   const [isLoadingMissions, setIsLoadingMissions] = useState(true);
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
@@ -186,6 +189,8 @@ export function NoctisTeamScreen({
   const [selectedLunafreyaSkillIds, setSelectedLunafreyaSkillIds] = useState<string[]>(
     initialMissionData?.lunafreyaFacetSelection?.selectedSkillIds ?? [],
   );
+  const activeMissionIdRef = useRef<string | null>(effectiveMissionId);
+  const previousMissionSummariesRef = useRef<MissionSummary[]>([]);
   const {
     data: projectRegistryData,
     error: projectRegistryError,
@@ -511,20 +516,58 @@ export function NoctisTeamScreen({
   const loadMissions = useCallback(async () => {
     setIsLoadingMissions(true);
     try {
-      const res = await fetch(`${missionApiBase}?view=all`);
+      const res = await fetch(`${missionApiBase}?view=${missionView}`);
       if (!res.ok) {
         throw new Error(`missions failed: ${res.status}`);
       }
-      const data = (await res.json()) as { missions?: MissionSummary[] };
-      setMissions(data.missions ?? []);
+      const data = (await res.json()) as {
+        counts?: { active?: number; archived?: number };
+        missions?: MissionSummary[];
+      };
+      const nextMissions = data.missions ?? [];
+      setMissionCounts({
+        active: data.counts?.active ?? 0,
+        archived: data.counts?.archived ?? 0,
+      });
+      setFreshMissionIds((currentFreshMissionIds) =>
+        reconcileFreshMissionIds({
+          currentFreshMissionIds,
+          previousMissions: previousMissionSummariesRef.current,
+          nextMissions,
+          activeMissionId: activeMissionIdRef.current,
+        }),
+      );
+      previousMissionSummariesRef.current = nextMissions;
+      setMissions(nextMissions);
     } catch {
+      previousMissionSummariesRef.current = [];
+      setFreshMissionIds([]);
+      setMissionCounts({ active: 0, archived: 0 });
       setMissions([]);
     } finally {
       setIsLoadingMissions(false);
     }
-  }, [missionApiBase]);
+  }, [missionApiBase, missionView]);
 
-  const sessionStates = useSessionStatusFeed({ onSessionIdle: () => void loadMissions() });
+  const sessionStates = useSessionStatusFeed();
+
+  useEffect(() => {
+    activeMissionIdRef.current = effectiveMissionId;
+  }, [effectiveMissionId]);
+
+  useEffect(() => {
+    void loadMissions();
+  }, [loadMissions]);
+
+  useEffect(() => {
+    if (!effectiveMissionId) {
+      return;
+    }
+
+    setFreshMissionIds((currentFreshMissionIds) =>
+      currentFreshMissionIds.filter((missionId) => missionId !== effectiveMissionId),
+    );
+  }, [effectiveMissionId]);
 
   const loadMissionOutputs = useCallback(async () => {
     if (!effectiveMissionId) {
@@ -574,10 +617,6 @@ export function NoctisTeamScreen({
   }, [effectiveMissionId, missionApiBase]);
 
   useEffect(() => {
-    void loadMissions();
-  }, [loadMissions]);
-
-  useEffect(() => {
     void loadMissionOutputs();
   }, [loadMissionOutputs]);
 
@@ -590,20 +629,6 @@ export function NoctisTeamScreen({
       missionOutputs.find((output) => getMissionOutputKey(output) === selectedOutputKey) ?? null,
     [missionOutputs, selectedOutputKey],
   );
-
-  const missionCounts = useMemo(() => {
-    return missions.reduce(
-      (counts, mission) => {
-        if (mission.status === "archived") {
-          counts.archived += 1;
-        } else {
-          counts.active += 1;
-        }
-        return counts;
-      },
-      { active: 0, archived: 0 }
-    );
-  }, [missions]);
 
   const visibleMissions = useMemo(
     () => missions.filter((mission) => (missionView === "archived" ? mission.status === "archived" : mission.status !== "archived")),
@@ -710,6 +735,17 @@ export function NoctisTeamScreen({
                 }
               : entry
           )
+        );
+        setMissionCounts((currentCounts) =>
+          action === "archive"
+            ? {
+                active: Math.max(0, currentCounts.active - 1),
+                archived: currentCounts.archived + 1,
+              }
+            : {
+                active: currentCounts.active + 1,
+                archived: Math.max(0, currentCounts.archived - 1),
+              },
         );
         setEditingMissionId(null);
 
@@ -847,8 +883,8 @@ export function NoctisTeamScreen({
         if (typeof window !== "undefined") {
           clearMissionSurfaceNewMissionDraft(window.localStorage, surface.id);
         }
-        await loadMissions();
         navigate(buildMissionPath(missionId, missionRouteBase), { replace: true });
+        void loadMissions();
       }
     },
     [
@@ -1111,6 +1147,7 @@ export function NoctisTeamScreen({
                       mission={mission}
                       routeBase={missionRouteBase}
                       isRunning={isMissionSummaryRunning(mission, sessionStates)}
+                      hasFreshPrimaryMessage={freshMissionIds.includes(mission.missionId)}
                       isActive={effectiveMissionId === mission.missionId}
                       isArchivedView={missionView === "archived"}
                       isEditing={editingMissionId === mission.missionId}

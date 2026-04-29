@@ -1,5 +1,6 @@
 import { buildMissionBanterTimeline } from "@/lib/banter/timeline";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import type { MessageInfo } from "@/lib/opencode-session-types";
 import { readSessionContextUsage } from "@/lib/session-context.server";
 import type { SessionStatus } from "@/lib/session-status";
 import { coerceSessionStatus } from "@/lib/session-status";
@@ -10,14 +11,38 @@ import type {
   Mission,
 } from "@/lib/types/mission";
 import { buildMissionResumePayload } from "./mission-api.server";
-import { getMissionPrimaryAgentId, getMissionPrimarySessionId } from "./mission-store";
+import {
+  getMissionPrimaryAgentId,
+  getMissionPrimarySessionId,
+  updateMissionPrimaryMessageMetadata,
+} from "./mission-store";
 import { getMissionSurfaceForMission } from "./mission-surface";
+import {
+  listSessionStatusTargets,
+  resolveSessionRouteTarget,
+} from "./session-owner-routing.server";
 
 export type MissionSurfaceHydrationPayload = ReturnType<typeof buildMissionResumePayload> & {
   banterTimeline?: BanterTimelineEntry[];
   contextUsageByAgent: Partial<Record<AgentId, AgentContextUsage | null>>;
+  latestPrimaryMessageCreatedAt: string | null;
+  latestPrimaryMessageId: string | null;
   sessionStatuses: Record<string, SessionStatus>;
 };
+
+function getLatestPrimaryMessageMetadata(messages: MessageInfo[] | null | undefined): {
+  latestPrimaryMessageCreatedAt: string | null;
+  latestPrimaryMessageId: string | null;
+} {
+  const latestMessage = Array.isArray(messages) && messages.length > 0 ? messages.at(-1) ?? null : null;
+  const createdAt = latestMessage?.info.time.created;
+
+  return {
+    latestPrimaryMessageId: latestMessage?.info.id ?? null,
+    latestPrimaryMessageCreatedAt:
+      typeof createdAt === "number" ? new Date(createdAt).toISOString() : null,
+  };
+}
 
 function getRelevantContextUsageByAgent(
   mission: Mission,
@@ -90,18 +115,61 @@ function getRelevantSessionStatuses(
   return nextStatuses;
 }
 
+async function loadMissionSessionStatuses(): Promise<Record<string, unknown>> {
+  const targets = listSessionStatusTargets();
+  if (targets.length === 0) {
+    const statusResult = await getOpencodeClient().session.status();
+    if (statusResult.error) {
+      throw new Error(String(statusResult.error));
+    }
+
+    return statusResult.data ?? {};
+  }
+
+  const statuses: Record<string, unknown> = {};
+  let successCount = 0;
+
+  for (const target of targets) {
+    try {
+      const result = await target.client.session.status();
+      if (result.error) {
+        continue;
+      }
+
+      Object.assign(statuses, result.data ?? {});
+      successCount += 1;
+    } catch {}
+  }
+
+  if (successCount === 0) {
+    throw new Error("No OpenCode status endpoints responded.");
+  }
+
+  return statuses;
+}
+
 export async function buildMissionSurfaceHydrationPayload(
   mission: Mission,
 ): Promise<MissionSurfaceHydrationPayload> {
   const primaryAgentId = getMissionPrimaryAgentId(mission) ?? "noctis";
   const primarySessionId = getMissionPrimarySessionId(mission);
   const surface = getMissionSurfaceForMission(mission);
-  const client = getOpencodeClient();
-  const statusResult = await client.session.status();
-
-  if (statusResult.error) {
-    throw new Error(String(statusResult.error));
-  }
+  const primarySessionClient = primarySessionId
+    ? resolveSessionRouteTarget(primarySessionId).client
+    : getOpencodeClient();
+  const [rawStatuses, messagesResult] = await Promise.all([
+    loadMissionSessionStatuses(),
+    primarySessionId
+      ? primarySessionClient.session.messages({ sessionID: primarySessionId })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const latestPrimaryMessage = messagesResult?.error
+    ? {
+        latestPrimaryMessageCreatedAt: null,
+        latestPrimaryMessageId: null,
+      }
+    : getLatestPrimaryMessageMetadata((messagesResult?.data ?? []) as MessageInfo[]);
+  updateMissionPrimaryMessageMetadata(mission.id, latestPrimaryMessage);
 
   const relevantSessionIds = getRelevantSessionIds(mission, primaryAgentId);
 
@@ -117,6 +185,8 @@ export async function buildMissionSurfaceHydrationPayload(
       primaryAgentId,
       primarySessionId,
     ),
-    sessionStatuses: getRelevantSessionStatuses(statusResult.data ?? {}, relevantSessionIds),
+    latestPrimaryMessageCreatedAt: latestPrimaryMessage.latestPrimaryMessageCreatedAt,
+    latestPrimaryMessageId: latestPrimaryMessage.latestPrimaryMessageId,
+    sessionStatuses: getRelevantSessionStatuses(rawStatuses, relevantSessionIds),
   };
 }

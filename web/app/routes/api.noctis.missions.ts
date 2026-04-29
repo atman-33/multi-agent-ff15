@@ -1,4 +1,4 @@
-import { listMissionSummaries } from "@/lib/mission-store";
+import { listMissionSummariesWithCounts } from "@/lib/mission-store";
 import type { Route } from "./+types/api.noctis.missions";
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -10,8 +10,8 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
         ? requestedView
         : "active";
 
-    return Response.json({ missions: listMissionSummaries({ view, surfaceId: "noctis_team" }) });
+    return Response.json(listMissionSummariesWithCounts({ view, surfaceId: "noctis_team" }));
   } catch {
-    return Response.json({ missions: [] }, { status: 500 });
+    return Response.json({ counts: { active: 0, archived: 0 }, missions: [] }, { status: 500 });
   }
 };
