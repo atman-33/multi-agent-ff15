@@ -968,7 +968,7 @@ export function reconcileMissionTmuxDispatchStatuses(
   updates: Array<{
     activityEntryId?: string;
     conversationEntryIds?: string[];
-    deliveryStatus: "queued" | "sent";
+    deliveryStatus: "queued" | "sent" | "failed" | "cancelled" | "blocked";
     messageLogEntryId?: string;
     sessionId: string;
   }>,

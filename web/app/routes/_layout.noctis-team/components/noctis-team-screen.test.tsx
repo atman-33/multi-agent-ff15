@@ -119,6 +119,7 @@ vi.mock("./chat-area", () => ({
     primaryAgentId,
     headerTitle,
     composerStatusLabel,
+    failedDeliveryNotice,
   }: {
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
@@ -139,6 +140,11 @@ vi.mock("./chat-area", () => ({
     primaryAgentId?: string | null;
     headerTitle?: string | null;
     composerStatusLabel?: string | null;
+    failedDeliveryNotice?: {
+      itemId: string;
+      isResending: boolean;
+      reason: string;
+    } | null;
     workflowProgress?: {
       currentStepIndex: number;
       totalSteps: number;
@@ -158,6 +164,11 @@ vi.mock("./chat-area", () => ({
       <div>{`primary-agent:${primaryAgentId ?? "none"}`}</div>
       {headerTitle ? <div>{`header:${headerTitle}`}</div> : null}
       {composerStatusLabel ? <div>{`composer-status:${composerStatusLabel}`}</div> : null}
+      {failedDeliveryNotice ? (
+        <div>
+          {`failed-delivery:${failedDeliveryNotice.itemId}:${failedDeliveryNotice.reason}:${failedDeliveryNotice.isResending ? "resending" : "idle"}`}
+        </div>
+      ) : null}
       {workflowProgress ? (
         <div>{`workflow-progress:${workflowProgress.currentStepIndex}/${workflowProgress.totalSteps}:${workflowProgress.status}:${workflowProgress.currentStep}`}</div>
       ) : null}
@@ -352,6 +363,79 @@ describe("noctis-team-screen", () => {
 
     expect(markup).toContain("cannot resume until an execution project is assigned");
     expect(markup).toContain("Assign Execution Project");
+  });
+
+  it("passes only the latest retryable failed delivery into the chat area", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({
+          primaryAgentOutbox: [
+            {
+              id: "item-old-failed",
+              missionId: "mission-1",
+              createdAt: "2026-04-28T00:00:00.000Z",
+              updatedAt: "2026-04-28T00:00:00.000Z",
+              status: "failed",
+              payload: {
+                agent: "noctis",
+                sessionId: "session-1",
+              },
+              failure: {
+                failedAt: "2026-04-28T00:00:00.000Z",
+                failedBy: "dispatcher:test",
+                reason: "older failure",
+              },
+            },
+            {
+              id: "item-superseded-failed",
+              missionId: "mission-1",
+              createdAt: "2026-04-28T00:10:00.000Z",
+              updatedAt: "2026-04-28T00:10:00.000Z",
+              status: "failed",
+              payload: {
+                agent: "noctis",
+                sessionId: "session-1",
+              },
+              failure: {
+                failedAt: "2026-04-28T00:10:00.000Z",
+                failedBy: "dispatcher:test",
+                reason: "superseded failure",
+              },
+              replay: {
+                replayedAt: "2026-04-28T00:11:00.000Z",
+                replayedBy: "mission-route",
+                supersededByItemId: "item-replay-2",
+              },
+            },
+            {
+              id: "item-latest-failed",
+              missionId: "mission-1",
+              createdAt: "2026-04-28T00:20:00.000Z",
+              updatedAt: "2026-04-28T00:21:00.000Z",
+              status: "failed",
+              payload: {
+                agent: "noctis",
+                sessionId: "session-1",
+              },
+              failure: {
+                failedAt: "2026-04-28T00:21:00.000Z",
+                failedBy: "dispatcher:test",
+                reason: "latest failure",
+              },
+            },
+          ],
+        })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("failed-delivery:item-latest-failed:latest failure:idle");
+    expect(markup).not.toContain("failed-delivery:item-old-failed:older failure:idle");
+    expect(markup).not.toContain("item-superseded-failed");
+    expect(markup).not.toContain("transport-panel:");
   });
 
   it("shows an unsupported runtime alert for incompatible missions", () => {

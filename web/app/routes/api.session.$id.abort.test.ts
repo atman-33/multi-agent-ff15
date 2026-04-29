@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMission, deleteMission, getMission, setWorkerSession } from "@/lib/mission-store";
+import {
+  enqueueTmuxDispatchItem,
+  leaseTmuxDispatchItem,
+  listTmuxDispatchItems,
+} from "@/lib/mission-primary-agent-outbox.server";
 
 const {
   abortMock,
@@ -182,5 +187,84 @@ describe("api.session.$id.abort", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("cancels queued tmux work for the managed session before forwarding abort", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-noctis", { executionProjectId: "alpha" });
+    setWorkerSession(missionId, "ignis", "session-ignis");
+
+    enqueueTmuxDispatchItem({
+      missionId,
+      itemId: "item-abort-pending",
+      createdAt: "2026-04-28T01:00:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis",
+        parts: [{ type: "text", text: "pending worker payload" }],
+      },
+    });
+    enqueueTmuxDispatchItem({
+      missionId,
+      itemId: "item-abort-leased",
+      createdAt: "2026-04-28T01:01:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis",
+        parts: [{ type: "text", text: "leased worker payload" }],
+      },
+    });
+    leaseTmuxDispatchItem({
+      missionId,
+      leaseOwner: "dispatcher-abort",
+      leasedAt: "2026-04-28T01:01:30.000Z",
+      staleAfterMs: 30_000,
+    });
+
+    resolvedSessionListMock.mockResolvedValue({
+      data: [{ id: "session-ignis", title: `mission:${missionId}:ignis` }],
+    });
+    resolvedAbortMock.mockResolvedValue({ data: { ok: true } });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          abort: resolvedAbortMock,
+          list: resolvedSessionListMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4403",
+      managedSession: {
+        missionId,
+        ownerAgent: "ignis",
+        ownerLabel: "Ignis",
+      },
+      mode: "managed",
+      ownerAgent: "ignis",
+    });
+
+    const response = await action({ params: { id: "session-ignis" } } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(listTmuxDispatchItems(missionId)).toEqual([
+      expect.objectContaining({
+        id: "item-abort-pending",
+        status: "cancelled",
+        cancellation: expect.objectContaining({
+          cancelledBy: "abort-route",
+          reason: "Managed session abort requested",
+        }),
+      }),
+      expect.objectContaining({
+        id: "item-abort-leased",
+        status: "cancelled",
+        cancellation: expect.objectContaining({
+          cancelledBy: "abort-route",
+          reason: "Managed session abort requested",
+        }),
+      }),
+    ]);
   });
 });

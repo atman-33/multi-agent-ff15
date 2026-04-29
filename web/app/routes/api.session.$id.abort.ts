@@ -1,4 +1,5 @@
 import { appendMissionActivity } from "@/lib/mission-store";
+import { cancelTmuxDispatchItemsForSession } from "@/lib/mission-primary-agent-outbox.server";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import type { Route } from "./+types/api.session.$id.abort";
@@ -32,6 +33,7 @@ export const action = async ({ params }: Route.ActionArgs) => {
     const { client, managedSession: resolvedManagedSession } = resolveSessionRouteTarget(sessionId);
     managedSession = resolvedManagedSession;
     const rawSessionTitle = managedSession ? await resolveSessionTitle(client, sessionId) : null;
+    const abortedAt = new Date().toISOString();
 
     appendSessionPromptDebugLog({
       route: "api.session.$id.abort",
@@ -48,6 +50,16 @@ export const action = async ({ params }: Route.ActionArgs) => {
           : null,
       },
     });
+
+    if (managedSession) {
+      cancelTmuxDispatchItemsForSession({
+        missionId: managedSession.missionId,
+        sessionId,
+        cancelledAt: abortedAt,
+        cancelledBy: "abort-route",
+        reason: "Managed session abort requested",
+      });
+    }
 
     const result = await client.session.abort({ sessionID: sessionId });
 
@@ -79,7 +91,7 @@ export const action = async ({ params }: Route.ActionArgs) => {
         speaker: "system",
         kind: "system_event",
         body: `OpenCode manually aborted the managed ${managedSession.ownerLabel} session.`,
-        createdAt: new Date().toISOString(),
+        createdAt: abortedAt,
         source: {
           type: "system",
           sessionId,

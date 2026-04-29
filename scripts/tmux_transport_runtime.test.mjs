@@ -33,6 +33,11 @@ LOG="\${ROOT}/tmux.log"
 SESSION_FILE="\${ROOT}/tmux-session"
 printf '%s\n' "\$*" >> "\$LOG"
 
+if [ -n "\${TMUX_STUB_FAIL_ON:-}" ] && [[ "\$*" == *"\${TMUX_STUB_FAIL_ON}"* ]]; then
+  printf '%s\n' "forced tmux failure: \$*" >&2
+  exit 1
+fi
+
 case "\${1:-}" in
   has-session)
     if [ -f "\$SESSION_FILE" ]; then
@@ -213,6 +218,8 @@ function seedStaleLeasedPrimaryAgentOutbox(root, missionId) {
 }
 
 test.afterEach(() => {
+  delete process.env.TMUX_STUB_FAIL_ON;
+
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
     if (root) {
@@ -290,6 +297,36 @@ test("dispatcher submits queued primary-agent outbox items and retains submitted
   assert.match(tmuxLog, /queued prompt body/);
   assert.match(tmuxLog, /queued system body/);
   assert.match(tmuxLog, /send-keys -t ff15:main\.4 -l/);
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
+test("dispatcher retains failed artifacts when tmux submission fails", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedPrimaryAgentOutbox(root, "mission-dispatch-failed");
+  process.env.TMUX_STUB_FAIL_ON = "[tmux-dispatch]";
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  const failedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch-failed",
+    "transport",
+    "primary-agent-outbox",
+    "failed",
+    "item-dispatch-1.json",
+  );
+  assert.equal(await waitFor(() => existsSync(failedPath), 3_000), true);
+
+  const failed = JSON.parse(readFileSync(failedPath, "utf-8"));
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.failure.failedBy.startsWith("dispatcher:"), true);
+  assert.match(failed.failure.reason, /forced tmux failure/);
 
   const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
   assert.equal(stopResult.code, 0, stopResult.stderr);

@@ -11,8 +11,11 @@ import {
   leaseTmuxDispatchItem,
   listPrimaryAgentOutboxItems,
   listTmuxDispatchItems,
+  markTmuxDispatchItemCancelled,
+  markTmuxDispatchItemFailed,
   markPrimaryAgentOutboxItemSubmitted,
   markTmuxDispatchItemSubmitted,
+  replayTmuxDispatchItem,
   updateTmuxDispatchItemRecordLinks,
 } from "./mission-primary-agent-outbox.server";
 
@@ -243,6 +246,188 @@ describe("mission primary-agent outbox", () => {
 
     expect(submitted.status).toBe("submitted");
     expect(listTmuxDispatchItems(mission.id)).toEqual([submitted]);
+  });
+
+  it("retains failed tmux dispatch artifacts with failure metadata", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-outbox-failed", "session-primary-failed", {
+      title: "Failed Dispatch Mission",
+      objective: "Verify failed artifact retention",
+    });
+    missionIds.push(mission.id);
+
+    enqueueTmuxDispatchItem({
+      missionId: mission.id,
+      itemId: "item-failed-1",
+      createdAt: "2026-04-28T00:25:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis-failed",
+        parts: [{ type: "text", text: "generic failed prompt" }],
+      },
+    });
+
+    const leased = leaseTmuxDispatchItem({
+      missionId: mission.id,
+      leaseOwner: "dispatcher-failed",
+      leasedAt: "2026-04-28T00:26:00.000Z",
+      staleAfterMs: 30_000,
+    });
+
+    expect(leased?.status).toBe("leased");
+
+    const failed = markTmuxDispatchItemFailed({
+      missionId: mission.id,
+      itemId: "item-failed-1",
+      failedAt: "2026-04-28T00:27:00.000Z",
+      failedBy: "dispatcher-failed",
+      reason: "tmux submit failed",
+      dispatcherPid: 8181,
+    });
+
+    expect(failed.status).toBe("failed");
+    expect(failed.failure).toEqual({
+      dispatcherPid: 8181,
+      failedAt: "2026-04-28T00:27:00.000Z",
+      failedBy: "dispatcher-failed",
+      reason: "tmux submit failed",
+    });
+
+    const failedPath = join(
+      getMissionDir(mission.id),
+      "transport",
+      "primary-agent-outbox",
+      "failed",
+      "item-failed-1.json",
+    );
+    expect(existsSync(failedPath)).toBe(true);
+    expect(listTmuxDispatchItems(mission.id)).toEqual([failed]);
+  });
+
+  it("retains cancelled tmux dispatch artifacts with cancellation metadata", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-outbox-cancelled", "session-primary-cancelled", {
+      title: "Cancelled Dispatch Mission",
+      objective: "Verify cancelled artifact retention",
+    });
+    missionIds.push(mission.id);
+
+    enqueueTmuxDispatchItem({
+      missionId: mission.id,
+      itemId: "item-cancelled-1",
+      createdAt: "2026-04-28T00:28:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis-cancelled",
+        parts: [{ type: "text", text: "generic cancelled prompt" }],
+      },
+    });
+
+    const leased = leaseTmuxDispatchItem({
+      missionId: mission.id,
+      leaseOwner: "dispatcher-cancelled",
+      leasedAt: "2026-04-28T00:29:00.000Z",
+      staleAfterMs: 30_000,
+    });
+
+    expect(leased?.status).toBe("leased");
+
+    const cancelled = markTmuxDispatchItemCancelled({
+      missionId: mission.id,
+      itemId: "item-cancelled-1",
+      cancelledAt: "2026-04-28T00:29:30.000Z",
+      cancelledBy: "abort-route",
+      reason: "mission abort requested",
+    });
+
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.cancellation).toEqual({
+      cancelledAt: "2026-04-28T00:29:30.000Z",
+      cancelledBy: "abort-route",
+      reason: "mission abort requested",
+    });
+
+    const cancelledPath = join(
+      getMissionDir(mission.id),
+      "transport",
+      "primary-agent-outbox",
+      "cancelled",
+      "item-cancelled-1.json",
+    );
+    expect(existsSync(cancelledPath)).toBe(true);
+    expect(listTmuxDispatchItems(mission.id)).toEqual([cancelled]);
+  });
+
+  it("creates an exact-replay tmux dispatch attempt without mutating the failed artifact", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-outbox-replay", "session-primary-replay", {
+      title: "Replay Dispatch Mission",
+      objective: "Verify exact replay retention",
+    });
+    missionIds.push(mission.id);
+
+    enqueueTmuxDispatchItem({
+      missionId: mission.id,
+      itemId: "item-replay-source",
+      createdAt: "2026-04-28T00:31:00.000Z",
+      payload: {
+        agent: "ignis",
+        sessionId: "session-ignis-replay",
+        sessionTitle: `mission:${mission.id}:ignis`,
+        parts: [{ type: "text", text: "generic replay prompt" }],
+        variant: "fast",
+      },
+    });
+
+    leaseTmuxDispatchItem({
+      missionId: mission.id,
+      leaseOwner: "dispatcher-replay",
+      leasedAt: "2026-04-28T00:32:00.000Z",
+      staleAfterMs: 30_000,
+    });
+
+    const failed = markTmuxDispatchItemFailed({
+      missionId: mission.id,
+      itemId: "item-replay-source",
+      failedAt: "2026-04-28T00:33:00.000Z",
+      failedBy: "dispatcher-replay",
+      reason: "tmux submit failed",
+    });
+
+    const replay = replayTmuxDispatchItem({
+      missionId: mission.id,
+      itemId: "item-replay-source",
+      replayItemId: "item-replay-attempt-2",
+      replayedAt: "2026-04-28T00:34:00.000Z",
+      replayedBy: "user-manual-resend",
+    });
+
+    expect(replay).toMatchObject({
+      id: "item-replay-attempt-2",
+      status: "pending",
+      payload: failed.payload,
+      replay: {
+        sourceItemId: "item-replay-source",
+        replayedAt: "2026-04-28T00:34:00.000Z",
+        replayedBy: "user-manual-resend",
+      },
+    });
+
+    expect(listTmuxDispatchItems(mission.id)).toEqual([
+      {
+        ...failed,
+        updatedAt: "2026-04-28T00:34:00.000Z",
+        replay: {
+          replayedAt: "2026-04-28T00:34:00.000Z",
+          replayedBy: "user-manual-resend",
+          supersededByItemId: "item-replay-attempt-2",
+        },
+      },
+      replay,
+    ]);
   });
 
   it("stores record links on queued tmux dispatch items", () => {

@@ -7,7 +7,7 @@ import type { TextPromptPart } from "./prompt-parts";
 import type { AgentId, ModelSelection } from "./types/mission";
 
 const PRIMARY_AGENT_OUTBOX_DIR = "primary-agent-outbox";
-const OUTBOX_STATUSES = ["pending", "leased", "submitted"] as const;
+const OUTBOX_STATUSES = ["pending", "leased", "submitted", "failed", "cancelled"] as const;
 
 export type PrimaryAgentOutboxStatus = (typeof OUTBOX_STATUSES)[number];
 export type TmuxDispatchStatus = PrimaryAgentOutboxStatus;
@@ -35,6 +35,29 @@ export interface PrimaryAgentOutboxSubmission {
   submittedBy: string;
 }
 export type TmuxDispatchSubmission = PrimaryAgentOutboxSubmission;
+
+export interface PrimaryAgentOutboxFailure {
+  dispatcherPid?: number;
+  failedAt: string;
+  failedBy: string;
+  reason: string;
+}
+export type TmuxDispatchFailure = PrimaryAgentOutboxFailure;
+
+export interface PrimaryAgentOutboxCancellation {
+  cancelledAt: string;
+  cancelledBy: string;
+  reason: string;
+}
+export type TmuxDispatchCancellation = PrimaryAgentOutboxCancellation;
+
+export interface PrimaryAgentOutboxReplay {
+  replayedAt: string;
+  replayedBy: string;
+  sourceItemId?: string;
+  supersededByItemId?: string;
+}
+export type TmuxDispatchReplay = PrimaryAgentOutboxReplay;
 
 export interface PrimaryAgentOutboxRecordLinks {
   activityEntryId?: string;
@@ -64,6 +87,9 @@ export interface PrimaryAgentOutboxItem {
   payload: PrimaryAgentOutboxPayload;
   lease?: PrimaryAgentOutboxLease;
   submission?: PrimaryAgentOutboxSubmission;
+  failure?: PrimaryAgentOutboxFailure;
+  cancellation?: PrimaryAgentOutboxCancellation;
+  replay?: PrimaryAgentOutboxReplay;
 }
 export type TmuxDispatchItem = PrimaryAgentOutboxItem;
 
@@ -234,6 +260,73 @@ function normalizeSubmission(value: unknown): PrimaryAgentOutboxSubmission | und
   };
 }
 
+function normalizeFailure(value: unknown): PrimaryAgentOutboxFailure | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.failedAt !== "string" ||
+    typeof record.failedBy !== "string" ||
+    typeof record.reason !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    failedAt: record.failedAt,
+    failedBy: record.failedBy,
+    reason: record.reason,
+    ...(typeof record.dispatcherPid === "number" ? { dispatcherPid: record.dispatcherPid } : {}),
+  };
+}
+
+function normalizeCancellation(value: unknown): PrimaryAgentOutboxCancellation | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.cancelledAt !== "string" ||
+    typeof record.cancelledBy !== "string" ||
+    typeof record.reason !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    cancelledAt: record.cancelledAt,
+    cancelledBy: record.cancelledBy,
+    reason: record.reason,
+  };
+}
+
+function normalizeReplay(value: unknown): PrimaryAgentOutboxReplay | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.replayedAt !== "string" || typeof record.replayedBy !== "string") {
+    return undefined;
+  }
+
+  const sourceItemId = normalizeString(record.sourceItemId);
+  const supersededByItemId = normalizeString(record.supersededByItemId);
+  if (!sourceItemId && !supersededByItemId) {
+    return undefined;
+  }
+
+  return {
+    replayedAt: record.replayedAt,
+    replayedBy: record.replayedBy,
+    ...(sourceItemId ? { sourceItemId } : {}),
+    ...(supersededByItemId ? { supersededByItemId } : {}),
+  };
+}
+
 function normalizeItem(value: unknown): PrimaryAgentOutboxItem | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -261,6 +354,11 @@ function normalizeItem(value: unknown): PrimaryAgentOutboxItem | null {
     ...(normalizeSubmission(record.submission)
       ? { submission: normalizeSubmission(record.submission) }
       : {}),
+    ...(normalizeFailure(record.failure) ? { failure: normalizeFailure(record.failure) } : {}),
+    ...(normalizeCancellation(record.cancellation)
+      ? { cancellation: normalizeCancellation(record.cancellation) }
+      : {}),
+    ...(normalizeReplay(record.replay) ? { replay: normalizeReplay(record.replay) } : {}),
   };
 }
 
@@ -493,6 +591,167 @@ export function markTmuxDispatchItemSubmitted(input: {
   dispatcherPid?: number;
 }): TmuxDispatchItem {
   return markPrimaryAgentOutboxItemSubmitted(input);
+}
+
+export function markPrimaryAgentOutboxItemFailed(input: {
+  missionId: string;
+  itemId: string;
+  failedAt?: string;
+  failedBy: string;
+  reason: string;
+  dispatcherPid?: number;
+}): PrimaryAgentOutboxItem {
+  const record = findItem(input.missionId, input.itemId);
+  if (!record) {
+    throw new Error(`Primary-agent outbox item not found: ${input.itemId}`);
+  }
+
+  const failedAt = input.failedAt ?? new Date().toISOString();
+  const item: PrimaryAgentOutboxItem = {
+    ...record.item,
+    status: "failed",
+    updatedAt: failedAt,
+    failure: {
+      failedAt,
+      failedBy: input.failedBy,
+      reason: input.reason,
+      ...(typeof input.dispatcherPid === "number" ? { dispatcherPid: input.dispatcherPid } : {}),
+    },
+  };
+
+  writeItem(item, record.status);
+  return item;
+}
+
+export function markTmuxDispatchItemFailed(input: {
+  missionId: string;
+  itemId: string;
+  failedAt: string;
+  failedBy: string;
+  reason: string;
+  dispatcherPid?: number;
+}): TmuxDispatchItem {
+  return markPrimaryAgentOutboxItemFailed(input);
+}
+
+export function markPrimaryAgentOutboxItemCancelled(input: {
+  missionId: string;
+  itemId: string;
+  cancelledAt?: string;
+  cancelledBy: string;
+  reason: string;
+}): PrimaryAgentOutboxItem {
+  const record = findItem(input.missionId, input.itemId);
+  if (!record) {
+    throw new Error(`Primary-agent outbox item not found: ${input.itemId}`);
+  }
+
+  const cancelledAt = input.cancelledAt ?? new Date().toISOString();
+  const item: PrimaryAgentOutboxItem = {
+    ...record.item,
+    status: "cancelled",
+    updatedAt: cancelledAt,
+    cancellation: {
+      cancelledAt,
+      cancelledBy: input.cancelledBy,
+      reason: input.reason,
+    },
+  };
+
+  writeItem(item, record.status);
+  return item;
+}
+
+export function markTmuxDispatchItemCancelled(input: {
+  missionId: string;
+  itemId: string;
+  cancelledAt: string;
+  cancelledBy: string;
+  reason: string;
+}): TmuxDispatchItem {
+  return markPrimaryAgentOutboxItemCancelled(input);
+}
+
+export function replayPrimaryAgentOutboxItem(input: {
+  missionId: string;
+  itemId: string;
+  replayItemId?: string;
+  replayedAt?: string;
+  replayedBy: string;
+}): PrimaryAgentOutboxItem {
+  const record = findItem(input.missionId, input.itemId);
+  if (!record) {
+    throw new Error(`Primary-agent outbox item not found: ${input.itemId}`);
+  }
+
+  if (record.item.status !== "failed") {
+    throw new Error(`Only failed tmux dispatch items can be replayed: ${input.itemId}`);
+  }
+
+  const replayedAt = input.replayedAt ?? new Date().toISOString();
+  const replayItem: PrimaryAgentOutboxItem = {
+    ...enqueuePrimaryAgentOutboxItem({
+      missionId: input.missionId,
+      itemId: input.replayItemId,
+      createdAt: replayedAt,
+      payload: record.item.payload,
+    }),
+    replay: {
+      replayedAt,
+      replayedBy: input.replayedBy,
+      sourceItemId: record.item.id,
+    },
+  };
+  writeItem(replayItem, "pending");
+
+  const supersededItem: PrimaryAgentOutboxItem = {
+    ...record.item,
+    updatedAt: replayedAt,
+    replay: {
+      replayedAt,
+      replayedBy: input.replayedBy,
+      supersededByItemId: replayItem.id,
+    },
+  };
+  writeItem(supersededItem, record.status);
+
+  return replayItem;
+}
+
+export function replayTmuxDispatchItem(input: {
+  missionId: string;
+  itemId: string;
+  replayItemId?: string;
+  replayedAt?: string;
+  replayedBy: string;
+}): TmuxDispatchItem {
+  return replayPrimaryAgentOutboxItem(input);
+}
+
+export function cancelTmuxDispatchItemsForSession(input: {
+  missionId: string;
+  sessionId: string;
+  cancelledAt?: string;
+  cancelledBy: string;
+  reason: string;
+}): TmuxDispatchItem[] {
+  const cancelledAt = input.cancelledAt ?? new Date().toISOString();
+
+  return listTmuxDispatchItems(input.missionId)
+    .filter(
+      (item) =>
+        item.payload.sessionId === input.sessionId &&
+        (item.status === "pending" || item.status === "leased"),
+    )
+    .map((item) =>
+      markTmuxDispatchItemCancelled({
+        missionId: input.missionId,
+        itemId: item.id,
+        cancelledAt,
+        cancelledBy: input.cancelledBy,
+        reason: input.reason,
+      }),
+    );
 }
 
 export function updateTmuxDispatchItemRecordLinks(input: {

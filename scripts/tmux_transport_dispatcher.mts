@@ -12,7 +12,7 @@ const STALE_LEASE_MS = 5_000;
 const TMUX_INTERACTION_DELAY_SECONDS = "0.5";
 
 type AgentId = (typeof AGENT_IDS)[number];
-type TmuxDispatchStatus = "pending" | "leased" | "submitted";
+type TmuxDispatchStatus = "pending" | "leased" | "submitted" | "failed" | "cancelled";
 
 type TmuxDispatchItem = {
   createdAt: string;
@@ -50,6 +50,12 @@ type TmuxDispatchItem = {
     dispatcherPid?: number;
     submittedAt: string;
     submittedBy: string;
+  };
+  failure?: {
+    dispatcherPid?: number;
+    failedAt: string;
+    failedBy: string;
+    reason: string;
   };
   updatedAt: string;
 };
@@ -113,7 +119,13 @@ function cleanup(root: string): void {
 }
 
 function isOutboxStatus(value: unknown): value is TmuxDispatchStatus {
-  return value === "pending" || value === "leased" || value === "submitted";
+  return (
+    value === "pending" ||
+    value === "leased" ||
+    value === "submitted" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
 }
 
 function isAgentId(value: unknown): value is AgentId {
@@ -213,7 +225,7 @@ function isStale(item: TmuxDispatchItem, now: string): boolean {
 }
 
 function writeItem(root: string, item: TmuxDispatchItem): void {
-  for (const status of ["pending", "leased", "submitted"] as const) {
+  for (const status of ["pending", "leased", "submitted", "failed", "cancelled"] as const) {
     mkdirSync(getOutboxStateDir(root, item.missionId, status), { recursive: true });
     rmSync(getOutboxItemPath(root, item.missionId, status, item.id), { force: true });
   }
@@ -498,10 +510,12 @@ let nextDispatchNotBefore = 0;
 const dispatcherStartedAt = new Date().toISOString();
 
 const tick = () => {
+  let claimed: TmuxDispatchItem | null = null;
+
   try {
     const nowDate = new Date();
     const now = nowDate.toISOString();
-    const claimed = nowDate.getTime() >= nextDispatchNotBefore ? claimNextItem(root, now) : null;
+    claimed = nowDate.getTime() >= nextDispatchNotBefore ? claimNextItem(root, now) : null;
     if (claimed) {
       submitClaimedItem(root, claimed);
       processedCount += 1;
@@ -515,6 +529,21 @@ const tick = () => {
       startedAt: dispatcherStartedAt,
     });
   } catch (error) {
+    if (claimed) {
+      const failedAt = new Date().toISOString();
+      writeItem(root, {
+        ...claimed,
+        status: "failed",
+        updatedAt: failedAt,
+        failure: {
+          dispatcherPid: process.pid,
+          failedAt,
+          failedBy: `dispatcher:${process.pid}`,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+
     writeState(root, {
       lastActivityAt: new Date().toISOString(),
       lastError: error instanceof Error ? error.message : String(error),
