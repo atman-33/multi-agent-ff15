@@ -1,9 +1,16 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sessionMessagesMock, sessionStatusMock } = vi.hoisted(() => ({
+const {
+  listSessionStatusTargetsMock,
+  resolveSessionRouteTargetMock,
+  sessionMessagesMock,
+  sessionStatusMock,
+} = vi.hoisted(() => ({
+  listSessionStatusTargetsMock: vi.fn(),
+  resolveSessionRouteTargetMock: vi.fn(),
   sessionMessagesMock: vi.fn(),
   sessionStatusMock: vi.fn(),
 }));
@@ -17,11 +24,17 @@ vi.mock("@/lib/opencode-client", () => ({
   }),
 }));
 
+vi.mock("./session-owner-routing.server", () => ({
+  listSessionStatusTargets: listSessionStatusTargetsMock,
+  resolveSessionRouteTarget: resolveSessionRouteTargetMock,
+}));
+
 import {
   appendAmbientBanter,
   appendConversationLogEntry,
   createMission,
   deleteMission,
+  getMission,
   setWorkerSession,
 } from "@/lib/mission-store";
 import { buildMissionSurfaceHydrationPayload } from "./mission-surface-hydration.server";
@@ -70,6 +83,8 @@ function writeContextSnapshot(root: string, sessionId: string): void {
 }
 
 afterEach(() => {
+  listSessionStatusTargetsMock.mockReset();
+  resolveSessionRouteTargetMock.mockReset();
   sessionMessagesMock.mockReset();
   sessionStatusMock.mockReset();
 
@@ -89,6 +104,22 @@ afterEach(() => {
       rmSync(root, { recursive: true, force: true });
     }
   }
+});
+
+beforeEach(() => {
+  listSessionStatusTargetsMock.mockReturnValue([]);
+  resolveSessionRouteTargetMock.mockImplementation((sessionId: string) => ({
+    client: {
+      session: {
+        messages: sessionMessagesMock,
+      },
+    },
+    endpointUrl: null,
+    managedSession: null,
+    mode: "default",
+    ownerAgent: null,
+    sessionId,
+  }));
 });
 
 describe("mission-surface-hydration.server", () => {
@@ -139,11 +170,25 @@ describe("mission-surface-hydration.server", () => {
         "session-prompto": "idle",
       },
     });
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "message-1",
+            role: "assistant",
+            time: { created: Date.parse("2026-04-29T00:00:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Primary reply" }],
+        },
+      ],
+    });
 
     const payload = await buildMissionSurfaceHydrationPayload(mission);
 
     expect(payload).not.toHaveProperty("primaryMessages");
     expect(payload).not.toHaveProperty("noctisMessages");
+    expect(payload.latestPrimaryMessageId).toBe("message-1");
+    expect(payload.latestPrimaryMessageCreatedAt).toBe("2026-04-29T00:00:00.000Z");
     expect(payload.banterTimeline).toHaveLength(2);
     expect(Object.keys(payload.contextUsageByAgent).sort()).toEqual([
       "ignis",
@@ -156,7 +201,11 @@ describe("mission-surface-hydration.server", () => {
       "session-ignis": "retry",
       "session-prompto": "idle",
     });
-    expect(sessionMessagesMock).not.toHaveBeenCalled();
+    expect(getMission(missionId)).toMatchObject({
+      latestPrimaryMessageId: "message-1",
+      latestPrimaryMessageCreatedAt: "2026-04-29T00:00:00.000Z",
+    });
+    expect(sessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-noctis" });
   });
 
   it("omits team-only runtime fields for Lunafreya", async () => {
@@ -191,16 +240,92 @@ describe("mission-surface-hydration.server", () => {
         "session-ignis": "busy",
       },
     });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
 
     const payload = await buildMissionSurfaceHydrationPayload(mission);
 
     expect(payload).not.toHaveProperty("primaryMessages");
     expect(payload).not.toHaveProperty("noctisMessages");
     expect(payload).not.toHaveProperty("banterTimeline");
+    expect(payload.latestPrimaryMessageId).toBeNull();
+    expect(payload.latestPrimaryMessageCreatedAt).toBeNull();
     expect(Object.keys(payload.contextUsageByAgent)).toEqual(["lunafreya"]);
     expect(payload.sessionStatuses).toEqual({
       "session-lunafreya": "busy",
     });
+    expect(sessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-lunafreya" });
+  });
+
+  it("routes managed primary session hydration through the owning agent endpoint", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const missionId = `mission-managed-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    const mission = createMission(missionId, "session-noctis", {
+      title: "Managed Noctis mission",
+      objective: "Verify owner-aware hydration",
+    });
+    writeContextSnapshot(root, "session-noctis");
+
+    const managedMessagesMock = vi.fn().mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "message-managed-1",
+            role: "assistant",
+            time: { created: Date.parse("2026-04-29T00:00:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Managed primary reply" }],
+        },
+      ],
+    });
+    const managedStatusMock = vi.fn().mockResolvedValue({
+      data: {
+        "session-noctis": "busy",
+      },
+    });
+
+    sessionStatusMock.mockResolvedValue({
+      data: {
+        "session-noctis": "idle",
+      },
+    });
+    sessionMessagesMock.mockResolvedValue({ data: [] });
+    listSessionStatusTargetsMock.mockReturnValue([
+      {
+        agentId: "noctis",
+        client: {
+          session: {
+            status: managedStatusMock,
+          },
+        },
+        endpointUrl: "http://127.0.0.1:4401",
+      },
+    ]);
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          messages: managedMessagesMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4401",
+      managedSession: {
+        missionId,
+        ownerAgent: "noctis",
+      },
+      mode: "managed",
+      ownerAgent: "noctis",
+    });
+
+    const payload = await buildMissionSurfaceHydrationPayload(mission);
+
+    expect(resolveSessionRouteTargetMock).toHaveBeenCalledWith("session-noctis");
+    expect(managedMessagesMock).toHaveBeenCalledWith({ sessionID: "session-noctis" });
     expect(sessionMessagesMock).not.toHaveBeenCalled();
+    expect(payload.latestPrimaryMessageId).toBe("message-managed-1");
+    expect(payload.sessionStatuses).toEqual({
+      "session-noctis": "busy",
+    });
   });
 });

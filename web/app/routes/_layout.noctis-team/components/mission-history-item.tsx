@@ -3,7 +3,7 @@ import { memo, useEffect, useState } from "react";
 import { NavLink } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { MissionSummary } from "@/hooks/use-agent-session";
+import type { MissionSummary } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { buildMissionPath } from "./output-detail-routing";
 
@@ -17,6 +17,7 @@ export type MissionHistoryItemProps = {
   isArchiveDisabled: boolean;
   isRenaming: boolean;
   isRunning: boolean;
+  hasFreshPrimaryMessage?: boolean;
   onBeginRename: (mission: MissionSummary) => void;
   onArchiveAction: (mission: MissionSummary, action: "archive" | "restore") => void;
   onCancelRename: () => void;
@@ -34,6 +35,7 @@ export const MissionHistoryItem = memo(
     isArchiveDisabled,
     isRenaming,
     isRunning,
+    hasFreshPrimaryMessage = false,
     onBeginRename,
     onArchiveAction,
     onCancelRename,
@@ -109,6 +111,11 @@ export const MissionHistoryItem = memo(
               <span className="max-w-24 shrink-0 truncate rounded-full border border-border/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/70">
                 {mission.status}
               </span>
+              {hasFreshPrimaryMessage ? (
+                <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-primary">
+                  New reply
+                </span>
+              ) : null}
               <p className="min-w-0 flex-1 truncate text-right font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40">
                 {new Date(mission.updatedAt).toLocaleString("en-US", {
                   year: "numeric",

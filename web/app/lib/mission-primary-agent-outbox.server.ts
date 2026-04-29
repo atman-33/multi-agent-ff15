@@ -35,6 +35,7 @@ export interface PrimaryAgentOutboxSubmission {
 export interface PrimaryAgentOutboxPayload {
   agent: AgentId;
   sessionId: string;
+  sessionTitle?: string;
   parts: TextPromptPart[];
   system?: string;
   model?: Pick<ModelSelection, "providerID" | "modelID">;
@@ -103,6 +104,9 @@ function normalizePayload(value: unknown): PrimaryAgentOutboxPayload | null {
   return {
     agent: agent as AgentId,
     sessionId,
+    ...(normalizeString(record.sessionTitle)
+      ? { sessionTitle: normalizeString(record.sessionTitle) }
+      : {}),
     parts,
     ...(normalizeString(record.system) ? { system: normalizeString(record.system) } : {}),
     ...(record.model && typeof record.model === "object"

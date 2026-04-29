@@ -1,6 +1,6 @@
 import type { Event } from "@opencode-ai/sdk";
 import { unwrapOpencodeEvent } from "@/lib/opencode-event";
-import { getOpencodeClient } from "@/lib/opencode-client";
+import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import type { Route } from "./+types/api.session.$id.events";
 
 function extractSessionId(event: Event): string | undefined {
@@ -29,7 +29,7 @@ export const loader = async ({ request, params }: Route.LoaderArgs) => {
 
   let stream: AsyncIterable<unknown>;
   try {
-    const client = getOpencodeClient();
+    const { client } = resolveSessionRouteTarget(sessionId);
     const result = await client.global.event();
     stream = result.stream;
   } catch {

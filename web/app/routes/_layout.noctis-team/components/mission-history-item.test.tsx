@@ -74,4 +74,27 @@ describe("MissionHistoryItem", () => {
     expect(markup).toContain("animate-spin");
     expect(markup).toContain("/lunafreya/mission/mission-luna");
   });
+
+  it("shows a fresh reply badge when polling detects a newer primary message", () => {
+    const markup = renderToStaticMarkup(
+      <MissionHistoryItem
+        mission={createMissionSummary()}
+        routeBase="/noctis-team"
+        isActive={false}
+        isArchivedView={false}
+        isEditing={false}
+        isArchivePending={false}
+        isArchiveDisabled={false}
+        isRenaming={false}
+        isRunning={false}
+        hasFreshPrimaryMessage={true}
+        onBeginRename={vi.fn()}
+        onArchiveAction={vi.fn()}
+        onCancelRename={vi.fn()}
+        onSubmitRename={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("New reply");
+  });
 });

@@ -470,6 +470,36 @@ describe("chat-area", () => {
     expect(markup).toContain("send-enabled");
   });
 
+  it("suppresses the empty transcript placeholder while a pending assistant tail is visible", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        assistantPending: true,
+        messages: [],
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="empty"
+        isResponding={true}
+        isSessionActive={true}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("animate-bounce");
+    expect(markup).not.toContain("No Session History Yet");
+    expect(markup).not.toContain("This mission has not produced a transcript yet.");
+  });
+
   it("shows abort-settlement feedback while resend is blocked", () => {
     const markup = renderToStaticMarkup(
       <ChatArea

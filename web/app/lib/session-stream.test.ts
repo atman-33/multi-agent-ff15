@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSessionLiveEvent } from "./session-stream";
+import { mergeSessionLiveDraft, parseSessionLiveEvent } from "./session-stream";
 
 describe("parseSessionLiveEvent", () => {
   it("normalizes a reasoning part update", () => {
@@ -94,6 +94,31 @@ describe("parseSessionLiveEvent", () => {
       }),
     ).toEqual({
       kind: "idle",
+      sessionId: "session-1",
+    });
+  });
+
+  it("appends a reasoning part onto an existing live draft", () => {
+    expect(
+      mergeSessionLiveDraft(
+        {
+          messageId: "message-1",
+          parts: [{ type: "text", text: "Drafting the next reply" }],
+          sessionId: "session-1",
+        },
+        {
+          kind: "part",
+          messageId: "message-1",
+          part: { type: "reasoning", text: "Thinking through the next step" },
+          sessionId: "session-1",
+        },
+      ),
+    ).toEqual({
+      messageId: "message-1",
+      parts: [
+        { type: "text", text: "Drafting the next reply" },
+        { type: "reasoning", text: "Thinking through the next step" },
+      ],
       sessionId: "session-1",
     });
   });

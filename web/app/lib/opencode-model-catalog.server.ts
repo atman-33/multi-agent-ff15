@@ -8,6 +8,7 @@ const SOURCE_COMMAND = "opencode models --verbose";
 export interface OpencodeModelCatalogSnapshot {
   generatedAt: string;
   models: string[];
+  namesByModel: Record<string, string>;
   opencodeVersion: string;
   sourceCommand: string;
   variantsByModel: Record<string, string[]>;
@@ -118,9 +119,10 @@ function readJsonObject(input: string, index: number): { json: string; nextIndex
 
 export function parseOpencodeModelsVerboseOutput(stdout: string): Pick<
   OpencodeModelCatalogSnapshot,
-  "models" | "variantsByModel"
+  "models" | "namesByModel" | "variantsByModel"
 > {
   const models: string[] = [];
+  const namesByModel: Record<string, string> = {};
   const variantsByModel: Record<string, string[]> = {};
 
   let index = 0;
@@ -142,14 +144,20 @@ export function parseOpencodeModelsVerboseOutput(stdout: string): Pick<
     }
 
     const { json, nextIndex: afterJson } = readJsonObject(stdout, jsonStart);
-    const parsed = JSON.parse(json) as { variants?: Record<string, unknown> };
+    const parsed = JSON.parse(json) as {
+      name?: unknown;
+      variants?: Record<string, unknown>;
+    };
 
     models.push(line);
+    if (typeof parsed.name === "string" && parsed.name.length > 0) {
+      namesByModel[line] = parsed.name;
+    }
     variantsByModel[line] = Object.keys(parsed.variants ?? {});
     index = afterJson;
   }
 
-  return { models, variantsByModel };
+  return { models, namesByModel, variantsByModel };
 }
 
 function readSnapshot(root: string): OpencodeModelCatalogSnapshot | null {
@@ -159,7 +167,15 @@ function readSnapshot(root: string): OpencodeModelCatalogSnapshot | null {
   }
 
   try {
-    return JSON.parse(readFileSync(filePath, "utf-8")) as OpencodeModelCatalogSnapshot;
+    const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as Partial<OpencodeModelCatalogSnapshot>;
+    return {
+      generatedAt: parsed.generatedAt ?? "",
+      models: parsed.models ?? [],
+      namesByModel: parsed.namesByModel ?? {},
+      opencodeVersion: parsed.opencodeVersion ?? "unknown",
+      sourceCommand: parsed.sourceCommand ?? SOURCE_COMMAND,
+      variantsByModel: parsed.variantsByModel ?? {},
+    };
   } catch {
     return null;
   }
@@ -199,6 +215,7 @@ async function createSnapshot(root: string): Promise<OpencodeModelCatalogSnapsho
   return {
     generatedAt: new Date().toISOString(),
     models: parsed.models,
+    namesByModel: parsed.namesByModel,
     opencodeVersion: version,
     sourceCommand: SOURCE_COMMAND,
     variantsByModel: parsed.variantsByModel,

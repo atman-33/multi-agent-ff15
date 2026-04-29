@@ -345,6 +345,10 @@ function readMissionFromDisk(id: string): Mission | null {
             item === "ignis" || item === "gladiolus" || item === "prompto",
         )
       : [];
+    parsed.latestPrimaryMessageId = normalizeOptionalString(parsed.latestPrimaryMessageId);
+    parsed.latestPrimaryMessageCreatedAt = normalizeOptionalString(
+      parsed.latestPrimaryMessageCreatedAt,
+    );
     parsed.archivedAt = typeof parsed.archivedAt === "string" ? parsed.archivedAt : undefined;
     if (parsed.operationState && "previousResponse" in parsed.operationState) {
       delete (parsed.operationState as { previousResponse?: string | null }).previousResponse;
@@ -408,6 +412,9 @@ function toMissionSummary(mission: Mission): MissionSummary {
     archivedAt: mission.archivedAt,
     status: mission.status,
     activitySessionIds,
+    primarySessionId: getMissionPrimarySessionId(mission),
+    latestPrimaryMessageId: mission.latestPrimaryMessageId ?? null,
+    latestPrimaryMessageCreatedAt: mission.latestPrimaryMessageCreatedAt ?? null,
   };
 }
 
@@ -522,7 +529,7 @@ export function listMissionSummaries(options?: {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
   const missions = missionIds
-    .map((missionId) => readMissionFromDisk(missionId))
+    .map((missionId) => getMission(missionId))
     .filter((mission): mission is Mission => mission !== null)
     .filter((mission) => {
       if (view === "all") {
@@ -542,6 +549,39 @@ export function listMissionSummaries(options?: {
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 
   return missions.map(toMissionSummary);
+}
+
+export function listMissionSummariesWithCounts(options?: {
+  view?: "active" | "archived" | "all";
+  surfaceId?: MissionSurfaceId;
+}): {
+  missions: MissionSummary[];
+  counts: { active: number; archived: number };
+} {
+  const allMissions = listMissionSummaries({ view: "all", surfaceId: options?.surfaceId });
+  const counts = allMissions.reduce(
+    (result, mission) => {
+      if (mission.status === "archived") {
+        result.archived += 1;
+      } else {
+        result.active += 1;
+      }
+
+      return result;
+    },
+    { active: 0, archived: 0 },
+  );
+  const view = options?.view ?? "active";
+
+  return {
+    counts,
+    missions:
+      view === "all"
+        ? allMissions
+        : allMissions.filter((mission) =>
+            view === "archived" ? mission.status === "archived" : mission.status !== "archived",
+          ),
+  };
 }
 
 export function archiveMission(missionId: string): Mission | undefined {
@@ -601,6 +641,10 @@ export function setMissionPrimarySession(
     mission.noctisSessionId = normalizedSessionId;
   }
   if (getMissionPrimaryAgentId(mission) === agentId) {
+    if (mission.primarySessionId !== normalizedSessionId) {
+      mission.latestPrimaryMessageId = undefined;
+      mission.latestPrimaryMessageCreatedAt = undefined;
+    }
     mission.primarySessionId = normalizedSessionId;
   }
   setMissionSessionOwner(mission, normalizedSessionId, agentId, previousSessionId);
@@ -842,6 +886,30 @@ export function updateMissionMetadata(
     mission.objective = patch.objective.trim() || undefined;
   }
   touchMission(mission, patch.status);
+}
+
+export function updateMissionPrimaryMessageMetadata(
+  missionId: string,
+  metadata: {
+    latestPrimaryMessageId: string | null;
+    latestPrimaryMessageCreatedAt: string | null;
+  },
+): void {
+  const mission = getMission(missionId);
+  if (!mission) return;
+
+  const nextMessageId = normalizeOptionalString(metadata.latestPrimaryMessageId);
+  const nextCreatedAt = normalizeOptionalString(metadata.latestPrimaryMessageCreatedAt);
+  const currentMessageId = normalizeOptionalString(mission.latestPrimaryMessageId);
+  const currentCreatedAt = normalizeOptionalString(mission.latestPrimaryMessageCreatedAt);
+
+  if (currentMessageId === nextMessageId && currentCreatedAt === nextCreatedAt) {
+    return;
+  }
+
+  mission.latestPrimaryMessageId = nextMessageId;
+  mission.latestPrimaryMessageCreatedAt = nextCreatedAt;
+  touchMission(mission);
 }
 
 export function appendMissionMessage(missionId: string, message: MissionMessageLogEntry): void {

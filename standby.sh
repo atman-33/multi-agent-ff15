@@ -832,21 +832,22 @@ show_party_roll_call
 
 log_info "Selected transport mode: ${TRANSPORT_MODE}"
 
-if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
-    require_command tmux
-    if ! ensure_tmux_transport_ready; then
-        exit 1
-    fi
-fi
-
 log_info "Preparing production web app..."
 ensure_dependencies
 
 if [ "$RUN_BUILD" = true ]; then
     log_info "Building web app..."
     npm run web:build
+    ensure_build_artifact
 else
     ensure_build_artifact
+fi
+
+if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
+    require_command tmux
+    if ! ensure_tmux_transport_ready; then
+        exit 1
+    fi
 fi
 
 stop_existing_server

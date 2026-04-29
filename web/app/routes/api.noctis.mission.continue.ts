@@ -1,4 +1,6 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { resolveManagedSessionActivationTitle } from "@/lib/managed-session-activation.server";
+import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import {
@@ -18,6 +20,10 @@ import { queuePrimaryAgentTmuxDispatch } from "@/lib/primary-agent-outbox-dispat
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
+import {
+  activateTmuxMissionWriteFocus,
+  getTmuxMissionWriteConflict,
+} from "@/lib/tmux-mission-activation.server";
 import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { Route } from "./+types/api.noctis.mission.continue";
 
@@ -116,6 +122,23 @@ export const action = async ({ request }: Route.ActionArgs) => {
       );
     }
     const client = getOpencodeClient();
+    if (transportStatus.transportMode === "tmux-resident") {
+      const conflict = await getTmuxMissionWriteConflict({
+        appRoot,
+        missionId,
+        client,
+      });
+      if (conflict) {
+        return Response.json(
+          {
+            error: `Tmux write focus is still held by mission ${conflict.activeMissionId}.`,
+          },
+          { status: 409 },
+        );
+      }
+
+      activateTmuxMissionWriteFocus({ appRoot, missionId });
+    }
     const missionDebugContext = {
       allowedWorkers,
       executionProjectId: mission.executionProjectId,
@@ -142,7 +165,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (!sessionId) {
       const sessionResult = await client.session.create({
         directory: executionRoot.sessionHostRoot,
-        title: `mission:${missionId}`,
+        title: getManagedSessionTitle(missionId, "noctis"),
       });
 
       if (sessionResult.error) {
@@ -197,6 +220,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
       queuePrimaryAgentTmuxDispatch({
         missionId,
         sessionId,
+        sessionTitle: await resolveManagedSessionActivationTitle({
+          client,
+          missionId,
+          agentId: noctisAgentProfile,
+          sessionId,
+        }),
         agent: noctisAgentProfile,
         parts: composed.payloadParts,
         ...(model ? { model } : {}),

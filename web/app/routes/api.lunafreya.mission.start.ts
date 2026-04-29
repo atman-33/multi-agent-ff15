@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
+import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import {
   provisionMissionExecutionWorkspace,
@@ -161,7 +162,7 @@ export const action = async ({ request }: { request: Request }) => {
 
     const sessionResult = await client.session.create({
       directory: managedRoots.sessionHostRoot,
-      title: `mission:${missionId}`,
+      title: getManagedSessionTitle(missionId, "lunafreya"),
     });
 
     if (sessionResult.error) {

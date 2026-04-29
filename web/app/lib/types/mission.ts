@@ -129,6 +129,8 @@ export interface Mission {
   agentModels: Partial<Record<AgentId, ModelSelection>>;
   createdAt: string;
   updatedAt: string;
+  latestPrimaryMessageId?: string;
+  latestPrimaryMessageCreatedAt?: string;
   archivedAt?: string;
   title: string;
   objective?: string;
@@ -305,9 +307,13 @@ export interface MissionSummary {
   objective?: string;
   createdAt: string;
   updatedAt: string;
-  archivedAt?: string;
+  archivedAt?: string | null;
   status: MissionStatus;
   activitySessionIds: string[];
+  primarySessionId?: string | null;
+  agentStatuses?: Partial<Record<AgentId, import("@/lib/session-status").SessionStatus>>;
+  latestPrimaryMessageId?: string | null;
+  latestPrimaryMessageCreatedAt?: string | null;
 }
 
 export interface MissionOutputSummary {

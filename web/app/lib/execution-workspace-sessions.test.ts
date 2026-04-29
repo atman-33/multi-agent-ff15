@@ -13,11 +13,13 @@ import {
   setWorkerSession,
 } from "@/lib/mission-store";
 import { dispatchTaskToWorker } from "@/lib/task-dispatch.server";
+import { writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 import { sendSimpleMessage, sendWorkerReport } from "@/lib/team-message.server";
 
-const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
+const { promptAsyncMock, sessionCreateMock, sessionStatusMock } = vi.hoisted(() => ({
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
+  sessionStatusMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
@@ -25,6 +27,7 @@ vi.mock("@/lib/opencode-client", () => ({
     session: {
       create: sessionCreateMock,
       promptAsync: promptAsyncMock,
+      status: sessionStatusMock,
     },
   }),
 }));
@@ -44,7 +47,7 @@ function initializeGitProject(projectRoot: string): void {
   execSync('git commit -m "init"', { cwd: projectRoot, stdio: "ignore" });
 }
 
-function createTempRoot(): string {
+function createTempRoot(options?: { transportMode?: "app-owned" | "tmux-resident" }): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-execution-sessions-"));
   tempRoots.push(root);
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
@@ -58,7 +61,12 @@ function createTempRoot(): string {
 
   writeFileSync(
     join(root, "config", "settings.yaml"),
-    ['language: ja', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+    [
+      'language: ja',
+      `transport_mode: "${options?.transportMode ?? "app-owned"}"`,
+      'execution_workspace_root: ".worktrees"',
+      '',
+    ].join("\n"),
     "utf-8",
   );
   writeFileSync(
@@ -249,6 +257,34 @@ describe("execution workspace sessions", () => {
     );
   });
 
+  it("blocks worker dispatch when another tmux mission still owns writable focus", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const activeMission = createExecutionMission(root);
+    const targetMission = createExecutionMission(root);
+    writeTmuxActiveMission(root, {
+      missionId: activeMission.missionId,
+      updatedAt: "2026-04-29T00:00:00.000Z",
+    });
+    sessionStatusMock.mockResolvedValue({
+      data: {
+        "session-noctis": "busy",
+      },
+      error: null,
+    });
+
+    await expect(
+      dispatchTaskToWorker({
+        missionId: targetMission.missionId,
+        agentId: "ignis",
+        message: "Do not steal focus from the busy mission.",
+      }),
+    ).rejects.toThrow(activeMission.missionId);
+
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+  });
+
   it("uses the mission execution workspace for team-message worker sessions", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -328,6 +364,35 @@ describe("execution workspace sessions", () => {
         title: `mission:${missionId}:ignis`,
       }),
     );
+  });
+
+  it("blocks team-message delivery when another tmux mission still owns writable focus", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const activeMission = createExecutionMission(root);
+    const targetMission = createExecutionMission(root);
+    writeTmuxActiveMission(root, {
+      missionId: activeMission.missionId,
+      updatedAt: "2026-04-29T00:00:00.000Z",
+    });
+    sessionStatusMock.mockResolvedValue({
+      data: {
+        "session-noctis": "busy",
+      },
+      error: null,
+    });
+
+    await expect(
+      sendSimpleMessage({
+        missionId: targetMission.missionId,
+        toAgent: "ignis",
+        body: "Do not steal focus from the busy mission.",
+        fromActor: "user",
+      }),
+    ).rejects.toThrow(activeMission.missionId);
+
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
   });
 
   it("records report-return banter when a worker sends a report back to Noctis", async () => {

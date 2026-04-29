@@ -966,7 +966,7 @@ export const ChatArea = ({
   );
   const historyEmptyCallout = useMemo(
     () =>
-      isTranscriptEmpty ? (
+      isTranscriptEmpty && !hasVisibleTranscriptContent ? (
         <div className="rounded-xl border border-border/60 bg-background/40 px-3 py-2.5" role="status">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
             No Session History Yet
@@ -976,7 +976,7 @@ export const ChatArea = ({
           </p>
         </div>
       ) : null,
-    [isTranscriptEmpty],
+    [hasVisibleTranscriptContent, isTranscriptEmpty],
   );
   const historyErrorCallout = useMemo(
     () =>
