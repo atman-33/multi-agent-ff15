@@ -44,6 +44,10 @@ log_step() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+OPENCODE_CONFIG_PATH="$SCRIPT_DIR/opencode.json"
+OPENCODE_CONFIG_TEMPLATE_PATH="$SCRIPT_DIR/config/opencode.template.json"
+SETTINGS_PATH="$SCRIPT_DIR/config/settings.yaml"
+
 # Result tracking variables
 RESULTS=()
 HAS_ERROR=false
@@ -86,11 +90,96 @@ fi
 RESULTS+=("System environment: OK")
 
 # ============================================================
-# STEP 2: uv / uvx check
-# Note: uvx is required by the serena MCP server (opencode.json).
+# STEP 2: tmux check / install
+# ============================================================
+log_step "STEP 2: tmux check"
+
+if command -v tmux &> /dev/null; then
+    TMUX_VERSION=$(tmux -V | awk '{print $2}')
+    log_success "tmux is already installed (v$TMUX_VERSION)"
+    RESULTS+=("tmux: OK (v$TMUX_VERSION)")
+else
+    log_warn "tmux is not installed"
+    echo ""
+
+    if command -v apt-get &> /dev/null; then
+        log_info "Installing tmux..."
+        if ! sudo -n apt-get update -qq 2>/dev/null; then
+            if ! sudo apt-get update -qq 2>/dev/null; then
+                log_error "Failed to run sudo. Please execute directly from terminal"
+                RESULTS+=("tmux: Installation failed (sudo failed)")
+                HAS_ERROR=true
+            fi
+        fi
+
+        if [ "$HAS_ERROR" != true ]; then
+            if ! sudo -n apt-get install -y tmux 2>/dev/null; then
+                if ! sudo apt-get install -y tmux 2>/dev/null; then
+                    log_error "Failed to install tmux"
+                    RESULTS+=("tmux: Installation failed")
+                    HAS_ERROR=true
+                fi
+            fi
+        fi
+
+        if command -v tmux &> /dev/null; then
+            TMUX_VERSION=$(tmux -V | awk '{print $2}')
+            log_success "tmux installation complete (v$TMUX_VERSION)"
+            RESULTS+=("tmux: Installation complete (v$TMUX_VERSION)")
+        else
+            log_error "Failed to install tmux"
+            RESULTS+=("tmux: Installation failed")
+            HAS_ERROR=true
+        fi
+    else
+        log_error "apt-get not found. Please manually install tmux"
+        echo ""
+        echo "  Installation methods:"
+        echo "    Ubuntu/Debian: sudo apt-get install tmux"
+        echo "    Fedora:        sudo dnf install tmux"
+        echo "    macOS:         brew install tmux"
+        RESULTS+=("tmux: Not installed (manual installation required)")
+        HAS_ERROR=true
+    fi
+fi
+
+# ============================================================
+# STEP 3: tmux mouse scroll settings
+# ============================================================
+log_step "STEP 3: tmux mouse scroll settings"
+
+TMUX_CONF="$HOME/.tmux.conf"
+TMUX_MOUSE_SETTING="set -g mouse on"
+
+if [ -f "$TMUX_CONF" ] && grep -qF "$TMUX_MOUSE_SETTING" "$TMUX_CONF" 2>/dev/null; then
+    log_info "tmux mouse settings already exist in ~/.tmux.conf"
+else
+    log_info "Adding '$TMUX_MOUSE_SETTING' to ~/.tmux.conf..."
+    echo "" >> "$TMUX_CONF"
+    echo "# Enable mouse scroll (added by first_setup.sh)" >> "$TMUX_CONF"
+    echo "$TMUX_MOUSE_SETTING" >> "$TMUX_CONF"
+    log_success "Added tmux mouse settings"
+fi
+
+if command -v tmux &> /dev/null && tmux list-sessions &> /dev/null; then
+    log_info "tmux is running, applying settings immediately..."
+    if tmux source-file "$TMUX_CONF" 2>/dev/null; then
+        log_success "Reloaded tmux configuration"
+    else
+        log_warn "Failed to reload tmux configuration (please manually run: tmux source-file ~/.tmux.conf)"
+    fi
+else
+    log_info "tmux is not running, settings will apply on next launch"
+fi
+
+RESULTS+=("tmux mouse settings: OK")
+
+# ============================================================
+# STEP 4: uv / uvx check
+# Note: uvx is required by the serena MCP server (generated opencode.json).
 #       uv installs to ~/.local/bin, which must be in PATH.
 # ============================================================
-log_step "STEP 2: uv / uvx check (required for serena MCP)"
+log_step "STEP 4: uv / uvx check (required for serena MCP)"
 
 # Ensure ~/.local/bin is in PATH for this session
 export PATH="$HOME/.local/bin:$PATH"
@@ -160,6 +249,66 @@ if [ -f "$HOME/.config/fish/config.fish" ]; then
 fi
 
 # ============================================================
+# STEP 5: Local OpenCode config bootstrap
+# ============================================================
+log_step "STEP 5: Local OpenCode config bootstrap"
+
+if [ -f "$OPENCODE_CONFIG_PATH" ]; then
+    log_info "Local opencode.json already exists"
+    RESULTS+=("opencode.json: OK (existing local config)")
+elif [ -f "$OPENCODE_CONFIG_TEMPLATE_PATH" ]; then
+    cp "$OPENCODE_CONFIG_TEMPLATE_PATH" "$OPENCODE_CONFIG_PATH"
+    log_success "Created local opencode.json from template"
+    RESULTS+=("opencode.json: Created from template")
+else
+    log_error "Missing opencode config template: $OPENCODE_CONFIG_TEMPLATE_PATH"
+    RESULTS+=("opencode.json: Bootstrap failed (missing template)")
+    HAS_ERROR=true
+fi
+
+# ============================================================
+# STEP 6: Transport mode bootstrap
+# ============================================================
+log_step "STEP 6: Transport mode bootstrap"
+
+CURRENT_TRANSPORT_MODE=""
+if [ -f "$SETTINGS_PATH" ]; then
+    CURRENT_TRANSPORT_MODE="$(awk -F ':' '/^[[:space:]]*transport_mode:/ {
+        value=$2
+        sub(/^[[:space:]]+/, "", value)
+        gsub(/["\047]/, "", value)
+        print value
+        exit
+    }' "$SETTINGS_PATH")"
+fi
+
+if [ -n "$CURRENT_TRANSPORT_MODE" ]; then
+    log_info "transport_mode already configured as $CURRENT_TRANSPORT_MODE"
+    RESULTS+=("transport_mode: OK ($CURRENT_TRANSPORT_MODE)")
+elif [ -f "$SETTINGS_PATH" ]; then
+    echo "" >> "$SETTINGS_PATH"
+    echo "# Default transport mode (added by first_setup.sh)" >> "$SETTINGS_PATH"
+    echo "transport_mode: tmux-resident" >> "$SETTINGS_PATH"
+    log_success "Initialized transport_mode to tmux-resident"
+    RESULTS+=("transport_mode: Initialized (tmux-resident)")
+else
+    mkdir -p "$(dirname "$SETTINGS_PATH")"
+    printf '%s\n' \
+        '# multi-agent-ff15 configuration file' \
+        '' \
+        '# Language setting' \
+        '# ja: Japanese only (FF15-style Japanese, no bilingual output)' \
+        '# en: English (FF15-style Japanese + English translation in parentheses)' \
+        '# Other language codes (es, zh, ko, fr, de, etc.) also supported' \
+        'language: en' \
+        'shared_skills_root: skills' \
+        'transport_mode: tmux-resident' \
+        > "$SETTINGS_PATH"
+    log_success "Created config/settings.yaml with tmux-resident transport mode"
+    RESULTS+=("transport_mode: Initialized (tmux-resident)")
+fi
+
+# ============================================================
 # Results Summary
 # ============================================================
 echo ""
@@ -211,6 +360,9 @@ echo "     2. Follow authentication prompts to log in"
 echo "     3. Exit with /exit"
 echo ""
 echo "     ※ Once authenticated, credentials are saved to ~/.opencode/ and won't be needed again"
+echo ""
+echo "  STEP B: Start the dashboard (tmux-resident is the default transport)"
+echo "     ./standby.sh --build --attach"
 echo ""
 echo "  ════════════════════════════════════════════════════════════════"
 echo "   Stand by Me!"

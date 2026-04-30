@@ -4,6 +4,7 @@
 # Project state and local config
 config/settings.yaml
 !config/models.yaml
+/opencode.json
 /projects/
 
 # Generated reports

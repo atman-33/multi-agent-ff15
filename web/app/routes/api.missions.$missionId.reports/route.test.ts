@@ -34,6 +34,7 @@ const tempRoots: string[] = [];
 const missionIds: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
 const repoRoot = getProjectRoot();
+const opencodeTemplatePath = join(repoRoot, "config", "opencode.template.json");
 
 function createTempRootWithBuiltins(): string {
   const root = mkdtempSync(join(tmpdir(), "multi-agent-ff15-reports-route-"));
@@ -41,7 +42,7 @@ function createTempRootWithBuiltins(): string {
   cpSync(join(repoRoot, "scripts"), join(root, "scripts"), { recursive: true });
   cpSync(join(repoRoot, "config"), join(root, "config"), { recursive: true });
   cpSync(join(repoRoot, "builtins"), join(root, "builtins"), { recursive: true });
-  cpSync(join(repoRoot, "opencode.json"), join(root, "opencode.json"));
+  cpSync(opencodeTemplatePath, join(root, "opencode.json"));
   writeReviewCycleTestOperation(root);
   return root;
 }

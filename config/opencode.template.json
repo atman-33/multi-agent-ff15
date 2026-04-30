@@ -21,7 +21,7 @@
         "-y",
         "@modelcontextprotocol/server-memory"
       ],
-      "enabled": true
+      "enabled": false
     },
     "playwright": {
       "type": "local",
