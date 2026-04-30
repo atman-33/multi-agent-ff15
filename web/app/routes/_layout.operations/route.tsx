@@ -7,9 +7,8 @@ import { OperationListPane } from "@/components/operations/operation-list-pane";
 import { PreviewInputsSheet } from "@/components/operations/preview-inputs-sheet";
 import { PreviewTabs } from "@/components/operations/preview-tabs";
 import { PageContainer } from "@/components/page-container";
+import { useOwnedIrisSessionRealtime } from "@/hooks/use-owned-iris-session-realtime";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
-import { useSessionLiveThread } from "@/hooks/use-session-live-thread";
-import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
 import { useChatStore } from "@/stores/chat-store";
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +49,6 @@ import {
   buildOperationsIrisStreamingText,
   createOperationsIrisOptimisticMessage,
   shouldClearOperationsIrisOptimisticMessage,
-  shouldUseOperationsIrisPollingFallback,
   type OperationsIrisOptimisticMessage,
 } from "@/lib/operations/iris-live-thread";
 import {
@@ -678,29 +676,6 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     syncIrisContextState(operationsIrisContextKey);
   }, [operationsIrisContextKey, syncIrisContextState]);
 
-  const liveThread = useSessionLiveThread({
-    onTextPartMatched: ({ messageId, text }) => {
-      if (!messageId) {
-        return false;
-      }
-
-      let matchedExistingMessage = false;
-      setIrisMessages((current) =>
-        current.map((message) => {
-          if (message.info.id !== messageId) {
-            return message;
-          }
-
-          matchedExistingMessage = true;
-          return mergeMessageInfoText(message, text);
-        }),
-      );
-
-      return matchedExistingMessage;
-    },
-    sessionId: irisSessionId,
-  });
-
   const loadIrisMessages = useCallback(async (sessionId: string) => {
     const requestId = irisLoadRequestIdRef.current + 1;
     irisLoadRequestIdRef.current = requestId;
@@ -739,15 +714,30 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
     }
   }, []);
 
-  const sessionStatuses = useSessionStatusFeed({
-    enabled: Boolean(irisSessionId),
-    onSessionIdle: (sessionId) => {
-      if (sessionId === irisSessionId) {
-        void loadIrisMessages(sessionId);
+  const liveThread = useOwnedIrisSessionRealtime({
+    loadMessages: loadIrisMessages,
+    onTextPartMatched: ({ messageId, text }) => {
+      if (!messageId) {
+        return false;
       }
+
+      let matchedExistingMessage = false;
+      setIrisMessages((current) =>
+        current.map((message) => {
+          if (message.info.id !== messageId) {
+            return message;
+          }
+
+          matchedExistingMessage = true;
+          return mergeMessageInfoText(message, text);
+        }),
+      );
+
+      return matchedExistingMessage;
     },
+    sessionId: irisSessionId,
   });
-  const irisSessionStatus = irisSessionId ? sessionStatuses[irisSessionId] ?? null : null;
+  const irisSessionStatus = liveThread.sessionStatus;
 
   useEffect(() => {
     if (!irisSessionId) {
@@ -761,31 +751,6 @@ export const OperationsPage = ({ loaderData }: Route.ComponentProps) => {
 
     void loadIrisMessages(irisSessionId);
   }, [irisSessionId, loadIrisMessages]);
-
-  useEffect(() => {
-    if (
-      !shouldUseOperationsIrisPollingFallback({
-        isLiveUnavailable: liveThread.isLiveUnavailable,
-        sessionId: irisSessionId,
-        sessionStatus: irisSessionStatus,
-      })
-    ) {
-      return;
-    }
-
-    const activeIrisSessionId = irisSessionId;
-    if (!activeIrisSessionId) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      void loadIrisMessages(activeIrisSessionId);
-    }, 2500);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [irisSessionId, irisSessionStatus, liveThread.isLiveUnavailable, loadIrisMessages]);
 
   const visibleDrafts = useMemo(
     () => drafts.filter((draft) => draft.scope === scope && draft.targetValue === targetValue),

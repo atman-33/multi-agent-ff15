@@ -60,10 +60,10 @@ async function resolveOwnedSessionActivationTitle(input: {
     return canonicalTitle;
   }
 
-  const result = await input.client.session.update({
+  const result = (await input.client.session.update({
     sessionID: input.sessionId,
     title: canonicalTitle,
-  });
+  })) as { error?: unknown };
 
   if (result.error) {
     throw new Error(typeof result.error === "string" ? result.error : "Unable to update owned session title.");

@@ -5,9 +5,8 @@ import { Alert, AlertCircle, AlertDescription, AlertTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageContainer } from "@/components/page-container";
+import { useOwnedIrisSessionRealtime } from "@/hooks/use-owned-iris-session-realtime";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
-import { useSessionLiveThread } from "@/hooks/use-session-live-thread";
-import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
 import type { ProjectRegistryEntry } from "@/hooks/use-project-registry";
 import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
 import { getProjectRoot } from "@/lib/get-project-root.server";
@@ -25,13 +24,12 @@ import {
   buildProjectIrisLiveDraft,
   buildProjectIrisStreamingText,
   mergeProjectIrisStreamingMessage,
-  shouldUseProjectIrisPollingFallback,
 } from "@/lib/project-management/iris-live-thread";
 import {
   toSessionPresentationMessages,
   type SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
-import { getSessionStatusForId, isSessionStatusActive } from "@/lib/session-status";
+import { isSessionStatusActive } from "@/lib/session-status";
 import type { ModelSelection } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
@@ -225,29 +223,6 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
     [projectManageSkill],
   );
 
-  const liveThread = useSessionLiveThread({
-    onTextPartMatched: ({ messageId, text }) => {
-      if (!messageId) {
-        return false;
-      }
-
-      let matchedExistingMessage = false;
-      setProjectIrisMessages((current) =>
-        current.map((message) => {
-          if (message.id !== messageId) {
-            return message;
-          }
-
-          matchedExistingMessage = true;
-          return mergeProjectIrisStreamingMessage(message, text);
-        }),
-      );
-
-      return matchedExistingMessage;
-    },
-    sessionId: projectIrisSessionId,
-  });
-
   const fetchData = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
@@ -277,20 +252,36 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
         return;
       }
 
-      void loadProjectIrisMessages(sessionId);
       void fetchData();
     },
-    [fetchData, loadProjectIrisMessages, projectIrisSessionId],
+    [fetchData, projectIrisSessionId],
   );
 
-  const projectIrisSessionStatuses = useSessionStatusFeed({
-    enabled: Boolean(projectIrisSessionId),
+  const liveThread = useOwnedIrisSessionRealtime({
+    loadMessages: loadProjectIrisMessages,
     onSessionIdle: handleProjectIrisSessionIdle,
+    onTextPartMatched: ({ messageId, text }) => {
+      if (!messageId) {
+        return false;
+      }
+
+      let matchedExistingMessage = false;
+      setProjectIrisMessages((current) =>
+        current.map((message) => {
+          if (message.id !== messageId) {
+            return message;
+          }
+
+          matchedExistingMessage = true;
+          return mergeProjectIrisStreamingMessage(message, text);
+        }),
+      );
+
+      return matchedExistingMessage;
+    },
+    sessionId: projectIrisSessionId,
   });
-  const projectIrisSessionStatus = getSessionStatusForId(
-    projectIrisSessionStatuses,
-    projectIrisSessionId,
-  );
+  const projectIrisSessionStatus = liveThread.sessionStatus;
   const projectIrisRenderSnapshot = useSessionChatRenderSnapshot({
     assistantPending: isSessionStatusActive(projectIrisSessionStatus),
     continuityAssistant: {
@@ -342,31 +333,6 @@ export const ProjectsPage = ({ loaderData }: { loaderData?: ProjectsPageLoaderDa
 
     void loadProjectIrisMessages(projectIrisSessionId);
   }, [hasHydratedProjectIrisSession, loadProjectIrisMessages, projectIrisSessionId]);
-
-  useEffect(() => {
-    if (
-      !shouldUseProjectIrisPollingFallback({
-        isLiveUnavailable: liveThread.isLiveUnavailable,
-        sessionId: projectIrisSessionId,
-        sessionStatus: projectIrisSessionStatus,
-      })
-    ) {
-      return;
-    }
-
-    const activeProjectIrisSessionId = projectIrisSessionId;
-    if (!activeProjectIrisSessionId) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      void loadProjectIrisMessages(activeProjectIrisSessionId);
-    }, 2500);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [liveThread.isLiveUnavailable, loadProjectIrisMessages, projectIrisSessionId, projectIrisSessionStatus]);
 
   const handleOpenProjectIrisSheet = useCallback(() => {
     setIsProjectIrisSheetOpen(true);

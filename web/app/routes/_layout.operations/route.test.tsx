@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildProjectOperationRef } from "@/lib/operation-definition/operation-catalog";
 
-const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, sessionChatRenderSnapshotMock, useSessionLiveThreadMock } = vi.hoisted(() => ({
+const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, sessionChatRenderSnapshotMock, useOwnedIrisSessionRealtimeMock } = vi.hoisted(() => ({
   buildOperationsPreviewBundleMock: vi.fn(() => ({ flowSteps: [] })),
   irisAuthoringSheetPropsSpy: vi.fn(),
   sessionChatRenderSnapshotMock: vi.fn(() => ({
@@ -17,7 +17,7 @@ const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, sessionCha
     scrollSignal: "none",
     streamingMessage: null,
   })),
-  useSessionLiveThreadMock: vi.fn(() => ({
+  useOwnedIrisSessionRealtimeMock: vi.fn(() => ({
     clearStreaming: vi.fn(),
     isLiveUnavailable: false,
     liveDraft: null as
@@ -28,6 +28,7 @@ const { buildOperationsPreviewBundleMock, irisAuthoringSheetPropsSpy, sessionCha
         }
       | null,
     resetLiveThread: vi.fn(),
+    sessionStatus: null as "busy" | "idle" | "retry" | null,
     streamingContent: "",
     streamingMessageId: null as string | null,
   })),
@@ -124,8 +125,8 @@ vi.mock("@/hooks/use-session-chat-render-snapshot", () => ({
   useSessionChatRenderSnapshot: sessionChatRenderSnapshotMock,
 }));
 
-vi.mock("@/hooks/use-session-live-thread", () => ({
-  useSessionLiveThread: useSessionLiveThreadMock,
+vi.mock("@/hooks/use-owned-iris-session-realtime", () => ({
+  useOwnedIrisSessionRealtime: useOwnedIrisSessionRealtimeMock,
 }));
 
 import {
@@ -251,12 +252,13 @@ afterEach(() => {
     scrollSignal: "none",
     streamingMessage: null,
   });
-  useSessionLiveThreadMock.mockReset();
-  useSessionLiveThreadMock.mockReturnValue({
+  useOwnedIrisSessionRealtimeMock.mockReset();
+  useOwnedIrisSessionRealtimeMock.mockReturnValue({
     clearStreaming: vi.fn(),
     isLiveUnavailable: false,
     liveDraft: null,
     resetLiveThread: vi.fn(),
+    sessionStatus: null,
     streamingContent: "",
     streamingMessageId: null,
   });
@@ -514,7 +516,7 @@ describe("operations route", () => {
   });
 
   it("passes a live Iris draft through to the authoring sheet before history settles", () => {
-    useSessionLiveThreadMock.mockReturnValue({
+    useOwnedIrisSessionRealtimeMock.mockReturnValue({
       clearStreaming: vi.fn(),
       isLiveUnavailable: false,
       liveDraft: {
@@ -523,6 +525,7 @@ describe("operations route", () => {
         sessionId: "session-iris-1",
       },
       resetLiveThread: vi.fn(),
+      sessionStatus: "busy",
       streamingContent: "",
       streamingMessageId: "assistant-1",
     });

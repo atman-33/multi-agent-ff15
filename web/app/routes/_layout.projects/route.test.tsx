@@ -6,11 +6,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSessionChatRenderSnapshot } from "@/lib/session-chat-rendering-orchestration";
 
-const { chatStoreStateMock, projectIrisSheetPropsSpy, setAgentModelMock, useSessionLiveThreadMock } = vi.hoisted(() => ({
+const { chatStoreStateMock, projectIrisSheetPropsSpy, setAgentModelMock, useOwnedIrisSessionRealtimeMock } = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
   projectIrisSheetPropsSpy: vi.fn(),
   setAgentModelMock: vi.fn(),
-  useSessionLiveThreadMock: vi.fn(() => ({
+  useOwnedIrisSessionRealtimeMock: vi.fn(() => ({
     clearStreaming: vi.fn(),
     isLiveUnavailable: false,
     liveDraft: null as
@@ -21,6 +21,7 @@ const { chatStoreStateMock, projectIrisSheetPropsSpy, setAgentModelMock, useSess
         }
       | null,
     resetLiveThread: vi.fn(),
+    sessionStatus: null as "busy" | "idle" | "retry" | null,
     streamingContent: "",
     streamingMessageId: null as string | null,
   })),
@@ -48,8 +49,8 @@ vi.mock("@/hooks/use-vscode-preferences", () => ({
   }),
 }));
 
-vi.mock("@/hooks/use-session-live-thread", () => ({
-  useSessionLiveThread: useSessionLiveThreadMock,
+vi.mock("@/hooks/use-owned-iris-session-realtime", () => ({
+  useOwnedIrisSessionRealtime: useOwnedIrisSessionRealtimeMock,
 }));
 
 vi.mock("./components/project-iris-sheet", () => ({
@@ -135,12 +136,13 @@ afterEach(() => {
 beforeEach(() => {
   projectIrisSheetPropsSpy.mockReset();
   setAgentModelMock.mockReset();
-  useSessionLiveThreadMock.mockReset();
-  useSessionLiveThreadMock.mockReturnValue({
+  useOwnedIrisSessionRealtimeMock.mockReset();
+  useOwnedIrisSessionRealtimeMock.mockReturnValue({
     clearStreaming: vi.fn(),
     isLiveUnavailable: false,
     liveDraft: null,
     resetLiveThread: vi.fn(),
+    sessionStatus: null,
     streamingContent: "",
     streamingMessageId: null,
   });
@@ -354,7 +356,7 @@ describe("projects route", () => {
   });
 
   it("passes a live Projects Iris draft through to the sheet before authoritative history settles", () => {
-    useSessionLiveThreadMock.mockReturnValue({
+    useOwnedIrisSessionRealtimeMock.mockReturnValue({
       clearStreaming: vi.fn(),
       isLiveUnavailable: false,
       liveDraft: {
@@ -363,6 +365,7 @@ describe("projects route", () => {
         sessionId: "session-project-iris-1",
       },
       resetLiveThread: vi.fn(),
+      sessionStatus: "busy",
       streamingContent: "",
       streamingMessageId: "assistant-1",
     });
