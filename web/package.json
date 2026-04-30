@@ -13,7 +13,6 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
-    "@react-router/express": "7.13.1",
     "@opencode-ai/sdk": "^1.2.27",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -29,6 +28,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-router/express": "7.13.1",
     "@react-router/fs-routes": "^7.13.1",
     "@react-router/node": "7.13.1",
     "@react-router/serve": "7.13.1",
