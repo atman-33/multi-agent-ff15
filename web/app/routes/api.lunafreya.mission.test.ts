@@ -5,11 +5,14 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getProjectRoot } from "@/lib/get-project-root.server";
+import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 import { createMission, deleteMission, getMission } from "@/lib/mission-store";
+import { writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 
-const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
+const { promptAsyncMock, sessionCreateMock, sessionStatusMock } = vi.hoisted(() => ({
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
+  sessionStatusMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
@@ -17,6 +20,7 @@ vi.mock("@/lib/opencode-client", () => ({
     session: {
       create: sessionCreateMock,
       promptAsync: promptAsyncMock,
+      status: sessionStatusMock,
     },
   }),
 }));
@@ -144,6 +148,44 @@ function createTempRoot(): string {
   return root;
 }
 
+function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  writeFileSync(
+    join(root, "runtime", "opencode-endpoints.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        startedAt: "2026-04-28T00:00:00.000Z",
+        agents: [
+          {
+            agentId: "lunafreya",
+            port: 4402,
+            url: "http://127.0.0.1:4402",
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+  writeFileSync(
+    join(root, "runtime", "tmux-transport-dispatcher.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        owner: "standby",
+        mode: "tmux-resident",
+        pid: process.pid,
+        startedAt: "2026-04-28T00:00:00.000Z",
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -217,6 +259,101 @@ describe("Lunafreya mission routing", () => {
       error: expect.stringContaining("Missing tmux transport endpoint manifest"),
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("enqueues tmux-resident Lunafreya mission start payloads instead of dispatching them inline", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-tmux-start" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Guide me through tmux transport.",
+          executionProjectId: "alpha",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string; lunafreyaSessionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    expect(data.lunafreyaSessionId).toBe("session-lunafreya-tmux-start");
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+
+    const queuedItems = listPrimaryAgentOutboxItems(data.missionId);
+    expect(queuedItems).toHaveLength(1);
+    expect(queuedItems[0]).toMatchObject({
+      status: "pending",
+      payload: {
+        agent: "lunafreya",
+        sessionId: "session-lunafreya-tmux-start",
+        sessionTitle: `mission:${data.missionId}:lunafreya`,
+        parts: [
+          {
+            type: "text",
+            text: expect.stringContaining('<user-request from="user" to="lunafreya">') as never,
+          },
+        ],
+      },
+    });
+  });
+
+  it("blocks tmux-resident Lunafreya mission start when another writable mission is still busy", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+
+    const activeMission = createMission(`mission-luna-active-${crypto.randomUUID()}`, "session-luna-active", {
+      title: "Active Lunafreya mission",
+      objective: "Hold tmux write focus",
+      executionProjectId: "alpha",
+      primaryAgentId: "lunafreya",
+      surfaceId: "lunafreya",
+    });
+    missionIds.push(activeMission.id);
+    writeTmuxActiveMission(root, {
+      missionId: activeMission.id,
+      updatedAt: "2026-04-30T10:00:00.000Z",
+    });
+    sessionStatusMock.mockResolvedValue({
+      data: {
+        "session-luna-active": "busy",
+      },
+      error: null,
+    });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/lunafreya/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          executionProjectId: "alpha",
+          message: "Do not steal tmux focus from another active Lunafreya mission.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: expect.stringContaining(activeMission.id),
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
   });
 
   it("starts a Lunafreya mission with the implicit default Job when no explicit override is selected", async () => {
@@ -419,6 +556,111 @@ describe("Lunafreya mission routing", () => {
     expect(promptText).not.toContain("<instruction>");
     expect(promptText).not.toContain("Hidden Lunafreya Instruction");
     expect(promptText).not.toContain("<lunafreya-skill-overlay>");
+  });
+
+  it("enqueues tmux-resident Lunafreya mission continue payloads instead of dispatching them inline", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+
+    const mission = createMission(`mission-luna-tmux-${crypto.randomUUID()}`, "session-lunafreya-existing", {
+      title: "Lunafreya tmux mission",
+      objective: "Resume through tmux outbox",
+      surfaceId: "lunafreya",
+      primaryAgentId: "lunafreya",
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/lunafreya/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Guide me through tmux resume.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson<{ lunafreyaSessionId: string }>(response)).resolves.toEqual({
+      lunafreyaSessionId: "session-lunafreya-existing",
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+
+    const queuedItems = listPrimaryAgentOutboxItems(mission.id);
+    expect(queuedItems).toHaveLength(1);
+    expect(queuedItems[0]).toMatchObject({
+      status: "pending",
+      payload: {
+        agent: "lunafreya",
+        sessionId: "session-lunafreya-existing",
+        sessionTitle: `mission:${mission.id}:lunafreya`,
+      },
+    });
+  });
+
+  it("blocks tmux-resident Lunafreya mission continue when another writable mission is still busy", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
+      "utf-8",
+    );
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+
+    const activeMission = createMission(`mission-luna-active-${crypto.randomUUID()}`, "session-luna-active", {
+      title: "Active Lunafreya mission",
+      objective: "Hold tmux write focus",
+      executionProjectId: "alpha",
+      primaryAgentId: "lunafreya",
+      surfaceId: "lunafreya",
+    });
+    const targetMission = createMission(`mission-luna-target-${crypto.randomUUID()}`, "session-luna-target", {
+      title: "Target Lunafreya mission",
+      objective: "Attempt to resume while another mission is busy",
+      executionProjectId: "alpha",
+      primaryAgentId: "lunafreya",
+      surfaceId: "lunafreya",
+    });
+    missionIds.push(activeMission.id, targetMission.id);
+    writeTmuxActiveMission(root, {
+      missionId: activeMission.id,
+      updatedAt: "2026-04-30T10:00:00.000Z",
+    });
+    sessionStatusMock.mockResolvedValue({
+      data: {
+        "session-luna-active": "busy",
+        "session-luna-target": "idle",
+      },
+      error: null,
+    });
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/lunafreya/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: targetMission.id,
+          message: "Do not steal tmux focus from the active mission.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(409);
+    expect(await readJson<{ error: string }>(response)).toEqual({
+      error: expect.stringContaining(activeMission.id),
+    });
+    expect(promptAsyncMock).not.toHaveBeenCalled();
   });
 
   it("recreates a missing Lunafreya session from the app root on continue", async () => {

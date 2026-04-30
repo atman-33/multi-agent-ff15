@@ -150,4 +150,17 @@ describe("tmux transport abort helper", () => {
 
     expect(readFileSync(logPath, "utf-8").trim()).toBe("send-keys -t ff15:main.3 Escape");
   });
+
+  it("sends Escape to the Lunafreya pane for active tmux-managed responses", () => {
+    const root = createTempRoot();
+    const logPath = installFakeTmux(root);
+
+    interruptManagedTmuxSession({
+      method: "escape",
+      ownerAgent: "lunafreya",
+      root,
+    });
+
+    expect(readFileSync(logPath, "utf-8").trim()).toBe("send-keys -t ff15:main.4 Escape");
+  });
 });

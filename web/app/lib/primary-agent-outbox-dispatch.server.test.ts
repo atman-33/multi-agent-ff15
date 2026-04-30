@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { listPrimaryAgentOutboxItems } from "./mission-primary-agent-outbox.server";
 import { createMission, deleteMission, getMission } from "./mission-store";
-import { queueTmuxAgentDispatch } from "./primary-agent-outbox-dispatch.server";
+import {
+  queuePrimaryAgentTmuxDispatch,
+  queueTmuxAgentDispatch,
+} from "./primary-agent-outbox-dispatch.server";
 
 const tempRoots: string[] = [];
 const missionIds: string[] = [];
@@ -75,6 +78,43 @@ describe("primary-agent-outbox-dispatch.server", () => {
     );
     expect(getMission(mission.id)?.activityLog.map((entry) => entry.body).join("\n") ?? "").not.toContain(
       "Delegated worker task payload",
+    );
+  });
+
+  it("queues Lunafreya primary-agent deliveries through the shared tmux contract", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-lunafreya-queue", "session-lunafreya", {
+      title: "Lunafreya queue mission",
+      objective: "Queue primary-agent deliveries through tmux transport",
+      executionProjectId: "alpha",
+      primaryAgentId: "lunafreya",
+      surfaceId: "lunafreya",
+    });
+    missionIds.push(mission.id);
+
+    const item = queuePrimaryAgentTmuxDispatch({
+      missionId: mission.id,
+      agent: "lunafreya",
+      sessionId: "session-lunafreya",
+      sessionTitle: `mission:${mission.id}:lunafreya`,
+      parts: [{ type: "text", text: "Lunafreya primary-agent payload" }],
+    });
+
+    expect(item).toMatchObject({
+      status: "pending",
+      payload: {
+        agent: "lunafreya",
+        sessionId: "session-lunafreya",
+        sessionTitle: `mission:${mission.id}:lunafreya`,
+      },
+    });
+    expect(listPrimaryAgentOutboxItems(mission.id)).toEqual([item]);
+    expect(getMission(mission.id)?.activityLog).toContainEqual(
+      expect.objectContaining({
+        kind: "system_event",
+        body: "Queued primary-agent tmux delivery.",
+      }),
     );
   });
 });

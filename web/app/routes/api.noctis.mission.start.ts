@@ -1,11 +1,17 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { resolveManagedSessionActivationTitle } from "@/lib/managed-session-activation.server";
 import { normalizeIncomingMissionExecutionTargetMode } from "@/lib/mission-execution-target-mode";
 import {
   provisionMissionExecutionWorkspace,
   resolveManagedMissionStartRoots,
 } from "@/lib/mission-execution-workspace.server";
 import { getManagedSessionTitle } from "@/lib/managed-session-titles";
+import {
+  claimPrimaryAgentTmuxMissionWriteFocus,
+  MissionTransportNotReadyError,
+  queueResolvedPrimaryAgentTmuxMissionWrite,
+  requireReadyMissionTransport,
+  TmuxMissionWriteConflictError,
+} from "@/lib/primary-agent-mission-transport.server";
 import { buildDelegationLedger, createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import {
@@ -19,15 +25,9 @@ import {
 } from "@/lib/operation-definition/operation-catalog";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { getOperationState } from "@/lib/operation-runtime/state";
-import { queuePrimaryAgentTmuxDispatch } from "@/lib/primary-agent-outbox-dispatch.server";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
-import {
-  activateTmuxMissionWriteFocus,
-  getTmuxMissionWriteConflict,
-} from "@/lib/tmux-mission-activation.server";
-import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
 
@@ -115,34 +115,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
   try {
     const projectRoot = getProjectRoot();
-    const transportStatus = await getMissionTransportStatus(projectRoot);
-    if (!transportStatus.isReady) {
-      return Response.json(
-        {
-          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
-        },
-        { status: 503 },
-      );
-    }
+    const transportStatus = await requireReadyMissionTransport({ appRoot: projectRoot });
+    const client = getOpencodeClient();
     const missionId = crypto.randomUUID();
     const missionCreatedAt = new Date().toISOString();
-    const client = getOpencodeClient();
     if (transportStatus.transportMode === "tmux-resident") {
-      const conflict = await getTmuxMissionWriteConflict({
+      await claimPrimaryAgentTmuxMissionWriteFocus({
         appRoot: projectRoot,
-        missionId,
         client,
+        missionId,
+        updatedAt: missionCreatedAt,
       });
-      if (conflict) {
-        return Response.json(
-          {
-            error: `Tmux write focus is still held by mission ${conflict.activeMissionId}.`,
-          },
-          { status: 409 },
-        );
-      }
-
-      activateTmuxMissionWriteFocus({ appRoot: projectRoot, missionId, updatedAt: missionCreatedAt });
     }
     const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
     if (!executionProject) {
@@ -243,17 +226,13 @@ export const action = async ({ request }: Route.ActionArgs) => {
     });
 
     if (transportStatus.transportMode === "tmux-resident") {
-      queuePrimaryAgentTmuxDispatch({
+      await queueResolvedPrimaryAgentTmuxMissionWrite({
+        agentId: noctisAgentProfile,
+        appRoot: projectRoot,
+        client,
         missionId,
-        sessionId,
-        sessionTitle: await resolveManagedSessionActivationTitle({
-          client,
-          missionId,
-          agentId: noctisAgentProfile,
-          sessionId,
-        }),
-        agent: noctisAgentProfile,
         parts: composed.payloadParts,
+        sessionId,
         system: ledger,
         ...(model ? { model } : {}),
         ...(variant ? { variant } : {}),
@@ -285,6 +264,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
       operationState: getOperationState(missionId) ?? null,
     });
   } catch (error) {
+    if (error instanceof MissionTransportNotReadyError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
+    if (error instanceof TmuxMissionWriteConflictError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+
     if (error instanceof Error && error.message.length > 0) {
       return Response.json({ error: error.message }, { status: 409 });
     }

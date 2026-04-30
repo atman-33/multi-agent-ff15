@@ -8,6 +8,13 @@ import {
   provisionMissionExecutionWorkspace,
   resolveManagedMissionStartRoots,
 } from "@/lib/mission-execution-workspace.server";
+import {
+  claimPrimaryAgentTmuxMissionWriteFocus,
+  MissionTransportNotReadyError,
+  queueResolvedPrimaryAgentTmuxMissionWrite,
+  requireReadyMissionTransport,
+  TmuxMissionWriteConflictError,
+} from "@/lib/primary-agent-mission-transport.server";
 import { createMission, setAgentModels } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
@@ -17,7 +24,6 @@ import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToPrimaryAgentPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
-import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 
 function listBuiltinLanguages(language: string): string[] {
@@ -113,16 +119,18 @@ export const action = async ({ request }: { request: Request }) => {
 
   try {
     const projectRoot = getProjectRoot();
-    const transportStatus = await getMissionTransportStatus(projectRoot);
-    if (!transportStatus.isReady) {
-      return Response.json(
-        {
-          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
-        },
-        { status: 503 },
-      );
-    }
+    const transportStatus = await requireReadyMissionTransport({ appRoot: projectRoot });
     const client = getOpencodeClient();
+    const missionId = crypto.randomUUID();
+    const missionCreatedAt = new Date().toISOString();
+    if (transportStatus.transportMode === "tmux-resident") {
+      await claimPrimaryAgentTmuxMissionWriteFocus({
+        appRoot: projectRoot,
+        client,
+        missionId,
+        updatedAt: missionCreatedAt,
+      });
+    }
     const executionProject = readRegisteredProjectDefinition(projectRoot, executionProjectId);
     if (!executionProject) {
       return Response.json({ error: "Execution project is not registered." }, { status: 409 });
@@ -141,8 +149,6 @@ export const action = async ({ request }: { request: Request }) => {
       selectedSkillIds,
     });
     const selectedOperation = resolveLunafreyaOperationRef(projectRoot, language);
-    const missionId = crypto.randomUUID();
-    const missionCreatedAt = new Date().toISOString();
     const executionWorkspace =
       executionTargetMode === "mission_workspace"
         ? provisionMissionExecutionWorkspace({
@@ -211,6 +217,25 @@ export const action = async ({ request }: { request: Request }) => {
       workflowExtensionAppend: facetSelection.promptExtension,
     });
 
+    if (transportStatus.transportMode === "tmux-resident") {
+      await queueResolvedPrimaryAgentTmuxMissionWrite({
+        agentId: "lunafreya",
+        appRoot: projectRoot,
+        client,
+        missionId,
+        parts: composed.payloadParts,
+        sessionId,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      return Response.json({
+        missionId,
+        lunafreyaSessionId: sessionId,
+        operationState: getOperationState(missionId) ?? null,
+      });
+    }
+
     const promptResult = await client.session.promptAsync({
       sessionID: sessionId,
       parts: composed.payloadParts,
@@ -229,6 +254,14 @@ export const action = async ({ request }: { request: Request }) => {
       operationState: getOperationState(missionId) ?? null,
     });
   } catch (error) {
+    if (error instanceof MissionTransportNotReadyError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
+    if (error instanceof TmuxMissionWriteConflictError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+
     if (error instanceof Error && error.message.length > 0) {
       return Response.json({ error: error.message }, { status: 409 });
     }

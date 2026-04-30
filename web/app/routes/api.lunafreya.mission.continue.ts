@@ -7,6 +7,13 @@ import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import {
+  claimPrimaryAgentTmuxMissionWriteFocus,
+  MissionTransportNotReadyError,
+  queueResolvedPrimaryAgentTmuxMissionWrite,
+  requireReadyMissionTransport,
+  TmuxMissionWriteConflictError,
+} from "@/lib/primary-agent-mission-transport.server";
+import {
   appendMissionActivity,
   clearMissionSessions,
   getMission,
@@ -22,7 +29,6 @@ import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-c
 import { readOperationLanguage } from "@/lib/operation-definition/language";
 import { composeUserToPrimaryAgentPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import { getMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 
 function listBuiltinLanguages(language: string): string[] {
@@ -156,16 +162,18 @@ export const action = async ({ request }: { request: Request }) => {
 
   try {
     const appRoot = getProjectRoot();
-    const transportStatus = await getMissionTransportStatus(appRoot, mission.transportMode);
-    if (!transportStatus.isReady) {
-      return Response.json(
-        {
-          error: transportStatus.error ?? "Tmux transport bootstrap is not ready.",
-        },
-        { status: 503 },
-      );
-    }
+    const transportStatus = await requireReadyMissionTransport({
+      appRoot,
+      transportMode: mission.transportMode,
+    });
     const client = getOpencodeClient();
+    if (transportStatus.transportMode === "tmux-resident") {
+      await claimPrimaryAgentTmuxMissionWriteFocus({
+        appRoot,
+        client,
+        missionId,
+      });
+    }
     const executionRoot = resolveMissionExecutionRoot({
       appRoot,
       mission,
@@ -254,6 +262,21 @@ export const action = async ({ request }: { request: Request }) => {
       workflowExtensionAppend: facetSelection.promptExtension,
     });
 
+    if (transportStatus.transportMode === "tmux-resident") {
+      await queueResolvedPrimaryAgentTmuxMissionWrite({
+        agentId: "lunafreya",
+        appRoot,
+        client,
+        missionId,
+        parts: composed.payloadParts,
+        sessionId,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      return Response.json({ lunafreyaSessionId: sessionId });
+    }
+
     const result = await client.session.promptAsync({
       sessionID: sessionId,
       parts: composed.payloadParts,
@@ -268,6 +291,14 @@ export const action = async ({ request }: { request: Request }) => {
 
     return Response.json({ lunafreyaSessionId: sessionId });
   } catch (error) {
+    if (error instanceof MissionTransportNotReadyError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
+    if (error instanceof TmuxMissionWriteConflictError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+
     if (error instanceof Error && error.message.length > 0) {
       return Response.json({ error: error.message }, { status: 409 });
     }
