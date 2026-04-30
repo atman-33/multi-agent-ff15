@@ -4,18 +4,30 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMission, deleteMission, getMission, setAgentModels, setWorkerSession } from "@/lib/mission-store";
+import { listOwnedSessionTmuxDispatchItems } from "@/lib/owned-session-transport.server";
+import { saveOwnedSession } from "@/lib/owned-session-registry.server";
 
 const {
   appendSessionPromptDebugLogMock,
+  ownerPromptAsyncMock,
+  ownerSessionListMock,
   promptAsyncMock,
   sessionListMock,
 } = vi.hoisted(() => ({
   appendSessionPromptDebugLogMock: vi.fn(),
+  ownerPromptAsyncMock: vi.fn(),
+  ownerSessionListMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionListMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
+  createProjectOpencodeClient: () => ({
+    session: {
+      list: ownerSessionListMock,
+      promptAsync: ownerPromptAsyncMock,
+    },
+  }),
   getOpencodeClient: () => ({
     session: {
       list: sessionListMock,
@@ -48,8 +60,52 @@ function createTempRoot(): string {
   return root;
 }
 
+function writeEndpointManifest(
+  root: string,
+  agents: Array<{ agentId: string; port: number; url: string }>,
+): void {
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  writeFileSync(
+    join(root, "runtime", "opencode-endpoints.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        startedAt: "2026-04-30T00:00:00.000Z",
+        agents,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
+function writeReadyTmuxTransportArtifacts(
+  root: string,
+  agents: Array<{ agentId: string; port: number; url: string }>,
+): void {
+  writeEndpointManifest(root, agents);
+  writeFileSync(
+    join(root, "runtime", "tmux-transport-dispatcher.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        owner: "standby",
+        mode: "tmux-resident",
+        pid: process.pid,
+        startedAt: "2026-04-30T00:00:00.000Z",
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
 afterEach(() => {
   appendSessionPromptDebugLogMock.mockReset();
+  ownerPromptAsyncMock.mockReset();
+  ownerSessionListMock.mockReset();
   promptAsyncMock.mockReset();
   sessionListMock.mockReset();
 
@@ -72,8 +128,64 @@ afterEach(() => {
 });
 
 describe("api.session.$id.prompt", () => {
+  it("queues owned Iris session prompts for tmux-resident delivery", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeReadyTmuxTransportArtifacts(root, [
+      {
+        agentId: "iris",
+        port: 4405,
+        url: "http://127.0.0.1:4405",
+      },
+    ]);
+    saveOwnedSession({
+      ownerAgent: "iris",
+      sessionId: "session-iris",
+      sessionTitle: "iris:projects",
+      surface: "projects-iris",
+      transportMode: "tmux-resident",
+    });
+
+    promptAsyncMock.mockResolvedValue({ error: "default client should not be used" });
+
+    const response = await action({
+      params: { id: "session-iris" },
+      request: new Request("http://localhost/api/session/session-iris/prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parts: [{ type: "text", text: "Refresh the project registry." }],
+          agent: "iris",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(204);
+    expect(ownerPromptAsyncMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+    expect(listOwnedSessionTmuxDispatchItems("session-iris")).toMatchObject([
+      {
+        status: "pending",
+        payload: {
+          agent: "iris",
+          sessionId: "session-iris",
+          sessionTitle: "iris:projects",
+          parts: [{ type: "text", text: "Refresh the project registry." }],
+        },
+      },
+    ]);
+  });
+
   it("logs manual managed-session overrides and mirrors worker overrides into mission activity", async () => {
-    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeEndpointManifest(root, [
+      {
+        agentId: "ignis",
+        port: 4402,
+        url: "http://127.0.0.1:4402",
+      },
+    ]);
     const missionId = `mission-${crypto.randomUUID()}`;
     missionIds.push(missionId);
     createMission(missionId, "session-noctis", {
@@ -85,10 +197,10 @@ describe("api.session.$id.prompt", () => {
       ignis: { providerID: "anthropic", modelID: "claude-3-7-sonnet" },
     });
 
-    sessionListMock.mockResolvedValue({
+    ownerSessionListMock.mockResolvedValue({
       data: [{ id: "session-ignis", title: `mission:${missionId}:ignis` }],
     });
-    promptAsyncMock.mockResolvedValue({ data: { ok: true } });
+    ownerPromptAsyncMock.mockResolvedValue({ data: { ok: true } });
 
     const response = await action({
       params: { id: "session-ignis" },
@@ -104,7 +216,7 @@ describe("api.session.$id.prompt", () => {
     } as never);
 
     expect(response.status).toBe(204);
-    expect(promptAsyncMock).toHaveBeenCalledWith(
+    expect(ownerPromptAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionID: "session-ignis",
         agent: "prompto",
@@ -114,6 +226,7 @@ describe("api.session.$id.prompt", () => {
         },
       }),
     );
+    expect(promptAsyncMock).not.toHaveBeenCalled();
     expect(getMission(missionId)?.activityLog.at(-1)).toMatchObject({
       actor: "user",
       speaker: "user",

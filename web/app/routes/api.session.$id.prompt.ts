@@ -1,12 +1,16 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { findManagedSession } from "@/lib/managed-session.server";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { appendMissionActivity } from "@/lib/mission-store";
 import { createOpencodeMessageId } from "@/lib/opencode-message-id";
-import { getOpencodeClient } from "@/lib/opencode-client";
+import { queueOwnedSessionTmuxDispatch } from "@/lib/owned-session-transport.server";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
+import {
+  MissionTransportNotReadyError,
+  requireReadyMissionTransport,
+} from "@/lib/primary-agent-mission-transport.server";
 import { saveSessionRequestAnchor } from "@/lib/session-request-anchors.server";
 import type { SessionSelection } from "@/lib/session-selection-adjustment";
+import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
@@ -20,9 +24,11 @@ type PromptPayload = {
   missionId?: string;
 };
 
-async function resolveSessionTitle(sessionId: string): Promise<string | null> {
+async function resolveSessionTitle(
+  client: ReturnType<typeof resolveSessionRouteTarget>["client"],
+  sessionId: string,
+): Promise<string | null> {
   try {
-    const client = getOpencodeClient();
     const result = await client.session.list();
     if (result.error) {
       return null;
@@ -42,7 +48,9 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
   const requestId = crypto.randomUUID();
   const body = (await request.json().catch(() => null)) as PromptPayload | null;
-  const managedSession = findManagedSession(sessionId);
+  const routeTarget = resolveSessionRouteTarget(sessionId);
+  const managedSession = routeTarget.managedSession;
+  const ownedSession = routeTarget.ownedSession;
 
   appendSessionPromptDebugLog({
     route: "api.session.$id.prompt",
@@ -57,6 +65,14 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
             ownerAgent: managedSession.ownerAgent,
           }
         : null,
+      ownedSession: ownedSession
+        ? {
+            ownerAgent: ownedSession.ownerAgent,
+            sessionTitle: ownedSession.sessionTitle,
+            surface: ownedSession.surface,
+            transportMode: ownedSession.transportMode,
+          }
+        : null,
     },
   });
 
@@ -65,11 +81,14 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   }
 
   try {
-    const client = getOpencodeClient();
+    const appRoot = getProjectRoot();
+    const client = routeTarget.client;
     const selectedModel = isModelSelection(body.model) ? body.model : undefined;
     const { model, variant } = splitModelSelection(selectedModel);
     const userMessageId = createOpencodeMessageId();
-    const rawSessionTitle = managedSession ? await resolveSessionTitle(sessionId) : null;
+    const rawSessionTitle = managedSession
+      ? await resolveSessionTitle(client, sessionId)
+      : ownedSession?.sessionTitle ?? null;
     const requestedSelection: SessionSelection = {
       agent: body.agent ? body.agent : null,
       model: selectedModel ?? null,
@@ -85,12 +104,20 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
           selectedModel: selectedModel ?? null,
         }
       : null;
+    const ownedSessionLog = ownedSession
+      ? {
+          ownerAgent: ownedSession.ownerAgent,
+          rawSessionTitle,
+          surface: ownedSession.surface,
+          transportMode: ownedSession.transportMode,
+        }
+      : null;
     const composed = composeGenericSessionPrompt({
       context: {
         missionId: managedSession?.missionId ?? (typeof body.missionId === "string" ? body.missionId : undefined),
         sessionId,
         agent: body.agent,
-        appRoot: getProjectRoot(),
+        appRoot,
       },
       parts: body.parts,
     });
@@ -108,8 +135,50 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         agent: body.agent ?? null,
         parts: composed.payloadParts,
         managedSession: managedSessionLog,
+        ownedSession: ownedSessionLog,
       },
     });
+
+    if (ownedSession?.transportMode === "tmux-resident") {
+      await requireReadyMissionTransport({
+        appRoot,
+        transportMode: ownedSession.transportMode,
+      });
+
+      queueOwnedSessionTmuxDispatch({
+        ownerAgent: ownedSession.ownerAgent,
+        sessionId,
+        sessionTitle: rawSessionTitle ?? ownedSession.sessionTitle,
+        parts: composed.payloadParts,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      appendSessionPromptDebugLog({
+        route: "api.session.$id.prompt",
+        stage: "prompt-result",
+        requestId,
+        sessionId,
+        payload: {
+          error: null,
+          managedSession: managedSessionLog,
+          ownedSession: ownedSessionLog,
+          queued: true,
+        },
+      });
+
+      try {
+        saveSessionRequestAnchor({
+          sessionId,
+          userMessageId,
+          requested: requestedSelection,
+        });
+      } catch {
+        // Request tracking must never block prompt delivery.
+      }
+
+      return new Response(null, { status: 204 });
+    }
 
     const result = await client.session.promptAsync({
       sessionID: sessionId,
@@ -128,6 +197,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       payload: {
         error: result.error ?? null,
         managedSession: managedSessionLog,
+        ownedSession: ownedSessionLog,
       },
     });
 
@@ -166,6 +236,10 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
     return new Response(null, { status: 204 });
   } catch (error) {
+    if (error instanceof MissionTransportNotReadyError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
     appendSessionPromptDebugLog({
       route: "api.session.$id.prompt",
       stage: "prompt-error",

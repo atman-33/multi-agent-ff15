@@ -36,6 +36,7 @@ describe("api.session.$id.events", () => {
       endpointUrl: null,
       managedSession: null,
       mode: "default",
+      ownedSession: null,
       ownerAgent: null,
     }));
   });
@@ -146,5 +147,50 @@ describe("api.session.$id.events", () => {
     expect(globalEventMock).not.toHaveBeenCalled();
     const body = await response.text();
     expect(body).toContain('"sessionID":"session-managed"');
+  });
+
+  it("subscribes through the resolved owner client for owned Iris sessions", async () => {
+    const ownedGlobalEventMock = vi.fn().mockResolvedValue({
+      stream: createStream([
+        {
+          type: "session.status",
+          properties: {
+            sessionID: "session-iris",
+            status: { type: "busy" },
+          },
+        },
+      ]),
+    });
+
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        global: {
+          event: ownedGlobalEventMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4405",
+      managedSession: null,
+      mode: "owned",
+      ownedSession: {
+        ownerAgent: "iris",
+        sessionTitle: "iris:projects",
+        surface: "projects-iris",
+        transportMode: "tmux-resident",
+        updatedAt: "2026-04-30T00:00:00.000Z",
+      },
+      ownerAgent: "iris",
+    });
+
+    const response = await loader({
+      request: new Request("http://localhost/api/session/session-iris/events"),
+      params: { id: "session-iris" },
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(resolveSessionRouteTargetMock).toHaveBeenCalledWith("session-iris");
+    expect(ownedGlobalEventMock).toHaveBeenCalledTimes(1);
+    expect(globalEventMock).not.toHaveBeenCalled();
+    const body = await response.text();
+    expect(body).toContain('"sessionID":"session-iris"');
   });
 });

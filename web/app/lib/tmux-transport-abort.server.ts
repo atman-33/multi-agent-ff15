@@ -8,12 +8,15 @@ import type { AgentId } from "@/lib/types/mission";
 export const TMUX_TRANSPORT_ABORT_REQUEST_DIR = "tmux-transport-aborts";
 export const TMUX_TRANSPORT_CURRENT_DISPATCH_FILE = "tmux-transport-current-dispatch.json";
 
-const TMUX_AGENT_PANE_INDEX: Record<AgentId, number> = {
+export type TmuxTransportOwnerAgent = AgentId | "iris";
+
+const TMUX_AGENT_PANE_INDEX: Record<TmuxTransportOwnerAgent, number> = {
   noctis: 0,
   ignis: 1,
   gladiolus: 2,
   prompto: 3,
   lunafreya: 4,
+  iris: 5,
 };
 const TMUX_SESSION_NAME = "ff15";
 
@@ -27,7 +30,7 @@ export type TmuxDispatchPhase =
 export type ManagedTmuxInterruptMethod = "ctrl-c" | "escape";
 
 export interface TmuxCurrentDispatchRecord {
-  agent: AgentId;
+  agent: TmuxTransportOwnerAgent;
   itemId: string;
   missionId: string;
   phase: TmuxDispatchPhase;
@@ -58,8 +61,15 @@ function isDispatchPhase(value: unknown): value is TmuxDispatchPhase {
   );
 }
 
-function isAgentId(value: unknown): value is AgentId {
-  return value === "noctis" || value === "ignis" || value === "gladiolus" || value === "prompto" || value === "lunafreya";
+function isAgentId(value: unknown): value is TmuxTransportOwnerAgent {
+  return (
+    value === "noctis" ||
+    value === "ignis" ||
+    value === "gladiolus" ||
+    value === "prompto" ||
+    value === "lunafreya" ||
+    value === "iris"
+  );
 }
 
 function normalizeCurrentDispatch(value: unknown): TmuxCurrentDispatchRecord | null {
@@ -157,7 +167,7 @@ export function requestTmuxDispatchAbortForSession(input: {
 
 export function interruptManagedTmuxSession(input: {
   method: ManagedTmuxInterruptMethod;
-  ownerAgent: AgentId;
+  ownerAgent: TmuxTransportOwnerAgent;
   root?: string;
 }): void {
   const root = input.root ?? getProjectRoot();

@@ -67,7 +67,12 @@ vi.mock("./components/project-iris-sheet", () => ({
   },
 }));
 
-import { loader, normalizeProjectIrisHistoryMessages, ProjectsPage } from "./route";
+import {
+  buildProjectIrisStartPayload,
+  loader,
+  normalizeProjectIrisHistoryMessages,
+  ProjectsPage,
+} from "./route";
 
 const TestPage = ProjectsPage as unknown as (props: { loaderData: unknown }) => ReactNode;
 
@@ -325,6 +330,26 @@ describe("projects route", () => {
       providerID: "github-copilot",
       modelID: "gpt-5.4",
       variant: "balanced",
+    });
+  });
+
+  it("builds the Projects Iris start payload with the owned-session surface hint", () => {
+    const selectedModel = {
+      providerID: "openai",
+      modelID: "gpt-5.4",
+      variant: "thinking",
+    };
+
+    expect(
+      buildProjectIrisStartPayload({
+        model: selectedModel,
+        parts: [{ type: "text", text: "Refresh the project registry." }],
+      }),
+    ).toEqual({
+      agent: "iris",
+      model: selectedModel,
+      ownedSessionSurface: "projects-iris",
+      parts: [{ type: "text", text: "Refresh the project registry." }],
     });
   });
 

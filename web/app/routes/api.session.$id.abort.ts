@@ -1,5 +1,9 @@
 import { appendMissionActivity, getMission } from "@/lib/mission-store";
 import { cancelTmuxDispatchItemsForSession } from "@/lib/mission-primary-agent-outbox.server";
+import {
+  cancelOwnedSessionTmuxDispatchItems,
+  getOwnedSessionTransportMissionId,
+} from "@/lib/owned-session-transport.server";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import {
@@ -32,13 +36,21 @@ export const action = async ({ params }: Route.ActionArgs) => {
 
   const requestId = crypto.randomUUID();
   let managedSession: ReturnType<typeof resolveSessionRouteTarget>["managedSession"] = null;
+  let ownedSession: ReturnType<typeof resolveSessionRouteTarget>["ownedSession"] = null;
 
   try {
-    const { client, managedSession: resolvedManagedSession } = resolveSessionRouteTarget(sessionId);
+    const {
+      client,
+      managedSession: resolvedManagedSession,
+      ownedSession: resolvedOwnedSession,
+    } = resolveSessionRouteTarget(sessionId);
     managedSession = resolvedManagedSession;
+    ownedSession = resolvedOwnedSession;
     const managedMission = managedSession ? getMission(managedSession.missionId) : null;
     const isTmuxManagedSession = managedMission?.transportMode === "tmux-resident";
-    const rawSessionTitle = managedSession ? await resolveSessionTitle(client, sessionId) : null;
+    const rawSessionTitle = managedSession
+      ? await resolveSessionTitle(client, sessionId)
+      : ownedSession?.sessionTitle ?? null;
     const abortedAt = new Date().toISOString();
     let tmuxAbortAction:
       | {
@@ -59,6 +71,13 @@ export const action = async ({ params }: Route.ActionArgs) => {
               missionId: managedSession.missionId,
               ownerAgent: managedSession.ownerAgent,
               rawSessionTitle,
+            }
+          : null,
+        ownedSession: ownedSession
+          ? {
+              ownerAgent: ownedSession.ownerAgent,
+              rawSessionTitle,
+              surface: ownedSession.surface,
             }
           : null,
       },
@@ -109,6 +128,50 @@ export const action = async ({ params }: Route.ActionArgs) => {
       }
     }
 
+    if (ownedSession) {
+      cancelOwnedSessionTmuxDispatchItems({
+        sessionId,
+        cancelledAt: abortedAt,
+        cancelledBy: "abort-route",
+        reason: "Owned session abort requested",
+      });
+
+      if (ownedSession.transportMode === "tmux-resident") {
+        try {
+          const dispatchAbort = requestTmuxDispatchAbortForSession({
+            missionId: getOwnedSessionTransportMissionId(sessionId),
+            requestedAt: abortedAt,
+            requestedBy: "abort-route",
+            sessionId,
+          });
+
+          if (dispatchAbort.requested) {
+            tmuxAbortAction = {
+              mode: "dispatcher-cancel",
+              phase: dispatchAbort.currentDispatch?.phase ?? null,
+            };
+          } else {
+            interruptManagedTmuxSession({
+              method: "escape",
+              ownerAgent: ownedSession.ownerAgent,
+            });
+            tmuxAbortAction = {
+              mode: "escape",
+              phase: dispatchAbort.currentDispatch?.phase ?? null,
+            };
+          }
+        } catch (tmuxInterruptError) {
+          tmuxAbortAction = {
+            error:
+              tmuxInterruptError instanceof Error
+                ? tmuxInterruptError.message
+                : String(tmuxInterruptError),
+            mode: "error",
+          };
+        }
+      }
+    }
+
     const result = await client.session.abort({ sessionID: sessionId });
 
     appendSessionPromptDebugLog({
@@ -123,6 +186,13 @@ export const action = async ({ params }: Route.ActionArgs) => {
               missionId: managedSession.missionId,
               ownerAgent: managedSession.ownerAgent,
               rawSessionTitle,
+            }
+          : null,
+        ownedSession: ownedSession
+          ? {
+              ownerAgent: ownedSession.ownerAgent,
+              rawSessionTitle,
+              surface: ownedSession.surface,
             }
           : null,
         tmuxAbortAction,
@@ -161,6 +231,12 @@ export const action = async ({ params }: Route.ActionArgs) => {
           ? {
               missionId: managedSession.missionId,
               ownerAgent: managedSession.ownerAgent,
+            }
+          : null,
+        ownedSession: ownedSession
+          ? {
+              ownerAgent: ownedSession.ownerAgent,
+              surface: ownedSession.surface,
             }
           : null,
       },

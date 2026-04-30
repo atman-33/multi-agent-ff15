@@ -9,6 +9,11 @@ import {
   leaseTmuxDispatchItem,
   listTmuxDispatchItems,
 } from "@/lib/mission-primary-agent-outbox.server";
+import {
+  getOwnedSessionTransportMissionId,
+  listOwnedSessionTmuxDispatchItems,
+  queueOwnedSessionTmuxDispatch,
+} from "@/lib/owned-session-transport.server";
 
 const {
   abortMock,
@@ -107,8 +112,96 @@ describe("api.session.$id.abort", () => {
       endpointUrl: null,
       managedSession: null,
       mode: "default",
+      ownedSession: null,
       ownerAgent: null,
     }));
+  });
+
+  it("cancels queued tmux work for owned Iris sessions before forwarding abort", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    queueOwnedSessionTmuxDispatch({
+      ownerAgent: "iris",
+      sessionId: "session-iris",
+      sessionTitle: "iris:projects",
+      parts: [{ type: "text", text: "pending Iris payload" }],
+      queuedAt: "2026-04-28T01:00:00.000Z",
+    });
+    queueOwnedSessionTmuxDispatch({
+      ownerAgent: "iris",
+      sessionId: "session-iris",
+      sessionTitle: "iris:projects",
+      parts: [{ type: "text", text: "leased Iris payload" }],
+      queuedAt: "2026-04-28T01:01:00.000Z",
+    });
+    leaseTmuxDispatchItem({
+      missionId: getOwnedSessionTransportMissionId("session-iris"),
+      leaseOwner: "dispatcher-abort",
+      leasedAt: "2026-04-28T01:01:30.000Z",
+      staleAfterMs: 30_000,
+    });
+
+    resolvedAbortMock.mockResolvedValue({ data: { ok: true } });
+    requestTmuxDispatchAbortForSessionMock.mockReturnValue({
+      currentDispatch: {
+        agent: "iris",
+        itemId: "item-dispatch-owned",
+        missionId: getOwnedSessionTransportMissionId("session-iris"),
+        phase: "typing-payload",
+        sessionId: "session-iris",
+        target: "ff15:main.5",
+        updatedAt: "2026-04-30T10:00:00.000Z",
+      },
+      requested: true,
+    });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          abort: resolvedAbortMock,
+          list: resolvedSessionListMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4405",
+      managedSession: null,
+      mode: "owned",
+      ownedSession: {
+        ownerAgent: "iris",
+        sessionTitle: "iris:projects",
+        surface: "projects-iris",
+        transportMode: "tmux-resident",
+        updatedAt: "2026-04-30T00:00:00.000Z",
+      },
+      ownerAgent: "iris",
+    });
+
+    const response = await action({ params: { id: "session-iris" } } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(requestTmuxDispatchAbortForSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missionId: getOwnedSessionTransportMissionId("session-iris"),
+        requestedBy: "abort-route",
+        sessionId: "session-iris",
+      }),
+    );
+    expect(interruptManagedTmuxSessionMock).not.toHaveBeenCalled();
+    expect(listOwnedSessionTmuxDispatchItems("session-iris")).toEqual([
+      expect.objectContaining({
+        status: "cancelled",
+        cancellation: expect.objectContaining({
+          cancelledBy: "abort-route",
+          reason: "Owned session abort requested",
+        }),
+      }),
+      expect.objectContaining({
+        status: "cancelled",
+        cancellation: expect.objectContaining({
+          cancelledBy: "abort-route",
+          reason: "Owned session abort requested",
+        }),
+      }),
+    ]);
   });
 
   it("records managed abort activity and debug logs", async () => {
@@ -288,7 +381,12 @@ describe("api.session.$id.abort", () => {
     const missionId = `mission-${crypto.randomUUID()}`;
     missionIds.push(missionId);
     createMission(missionId, "session-noctis", { executionProjectId: "alpha" });
-    getMission(missionId)!.transportMode = "tmux-resident";
+    const mission = getMission(missionId);
+    expect(mission).toBeTruthy();
+    if (!mission) {
+      throw new Error("Mission not found");
+    }
+    mission.transportMode = "tmux-resident";
     setWorkerSession(missionId, "ignis", "session-ignis");
 
     resolvedSessionListMock.mockResolvedValue({
@@ -342,7 +440,12 @@ describe("api.session.$id.abort", () => {
     const missionId = `mission-${crypto.randomUUID()}`;
     missionIds.push(missionId);
     createMission(missionId, "session-noctis", { executionProjectId: "alpha" });
-    getMission(missionId)!.transportMode = "tmux-resident";
+    const mission = getMission(missionId);
+    expect(mission).toBeTruthy();
+    if (!mission) {
+      throw new Error("Mission not found");
+    }
+    mission.transportMode = "tmux-resident";
     setWorkerSession(missionId, "ignis", "session-ignis");
 
     resolvedSessionListMock.mockResolvedValue({

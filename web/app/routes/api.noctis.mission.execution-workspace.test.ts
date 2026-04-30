@@ -15,7 +15,18 @@ import { getProjectRoot } from "@/lib/get-project-root.server";
 import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 import { readTmuxActiveMission, writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 
-const { promptAsyncMock, sessionCreateMock, sessionListMock, sessionStatusMock } = vi.hoisted(() => ({
+const {
+  ownerSessionCreateMock,
+  ownerSessionListMock,
+  ownerSessionStatusMock,
+  promptAsyncMock,
+  sessionCreateMock,
+  sessionListMock,
+  sessionStatusMock,
+} = vi.hoisted(() => ({
+  ownerSessionCreateMock: vi.fn(),
+  ownerSessionListMock: vi.fn(),
+  ownerSessionStatusMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
   sessionListMock: vi.fn(),
@@ -23,6 +34,14 @@ const { promptAsyncMock, sessionCreateMock, sessionListMock, sessionStatusMock }
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
+  createProjectOpencodeClient: () => ({
+    session: {
+      create: ownerSessionCreateMock,
+      list: ownerSessionListMock,
+      promptAsync: promptAsyncMock,
+      status: ownerSessionStatusMock,
+    },
+  }),
   getOpencodeClient: () => ({
     session: {
       create: sessionCreateMock,
@@ -259,7 +278,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     const root = createTempRoot({ transportMode: "tmux-resident" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeHealthyTmuxTransportBootstrapArtifacts(root);
-    sessionCreateMock.mockResolvedValue({ data: { id: "session-tmux-start" } });
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-tmux-start" } });
 
     const response = await startAction({
       request: new Request("http://localhost/api/noctis/mission/start", {
@@ -279,6 +298,13 @@ describe("Noctis mission execution workspace lifecycle", () => {
 
     expect(data.noctisSessionId).toBe("session-tmux-start");
     expect(promptAsyncMock).not.toHaveBeenCalled();
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${data.missionId}:noctis`,
+      }),
+    );
 
     const queuedItems = listPrimaryAgentOutboxItems(data.missionId);
     expect(queuedItems).toHaveLength(1);
@@ -309,6 +335,38 @@ describe("Noctis mission execution workspace lifecycle", () => {
     );
   });
 
+  it("creates tmux-resident Noctis mission sessions on the owner endpoint", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-owner-start" } });
+
+    const response = await startAction({
+      request: new Request("http://localhost/api/noctis/mission/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Start through the Noctis owner endpoint.",
+          executionProjectId: "alpha",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ missionId: string; noctisSessionId: string }>(response);
+    missionIds.push(data.missionId);
+
+    expect(data.noctisSessionId).toBe("session-owner-start");
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${data.missionId}:noctis`,
+      }),
+    );
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+  });
+
   it("blocks tmux mission start when another writable mission is still busy", async () => {
     const root = createTempRoot({ transportMode: "tmux-resident" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -325,7 +383,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       missionId: activeMission.id,
       updatedAt: "2026-04-29T00:00:00.000Z",
     });
-    sessionStatusMock.mockResolvedValue({
+    ownerSessionStatusMock.mockResolvedValue({
       data: {
         "session-active": "busy",
       },
@@ -717,7 +775,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       executionTargetMode: "execution_project",
     });
     missionIds.push(mission.id);
-    sessionListMock.mockResolvedValue({
+    ownerSessionListMock.mockResolvedValue({
       data: [
         {
           id: "session-tmux-existing",
@@ -745,6 +803,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
     });
     expect(sessionCreateMock).not.toHaveBeenCalled();
     expect(promptAsyncMock).not.toHaveBeenCalled();
+    expect(sessionListMock).not.toHaveBeenCalled();
 
     const queuedItems = listPrimaryAgentOutboxItems(mission.id);
     expect(queuedItems).toHaveLength(1);
@@ -760,6 +819,75 @@ describe("Noctis mission execution workspace lifecycle", () => {
     const activityBody = getMission(mission.id)?.activityLog.map((entry) => entry.body).join("\n") ?? "";
     expect(activityBody).toContain("Queued primary-agent tmux delivery.");
     expect(activityBody).not.toContain("Resume through tmux transport.");
+  });
+
+  it("recreates a tmux-resident Noctis session on the owner endpoint when the stored session is missing", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    const mission = createMission(`mission-tmux-rebind-${crypto.randomUUID()}`, "session-stale-default", {
+      title: "Tmux rebound mission",
+      objective: "Repair a stale Noctis owner session",
+      allowedWorkers: [],
+      executionProjectId: "alpha",
+      executionTargetMode: "execution_project",
+    });
+    missionIds.push(mission.id);
+    ownerSessionListMock
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "session-other",
+            title: "unrelated-session",
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "session-owner-recreated",
+            title: `mission:${mission.id}:noctis`,
+          },
+        ],
+        error: null,
+      });
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-owner-recreated" } });
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Repair the Noctis owner session.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await readJson<{ noctisSessionId: string }>(response)).toEqual({
+      noctisSessionId: "session-owner-recreated",
+    });
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${mission.id}:noctis`,
+      }),
+    );
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(getMission(mission.id)?.noctisSessionId).toBe("session-owner-recreated");
+
+    const queuedItems = listPrimaryAgentOutboxItems(mission.id);
+    expect(queuedItems).toHaveLength(1);
+    expect(queuedItems[0]).toMatchObject({
+      payload: {
+        agent: "noctis",
+        sessionId: "session-owner-recreated",
+        sessionTitle: `mission:${mission.id}:noctis`,
+      },
+    });
   });
 
   it("refuses mission continue when tmux transport bootstrap is unhealthy", async () => {
@@ -816,7 +944,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       missionId: activeMission.id,
       updatedAt: "2026-04-29T00:00:00.000Z",
     });
-    sessionStatusMock.mockResolvedValue({
+    ownerSessionStatusMock.mockResolvedValue({
       data: {
         "session-active": "busy",
         "session-target": "idle",
@@ -866,13 +994,13 @@ describe("Noctis mission execution workspace lifecycle", () => {
       missionId: activeMission.id,
       updatedAt: "2026-04-29T00:00:00.000Z",
     });
-    sessionStatusMock.mockResolvedValue({
+    ownerSessionStatusMock.mockResolvedValue({
       data: {
         "session-idle": "idle",
       },
       error: null,
     });
-    sessionListMock.mockResolvedValue({
+    ownerSessionListMock.mockResolvedValue({
       data: [
         {
           id: "session-target",

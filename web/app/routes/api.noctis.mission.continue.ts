@@ -25,7 +25,29 @@ import { getOpencodeClient } from "@/lib/opencode-client";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
+import { resolveOwnerEndpointTarget } from "@/lib/session-owner-routing.server";
 import type { Route } from "./+types/api.noctis.mission.continue";
+
+async function hasSessionOnClient(
+  client: ReturnType<typeof getOpencodeClient>,
+  sessionId: string,
+): Promise<boolean> {
+  const listSessions = client.session.list;
+  if (typeof listSessions !== "function") {
+    return false;
+  }
+
+  try {
+    const result = await listSessions();
+    if (result.error || !Array.isArray(result.data)) {
+      return false;
+    }
+
+    return result.data.some((session) => session?.id === sessionId);
+  } catch {
+    return false;
+  }
+}
 
 export const action = async ({ request }: Route.ActionArgs) => {
   if (request.method !== "POST") {
@@ -116,7 +138,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
       appRoot,
       transportMode: mission.transportMode,
     });
-    const client = getOpencodeClient();
+    const client =
+      transportStatus.transportMode === "tmux-resident"
+        ? resolveOwnerEndpointTarget(noctisAgentProfile, `mission continue ${missionId}`).client
+        : getOpencodeClient();
     if (transportStatus.transportMode === "tmux-resident") {
       await claimPrimaryAgentTmuxMissionWriteFocus({
         appRoot,
@@ -147,7 +172,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     let sessionId = mission.noctisSessionId;
     let sessionRecreated = false;
-    if (!sessionId) {
+    const needsManagedSessionRecreation =
+      !sessionId ||
+      (transportStatus.transportMode === "tmux-resident" && !(await hasSessionOnClient(client, sessionId)));
+    if (needsManagedSessionRecreation) {
       const sessionResult = await client.session.create({
         directory: executionRoot.sessionHostRoot,
         title: getManagedSessionTitle(missionId, "noctis"),

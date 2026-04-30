@@ -76,8 +76,54 @@ describe("api.session.$id", () => {
       endpointUrl: null,
       managedSession: null,
       mode: "default",
+      ownedSession: null,
       ownerAgent: null,
     }));
+  });
+
+  it("loads owned Iris session transcript through the resolved owner-aware client", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    sessionMessagesMock.mockRejectedValue(new Error("default client should not be used"));
+    resolvedSessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-owned",
+            role: "assistant",
+            agent: "iris",
+            time: { created: Date.parse("2026-04-28T10:00:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Owned Iris route reply." }],
+        },
+      ],
+    });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          messages: resolvedSessionMessagesMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4405",
+      managedSession: null,
+      mode: "owned",
+      ownedSession: {
+        ownerAgent: "iris",
+        sessionTitle: "iris:projects",
+        surface: "projects-iris",
+        transportMode: "tmux-resident",
+        updatedAt: "2026-04-30T00:00:00.000Z",
+      },
+      ownerAgent: "iris",
+    });
+
+    const response = await loader({ params: { id: "session-iris" } } as never);
+
+    expect(response.status).toBe(200);
+    const data = await readJson<{ messages: Array<{ info: { id: string } }> }>(response);
+    expect(data.messages[0]?.info.id).toBe("assistant-owned");
+    expect(resolvedSessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-iris" });
+    expect(sessionMessagesMock).not.toHaveBeenCalled();
   });
 
   it("loads managed session transcript through the resolved owner-aware client", async () => {

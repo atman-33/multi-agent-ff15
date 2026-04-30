@@ -87,16 +87,24 @@ async function fetchProjectIrisMessages(sessionId: string): Promise<SessionPrese
   return normalizeProjectIrisHistoryMessages(data?.messages ?? []);
 }
 
+export function buildProjectIrisStartPayload(input: {
+  model: ModelSelection | null;
+  parts: PromptPart[];
+}) {
+  return {
+    agent: PROJECT_IRIS_AGENT_ID,
+    model: input.model ?? undefined,
+    ownedSessionSurface: "projects-iris" as const,
+    parts: input.parts,
+  };
+}
+
 async function startProjectIrisSession(input: {
   model: ModelSelection | null;
   parts: PromptPart[];
 }): Promise<string> {
   const response = await fetch("/api/opencode/session/start", {
-    body: JSON.stringify({
-      agent: PROJECT_IRIS_AGENT_ID,
-      ...(input.model ? { model: input.model } : {}),
-      parts: input.parts,
-    }),
+    body: JSON.stringify(buildProjectIrisStartPayload(input)),
     headers: {
       "Content-Type": "application/json",
     },

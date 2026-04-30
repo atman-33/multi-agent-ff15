@@ -497,6 +497,7 @@ describe("operations route", () => {
       contextProjectIds: ["alpha"],
       executionProjectId: "alpha",
       model: selectedModel,
+      ownedSessionSurface: "operation-studio-iris",
       parts: [{ type: "text", text: "Revise this operation." }],
     });
 

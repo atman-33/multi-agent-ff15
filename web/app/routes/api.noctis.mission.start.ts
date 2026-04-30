@@ -28,6 +28,7 @@ import { getOperationState } from "@/lib/operation-runtime/state";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
 import { readRegisteredProjectDefinition } from "@/lib/project-config.server";
+import { resolveOwnerEndpointTarget } from "@/lib/session-owner-routing.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 import type { Route } from "./+types/api.noctis.mission.start";
 
@@ -116,8 +117,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
   try {
     const projectRoot = getProjectRoot();
     const transportStatus = await requireReadyMissionTransport({ appRoot: projectRoot });
-    const client = getOpencodeClient();
     const missionId = crypto.randomUUID();
+    const client =
+      transportStatus.transportMode === "tmux-resident"
+        ? resolveOwnerEndpointTarget(noctisAgentProfile, `mission start ${missionId}`).client
+        : getOpencodeClient();
     const missionCreatedAt = new Date().toISOString();
     if (transportStatus.transportMode === "tmux-resident") {
       await claimPrimaryAgentTmuxMissionWriteFocus({

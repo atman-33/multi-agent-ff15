@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
 const ABORT_REQUEST_DIR = "tmux-transport-aborts";
@@ -667,7 +668,7 @@ function applyModelSelection(
   );
 }
 
-function submitClaimedItem(root: string, item: TmuxDispatchItem): void {
+export function submitClaimedItem(root: string, item: TmuxDispatchItem): void {
   const paneIndex = AGENT_IDS.indexOf(item.payload.agent);
   if (paneIndex === -1) {
     throw new Error(`Unsupported tmux dispatch target: ${item.payload.agent}`);
@@ -720,86 +721,101 @@ function countQueuedItems(root: string): number {
   }, 0);
 }
 
-const root = parseRoot(process.argv.slice(2));
-let processedCount = 0;
-let nextDispatchNotBefore = 0;
-const dispatcherStartedAt = new Date().toISOString();
-
-const tick = () => {
-  let claimed: TmuxDispatchItem | null = null;
-
-  try {
-    const nowDate = new Date();
-    const now = nowDate.toISOString();
-    claimed = nowDate.getTime() >= nextDispatchNotBefore ? claimNextItem(root, now) : null;
-    if (claimed) {
-      submitClaimedItem(root, claimed);
-      processedCount += 1;
-      nextDispatchNotBefore = Date.now() + NEXT_DISPATCH_DELAY_MS;
-    }
-
-    writeState(root, {
-      lastActivityAt: now,
-      processedCount,
-      queuedCount: countQueuedItems(root),
-      startedAt: dispatcherStartedAt,
-    });
-  } catch (error) {
-    if (claimed) {
-      if (error instanceof DispatchAbortError) {
-        writeItem(root, {
-          ...claimed,
-          status: "cancelled",
-          updatedAt: error.cancelledAt,
-          cancellation: {
-            cancelledAt: error.cancelledAt,
-            cancelledBy: error.cancelledBy,
-            reason: error.message,
-          },
-        });
-      } else {
-        const failedAt = new Date().toISOString();
-        writeItem(root, {
-          ...claimed,
-          status: "failed",
-          updatedAt: failedAt,
-          failure: {
-            dispatcherPid: process.pid,
-            failedAt,
-            failedBy: `dispatcher:${process.pid}`,
-            reason: error instanceof Error ? error.message : String(error),
-          },
-        });
-      }
-    }
-
-    writeState(root, {
-      lastActivityAt: new Date().toISOString(),
-      lastError: error instanceof Error ? error.message : String(error),
-      processedCount,
-      queuedCount: countQueuedItems(root),
-      startedAt: dispatcherStartedAt,
-    });
+function isMainModule(): boolean {
+  const entry = process.argv[1];
+  if (!entry) {
+    return false;
   }
-};
 
-writeState(root, {
-  processedCount,
-  queuedCount: countQueuedItems(root),
-  startedAt: dispatcherStartedAt,
-});
-tick();
-const interval = setInterval(tick, LOOP_INTERVAL_MS);
+  return import.meta.url === pathToFileURL(entry).href;
+}
 
-const exitGracefully = () => {
-  clearInterval(interval);
-  cleanup(root);
-  process.exit(0);
-};
+export function main(argv = process.argv.slice(2)): void {
+  const root = parseRoot(argv);
+  let processedCount = 0;
+  let nextDispatchNotBefore = 0;
+  const dispatcherStartedAt = new Date().toISOString();
 
-process.on("SIGINT", exitGracefully);
-process.on("SIGTERM", exitGracefully);
-process.on("exit", () => {
-  clearInterval(interval);
-  cleanup(root);
-});
+  const tick = () => {
+    let claimed: TmuxDispatchItem | null = null;
+
+    try {
+      const nowDate = new Date();
+      const now = nowDate.toISOString();
+      claimed = nowDate.getTime() >= nextDispatchNotBefore ? claimNextItem(root, now) : null;
+      if (claimed) {
+        submitClaimedItem(root, claimed);
+        processedCount += 1;
+        nextDispatchNotBefore = Date.now() + NEXT_DISPATCH_DELAY_MS;
+      }
+
+      writeState(root, {
+        lastActivityAt: now,
+        processedCount,
+        queuedCount: countQueuedItems(root),
+        startedAt: dispatcherStartedAt,
+      });
+    } catch (error) {
+      if (claimed) {
+        if (error instanceof DispatchAbortError) {
+          writeItem(root, {
+            ...claimed,
+            status: "cancelled",
+            updatedAt: error.cancelledAt,
+            cancellation: {
+              cancelledAt: error.cancelledAt,
+              cancelledBy: error.cancelledBy,
+              reason: error.message,
+            },
+          });
+        } else {
+          const failedAt = new Date().toISOString();
+          writeItem(root, {
+            ...claimed,
+            status: "failed",
+            updatedAt: failedAt,
+            failure: {
+              dispatcherPid: process.pid,
+              failedAt,
+              failedBy: `dispatcher:${process.pid}`,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          });
+        }
+      }
+
+      writeState(root, {
+        lastActivityAt: new Date().toISOString(),
+        lastError: error instanceof Error ? error.message : String(error),
+        processedCount,
+        queuedCount: countQueuedItems(root),
+        startedAt: dispatcherStartedAt,
+      });
+    }
+  };
+
+  writeState(root, {
+    processedCount,
+    queuedCount: countQueuedItems(root),
+    startedAt: dispatcherStartedAt,
+  });
+  tick();
+  const interval = setInterval(tick, LOOP_INTERVAL_MS);
+
+  const exitGracefully = () => {
+    clearInterval(interval);
+    cleanup(root);
+    process.exit(0);
+  };
+
+  process.on("SIGINT", exitGracefully);
+  process.on("SIGTERM", exitGracefully);
+  process.on("exit", () => {
+    clearInterval(interval);
+    cleanup(root);
+  });
+}
+
+if (isMainModule()) {
+  main();
+}

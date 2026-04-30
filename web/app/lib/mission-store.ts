@@ -530,7 +530,7 @@ export function listMissionSummaries(options?: {
     .map((entry) => entry.name);
   const missions = missionIds
     .map((missionId) => getMission(missionId))
-    .filter((mission): mission is Mission => mission !== null)
+    .filter((mission): mission is Mission => mission != null)
     .filter((mission) => {
       if (view === "all") {
         return true;

@@ -196,6 +196,7 @@ export function buildOperationsIrisStartPayload(input: {
     contextProjectIds: input.contextProjectIds,
     executionProjectId: input.executionProjectId,
     model: input.model ?? undefined,
+    ownedSessionSurface: "operation-studio-iris" as const,
     parts: input.parts,
   };
 }
