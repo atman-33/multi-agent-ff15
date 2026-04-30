@@ -4,6 +4,7 @@ import {
 } from "@/lib/banter/runtime";
 import type { BanterCue } from "@/lib/banter/types";
 import type { AgentStatus } from "@/lib/noctis-team-ui-types";
+import type { MissionPrimaryAgentId } from "@/lib/types/mission";
 
 export type AgentEvent =
   | { type: "session.created" }
@@ -39,13 +40,14 @@ const _TASK_ASSIGNED_LABEL: Record<string, string> = {
 
 export function eventToPartyUpdate(
   event: AgentEvent,
+  primaryAgentId: MissionPrimaryAgentId,
 ): PartyRuntimeUpdate | null {
   switch (event.type) {
     case "session.created": {
       return {
-        memberId: "noctis",
+        memberId: primaryAgentId,
         status: "working",
-        speakerAgent: "noctis",
+        speakerAgent: primaryAgentId,
         cue: "session-start",
       };
     }
@@ -108,7 +110,7 @@ export function eventToPartyUpdate(
 
     case "session.completed": {
       return {
-        memberId: "noctis",
+        memberId: primaryAgentId,
         status: "success",
       };
     }

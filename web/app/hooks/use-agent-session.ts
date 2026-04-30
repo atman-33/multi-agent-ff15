@@ -1245,16 +1245,12 @@ export function useAgentSession({
       renderedMessage?: string;
       sourceEvent: string;
     }) => {
-      if (isLunafreyaSurface) {
-        return;
-      }
-
       const missionId = missionIdRef.current ?? activeMissionIdRef.current;
       if (!missionId) {
         return;
       }
 
-      const response = await fetch(`/api/noctis/missions/${missionId}/banter`, {
+      const response = await fetch(`${missionRouteBase}/${missionId}/banter`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1279,7 +1275,7 @@ export function useAgentSession({
         banterFeedPresenterRef.current?.enqueueLiveEntries([payload.entry]);
       }
     },
-    [isLunafreyaSurface]
+    [missionRouteBase]
   );
 
   const clearProgressBanter = useCallback((agentId?: string) => {
@@ -1664,9 +1660,11 @@ export function useAgentSession({
         scheduleIdleReset();
       }
 
-      const update = isLunafreyaSurface ? null : eventToPartyUpdate(event);
+      const update = eventToPartyUpdate(event, primaryAgentId);
       if (update) {
-        setPartyRuntime((prev) => applyPartyRuntimeUpdate(prev, update));
+        if (!isLunafreyaSurface) {
+          setPartyRuntime((prev) => applyPartyRuntimeUpdate(prev, update));
+        }
         if (update.cue && update.speakerAgent) {
           void persistAmbientBanter({
             speakerAgent: update.speakerAgent,
@@ -1680,6 +1678,7 @@ export function useAgentSession({
       clearProgressBanter,
       clearStreamingState,
       isLunafreyaSurface,
+      primaryAgentId,
       persistAmbientBanter,
       scheduleIdleReset,
       setOptimisticSessionState,
@@ -1927,7 +1926,6 @@ export function useAgentSession({
         Date.now() - lastNoctisSettledEmitAtRef.current < MISSION_SETTLED_BANTER_COOLDOWN_MS;
       const shouldEmitSettled =
         hasHydratedSettled &&
-        !isLunafreyaSurface &&
         isPrimarySettled &&
         !previousSettled &&
         !isSettledBanterCoolingDown;
@@ -2043,7 +2041,7 @@ export function useAgentSession({
       if (!hasHydratedNoctisSettledRef.current) {
         hasHydratedNoctisSettledRef.current = true;
         lastNoctisSettledRef.current = isPrimarySettled;
-      } else if (!isLunafreyaSurface && isPrimarySettled && !lastNoctisSettledRef.current) {
+      } else if (isPrimarySettled && !lastNoctisSettledRef.current) {
         if (!isSettledBanterCoolingDown) {
           void persistAmbientBanter({
             speakerAgent: primaryAgentId,
@@ -2113,7 +2111,6 @@ export function useAgentSession({
     [
       clearPendingMissionSession,
       clearAbortSettlement,
-      isLunafreyaSurface,
       isStreaming,
       missionRouteBase,
       pendingMissionSessionId,

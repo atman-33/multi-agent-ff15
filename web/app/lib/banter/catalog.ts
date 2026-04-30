@@ -59,6 +59,48 @@ export const BANTER_CATALOG: BanterCatalog = {
       ],
       "runtime-recovered": ["戻ったな。続けるぞ。", "再開だ。ここから詰める。"],
     },
+    lunafreya: {
+      "session-start": [
+        "承知しました。流れを静かに見定めます。",
+        "始めましょう。必要な声は、いずれここへ集まります。",
+        "この糸を辿ります。乱れがあればすぐに拾いましょう。",
+      ],
+      "task-progress-early": [
+        "まだ波は浅いままです。もう少し見守ります。",
+        "気配を集めています。答えは、まだ霧の向こうです。",
+        "焦らず進めましょう。輪郭はこれから現れます。",
+      ],
+      "task-progress-late": [
+        "流れが整ってきました。次で形になるはずです。",
+        "もうすぐ届きます。必要な線だけが残っています。",
+        "霧は薄れました。このまま辿れます。",
+      ],
+      "session-settled": [
+        "今は静まっています。次の呼びかけがあれば、すぐに応えます。",
+        "ひとまず波は収まりました。次に必要とされる時まで待ちましょう。",
+        "この流れはいったん落ち着きました。次の糸が現れるまで備えます。",
+        "今は幕を下ろせます。また動く時が来れば、すぐに向かいます。",
+      ],
+      "task-completed": [
+        "果たせました。次に繋げましょう。",
+        "役目は終えました。必要なら、すぐ次へ進めます。",
+        "整いました。この結果は次の道標になるでしょう。",
+      ],
+      "task-failed": [
+        "ここでは届きませんでした。別の糸を探しましょう。",
+        "まだ霧が深いようです。進め方を改めます。",
+        "この道は閉じています。別の流れへ移ります。",
+      ],
+      "task-retrying": [
+        "もう一度、静かに結び直しましょう。",
+        "流れを整え直します。まだ手は届きます。",
+        "大丈夫です。別の結び方で、もう一度辿ります。",
+      ],
+      "runtime-recovered": [
+        "戻りました。乱れた流れをここから整えます。",
+        "再び辿れます。続きから静かに進めましょう。",
+      ],
+    },
     ignis: {
       "message-received": [
         "了解した。内容を確認する。",
@@ -319,6 +361,48 @@ export const BANTER_CATALOG: BanterCatalog = {
         "We still have room to push.",
       ],
       "runtime-recovered": ["Back online. Continue.", "We're back. Keep going."],
+    },
+    lunafreya: {
+      "session-start": [
+        "Understood. I will follow the thread carefully.",
+        "Let us begin. What matters will reveal itself in time.",
+        "I am listening for the shape of the next turn now.",
+      ],
+      "task-progress-early": [
+        "The signal is still faint. I need a little more quiet to read it.",
+        "I am gathering the shape of it. The answer has not surfaced yet.",
+        "Not yet. The path is there, but still covered in mist.",
+      ],
+      "task-progress-late": [
+        "The pattern is settling into view now.",
+        "The noise is receding. I can follow the right line from here.",
+        "It is almost clear. One more pass should be enough.",
+      ],
+      "session-settled": [
+        "The path is quiet now. I will remain ready for what follows.",
+        "This turn has settled. Call for me when the next thread appears.",
+        "The current tide has stilled. I can wait until the next need arrives.",
+        "For now, the matter rests. I will answer when it is time to move again.",
+      ],
+      "task-completed": [
+        "It is done. We may carry this forward now.",
+        "The thread holds. I am ready for the next turn.",
+        "This result should guide the next step well enough.",
+      ],
+      "task-failed": [
+        "This path did not open. I will look for another.",
+        "The signal broke apart. I need to approach it differently.",
+        "Not this way. Another thread may still answer.",
+      ],
+      "task-retrying": [
+        "Then I will gather the thread again, more carefully this time.",
+        "The line can still be restored. I will try once more.",
+        "It is not over yet. I will trace it from another angle.",
+      ],
+      "runtime-recovered": [
+        "I am back. Let me bring the current back into order.",
+        "The thread is reachable again. I will continue from here.",
+      ],
     },
     ignis: {
       "message-received": [

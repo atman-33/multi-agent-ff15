@@ -68,4 +68,38 @@ describe("recordAmbientBanter", () => {
       }),
     ]);
   });
+
+  it("creates Lunafreya ambient banter from the catalog", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    const missionId = `mission-ambient-lunafreya-${crypto.randomUUID()}`;
+    missionIds.push(missionId);
+    createMission(missionId, "session-lunafreya", {
+      title: "Lunafreya ambient banter",
+      objective: "Verify Lunafreya banter generation",
+      primaryAgentId: "lunafreya",
+      surfaceId: "lunafreya",
+    });
+
+    const entry = recordAmbientBanter({
+      missionId,
+      speakerAgent: "lunafreya",
+      cue: "session-settled",
+      sourceEvent: "session.settled",
+      createdAt: "2026-04-11T12:00:00.000Z",
+    });
+
+    expect(entry).toEqual(
+      expect.objectContaining({
+        speakerAgent: "lunafreya",
+        cue: "session-settled",
+        renderedMessage: expect.stringMatching(/\S/),
+      }),
+    );
+    expect([
+      "The path is quiet now. I will remain ready for what follows.",
+      "This turn has settled. Call for me when the next thread appears.",
+      "The current tide has stilled. I can wait until the next need arrives.",
+      "For now, the matter rests. I will answer when it is time to move again.",
+    ]).toContain(entry?.renderedMessage);
+  });
 });

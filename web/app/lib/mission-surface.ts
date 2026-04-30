@@ -34,7 +34,7 @@ const MISSION_SURFACES: MissionSurfaceDefinition[] = [
     portraitSrc: "/images/lunafreya.png",
     hiddenOperationName: "lunafreya-autonomous",
     lastMissionStorageKey: "lunafreya:last-mission-id",
-    supportsBanter: false,
+    supportsBanter: true,
     supportsPartyStatus: false,
     supportsWorkflowSelector: false,
   },

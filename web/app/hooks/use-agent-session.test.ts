@@ -15,6 +15,7 @@ import {
 type MockResponse = Pick<Response, "json" | "ok" | "status">;
 
 type HookProbeSnapshot = {
+  banterMessages: string[];
   liveDraft: {
     messageId: string | null;
     parts: Array<{ text?: string; type: string }>;
@@ -218,6 +219,7 @@ function HookProbe({
 
   useEffect(() => {
     onSnapshot({
+      banterMessages: state.banterEntries.map((entry) => entry.message),
       liveDraft: state.liveDraft,
       historyPhase: state.historyPhase,
       isSessionActive: state.isSessionActive,
@@ -233,6 +235,7 @@ function HookProbe({
     onSnapshot,
     state.abort,
     state.abortSettlementPhase,
+    state.banterEntries,
     state.historyPhase,
     state.isSessionActive,
     state.isLoadingHistory,
@@ -2547,6 +2550,89 @@ describe("useAgentSession", () => {
     expect(
       fetchMock.mock.calls.filter(([input]) => String(input) === "/api/noctis/missions/mission-1/banter"),
     ).toHaveLength(1);
+  });
+
+  it("emits session-settled banter for the Lunafreya surface via the Lunafreya mission endpoint", async () => {
+    vi.useFakeTimers();
+
+    const mission = createMission({
+      missionId: "mission-1",
+      primaryAgentId: "lunafreya",
+      primarySessionId: "session-luna",
+      surfaceId: "lunafreya",
+      sessions: {
+        primary: "session-luna",
+        noctis: null,
+        ignis: null,
+        gladiolus: null,
+        prompto: null,
+      },
+    });
+    let runtimeFetchCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url === "/api/lunafreya/missions/mission-1/runtime") {
+        runtimeFetchCount += 1;
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: {},
+        });
+      }
+
+      if (url === "/api/lunafreya/missions/mission-1/banter") {
+        return createJsonResponse({
+          recorded: true,
+          entry: {
+            id: "banter-luna-1",
+            missionId: "mission-1",
+            kind: "ambient",
+            speakerAgent: "lunafreya",
+            cue: "session-settled",
+            renderedMessage: "The path is quiet now. I will remain ready for what follows.",
+            createdAt: "2026-04-26T00:00:00.000Z",
+          },
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => {
+      useChatStore.getState().setOptimisticSessionState("session-luna", "busy", 60_000);
+    });
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [createAssistantMessage("message-1", "Oracle reply")],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      useChatStore.getState().clearOptimisticSessionState("session-luna");
+    });
+
+    const baselineFetchCount = runtimeFetchCount;
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await waitFor(() => runtimeFetchCount > baselineFetchCount);
+
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input) === "/api/lunafreya/missions/mission-1/banter"),
+    ).toBe(true);
   });
 
   it("triggers a targeted runtime refresh when the primary stream disconnects", async () => {
