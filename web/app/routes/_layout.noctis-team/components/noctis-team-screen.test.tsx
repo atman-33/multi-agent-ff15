@@ -645,7 +645,7 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("mission-output-browser");
   });
 
-  it("renders the Lunafreya surface without workflow or party chrome", () => {
+  it("renders the Lunafreya surface with banter instead of activity chrome", () => {
     paramsMock.mockReturnValue({ id: "mission-luna" });
     agentSessionStateMock.mockReturnValue({
       messages: [],
@@ -703,7 +703,8 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("header:Oracle Mission Surface");
     expect(markup).toContain("composer-status:Solo mission surface");
     expect(markup).toContain("lunafreya-status:oracle:hydraean");
-    expect(markup).toContain("activity-log:1");
+    expect(markup).toContain("banter-log");
+    expect(markup).not.toContain("activity-log:1");
     expect(markup).not.toContain("party-status-panel");
   });
 

@@ -7,6 +7,8 @@ import { findManagedSession } from "./managed-session.server";
 import { getManagedSessionTitle } from "./managed-session-titles";
 import { getMission, setMissionPrimarySession, setWorkerSession } from "./mission-store";
 import { createProjectOpencodeClient, getOpencodeClient } from "./opencode-client";
+import type { OwnedSessionEntry } from "./owned-session-registry.server";
+import { readOwnedSession } from "./owned-session-registry.server";
 import type { AgentId } from "./types/mission";
 import { activateTmuxMissionWriteFocus, getTmuxMissionWriteConflict } from "./tmux-mission-activation.server";
 
@@ -24,7 +26,8 @@ export interface SessionRouteTarget {
   client: ReturnType<typeof createProjectOpencodeClient>;
   endpointUrl: string | null;
   managedSession: ManagedSessionInfo | null;
-  mode: "managed" | "default";
+  mode: "managed" | "owned" | "default";
+  ownedSession: OwnedSessionEntry | null;
   ownerAgent: string | null;
 }
 
@@ -41,6 +44,12 @@ export interface TmuxWriteTarget {
   ownerAgent: AgentId;
   sessionId: string;
   sessionTitle: string;
+}
+
+export interface OwnerEndpointTarget {
+  client: ReturnType<typeof createProjectOpencodeClient>;
+  endpointUrl: string;
+  ownerAgent: string;
 }
 
 function toErrorMessage(error: unknown): string {
@@ -119,27 +128,58 @@ function readEndpointManifest(root: string): EndpointManifest | null {
   };
 }
 
-export function resolveSessionRouteTarget(sessionId: string): SessionRouteTarget {
-  const managedSession = findManagedSession(sessionId);
-  if (!managedSession) {
-    return {
-      client: getOpencodeClient(),
-      endpointUrl: null,
-      managedSession: null,
-      mode: "default",
-      ownerAgent: null,
-    };
-  }
-
+export function resolveOwnerEndpointTarget(
+  ownerAgent: string,
+  context: string,
+): OwnerEndpointTarget {
   const root = getProjectRoot();
-  const endpointUrl = resolveManagedEndpointUrl(root, managedSession.ownerAgent, `managed session ${sessionId}`);
+  const endpointUrl = resolveManagedEndpointUrl(root, ownerAgent, context);
 
   return {
     client: createProjectOpencodeClient(endpointUrl),
     endpointUrl,
-    managedSession,
-    mode: "managed",
-    ownerAgent: managedSession.ownerAgent,
+    ownerAgent,
+  };
+}
+
+export function resolveSessionRouteTarget(sessionId: string): SessionRouteTarget {
+  const managedSession = findManagedSession(sessionId);
+  if (managedSession) {
+    const root = getProjectRoot();
+    const endpointUrl = resolveManagedEndpointUrl(root, managedSession.ownerAgent, `managed session ${sessionId}`);
+
+    return {
+      client: createProjectOpencodeClient(endpointUrl),
+      endpointUrl,
+      managedSession,
+      mode: "managed",
+      ownedSession: null,
+      ownerAgent: managedSession.ownerAgent,
+    };
+  }
+
+  const ownedSession = readOwnedSession(sessionId);
+  if (ownedSession) {
+    const root = getProjectRoot();
+    const endpointUrl = resolveManagedEndpointUrl(root, ownedSession.ownerAgent, `owned session ${sessionId}`);
+
+    return {
+      client: createProjectOpencodeClient(endpointUrl),
+      endpointUrl,
+      managedSession: null,
+      mode: "owned",
+      ownedSession,
+      ownerAgent: ownedSession.ownerAgent,
+    };
+  }
+
+  return {
+    client: getOpencodeClient(),
+    endpointUrl: null,
+    managedSession: null,
+    mode: "default",
+    ownedSession: null,
+    ownerAgent: null,
   };
 }
 

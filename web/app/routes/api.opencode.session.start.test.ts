@@ -4,14 +4,27 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
+import { getOwnedSessionTitle } from "@/lib/owned-session-registry.server";
+import { listOwnedSessionTmuxDispatchItems } from "@/lib/owned-session-transport.server";
+import { readOwnedSession } from "@/lib/owned-session-registry.server";
 import { readSessionExecutionContext } from "@/lib/session-execution-context.server";
 
-const { promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
+const { ownerPromptAsyncMock, ownerSessionCreateMock, ownerSessionUpdateMock, promptAsyncMock, sessionCreateMock } = vi.hoisted(() => ({
+  ownerPromptAsyncMock: vi.fn(),
+  ownerSessionCreateMock: vi.fn(),
+  ownerSessionUpdateMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
+  createProjectOpencodeClient: () => ({
+    session: {
+      create: ownerSessionCreateMock,
+      promptAsync: ownerPromptAsyncMock,
+      update: ownerSessionUpdateMock,
+    },
+  }),
   getOpencodeClient: () => ({
     session: {
       create: sessionCreateMock,
@@ -64,6 +77,44 @@ function createTempRoot(): string {
   return root;
 }
 
+function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
+  mkdirSync(join(root, "runtime"), { recursive: true });
+  writeFileSync(
+    join(root, "runtime", "opencode-endpoints.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        startedAt: "2026-04-30T00:00:00.000Z",
+        agents: [
+          {
+            agentId: "iris",
+            port: 4405,
+            url: "http://127.0.0.1:4405",
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+  writeFileSync(
+    join(root, "runtime", "tmux-transport-dispatcher.json"),
+    `${JSON.stringify(
+      {
+        version: 1,
+        owner: "standby",
+        mode: "tmux-resident",
+        pid: process.pid,
+        startedAt: "2026-04-30T00:00:00.000Z",
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
 afterEach(() => {
   vi.clearAllMocks();
 
@@ -82,6 +133,64 @@ afterEach(() => {
 });
 
 describe("api.opencode.session.start", () => {
+  it("persists owned-session metadata for tmux-resident Iris session starts", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(join(root, "config", "settings.yaml"), 'language: en\ntransport_mode: "tmux-resident"\n', "utf-8");
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-iris-start" } });
+    ownerSessionUpdateMock.mockResolvedValue({ data: { id: "session-iris-start" } });
+
+    const response = await action({
+      request: new Request("http://localhost/api/opencode/session/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent: "iris",
+          ownedSessionSurface: "projects-iris",
+          parts: [{ type: "text", text: "Manage the project registry." }],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(201);
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: "Manage the project registry.",
+      }),
+    );
+    expect(ownerSessionUpdateMock).toHaveBeenCalledWith({
+      sessionID: "session-iris-start",
+      title: getOwnedSessionTitle("session-iris-start"),
+    });
+    expect(sessionCreateMock).not.toHaveBeenCalled();
+    expect(ownerPromptAsyncMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+    expect(readOwnedSession("session-iris-start")).toMatchObject({
+      ownerAgent: "iris",
+      sessionTitle: getOwnedSessionTitle("session-iris-start"),
+      surface: "projects-iris",
+      transportMode: "tmux-resident",
+    });
+    expect(listOwnedSessionTmuxDispatchItems("session-iris-start")).toMatchObject([
+      {
+        status: "pending",
+        payload: {
+          agent: "iris",
+          sessionId: "session-iris-start",
+          sessionTitle: getOwnedSessionTitle("session-iris-start"),
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "Manage the project registry.",
+            }),
+          ]),
+        },
+      },
+    ]);
+  });
+
   it("defaults new sessions to the app root execution context", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

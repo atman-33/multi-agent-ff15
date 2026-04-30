@@ -29,7 +29,7 @@ describe("mission surface", () => {
       primaryAgentId: "lunafreya",
       portraitSrc: "/images/lunafreya.png",
       hiddenOperationName: "lunafreya-autonomous",
-      supportsBanter: false,
+      supportsBanter: true,
       supportsPartyStatus: false,
       supportsWorkflowSelector: false,
     });

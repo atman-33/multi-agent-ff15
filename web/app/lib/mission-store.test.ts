@@ -330,6 +330,33 @@ describe("mission store", () => {
     ]);
   });
 
+  it("ignores owned-session transport directories without mission.json", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+
+    const mission = createMission("mission-listed-with-owned-session-dir", "session-3", {
+      title: "Listed Mission",
+    });
+    missionIds.push(mission.id);
+
+    mkdirSync(
+      join(
+        root,
+        "runtime",
+        "noctis-missions",
+        "owned-session-ses_22175d7e6ffea4hkNLJZosfeTc",
+      ),
+      { recursive: true },
+    );
+
+    expect(listMissionSummaries({ view: "all" })).toEqual([
+      expect.objectContaining({
+        missionId: "mission-listed-with-owned-session-dir",
+        title: "Listed Mission",
+      }),
+    ]);
+  });
+
   it("flattens primary and worker activity session ids into mission summaries", () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
 

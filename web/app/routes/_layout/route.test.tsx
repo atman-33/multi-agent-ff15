@@ -66,6 +66,7 @@ describe("app layout navigation", () => {
 
     expect(markup).toContain("Skills");
     expect(markup.indexOf("Skills")).toBeLessThan(markup.indexOf("Operations"));
+    expect(markup).toContain("Tmux Monitor");
     expect(markup).toContain("Config");
     expect(markup).toContain("Server Monitor");
     expect(markup).not.toContain("OMO Config");

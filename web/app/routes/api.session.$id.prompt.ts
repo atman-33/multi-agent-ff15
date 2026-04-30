@@ -1,12 +1,21 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { findManagedSession } from "@/lib/managed-session.server";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { appendMissionActivity } from "@/lib/mission-store";
 import { createOpencodeMessageId } from "@/lib/opencode-message-id";
-import { getOpencodeClient } from "@/lib/opencode-client";
+import { queueOwnedSessionTmuxDispatch } from "@/lib/owned-session-transport.server";
+import {
+  getOwnedSessionTitle,
+  hasOwnedSessionTitle,
+  saveOwnedSession,
+} from "@/lib/owned-session-registry.server";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
+import {
+  MissionTransportNotReadyError,
+  requireReadyMissionTransport,
+} from "@/lib/primary-agent-mission-transport.server";
 import { saveSessionRequestAnchor } from "@/lib/session-request-anchors.server";
 import type { SessionSelection } from "@/lib/session-selection-adjustment";
+import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { stringifyPromptParts } from "@/lib/prompt-parts";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
@@ -20,9 +29,11 @@ type PromptPayload = {
   missionId?: string;
 };
 
-async function resolveSessionTitle(sessionId: string): Promise<string | null> {
+async function resolveSessionTitle(
+  client: ReturnType<typeof resolveSessionRouteTarget>["client"],
+  sessionId: string,
+): Promise<string | null> {
   try {
-    const client = getOpencodeClient();
     const result = await client.session.list();
     if (result.error) {
       return null;
@@ -34,6 +45,41 @@ async function resolveSessionTitle(sessionId: string): Promise<string | null> {
   }
 }
 
+async function resolveOwnedSessionActivationTitle(input: {
+  client: ReturnType<typeof resolveSessionRouteTarget>["client"];
+  sessionId: string;
+  ownedSession: NonNullable<ReturnType<typeof resolveSessionRouteTarget>["ownedSession"]>;
+  rawSessionTitle: string | null;
+}): Promise<string> {
+  const canonicalTitle = getOwnedSessionTitle(input.sessionId);
+  const storedTitleIsCanonical = hasOwnedSessionTitle(input.sessionId, input.ownedSession.sessionTitle);
+  const runtimeTitleIsCanonical =
+    input.rawSessionTitle === null || hasOwnedSessionTitle(input.sessionId, input.rawSessionTitle);
+
+  if (storedTitleIsCanonical && runtimeTitleIsCanonical) {
+    return canonicalTitle;
+  }
+
+  const result = (await input.client.session.update({
+    sessionID: input.sessionId,
+    title: canonicalTitle,
+  })) as { error?: unknown };
+
+  if (result.error) {
+    throw new Error(typeof result.error === "string" ? result.error : "Unable to update owned session title.");
+  }
+
+  saveOwnedSession({
+    ownerAgent: input.ownedSession.ownerAgent,
+    sessionId: input.sessionId,
+    sessionTitle: canonicalTitle,
+    surface: input.ownedSession.surface,
+    transportMode: input.ownedSession.transportMode,
+  });
+
+  return canonicalTitle;
+}
+
 export const action = async ({ request, params }: Route.ActionArgs) => {
   const sessionId = params.id;
   if (!sessionId) {
@@ -42,7 +88,9 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
   const requestId = crypto.randomUUID();
   const body = (await request.json().catch(() => null)) as PromptPayload | null;
-  const managedSession = findManagedSession(sessionId);
+  const routeTarget = resolveSessionRouteTarget(sessionId);
+  const managedSession = routeTarget.managedSession;
+  const ownedSession = routeTarget.ownedSession;
 
   appendSessionPromptDebugLog({
     route: "api.session.$id.prompt",
@@ -57,6 +105,14 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
             ownerAgent: managedSession.ownerAgent,
           }
         : null,
+      ownedSession: ownedSession
+        ? {
+            ownerAgent: ownedSession.ownerAgent,
+            sessionTitle: ownedSession.sessionTitle,
+            surface: ownedSession.surface,
+            transportMode: ownedSession.transportMode,
+          }
+        : null,
     },
   });
 
@@ -65,11 +121,15 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
   }
 
   try {
-    const client = getOpencodeClient();
+    const appRoot = getProjectRoot();
+    const client = routeTarget.client;
     const selectedModel = isModelSelection(body.model) ? body.model : undefined;
     const { model, variant } = splitModelSelection(selectedModel);
     const userMessageId = createOpencodeMessageId();
-    const rawSessionTitle = managedSession ? await resolveSessionTitle(sessionId) : null;
+    const resolvedSessionTitle = await resolveSessionTitle(client, sessionId);
+    const rawSessionTitle = managedSession
+      ? resolvedSessionTitle
+      : resolvedSessionTitle ?? ownedSession?.sessionTitle ?? null;
     const requestedSelection: SessionSelection = {
       agent: body.agent ? body.agent : null,
       model: selectedModel ?? null,
@@ -85,12 +145,20 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
           selectedModel: selectedModel ?? null,
         }
       : null;
+    const ownedSessionLog = ownedSession
+      ? {
+          ownerAgent: ownedSession.ownerAgent,
+          rawSessionTitle,
+          surface: ownedSession.surface,
+          transportMode: ownedSession.transportMode,
+        }
+      : null;
     const composed = composeGenericSessionPrompt({
       context: {
         missionId: managedSession?.missionId ?? (typeof body.missionId === "string" ? body.missionId : undefined),
         sessionId,
         agent: body.agent,
-        appRoot: getProjectRoot(),
+        appRoot,
       },
       parts: body.parts,
     });
@@ -108,8 +176,57 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         agent: body.agent ?? null,
         parts: composed.payloadParts,
         managedSession: managedSessionLog,
+        ownedSession: ownedSessionLog,
       },
     });
+
+    if (ownedSession?.transportMode === "tmux-resident") {
+      await requireReadyMissionTransport({
+        appRoot,
+        transportMode: ownedSession.transportMode,
+      });
+
+      const activationTitle = await resolveOwnedSessionActivationTitle({
+        client,
+        sessionId,
+        ownedSession,
+        rawSessionTitle,
+      });
+
+      queueOwnedSessionTmuxDispatch({
+        ownerAgent: ownedSession.ownerAgent,
+        sessionId,
+        sessionTitle: activationTitle,
+        parts: composed.payloadParts,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      appendSessionPromptDebugLog({
+        route: "api.session.$id.prompt",
+        stage: "prompt-result",
+        requestId,
+        sessionId,
+        payload: {
+          error: null,
+          managedSession: managedSessionLog,
+          ownedSession: ownedSessionLog,
+          queued: true,
+        },
+      });
+
+      try {
+        saveSessionRequestAnchor({
+          sessionId,
+          userMessageId,
+          requested: requestedSelection,
+        });
+      } catch {
+        // Request tracking must never block prompt delivery.
+      }
+
+      return new Response(null, { status: 204 });
+    }
 
     const result = await client.session.promptAsync({
       sessionID: sessionId,
@@ -128,6 +245,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       payload: {
         error: result.error ?? null,
         managedSession: managedSessionLog,
+        ownedSession: ownedSessionLog,
       },
     });
 
@@ -166,6 +284,10 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
     return new Response(null, { status: 204 });
   } catch (error) {
+    if (error instanceof MissionTransportNotReadyError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
     appendSessionPromptDebugLog({
       route: "api.session.$id.prompt",
       stage: "prompt-error",

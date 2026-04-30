@@ -1,15 +1,27 @@
 import type { ActionFunctionArgs } from "react-router";
+import { readAppConfig } from "@/lib/app-config.server";
 import { APP_ROOT_EXECUTION_PROJECT_ID } from "@/lib/execution-context";
 import { readExecutionContextProjectDefinition } from "@/lib/execution-context.server";
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { createOpencodeMessageId } from "@/lib/opencode-message-id";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import { queueOwnedSessionTmuxDispatch } from "@/lib/owned-session-transport.server";
+import {
+  getOwnedSessionTitle,
+  saveOwnedSession,
+  type OwnedSessionSurface,
+} from "@/lib/owned-session-registry.server";
+import {
+  MissionTransportNotReadyError,
+  requireReadyMissionTransport,
+} from "@/lib/primary-agent-mission-transport.server";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { stringifyPromptParts } from "@/lib/prompt-parts";
 import { saveSessionExecutionContext } from "@/lib/session-execution-context.server";
 import { saveSessionRequestAnchor } from "@/lib/session-request-anchors.server";
+import { resolveOwnerEndpointTarget } from "@/lib/session-owner-routing.server";
 import type { SessionSelection } from "@/lib/session-selection-adjustment";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import type { ModelSelection } from "@/lib/types/mission";
@@ -21,7 +33,12 @@ type StartSessionPayload = {
   contextProjectIds?: unknown;
   executionProjectId?: unknown;
   missionId?: string;
+  ownedSessionSurface?: unknown;
 };
+
+function isOwnedSessionSurface(value: unknown): value is OwnedSessionSurface {
+  return value === "operation-studio-iris" || value === "projects-iris";
+}
 
 function isPromptPart(value: unknown): value is PromptPart {
   if (!value || typeof value !== "object") {
@@ -68,8 +85,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const client = getOpencodeClient();
     const projectRoot = getProjectRoot();
+    const appConfig = readAppConfig(projectRoot);
     const executionProjectId =
       typeof body?.executionProjectId === "string" && body.executionProjectId.trim().length > 0
         ? body.executionProjectId.trim()
@@ -86,6 +103,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const selectedModel = isModelSelection(body?.model) ? body.model : undefined;
     const { model, variant } = splitModelSelection(selectedModel);
     const userMessageId = createOpencodeMessageId();
+    const isTmuxOwnedIrisSession =
+      body?.agent === "iris" &&
+      isOwnedSessionSurface(body.ownedSessionSurface) &&
+      appConfig.transportMode === "tmux-resident";
+
+    if (isTmuxOwnedIrisSession) {
+      await requireReadyMissionTransport({
+        appRoot: projectRoot,
+        transportMode: appConfig.transportMode,
+      });
+    }
+
+    const client = isTmuxOwnedIrisSession
+      ? resolveOwnerEndpointTarget("iris", `owned session start ${title}`).client
+      : getOpencodeClient();
     const requestedSelection: SessionSelection = {
       agent: body?.agent ? body.agent : null,
       model: selectedModel ?? null,
@@ -103,6 +135,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const sessionId = sessionResult.data?.id;
     if (!sessionId) {
       return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
+    }
+
+    const ownedSessionTitle = isTmuxOwnedIrisSession ? getOwnedSessionTitle(sessionId) : null;
+
+    if (
+      body?.agent === "iris" &&
+      isOwnedSessionSurface(body.ownedSessionSurface) &&
+      appConfig.transportMode === "tmux-resident"
+    ) {
+      const titleUpdateResult = await client.session.update({
+        sessionID: sessionId,
+        title: ownedSessionTitle ?? title,
+      });
+
+      if (titleUpdateResult.error) {
+        return Response.json({ error: titleUpdateResult.error }, { status: 502 });
+      }
+
+      saveOwnedSession({
+        ownerAgent: "iris",
+        sessionId,
+        sessionTitle: ownedSessionTitle ?? title,
+        surface: body.ownedSessionSurface,
+        transportMode: "tmux-resident",
+      });
     }
 
     saveSessionExecutionContext(sessionId, {
@@ -134,6 +191,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         parts: composed.payloadParts,
       },
     });
+
+    if (isTmuxOwnedIrisSession) {
+      queueOwnedSessionTmuxDispatch({
+        ownerAgent: "iris",
+        sessionId,
+        sessionTitle: ownedSessionTitle ?? title,
+        parts: composed.payloadParts,
+        ...(model ? { model } : {}),
+        ...(variant ? { variant } : {}),
+      });
+
+      try {
+        saveSessionRequestAnchor({
+          sessionId,
+          userMessageId,
+          requested: requestedSelection,
+        });
+      } catch {
+        // Request tracking must never block prompt delivery.
+      }
+
+      return Response.json({ session: sessionResult.data }, { status: 201 });
+    }
 
     const promptResult = await client.session.promptAsync({
       sessionID: sessionId,
@@ -170,6 +250,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return Response.json({ session: sessionResult.data }, { status: 201 });
   } catch (error) {
+    if (error instanceof MissionTransportNotReadyError) {
+      return Response.json({ error: error.message }, { status: 503 });
+    }
+
     appendSessionPromptDebugLog({
       route: "api.opencode.session.start",
       stage: "prompt-error",

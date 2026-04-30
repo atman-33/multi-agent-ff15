@@ -41,6 +41,7 @@ describe("api.session.$id.messages.$messageId", () => {
       endpointUrl: null,
       managedSession: null,
       mode: "default",
+      ownedSession: null,
       ownerAgent: null,
     }));
   });
@@ -94,6 +95,56 @@ describe("api.session.$id.messages.$messageId", () => {
         info: expect.objectContaining({ id: "assistant-managed" }),
       }),
     });
+  });
+
+  it("loads owned Iris session detail through the resolved owner-aware client", async () => {
+    listSessionRequestAnchorsMock.mockReturnValue({});
+    sessionMessagesMock.mockRejectedValue(new Error("default client should not be used"));
+    resolvedSessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-owned",
+            role: "assistant",
+            agent: "iris",
+            time: { created: Date.parse("2026-04-28T10:00:00.000Z") },
+          },
+          parts: [{ type: "text", text: "Owned detail body." }],
+        },
+      ],
+    });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          messages: resolvedSessionMessagesMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4405",
+      managedSession: null,
+      mode: "owned",
+      ownedSession: {
+        ownerAgent: "iris",
+        sessionTitle: "iris:projects",
+        surface: "projects-iris",
+        transportMode: "tmux-resident",
+        updatedAt: "2026-04-30T00:00:00.000Z",
+      },
+      ownerAgent: "iris",
+    });
+
+    const response = await loader({
+      params: { id: "session-iris", messageId: "assistant-owned" },
+    } as never);
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      message: expect.objectContaining({
+        info: expect.objectContaining({ id: "assistant-owned" }),
+      }),
+    });
+    expect(resolvedSessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-iris" });
+    expect(sessionMessagesMock).not.toHaveBeenCalled();
   });
 
   it("returns full message detail for on-demand transcript expansion", async () => {

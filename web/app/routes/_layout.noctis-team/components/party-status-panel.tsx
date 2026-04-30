@@ -46,7 +46,15 @@ type ModelPreset = {
 
 function normalizePartyAgentId(agentId: string): PresetAgentId | null {
   const normalized = normalizeBanterAgentId(agentId);
-  return normalized && PRESET_AGENT_IDS.includes(normalized) ? normalized : null;
+  switch (normalized) {
+    case "noctis":
+    case "ignis":
+    case "gladiolus":
+    case "prompto":
+      return normalized;
+    default:
+      return null;
+  }
 }
 
 const PresetSelector = memo(

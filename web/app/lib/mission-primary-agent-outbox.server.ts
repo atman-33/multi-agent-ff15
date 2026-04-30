@@ -11,6 +11,7 @@ const OUTBOX_STATUSES = ["pending", "leased", "submitted", "failed", "cancelled"
 
 export type PrimaryAgentOutboxStatus = (typeof OUTBOX_STATUSES)[number];
 export type TmuxDispatchStatus = PrimaryAgentOutboxStatus;
+export type TmuxDispatchAgentId = AgentId | "iris";
 
 export interface PrimaryAgentOutboxRecoveredLease {
   attempt: number;
@@ -67,7 +68,7 @@ export interface PrimaryAgentOutboxRecordLinks {
 export type TmuxDispatchRecordLinks = PrimaryAgentOutboxRecordLinks;
 
 export interface PrimaryAgentOutboxPayload {
-  agent: AgentId;
+  agent: TmuxDispatchAgentId;
   sessionId: string;
   sessionTitle?: string;
   parts: TextPromptPart[];
@@ -99,6 +100,17 @@ function isOutboxStatus(value: unknown): value is PrimaryAgentOutboxStatus {
 
 function normalizeString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function normalizeTmuxDispatchAgentId(value: unknown): TmuxDispatchAgentId | null {
+  return value === "noctis" ||
+    value === "lunafreya" ||
+    value === "ignis" ||
+    value === "gladiolus" ||
+    value === "prompto" ||
+    value === "iris"
+    ? value
+    : null;
 }
 
 function normalizePromptParts(value: unknown): TextPromptPart[] | null {
@@ -163,7 +175,7 @@ function normalizePayload(value: unknown): PrimaryAgentOutboxPayload | null {
   }
 
   const record = value as Record<string, unknown>;
-  const agent = normalizeString(record.agent);
+  const agent = normalizeTmuxDispatchAgentId(record.agent);
   const sessionId = normalizeString(record.sessionId);
   const parts = normalizePromptParts(record.parts);
 
@@ -172,7 +184,7 @@ function normalizePayload(value: unknown): PrimaryAgentOutboxPayload | null {
   }
 
   return {
-    agent: agent as AgentId,
+    agent,
     sessionId,
     ...(normalizeString(record.sessionTitle)
       ? { sessionTitle: normalizeString(record.sessionTitle) }

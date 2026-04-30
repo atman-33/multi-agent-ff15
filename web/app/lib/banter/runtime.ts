@@ -9,6 +9,7 @@ import type {
 
 const AGENT_DISPLAY: Record<BanterAgentId, { name: string; avatar: string; memberId: string }> = {
   noctis: { name: "Noctis", avatar: "/images/noctis.png", memberId: "noctis" },
+  lunafreya: { name: "Lunafreya", avatar: "/images/lunafreya.png", memberId: "lunafreya" },
   ignis: { name: "Ignis", avatar: "/images/ignis.png", memberId: "ignis" },
   gladiolus: { name: "Gladio", avatar: "/images/gladiolus.png", memberId: "gladio" },
   prompto: { name: "Prompto", avatar: "/images/prompto.png", memberId: "prompto" },
@@ -21,6 +22,7 @@ export function normalizeBanterAgentId(agentId: string): BanterAgentId | null {
 
   if (
     agentId === "noctis" ||
+    agentId === "lunafreya" ||
     agentId === "ignis" ||
     agentId === "gladiolus" ||
     agentId === "prompto"

@@ -18,6 +18,7 @@ vi.mock("./opencode-server", () => ({
 }));
 
 import { createMission, deleteMission } from "./mission-store";
+import { saveOwnedSession } from "./owned-session-registry.server";
 import { resolveSessionRouteTarget } from "./session-owner-routing.server";
 
 const tempRoots: string[] = [];
@@ -74,6 +75,44 @@ afterEach(() => {
 });
 
 describe("session-owner-routing.server", () => {
+  it("resolves an Iris-owned tmux session to the Iris endpoint", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeEndpointManifest(root, [
+      {
+        agentId: "iris",
+        port: 4405,
+        url: "http://127.0.0.1:4405",
+      },
+    ]);
+    saveOwnedSession({
+      ownerAgent: "iris",
+      sessionId: "session-iris",
+      sessionTitle: "iris:projects",
+      surface: "projects-iris",
+      transportMode: "tmux-resident",
+    });
+
+    const target = resolveSessionRouteTarget("session-iris");
+
+    expect(target).toMatchObject({
+      endpointUrl: "http://127.0.0.1:4405",
+      mode: "owned",
+      ownerAgent: "iris",
+      managedSession: null,
+      ownedSession: expect.objectContaining({
+        ownerAgent: "iris",
+        surface: "projects-iris",
+      }),
+    });
+    expect(target.client).toEqual({
+      options: {
+        baseUrl: "http://127.0.0.1:4405",
+        directory: root,
+      },
+    });
+  });
+
   it("resolves a managed tmux session to its owning agent endpoint", () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;

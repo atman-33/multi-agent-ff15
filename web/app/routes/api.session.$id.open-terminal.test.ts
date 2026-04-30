@@ -62,6 +62,7 @@ describe("api.session.$id.open-terminal", () => {
       endpointUrl: null,
       managedSession: null,
       mode: "default",
+      ownedSession: null,
       ownerAgent: null,
     }));
   });
@@ -109,5 +110,42 @@ describe("api.session.$id.open-terminal", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("validates owned Iris sessions through the resolved owner-aware client before launching the terminal", async () => {
+    sessionListMock.mockRejectedValue(new Error("default client should not be used"));
+    resolvedSessionListMock.mockResolvedValue({
+      data: [
+        {
+          id: "session-iris",
+          directory: "/workspace/root",
+        },
+      ],
+    });
+    resolveSessionRouteTargetMock.mockReturnValue({
+      client: {
+        session: {
+          list: resolvedSessionListMock,
+        },
+      },
+      endpointUrl: "http://127.0.0.1:4405",
+      managedSession: null,
+      mode: "owned",
+      ownedSession: {
+        ownerAgent: "iris",
+        sessionTitle: "iris:projects",
+        surface: "projects-iris",
+        transportMode: "tmux-resident",
+        updatedAt: "2026-04-30T00:00:00.000Z",
+      },
+      ownerAgent: "iris",
+    });
+
+    const response = await action({ params: { id: "session-iris" } } as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(resolvedSessionListMock).toHaveBeenCalledTimes(1);
+    expect(sessionListMock).not.toHaveBeenCalled();
   });
 });

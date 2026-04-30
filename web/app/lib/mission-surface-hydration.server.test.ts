@@ -208,7 +208,7 @@ describe("mission-surface-hydration.server", () => {
     expect(sessionMessagesMock).toHaveBeenCalledWith({ sessionID: "session-noctis" });
   });
 
-  it("omits team-only runtime fields for Lunafreya", async () => {
+  it("keeps banter hydration while omitting team-only runtime fields for Lunafreya", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
 
@@ -246,7 +246,14 @@ describe("mission-surface-hydration.server", () => {
 
     expect(payload).not.toHaveProperty("primaryMessages");
     expect(payload).not.toHaveProperty("noctisMessages");
-    expect(payload).not.toHaveProperty("banterTimeline");
+    expect(payload.banterTimeline).toEqual([
+      expect.objectContaining({
+        id: "ambient-luna-1",
+        cue: "task-progress-early",
+        renderedMessage: "Should not leak into Lunafreya shell.",
+        speakerAgent: "ignis",
+      }),
+    ]);
     expect(payload.latestPrimaryMessageId).toBeNull();
     expect(payload.latestPrimaryMessageCreatedAt).toBeNull();
     expect(Object.keys(payload.contextUsageByAgent)).toEqual(["lunafreya"]);
