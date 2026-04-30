@@ -367,6 +367,45 @@ export interface MissionSummary {
   activitySessionIds: string[];
 }
 
+export type MissionTransportStatus = "pending" | "submitted" | "failed" | "cancelled";
+
+export type MissionTransportSummary = {
+  pending: number;
+  submitted: number;
+  failed: number;
+  cancelled: number;
+  blocked: number;
+};
+
+export type MissionTransportArtifact = {
+  id: string;
+  missionId: string;
+  createdAt: string;
+  updatedAt: string;
+  status: MissionTransportStatus;
+  payload: {
+    agent: string;
+    sessionId: string;
+    sessionTitle?: string;
+  };
+  failure?: {
+    failedAt: string;
+    failedBy: string;
+    reason: string;
+  };
+  cancellation?: {
+    cancelledAt: string;
+    cancelledBy: string;
+    reason: string;
+  };
+  replay?: {
+    replayedAt: string;
+    replayedBy: string;
+    sourceItemId?: string;
+    supersededByItemId?: string;
+  };
+};
+
 export type MissionResumePayload = {
   missionId: string;
   schemaVersion?: number | null;
@@ -401,6 +440,8 @@ export type MissionResumePayload = {
   operationState?: OperationState | null;
   workflowProgress?: MissionWorkflowProgress | null;
   lunafreyaFacetSelection?: LunafreyaFacetSelection | null;
+  primaryAgentOutbox?: MissionTransportArtifact[];
+  transportSummary?: MissionTransportSummary;
   activityLog?: MissionActivityLogEntry[];
 };
 

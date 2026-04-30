@@ -578,6 +578,63 @@ describe("chat-area", () => {
     expect(markup).toContain("Guided mission flow.");
   });
 
+  it("shows a retry bubble for the latest failed delivery above the composer", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="ready"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        failedDeliveryNotice={{
+          failedAt: "2026-04-29T09:15:00.000Z",
+          itemId: "item-failed-latest",
+          isResending: false,
+          onResend: () => undefined,
+          reason: "tmux submit failed",
+        }}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Delivery failed");
+    expect(markup).toContain("tmux submit failed");
+    expect(markup).toContain("Resend");
+  });
+
+  it("disables resend while a failed delivery is being replayed", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        historyPhase="ready"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        failedDeliveryNotice={{
+          failedAt: "2026-04-29T09:15:00.000Z",
+          itemId: "item-failed-latest",
+          isResending: true,
+          onResend: () => undefined,
+          reason: "tmux submit failed",
+        }}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Resending...");
+    expect(markup).toContain("disabled");
+  });
+
   it("shows a transcript error state distinct from an empty transcript", () => {
     const markup = renderToStaticMarkup(
       <ChatArea

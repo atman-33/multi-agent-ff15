@@ -33,6 +33,20 @@ LOG="\${ROOT}/tmux.log"
 SESSION_FILE="\${ROOT}/tmux-session"
 printf '%s\n' "\$*" >> "\$LOG"
 
+if [ -n "\${TMUX_STUB_FAIL_ON:-}" ] && [[ "\$*" == *"\${TMUX_STUB_FAIL_ON}"* ]]; then
+  printf '%s\n' "forced tmux failure: \$*" >&2
+  exit 1
+fi
+
+if [ -n "\${TMUX_STUB_PAUSE_ON:-}" ] && [[ "$*" == *"\${TMUX_STUB_PAUSE_ON}"* ]]; then
+  SIGNAL_FILE="\${TMUX_STUB_PAUSE_SIGNAL_FILE:-\${ROOT}/tmux-pause-signal}"
+  RESUME_FILE="\${TMUX_STUB_RESUME_FILE:-\${ROOT}/tmux-pause-resume}"
+  : > "$SIGNAL_FILE"
+  while [ ! -f "$RESUME_FILE" ]; do
+    /bin/sleep 0.05
+  done
+fi
+
 case "\${1:-}" in
   has-session)
     if [ -f "\$SESSION_FILE" ]; then
@@ -213,6 +227,11 @@ function seedStaleLeasedPrimaryAgentOutbox(root, missionId) {
 }
 
 test.afterEach(() => {
+  delete process.env.TMUX_STUB_FAIL_ON;
+  delete process.env.TMUX_STUB_PAUSE_ON;
+  delete process.env.TMUX_STUB_PAUSE_SIGNAL_FILE;
+  delete process.env.TMUX_STUB_RESUME_FILE;
+
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
     if (root) {
@@ -290,6 +309,121 @@ test("dispatcher submits queued primary-agent outbox items and retains submitted
   assert.match(tmuxLog, /queued prompt body/);
   assert.match(tmuxLog, /queued system body/);
   assert.match(tmuxLog, /send-keys -t ff15:main\.4 -l/);
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
+test("dispatcher retains failed artifacts when tmux submission fails", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedPrimaryAgentOutbox(root, "mission-dispatch-failed");
+  process.env.TMUX_STUB_FAIL_ON = "[tmux-dispatch]";
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  const failedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch-failed",
+    "transport",
+    "primary-agent-outbox",
+    "failed",
+    "item-dispatch-1.json",
+  );
+  assert.equal(await waitFor(() => existsSync(failedPath), 3_000), true);
+
+  const failed = JSON.parse(readFileSync(failedPath, "utf-8"));
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.failure.failedBy.startsWith("dispatcher:"), true);
+  assert.match(failed.failure.reason, /forced tmux failure/);
+
+  const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
+  assert.equal(stopResult.code, 0, stopResult.stderr);
+});
+
+test("dispatcher cancels a claimed dispatch when an abort request arrives mid-flight", async () => {
+  const root = createTempRoot();
+  installFakeTmux(root);
+  seedPrimaryAgentOutbox(root, "mission-dispatch-abort", {
+    itemId: "item-dispatch-abort-1",
+    model: {
+      providerID: "github-copilot",
+      modelID: "gpt-5-mini",
+    },
+    sessionId: "session-dispatch-abort-1",
+  });
+
+  const pauseSignalPath = join(root, "tmux-pause-signal");
+  const pauseResumePath = join(root, "tmux-pause-resume");
+  const currentDispatchPath = join(root, "runtime", "tmux-transport-current-dispatch.json");
+  const abortRequestDir = join(root, "runtime", "tmux-transport-aborts");
+  const abortRequestPath = join(abortRequestDir, "session-dispatch-abort-1.json");
+  process.env.TMUX_STUB_PAUSE_ON = "Switch model";
+  process.env.TMUX_STUB_PAUSE_SIGNAL_FILE = pauseSignalPath;
+  process.env.TMUX_STUB_RESUME_FILE = pauseResumePath;
+
+  const startResult = await runRuntimeControl(root, ["start", "--root", root]);
+  assert.equal(startResult.code, 0, startResult.stderr);
+
+  assert.equal(await waitFor(() => existsSync(pauseSignalPath), 3_000), true);
+  assert.equal(await waitFor(() => existsSync(currentDispatchPath), 3_000), true);
+
+  const currentDispatch = JSON.parse(readFileSync(currentDispatchPath, "utf-8"));
+  assert.equal(currentDispatch.sessionId, "session-dispatch-abort-1");
+  assert.equal(currentDispatch.itemId, "item-dispatch-abort-1");
+  assert.equal(currentDispatch.phase, "switch-model");
+
+  mkdirSync(abortRequestDir, { recursive: true });
+  writeFileSync(
+    abortRequestPath,
+    `${JSON.stringify(
+      {
+        missionId: "mission-dispatch-abort",
+        sessionId: "session-dispatch-abort-1",
+        requestedAt: "2026-04-30T10:00:00.000Z",
+        requestedBy: "test-suite",
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+  writeFileSync(pauseResumePath, "resume\n", "utf-8");
+
+  const cancelledPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch-abort",
+    "transport",
+    "primary-agent-outbox",
+    "cancelled",
+    "item-dispatch-abort-1.json",
+  );
+  const submittedPath = join(
+    root,
+    "runtime",
+    "noctis-missions",
+    "mission-dispatch-abort",
+    "transport",
+    "primary-agent-outbox",
+    "submitted",
+    "item-dispatch-abort-1.json",
+  );
+
+  assert.equal(await waitFor(() => existsSync(cancelledPath), 3_000), true);
+  assert.equal(existsSync(submittedPath), false);
+
+  const cancelled = JSON.parse(readFileSync(cancelledPath, "utf-8"));
+  assert.equal(cancelled.status, "cancelled");
+  assert.match(cancelled.cancellation.reason, /abort/i);
+
+  const tmuxLog = readFileSync(join(root, "tmux.log"), "utf-8");
+  assert.match(tmuxLog, /send-keys -t ff15:main\.4 C-c/);
+  assert.doesNotMatch(tmuxLog, /queued prompt body/);
 
   const stopResult = await runRuntimeControl(root, ["stop", "--root", root]);
   assert.equal(stopResult.code, 0, stopResult.stderr);

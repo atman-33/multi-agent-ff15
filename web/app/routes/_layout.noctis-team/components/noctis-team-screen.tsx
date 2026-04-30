@@ -181,6 +181,8 @@ export function NoctisTeamScreen({
   const [isDeleteWorkspaceDialogOpen, setIsDeleteWorkspaceDialogOpen] = useState(false);
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [replayingTransportItemId, setReplayingTransportItemId] = useState<string | null>(null);
+  const [dismissedFailedDeliveryItemId, setDismissedFailedDeliveryItemId] = useState<string | null>(null);
   const [lunafreyaJobOptions, setLunafreyaJobOptions] = useState<LunafreyaFacetOption[]>([]);
   const [lunafreyaSkillOptions, setLunafreyaSkillOptions] = useState<LunafreyaFacetOption[]>([]);
   const [selectedLunafreyaJobId, setSelectedLunafreyaJobId] = useState<string | null>(
@@ -334,6 +336,24 @@ export function NoctisTeamScreen({
             actionLabel: "Mission Details",
           }
         : null;
+  const latestRetryableFailedDelivery = useMemo(() => {
+    if (!effectiveMissionId) {
+      return null;
+    }
+
+    const entries = missionDetail?.primaryAgentOutbox ?? [];
+    return (
+      [...entries]
+        .filter(
+          (entry) =>
+            entry.status === "failed" &&
+            entry.payload.agent === primaryAgentId &&
+            !entry.replay?.supersededByItemId &&
+            entry.id !== dismissedFailedDeliveryItemId,
+        )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null
+    );
+  }, [dismissedFailedDeliveryItemId, effectiveMissionId, missionDetail?.primaryAgentOutbox, primaryAgentId]);
   const isWorkspaceDeleteDisabled =
     isDirectExecutionMission ||
     !effectiveMissionId ||
@@ -621,6 +641,7 @@ export function NoctisTeamScreen({
   }, [loadMissionOutputs]);
 
   useEffect(() => {
+    setDismissedFailedDeliveryItemId(null);
     void loadMissionDetail();
   }, [loadMissionDetail]);
 
@@ -1024,6 +1045,39 @@ export function NoctisTeamScreen({
     }
   }, [effectiveMissionId, loadMissionDetail, loadMissions, missionApiBase]);
 
+  const handleReplayTransportItem = useCallback(
+    async (itemId: string) => {
+      if (!effectiveMissionId) {
+        return;
+      }
+
+      setReplayingTransportItemId(itemId);
+      try {
+        const response = await fetch(`${missionApiBase}/${effectiveMissionId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "replay_tmux_dispatch", itemId }),
+        });
+        const result = (await response.json().catch(() => ({}))) as { error?: string };
+
+        if (!response.ok) {
+          throw new Error(result.error ?? `transport replay failed: ${response.status}`);
+        }
+
+        setDismissedFailedDeliveryItemId(itemId);
+        await loadMissionDetail();
+        toast.success("Queued exact replay resend");
+      } catch (error) {
+        toast.error("Unable to resend transport attempt", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setReplayingTransportItemId(null);
+      }
+    },
+    [effectiveMissionId, loadMissionDetail, missionApiBase],
+  );
+
   const handleSelectOutput = useCallback((output: MissionOutputSummary) => {
     if (!effectiveMissionId) {
       return;
@@ -1235,6 +1289,22 @@ export function NoctisTeamScreen({
               primaryAgentId={primaryAgentId}
               primaryAgentAvatarSrc={surface.portraitSrc}
               primaryAgentLabel={primaryAgentLabel}
+              failedDeliveryNotice={
+                latestRetryableFailedDelivery
+                  ? {
+                      itemId: latestRetryableFailedDelivery.id,
+                      failedAt:
+                        latestRetryableFailedDelivery.failure?.failedAt ?? latestRetryableFailedDelivery.updatedAt,
+                      reason:
+                        latestRetryableFailedDelivery.failure?.reason ??
+                        "Unable to deliver the tmux request.",
+                      isResending: replayingTransportItemId === latestRetryableFailedDelivery.id,
+                      onResend: () => {
+                        void handleReplayTransportItem(latestRetryableFailedDelivery.id);
+                      },
+                    }
+                  : null
+              }
               composerStatusLabel={isLunafreyaSurface ? "Solo mission surface" : null}
               composerPlaceholder={`Send a message to ${primaryAgentLabel}`}
               startingMissionDescription={`Preparing mission and briefing ${primaryAgentLabel}.`}

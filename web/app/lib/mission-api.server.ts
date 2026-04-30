@@ -20,8 +20,60 @@ import {
 import { getMissionSurfaceForMission } from "./mission-surface";
 import { buildMissionWorkflowProgress } from "./mission-workflow-progress.server";
 
+function toMissionTransportStatus(status: string): "pending" | "submitted" | "failed" | "cancelled" {
+  switch (status) {
+    case "submitted":
+      return "submitted";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "pending";
+  }
+}
+
+function toMissionDeliveryStatus(status: string): "queued" | "sent" | "failed" | "cancelled" {
+  switch (status) {
+    case "submitted":
+      return "sent";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "queued";
+  }
+}
+
+function normalizeMissionPrimaryAgentOutbox(mission: Mission) {
+  return listPrimaryAgentOutboxItems(mission.id).map((item) => ({
+    ...item,
+    status: toMissionTransportStatus(item.status),
+  }));
+}
+
+function buildMissionTransportSummary(
+  primaryAgentOutbox: Array<{ status: "pending" | "submitted" | "failed" | "cancelled" }>,
+  blockedCount: number,
+) {
+  return primaryAgentOutbox.reduce(
+    (summary, item) => {
+      summary[item.status] += 1;
+      return summary;
+    },
+    {
+      pending: 0,
+      submitted: 0,
+      failed: 0,
+      cancelled: 0,
+      blocked: blockedCount,
+    },
+  );
+}
+
 function reconcileQueuedDispatchState(mission: Mission) {
-  const primaryAgentOutbox = listPrimaryAgentOutboxItems(mission.id);
+  const primaryAgentOutbox = normalizeMissionPrimaryAgentOutbox(mission);
   const updates = primaryAgentOutbox
     .map((item) => {
       const recordLinks = item.payload.recordLinks;
@@ -31,7 +83,7 @@ function reconcileQueuedDispatchState(mission: Mission) {
 
       return {
         ...recordLinks,
-        deliveryStatus: item.status === "submitted" ? ("sent" as const) : ("queued" as const),
+        deliveryStatus: toMissionDeliveryStatus(item.status),
         sessionId: item.payload.sessionId,
       };
     })
@@ -92,6 +144,7 @@ export function buildMissionResumePayload(mission: Mission) {
   const primarySessionId = getMissionPrimarySessionId(mission);
   const resumeBlock = getMissionResumeBlock(mission);
   const primaryAgentOutbox = reconcileQueuedDispatchState(mission);
+  const transportSummary = buildMissionTransportSummary(primaryAgentOutbox, resumeBlock ? 1 : 0);
 
   return {
     missionId: mission.id,
@@ -122,6 +175,7 @@ export function buildMissionResumePayload(mission: Mission) {
     workflowProgress: buildMissionWorkflowProgress(mission.operationState),
     lunafreyaFacetSelection: mission.lunafreyaFacetSelection ?? null,
     primaryAgentOutbox,
+    transportSummary,
     activityLog: mission.activityLog,
   };
 }

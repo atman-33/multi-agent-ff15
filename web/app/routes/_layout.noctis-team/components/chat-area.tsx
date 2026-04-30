@@ -120,6 +120,13 @@ interface ChatAreaProps {
   primaryAgentId?: ActivityActorId;
   primaryAgentAvatarSrc?: string;
   primaryAgentLabel?: string;
+  failedDeliveryNotice?: {
+    itemId: string;
+    failedAt: string;
+    reason: string;
+    isResending: boolean;
+    onResend: () => void;
+  } | null;
   composerStatusLabel?: string | null;
   composerPlaceholder?: string;
   startingMissionDescription?: string;
@@ -799,6 +806,7 @@ export const ChatArea = ({
   primaryAgentId = "noctis",
   primaryAgentAvatarSrc = "/images/noctis.png",
   primaryAgentLabel = "Noctis",
+  failedDeliveryNotice = null,
   composerStatusLabel = null,
   composerPlaceholder,
   startingMissionDescription = "Preparing mission and briefing Noctis.",
@@ -1014,6 +1022,27 @@ export const ChatArea = ({
       </p>
     </div>
   ) : null;
+  const failedDeliveryCallout = failedDeliveryNotice ? (
+    <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5" role="status">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-100/90">
+            Delivery failed
+          </p>
+          <p className="text-xs leading-relaxed text-foreground/85">{failedDeliveryNotice.reason}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={failedDeliveryNotice.isResending}
+          onClick={failedDeliveryNotice.onResend}
+        >
+          {failedDeliveryNotice.isResending ? "Resending..." : "Resend"}
+        </Button>
+      </div>
+    </div>
+  ) : null;
   const workflowSelector = (
     <Select
       disabled={isOperationSelectionLocked || isMissionStartPending}
@@ -1079,6 +1108,7 @@ export const ChatArea = ({
           topSlot={
             <div className="space-y-3">
               {abortSettlementCallout}
+              {failedDeliveryCallout}
               {showExecutionProjectSelector ? (
                 <div className="space-y-3">
                   {missionStartPendingCallout}
