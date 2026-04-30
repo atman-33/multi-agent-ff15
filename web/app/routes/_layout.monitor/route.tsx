@@ -102,7 +102,7 @@ export const TmuxMonitorPage = ({ loaderData }: Route.ComponentProps) => {
           </CardContent>
         </Card>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-flow-col lg:grid-cols-3 lg:grid-rows-2">
           {loaderData.panes.map((pane) => (
             <TmuxMonitorPaneCard
               key={pane.target}

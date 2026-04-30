@@ -137,6 +137,7 @@ describe("tmux monitor route", () => {
     expect(markup).toContain("Noctis pane output");
     expect(markup).toContain("Ignis pane output");
     expect(markup).toContain("lg:grid-cols-3");
+    expect(markup).toContain("lg:grid-flow-col");
     expect(markup).toContain("lg:grid-rows-2");
     expect(markup).toContain("w-full");
   });
