@@ -1,7 +1,11 @@
-import { appendMissionActivity } from "@/lib/mission-store";
+import { appendMissionActivity, getMission } from "@/lib/mission-store";
 import { cancelTmuxDispatchItemsForSession } from "@/lib/mission-primary-agent-outbox.server";
 import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import { resolveSessionRouteTarget } from "@/lib/session-owner-routing.server";
+import {
+  interruptManagedTmuxSession,
+  requestTmuxDispatchAbortForSession,
+} from "@/lib/tmux-transport-abort.server";
 import type { Route } from "./+types/api.session.$id.abort";
 
 async function resolveSessionTitle(
@@ -32,8 +36,17 @@ export const action = async ({ params }: Route.ActionArgs) => {
   try {
     const { client, managedSession: resolvedManagedSession } = resolveSessionRouteTarget(sessionId);
     managedSession = resolvedManagedSession;
+    const managedMission = managedSession ? getMission(managedSession.missionId) : null;
+    const isTmuxManagedSession = managedMission?.transportMode === "tmux-resident";
     const rawSessionTitle = managedSession ? await resolveSessionTitle(client, sessionId) : null;
     const abortedAt = new Date().toISOString();
+    let tmuxAbortAction:
+      | {
+          error?: string | null;
+          mode: "dispatcher-cancel" | "escape" | "error";
+          phase?: string | null;
+        }
+      | null = null;
 
     appendSessionPromptDebugLog({
       route: "api.session.$id.abort",
@@ -59,6 +72,41 @@ export const action = async ({ params }: Route.ActionArgs) => {
         cancelledBy: "abort-route",
         reason: "Managed session abort requested",
       });
+
+      if (isTmuxManagedSession) {
+        try {
+          const dispatchAbort = requestTmuxDispatchAbortForSession({
+            missionId: managedSession.missionId,
+            requestedAt: abortedAt,
+            requestedBy: "abort-route",
+            sessionId,
+          });
+
+          if (dispatchAbort.requested) {
+            tmuxAbortAction = {
+              mode: "dispatcher-cancel",
+              phase: dispatchAbort.currentDispatch?.phase ?? null,
+            };
+          } else {
+            interruptManagedTmuxSession({
+              method: "escape",
+              ownerAgent: managedSession.ownerAgent,
+            });
+            tmuxAbortAction = {
+              mode: "escape",
+              phase: dispatchAbort.currentDispatch?.phase ?? null,
+            };
+          }
+        } catch (tmuxInterruptError) {
+          tmuxAbortAction = {
+            error:
+              tmuxInterruptError instanceof Error
+                ? tmuxInterruptError.message
+                : String(tmuxInterruptError),
+            mode: "error",
+          };
+        }
+      }
     }
 
     const result = await client.session.abort({ sessionID: sessionId });
@@ -77,6 +125,7 @@ export const action = async ({ params }: Route.ActionArgs) => {
               rawSessionTitle,
             }
           : null,
+        tmuxAbortAction,
       },
     });
 

@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from "node:path";
 
 const AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto", "lunafreya", "iris"] as const;
+const ABORT_REQUEST_DIR = "tmux-transport-aborts";
+const CURRENT_DISPATCH_FILE = "tmux-transport-current-dispatch.json";
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
 const LOOP_INTERVAL_MS = 200;
 const NEXT_DISPATCH_DELAY_MS = 3_000;
@@ -12,7 +14,30 @@ const STALE_LEASE_MS = 5_000;
 const TMUX_INTERACTION_DELAY_SECONDS = "0.5";
 
 type AgentId = (typeof AGENT_IDS)[number];
+type TmuxDispatchPhase =
+  | "switch-session"
+  | "switch-model"
+  | "switch-variant"
+  | "typing-payload"
+  | "submit-payload";
 type TmuxDispatchStatus = "pending" | "leased" | "submitted" | "failed" | "cancelled";
+
+type AbortRequestRecord = {
+  missionId: string;
+  requestedAt: string;
+  requestedBy: string;
+  sessionId: string;
+};
+
+type CurrentDispatchRecord = {
+  agent: AgentId;
+  itemId: string;
+  missionId: string;
+  phase: TmuxDispatchPhase;
+  sessionId: string;
+  target: string;
+  updatedAt: string;
+};
 
 type TmuxDispatchItem = {
   createdAt: string;
@@ -57,8 +82,25 @@ type TmuxDispatchItem = {
     failedBy: string;
     reason: string;
   };
+  cancellation?: {
+    cancelledAt: string;
+    cancelledBy: string;
+    reason: string;
+  };
   updatedAt: string;
 };
+
+class DispatchAbortError extends Error {
+  cancelledAt: string;
+  cancelledBy: string;
+
+  constructor(input: { cancelledAt: string; cancelledBy: string; phase: TmuxDispatchPhase }) {
+    super(`Managed session abort requested during ${input.phase}`);
+    this.name = "DispatchAbortError";
+    this.cancelledAt = input.cancelledAt;
+    this.cancelledBy = input.cancelledBy;
+  }
+}
 
 function parseRoot(argv: string[]): string {
   const rootIndex = argv.indexOf("--root");
@@ -71,6 +113,18 @@ function parseRoot(argv: string[]): string {
 
 function getDispatcherStatePath(root: string): string {
   return join(root, "runtime", DISPATCHER_STATE_FILE);
+}
+
+function getAbortRequestDir(root: string): string {
+  return join(root, "runtime", ABORT_REQUEST_DIR);
+}
+
+function getAbortRequestPath(root: string, sessionId: string): string {
+  return join(getAbortRequestDir(root), `${sessionId}.json`);
+}
+
+function getCurrentDispatchPath(root: string): string {
+  return join(root, "runtime", CURRENT_DISPATCH_FILE);
 }
 
 function getMissionStorePath(root: string): string {
@@ -116,6 +170,7 @@ function writeState(root: string, extra: Record<string, unknown> = {}): void {
 
 function cleanup(root: string): void {
   rmSync(getDispatcherStatePath(root), { force: true });
+  rmSync(getCurrentDispatchPath(root), { force: true });
 }
 
 function isOutboxStatus(value: unknown): value is TmuxDispatchStatus {
@@ -130,6 +185,67 @@ function isOutboxStatus(value: unknown): value is TmuxDispatchStatus {
 
 function isAgentId(value: unknown): value is AgentId {
   return AGENT_IDS.some((agentId) => agentId === value);
+}
+
+function isDispatchPhase(value: unknown): value is TmuxDispatchPhase {
+  return (
+    value === "switch-session" ||
+    value === "switch-model" ||
+    value === "switch-variant" ||
+    value === "typing-payload" ||
+    value === "submit-payload"
+  );
+}
+
+function normalizeAbortRequest(value: unknown): AbortRequestRecord | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.missionId !== "string" ||
+    typeof record.requestedAt !== "string" ||
+    typeof record.requestedBy !== "string" ||
+    typeof record.sessionId !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    missionId: record.missionId,
+    requestedAt: record.requestedAt,
+    requestedBy: record.requestedBy,
+    sessionId: record.sessionId,
+  };
+}
+
+function readAbortRequest(root: string, sessionId: string): AbortRequestRecord | null {
+  const path = getAbortRequestPath(root, sessionId);
+  if (!existsSync(path)) {
+    return null;
+  }
+
+  try {
+    return normalizeAbortRequest(JSON.parse(readFileSync(path, "utf-8")));
+  } catch {
+    return null;
+  }
+}
+
+function clearAbortRequest(root: string, sessionId: string): void {
+  rmSync(getAbortRequestPath(root, sessionId), { force: true });
+}
+
+function writeCurrentDispatch(root: string, record: CurrentDispatchRecord | null): void {
+  mkdirSync(join(root, "runtime"), { recursive: true });
+
+  if (!record) {
+    rmSync(getCurrentDispatchPath(root), { force: true });
+    return;
+  }
+
+  writeFileSync(getCurrentDispatchPath(root), `${JSON.stringify(record, null, 2)}\n`, "utf-8");
 }
 
 function normalizeItem(value: unknown): TmuxDispatchItem | null {
@@ -301,15 +417,58 @@ function waitForTmuxInteraction(root: string): void {
   }
 }
 
+function maybeAbortDispatch(input: {
+  root: string;
+  item: TmuxDispatchItem;
+  target: string;
+  phase: TmuxDispatchPhase;
+  interactionState: { hasSentInput: boolean };
+}): void {
+  writeCurrentDispatch(input.root, {
+    agent: input.item.payload.agent,
+    itemId: input.item.id,
+    missionId: input.item.missionId,
+    phase: input.phase,
+    sessionId: input.item.payload.sessionId,
+    target: input.target,
+    updatedAt: new Date().toISOString(),
+  });
+
+  const abortRequest = readAbortRequest(input.root, input.item.payload.sessionId);
+  if (!abortRequest || abortRequest.missionId !== input.item.missionId) {
+    return;
+  }
+
+  clearAbortRequest(input.root, input.item.payload.sessionId);
+
+  if (input.interactionState.hasSentInput) {
+    const result = runTmux(input.root, ["send-keys", "-t", input.target, "C-c"]);
+    if (result.code !== 0) {
+      throw new Error(result.stderr || `Failed to cancel tmux dispatch for ${input.target}`);
+    }
+  }
+
+  throw new DispatchAbortError({
+    cancelledAt: abortRequest.requestedAt,
+    cancelledBy: abortRequest.requestedBy,
+    phase: input.phase,
+  });
+}
+
 function sendTmuxKeys(
   root: string,
+  item: TmuxDispatchItem,
   target: string,
   args: string[],
+  phase: TmuxDispatchPhase,
   errorMessage: string,
   interactionState: { hasSentInput: boolean },
 ): void {
+  maybeAbortDispatch({ root, item, target, phase, interactionState });
+
   if (interactionState.hasSentInput) {
     waitForTmuxInteraction(root);
+    maybeAbortDispatch({ root, item, target, phase, interactionState });
   }
 
   const result = runTmux(root, ["send-keys", "-t", target, ...args]);
@@ -376,26 +535,40 @@ function activateManagedSession(
   interactionState: { hasSentInput: boolean },
 ): void {
   const sessionTitle = resolveManagedSessionTitle(item);
-  sendTmuxKeys(root, target, ["C-p"], `Failed to open command palette for ${target}`, interactionState);
+  sendTmuxKeys(root, item, target, ["C-p"], "switch-session", `Failed to open command palette for ${target}`, interactionState);
   sendTmuxKeys(
     root,
+    item,
     target,
     ["-l", "Switch session"],
+    "switch-session",
     `Failed to queue session switch command for ${target}`,
     interactionState,
   );
-  sendTmuxKeys(root, target, ["Enter"], `Failed to submit session switch command for ${target}`, interactionState);
   sendTmuxKeys(
     root,
+    item,
+    target,
+    ["Enter"],
+    "switch-session",
+    `Failed to submit session switch command for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    item,
     target,
     ["-l", sessionTitle],
+    "switch-session",
     `Failed to select session ${sessionTitle} for ${target}`,
     interactionState,
   );
   sendTmuxKeys(
     root,
+    item,
     target,
     ["Enter"],
+    "switch-session",
     `Failed to confirm session ${sessionTitle} for ${target}`,
     interactionState,
   );
@@ -413,26 +586,40 @@ function applyModelSelection(
 
   const modelRef = `${item.payload.model.providerID}/${item.payload.model.modelID}`;
   const selectionText = readCatalogModelSelectionText(root, item.payload.model) ?? modelRef;
-  sendTmuxKeys(root, target, ["C-p"], `Failed to open command palette for ${target}`, interactionState);
+  sendTmuxKeys(root, item, target, ["C-p"], "switch-model", `Failed to open command palette for ${target}`, interactionState);
   sendTmuxKeys(
     root,
+    item,
     target,
     ["-l", "Switch model"],
+    "switch-model",
     `Failed to queue model command for ${target}`,
     interactionState,
   );
-  sendTmuxKeys(root, target, ["Enter"], `Failed to submit model command for ${target}`, interactionState);
   sendTmuxKeys(
     root,
+    item,
+    target,
+    ["Enter"],
+    "switch-model",
+    `Failed to submit model command for ${target}`,
+    interactionState,
+  );
+  sendTmuxKeys(
+    root,
+    item,
     target,
     ["-l", selectionText],
+    "switch-model",
     `Failed to select model ${selectionText} for ${target}`,
     interactionState,
   );
   sendTmuxKeys(
     root,
+    item,
     target,
     ["Enter"],
+    "switch-model",
     `Failed to confirm model ${selectionText} for ${target}`,
     interactionState,
   );
@@ -441,32 +628,40 @@ function applyModelSelection(
     return;
   }
 
-  sendTmuxKeys(root, target, ["C-p"], `Failed to reopen command palette for ${target}`, interactionState);
+  sendTmuxKeys(root, item, target, ["C-p"], "switch-variant", `Failed to reopen command palette for ${target}`, interactionState);
   sendTmuxKeys(
     root,
+    item,
     target,
     ["-l", "Switch model variant"],
+    "switch-variant",
     `Failed to queue model variant command for ${target}`,
     interactionState,
   );
   sendTmuxKeys(
     root,
+    item,
     target,
     ["Enter"],
+    "switch-variant",
     `Failed to submit model variant command for ${target}`,
     interactionState,
   );
   sendTmuxKeys(
     root,
+    item,
     target,
     ["-l", item.payload.variant],
+    "switch-variant",
     `Failed to select variant ${item.payload.variant} for ${target}`,
     interactionState,
   );
   sendTmuxKeys(
     root,
+    item,
     target,
     ["Enter"],
+    "switch-variant",
     `Failed to confirm variant ${item.payload.variant} for ${target}`,
     interactionState,
   );
@@ -481,21 +676,42 @@ function submitClaimedItem(root: string, item: TmuxDispatchItem): void {
   const target = `${SESSION_NAME}:main.${paneIndex}`;
   const payload = buildDispatchText(item);
   const interactionState = { hasSentInput: false };
-  activateManagedSession(root, target, item, interactionState);
-  applyModelSelection(root, target, item, interactionState);
-  sendTmuxKeys(root, target, ["-l", payload], `Failed to send outbox payload to ${target}`, interactionState);
-  sendTmuxKeys(root, target, ["Enter"], `Failed to submit outbox payload to ${target}`, interactionState);
+  try {
+    activateManagedSession(root, target, item, interactionState);
+    applyModelSelection(root, target, item, interactionState);
+    sendTmuxKeys(
+      root,
+      item,
+      target,
+      ["-l", payload],
+      "typing-payload",
+      `Failed to send outbox payload to ${target}`,
+      interactionState,
+    );
+    sendTmuxKeys(
+      root,
+      item,
+      target,
+      ["Enter"],
+      "submit-payload",
+      `Failed to submit outbox payload to ${target}`,
+      interactionState,
+    );
 
-  writeItem(root, {
-    ...item,
-    status: "submitted",
-    updatedAt: new Date().toISOString(),
-    submission: {
-      dispatcherPid: process.pid,
-      submittedAt: new Date().toISOString(),
-      submittedBy: `dispatcher:${process.pid}`,
-    },
-  });
+    const submittedAt = new Date().toISOString();
+    writeItem(root, {
+      ...item,
+      status: "submitted",
+      updatedAt: submittedAt,
+      submission: {
+        dispatcherPid: process.pid,
+        submittedAt,
+        submittedBy: `dispatcher:${process.pid}`,
+      },
+    });
+  } finally {
+    writeCurrentDispatch(root, null);
+  }
 }
 
 function countQueuedItems(root: string): number {
@@ -530,18 +746,31 @@ const tick = () => {
     });
   } catch (error) {
     if (claimed) {
-      const failedAt = new Date().toISOString();
-      writeItem(root, {
-        ...claimed,
-        status: "failed",
-        updatedAt: failedAt,
-        failure: {
-          dispatcherPid: process.pid,
-          failedAt,
-          failedBy: `dispatcher:${process.pid}`,
-          reason: error instanceof Error ? error.message : String(error),
-        },
-      });
+      if (error instanceof DispatchAbortError) {
+        writeItem(root, {
+          ...claimed,
+          status: "cancelled",
+          updatedAt: error.cancelledAt,
+          cancellation: {
+            cancelledAt: error.cancelledAt,
+            cancelledBy: error.cancelledBy,
+            reason: error.message,
+          },
+        });
+      } else {
+        const failedAt = new Date().toISOString();
+        writeItem(root, {
+          ...claimed,
+          status: "failed",
+          updatedAt: failedAt,
+          failure: {
+            dispatcherPid: process.pid,
+            failedAt,
+            failedBy: `dispatcher:${process.pid}`,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        });
+      }
     }
 
     writeState(root, {
