@@ -3,6 +3,11 @@ import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selec
 import { appendMissionActivity } from "@/lib/mission-store";
 import { createOpencodeMessageId } from "@/lib/opencode-message-id";
 import { queueOwnedSessionTmuxDispatch } from "@/lib/owned-session-transport.server";
+import {
+  getOwnedSessionTitle,
+  hasOwnedSessionTitle,
+  saveOwnedSession,
+} from "@/lib/owned-session-registry.server";
 import { composeGenericSessionPrompt } from "@/lib/prompt-composition-engine";
 import {
   MissionTransportNotReadyError,
@@ -38,6 +43,41 @@ async function resolveSessionTitle(
   } catch {
     return null;
   }
+}
+
+async function resolveOwnedSessionActivationTitle(input: {
+  client: ReturnType<typeof resolveSessionRouteTarget>["client"];
+  sessionId: string;
+  ownedSession: NonNullable<ReturnType<typeof resolveSessionRouteTarget>["ownedSession"]>;
+  rawSessionTitle: string | null;
+}): Promise<string> {
+  const canonicalTitle = getOwnedSessionTitle(input.sessionId);
+  const storedTitleIsCanonical = hasOwnedSessionTitle(input.sessionId, input.ownedSession.sessionTitle);
+  const runtimeTitleIsCanonical =
+    input.rawSessionTitle === null || hasOwnedSessionTitle(input.sessionId, input.rawSessionTitle);
+
+  if (storedTitleIsCanonical && runtimeTitleIsCanonical) {
+    return canonicalTitle;
+  }
+
+  const result = await input.client.session.update({
+    sessionID: input.sessionId,
+    title: canonicalTitle,
+  });
+
+  if (result.error) {
+    throw new Error(typeof result.error === "string" ? result.error : "Unable to update owned session title.");
+  }
+
+  saveOwnedSession({
+    ownerAgent: input.ownedSession.ownerAgent,
+    sessionId: input.sessionId,
+    sessionTitle: canonicalTitle,
+    surface: input.ownedSession.surface,
+    transportMode: input.ownedSession.transportMode,
+  });
+
+  return canonicalTitle;
 }
 
 export const action = async ({ request, params }: Route.ActionArgs) => {
@@ -86,9 +126,10 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     const selectedModel = isModelSelection(body.model) ? body.model : undefined;
     const { model, variant } = splitModelSelection(selectedModel);
     const userMessageId = createOpencodeMessageId();
+    const resolvedSessionTitle = await resolveSessionTitle(client, sessionId);
     const rawSessionTitle = managedSession
-      ? await resolveSessionTitle(client, sessionId)
-      : ownedSession?.sessionTitle ?? null;
+      ? resolvedSessionTitle
+      : resolvedSessionTitle ?? ownedSession?.sessionTitle ?? null;
     const requestedSelection: SessionSelection = {
       agent: body.agent ? body.agent : null,
       model: selectedModel ?? null,
@@ -145,10 +186,17 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         transportMode: ownedSession.transportMode,
       });
 
+      const activationTitle = await resolveOwnedSessionActivationTitle({
+        client,
+        sessionId,
+        ownedSession,
+        rawSessionTitle,
+      });
+
       queueOwnedSessionTmuxDispatch({
         ownerAgent: ownedSession.ownerAgent,
         sessionId,
-        sessionTitle: rawSessionTitle ?? ownedSession.sessionTitle,
+        sessionTitle: activationTitle,
         parts: composed.payloadParts,
         ...(model ? { model } : {}),
         ...(variant ? { variant } : {}),

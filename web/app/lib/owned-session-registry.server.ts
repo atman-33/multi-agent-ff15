@@ -13,6 +13,14 @@ export interface OwnedSessionEntry {
   updatedAt: string;
 }
 
+export function getOwnedSessionTitle(sessionId: string): string {
+  return `session:${sessionId}:iris`;
+}
+
+export function hasOwnedSessionTitle(sessionId: string, sessionTitle: string): boolean {
+  return sessionTitle === getOwnedSessionTitle(sessionId);
+}
+
 interface OwnedSessionRegistryState {
   sessions: Record<string, OwnedSessionEntry>;
   version: 1;

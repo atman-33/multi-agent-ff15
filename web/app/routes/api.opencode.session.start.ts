@@ -7,7 +7,11 @@ import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selec
 import { createOpencodeMessageId } from "@/lib/opencode-message-id";
 import { getOpencodeClient } from "@/lib/opencode-client";
 import { queueOwnedSessionTmuxDispatch } from "@/lib/owned-session-transport.server";
-import { saveOwnedSession, type OwnedSessionSurface } from "@/lib/owned-session-registry.server";
+import {
+  getOwnedSessionTitle,
+  saveOwnedSession,
+  type OwnedSessionSurface,
+} from "@/lib/owned-session-registry.server";
 import {
   MissionTransportNotReadyError,
   requireReadyMissionTransport,
@@ -133,15 +137,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Session creation returned no ID" }, { status: 502 });
     }
 
+    const ownedSessionTitle = isTmuxOwnedIrisSession ? getOwnedSessionTitle(sessionId) : null;
+
     if (
       body?.agent === "iris" &&
       isOwnedSessionSurface(body.ownedSessionSurface) &&
       appConfig.transportMode === "tmux-resident"
     ) {
+      const titleUpdateResult = await client.session.update({
+        sessionID: sessionId,
+        title: ownedSessionTitle ?? title,
+      });
+
+      if (titleUpdateResult.error) {
+        return Response.json({ error: titleUpdateResult.error }, { status: 502 });
+      }
+
       saveOwnedSession({
         ownerAgent: "iris",
         sessionId,
-        sessionTitle: title,
+        sessionTitle: ownedSessionTitle ?? title,
         surface: body.ownedSessionSurface,
         transportMode: "tmux-resident",
       });
@@ -181,7 +196,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       queueOwnedSessionTmuxDispatch({
         ownerAgent: "iris",
         sessionId,
-        sessionTitle: title,
+        sessionTitle: ownedSessionTitle ?? title,
         parts: composed.payloadParts,
         ...(model ? { model } : {}),
         ...(variant ? { variant } : {}),

@@ -5,18 +5,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMission, deleteMission, getMission, setAgentModels, setWorkerSession } from "@/lib/mission-store";
 import { listOwnedSessionTmuxDispatchItems } from "@/lib/owned-session-transport.server";
+import { getOwnedSessionTitle } from "@/lib/owned-session-registry.server";
 import { saveOwnedSession } from "@/lib/owned-session-registry.server";
 
 const {
   appendSessionPromptDebugLogMock,
   ownerPromptAsyncMock,
   ownerSessionListMock,
+  ownerSessionUpdateMock,
   promptAsyncMock,
   sessionListMock,
 } = vi.hoisted(() => ({
   appendSessionPromptDebugLogMock: vi.fn(),
   ownerPromptAsyncMock: vi.fn(),
   ownerSessionListMock: vi.fn(),
+  ownerSessionUpdateMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionListMock: vi.fn(),
 }));
@@ -26,6 +29,7 @@ vi.mock("@/lib/opencode-client", () => ({
     session: {
       list: ownerSessionListMock,
       promptAsync: ownerPromptAsyncMock,
+      update: ownerSessionUpdateMock,
     },
   }),
   getOpencodeClient: () => ({
@@ -106,6 +110,7 @@ afterEach(() => {
   appendSessionPromptDebugLogMock.mockReset();
   ownerPromptAsyncMock.mockReset();
   ownerSessionListMock.mockReset();
+  ownerSessionUpdateMock.mockReset();
   promptAsyncMock.mockReset();
   sessionListMock.mockReset();
 
@@ -141,7 +146,7 @@ describe("api.session.$id.prompt", () => {
     saveOwnedSession({
       ownerAgent: "iris",
       sessionId: "session-iris",
-      sessionTitle: "iris:projects",
+      sessionTitle: getOwnedSessionTitle("session-iris"),
       surface: "projects-iris",
       transportMode: "tmux-resident",
     });
@@ -162,6 +167,7 @@ describe("api.session.$id.prompt", () => {
 
     expect(response.status).toBe(204);
     expect(ownerPromptAsyncMock).not.toHaveBeenCalled();
+    expect(ownerSessionUpdateMock).not.toHaveBeenCalled();
     expect(promptAsyncMock).not.toHaveBeenCalled();
     expect(listOwnedSessionTmuxDispatchItems("session-iris")).toMatchObject([
       {
@@ -169,7 +175,56 @@ describe("api.session.$id.prompt", () => {
         payload: {
           agent: "iris",
           sessionId: "session-iris",
-          sessionTitle: "iris:projects",
+          sessionTitle: getOwnedSessionTitle("session-iris"),
+          parts: [{ type: "text", text: "Refresh the project registry." }],
+        },
+      },
+    ]);
+  });
+
+  it("repairs legacy owned Iris session titles before queuing tmux delivery", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeReadyTmuxTransportArtifacts(root, [
+      {
+        agentId: "iris",
+        port: 4405,
+        url: "http://127.0.0.1:4405",
+      },
+    ]);
+    saveOwnedSession({
+      ownerAgent: "iris",
+      sessionId: "session-iris-legacy",
+      sessionTitle: "<projects-iris-context>\nlegacy title",
+      surface: "projects-iris",
+      transportMode: "tmux-resident",
+    });
+    ownerSessionUpdateMock.mockResolvedValue({ data: { id: "session-iris-legacy" } });
+
+    const response = await action({
+      params: { id: "session-iris-legacy" },
+      request: new Request("http://localhost/api/session/session-iris-legacy/prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parts: [{ type: "text", text: "Refresh the project registry." }],
+          agent: "iris",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(204);
+    expect(ownerSessionUpdateMock).toHaveBeenCalledWith({
+      sessionID: "session-iris-legacy",
+      title: getOwnedSessionTitle("session-iris-legacy"),
+    });
+    expect(listOwnedSessionTmuxDispatchItems("session-iris-legacy")).toMatchObject([
+      {
+        status: "pending",
+        payload: {
+          agent: "iris",
+          sessionId: "session-iris-legacy",
+          sessionTitle: getOwnedSessionTitle("session-iris-legacy"),
           parts: [{ type: "text", text: "Refresh the project registry." }],
         },
       },
