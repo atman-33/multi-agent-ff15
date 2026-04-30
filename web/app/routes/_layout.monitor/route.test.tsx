@@ -19,16 +19,26 @@ vi.mock("react-router", async () => {
 });
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  Button: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <button className={className} type="button">
+      {children}
+    </button>
+  ),
 }));
 
 vi.mock("@/components/ui/card", () => ({
-  Card: ({ children }: { children: ReactNode }) => <section>{children}</section>,
-  CardContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Card: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <section className={className}>{children}</section>
+  ),
+  CardContent: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
 }));
 
 vi.mock("@/components/ui/badge", () => ({
-  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  Badge: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <span className={className}>{children}</span>
+  ),
 }));
 
 vi.mock("./components/tmux-monitor-pane", () => ({
@@ -136,6 +146,10 @@ describe("tmux monitor route", () => {
     expect(markup).toContain("Transport Ready");
     expect(markup).toContain("Noctis pane output");
     expect(markup).toContain("Ignis pane output");
+    expect(markup).toContain("gap-3 overflow-hidden p-3 md:p-4");
+    expect(markup).toContain("items-center justify-between gap-3");
+    expect(markup).not.toContain("Inspect the tmux-resident transport and live pane output for each agent.");
+    expect(markup).not.toContain("p-6 md:grid-cols-4");
     expect(markup).toContain("lg:grid-cols-3");
     expect(markup).toContain("lg:grid-flow-col");
     expect(markup).toContain("lg:grid-rows-2");
