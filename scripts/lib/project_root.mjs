@@ -7,7 +7,7 @@ function isProjectRoot(candidate) {
     typeof candidate === "string" &&
     candidate.length > 0 &&
     existsSync(join(candidate, "scripts")) &&
-    existsSync(join(candidate, "opencode.json"))
+    (existsSync(join(candidate, "package.json")) || existsSync(join(candidate, "opencode.json")))
   );
 }
 

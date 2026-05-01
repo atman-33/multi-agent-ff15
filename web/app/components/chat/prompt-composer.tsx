@@ -5,7 +5,11 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea";
 import type { PromptPart } from "@/lib/prompt-parts";
 import { cn } from "@/lib/utils";
-import { useChatStore } from "@/stores/chat-store";
+import {
+  useChatStore,
+  type SessionDraft,
+  type SessionDraftSlashMention,
+} from "@/stores/chat-store";
 
 type SlashSuggestion = {
   description?: string;
@@ -50,6 +54,65 @@ type PromptComposerProps = {
   topSlot?: ReactNode;
   footerStart?: ReactNode;
   footerEnd?: ReactNode;
+};
+
+type PromptComposerDraftState = {
+  input: string;
+  fileMentions: string[];
+  slashMentions: SessionDraftSlashMention[];
+};
+
+const getPromptComposerDraftState = (
+  draftKey: string | undefined,
+  sessionDrafts: Record<string, SessionDraft>,
+): PromptComposerDraftState => {
+  if (!draftKey) {
+    return {
+      input: "",
+      fileMentions: [],
+      slashMentions: [],
+    };
+  }
+
+  const draft = sessionDrafts[draftKey];
+
+  return {
+    input: draft?.value ?? "",
+    fileMentions: draft?.fileMentions ?? [],
+    slashMentions: draft?.slashMentions ?? [],
+  };
+};
+
+const areStringArraysEqual = (left: string[], right: string[]): boolean => {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+};
+
+const areSlashMentionsEqual = (
+  left: SessionDraftSlashMention[],
+  right: SessionDraftSlashMention[],
+): boolean => {
+  return (
+    left.length === right.length &&
+    left.every(
+      (value, index) =>
+        value.type === right[index]?.type &&
+        value.value === right[index]?.value &&
+        value.label === right[index]?.label &&
+        value.insertText === right[index]?.insertText &&
+        value.description === right[index]?.description,
+    )
+  );
+};
+
+const areSessionDraftsEqual = (
+  left: SessionDraft | undefined,
+  right: SessionDraft,
+): boolean => {
+  return (
+    left?.value === right.value &&
+    areStringArraysEqual(left?.fileMentions ?? [], right.fileMentions) &&
+    areSlashMentionsEqual(left?.slashMentions ?? [], right.slashMentions)
+  );
 };
 
 const MAX_HEIGHT_PX = 160;
@@ -113,17 +176,21 @@ export function PromptComposer({
   footerStart,
   footerEnd,
 }: PromptComposerProps) {
-  const [input, setInput] = useState("");
+  const sessionDrafts = useChatStore((state) => state.sessionDrafts);
+  const initialDraftState = getPromptComposerDraftState(draftKey, sessionDrafts);
+  const [input, setInput] = useState(() => initialDraftState.input);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [slashSuggestions, setSlashSuggestions] = useState<SlashSuggestion[]>([]);
-  const [fileMentions, setFileMentions] = useState<string[]>([]);
-  const [slashMentions, setSlashMentions] = useState<SlashSuggestion[]>([]);
+  const [fileMentions, setFileMentions] = useState<string[]>(() => initialDraftState.fileMentions);
+  const [slashMentions, setSlashMentions] = useState<SlashSuggestion[]>(
+    () => initialDraftState.slashMentions,
+  );
+  const [syncedDraftKey, setSyncedDraftKey] = useState(draftKey);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suggestionRequestIdRef = useRef(0);
 
-  const sessionDrafts = useChatStore((state) => state.sessionDrafts);
   const setSessionDraft = useChatStore((state) => state.setSessionDraft);
   const clearSessionDraft = useChatStore((state) => state.clearSessionDraft);
 
@@ -142,38 +209,55 @@ export function PromptComposer({
   }, []);
 
   useEffect(() => {
-    if (!draftKey) {
-      setInput("");
-      setFileMentions([]);
-      setSlashMentions([]);
+    if (syncedDraftKey === draftKey) {
       return;
     }
 
-    const draft = sessionDrafts[draftKey];
-    setInput(draft?.value ?? "");
-    setFileMentions(draft?.fileMentions ?? []);
-    setSlashMentions(draft?.slashMentions ?? []);
+    const draftState = getPromptComposerDraftState(draftKey, sessionDrafts);
+    setSyncedDraftKey(draftKey);
+    setInput(draftState.input);
+    setFileMentions(draftState.fileMentions);
+    setSlashMentions(draftState.slashMentions);
     setSuggestions([]);
     setIsOpen(false);
     setSelectedSuggestionIndex(0);
-  }, [draftKey, sessionDrafts]);
+  }, [draftKey, sessionDrafts, syncedDraftKey]);
 
   useEffect(() => {
-    if (!draftKey) {
+    if (!draftKey || syncedDraftKey !== draftKey) {
       return;
     }
+
+    const currentDraft = sessionDrafts[draftKey];
 
     if (!input && fileMentions.length === 0 && slashMentions.length === 0) {
-      clearSessionDraft(draftKey);
+      if (currentDraft) {
+        clearSessionDraft(draftKey);
+      }
       return;
     }
 
-    setSessionDraft(draftKey, {
+    const nextDraft: SessionDraft = {
       value: input,
       fileMentions,
       slashMentions,
-    });
-  }, [clearSessionDraft, draftKey, fileMentions, input, setSessionDraft, slashMentions]);
+    };
+
+    if (areSessionDraftsEqual(currentDraft, nextDraft)) {
+      return;
+    }
+
+    setSessionDraft(draftKey, nextDraft);
+  }, [
+    clearSessionDraft,
+    draftKey,
+    fileMentions,
+    input,
+    sessionDrafts,
+    setSessionDraft,
+    slashMentions,
+    syncedDraftKey,
+  ]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
