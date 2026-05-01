@@ -42,7 +42,7 @@ import {
   getMissionExecutionTargetModeLabel,
   normalizeMissionExecutionTargetMode,
 } from "@/lib/mission-execution-target-mode";
-import { getMissionSurface } from "@/lib/mission-surface";
+import { buildMissionComposerDraftKey, getMissionSurface } from "@/lib/mission-surface";
 import {
   clearMissionSurfaceNewMissionDraft,
   readMissionSurfaceNewMissionDraft,
@@ -1228,6 +1228,7 @@ export function NoctisTeamScreen({
         <ResizablePanel defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
+              composerDraftKey={buildMissionComposerDraftKey(surface.id, effectiveMissionId)}
               sessionId={sessionId}
               isResponding={
                 isMissionStartPending || isSessionActive || isLoadingHistory || isAbortSettling

@@ -99,6 +99,7 @@ vi.mock("./banter-log", () => ({
 
 vi.mock("./chat-area", () => ({
   ChatArea: ({
+    composerDraftKey,
     showExecutionProjectSelector,
     selectedExecutionProjectId,
     selectedExecutionTargetMode,
@@ -121,6 +122,7 @@ vi.mock("./chat-area", () => ({
     composerStatusLabel,
     failedDeliveryNotice,
   }: {
+    composerDraftKey?: string | null;
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
     selectedExecutionTargetMode?: string | null;
@@ -154,6 +156,7 @@ vi.mock("./chat-area", () => ({
   }) => (
     <div>
       <div>chat-area</div>
+      <div>{`composer-draft-key:${composerDraftKey ?? "none"}`}</div>
       <div>{`mission-start:${isStartingMission ? "yes" : "no"}`}</div>
       <div>{`abort-action:${showAbortAction ? "yes" : "no"}`}</div>
       <div>{`history-phase:${historyPhase ?? "none"}`}</div>
@@ -308,6 +311,7 @@ describe("noctis-team-screen", () => {
       <NoctisTeamScreen activeMissionId={null} initialMissionData={null} language="other" />,
     );
 
+    expect(markup).toContain("composer-draft-key:mission-surface:noctis_team:new");
     expect(markup).toContain("execution-selector:core-repo");
     expect(markup).toContain("execution-mode:execution_project");
     expect(markup).toContain("execution-options:Core Repo,Reference Docs");
@@ -334,6 +338,7 @@ describe("noctis-team-screen", () => {
       />,
     );
 
+    expect(markup).toContain("composer-draft-key:mission-surface:noctis_team:mission:mission-1");
     expect(markup).toContain("streaming-content:Mission two is responding");
   });
 
@@ -701,6 +706,7 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("history-phase:loading");
     expect(markup).toContain("primary-agent:lunafreya");
     expect(markup).toContain("header:Oracle Mission Surface");
+    expect(markup).toContain("composer-draft-key:mission-surface:lunafreya:mission:mission-luna");
     expect(markup).toContain("composer-status:Solo mission surface");
     expect(markup).toContain("lunafreya-status:oracle:hydraean");
     expect(markup).toContain("banter-log");

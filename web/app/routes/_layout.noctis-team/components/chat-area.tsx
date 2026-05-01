@@ -73,6 +73,7 @@ import { extractReasoning, extractTools } from "./message-parts";
 
 interface ChatAreaProps {
   sessionId?: string | null;
+  composerDraftKey?: string | null;
   messages: ChatMessage[];
   currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
@@ -766,6 +767,7 @@ TranscriptBody.displayName = "TranscriptBody";
 
 export const ChatArea = ({
   sessionId = null,
+  composerDraftKey = null,
   messages,
   currentStreamingMessageId = null,
   streamingContent = "",
@@ -1101,6 +1103,7 @@ export const ChatArea = ({
       }
       footer={
         <PromptComposer
+          draftKey={composerDraftKey ?? sessionId ?? undefined}
           onSend={onSend}
           onAbort={onAbort}
           disableSendAction={isMissionStartPending || isTranscriptLoading || isAbortSettling}

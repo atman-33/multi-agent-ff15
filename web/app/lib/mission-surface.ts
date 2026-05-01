@@ -64,3 +64,16 @@ function inferMissionSurfaceId(mission: Mission): MissionSurfaceId {
 export function getMissionSurfaceForMission(mission: Mission): MissionSurfaceDefinition {
   return getMissionSurface(inferMissionSurfaceId(mission));
 }
+
+export function buildMissionComposerDraftKey(
+  surfaceId: MissionSurfaceId,
+  missionId?: string | null,
+): string {
+  const normalizedMissionId = missionId?.trim();
+
+  if (normalizedMissionId) {
+    return `mission-surface:${surfaceId}:mission:${normalizedMissionId}`;
+  }
+
+  return `mission-surface:${surfaceId}:new`;
+}
