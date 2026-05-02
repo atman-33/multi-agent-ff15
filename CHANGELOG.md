@@ -5,8 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-05-02
 
+### Added
+- **Tmux transport restart controls** - Added runtime config drift detection, a tmux transport restart API, monitor restart actions, and transport status reporting in MCP config responses
+- **Operation authoring validation** - Added stricter YAML schema checks and placeholder validation for `output(...)`, `setting(...)`, and `root(...)` references across operation loading and customization tooling
 
+### Changed
+- **Tmux-resident workflow handling** - Updated `standby.sh`, monitor surfaces, and composer behavior to support automatic, forced, and disabled tmux attachment modes with clearer restart guidance
+- **Prompt composition contracts** - Tightened prompt builder validation so resolved step and delegated worker placeholders are checked before execution, and updated builtin operation definitions to match the stricter contracts
+
+### Fixed
+- **Mission continue endpoint resolution** - Fixed Lunafreya and Noctis mission continuation to probe the correct owner endpoint before reusing a stored session in tmux-resident mode
+- **Manual verification prompt formatting** - Fixed output contract formatting in the manual verification step so generated operation prompts remain valid under the stricter placeholder validation rules
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Security
+- None
 
 ## [0.12.0] - 2026-05-01
 
@@ -305,3 +325,5 @@ Initial release.
 [0.11.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0
+
+[0.13.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.12.0...v0.13.0
