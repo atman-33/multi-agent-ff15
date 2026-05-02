@@ -181,6 +181,75 @@ describe("operation loader", () => {
     expect(planStep?.output_contracts?.report[0]?.format).toEqual({ inline: "# Plan output" });
   });
 
+  it("rejects content sources with unexpected nested step fields", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-content-source-operation",
+      "description: Invalid content source nesting",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    instruction:",
+      "      inline: |",
+      "        First line.",
+      "        Second line.",
+      "      output_contracts:",
+      "        report:",
+      "          - name: nested.md",
+      "            format:",
+      "              inline: '# Nested output'",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/unexpected field\(s\): output_contracts/i);
+  });
+
+  it("rejects rules with unexpected fields", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-rule-operation",
+      "description: Invalid rule keys",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "        note: extra",
+      "  - name: implement",
+      "    agent: ignis",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/rules\[0\].*unexpected field\(s\): note/i);
+  });
+
+  it("rejects undeclared output placeholder references during load", () => {
+    const filePath = writeTempOperation([
+      "name: invalid-output-placeholder-operation",
+      "description: Invalid output placeholder",
+      "initial_step: review",
+      "steps:",
+      "  - name: review",
+      "    agent: noctis",
+      "    instruction:",
+      '      inline: Read {{ output("implement", "latest", "missing-review.md") }} before finishing.',
+      "    rules:",
+      "      - condition: Ready",
+      "        next: implement",
+      "  - name: implement",
+      "    agent: ignis",
+      "    instruction:",
+      "      inline: Finish the work.",
+      "    rules: []",
+      "",
+    ].join("\n"));
+
+    expect(() => loadOperationFromFile(filePath)).toThrow(/undeclared output file "missing-review\.md"/i);
+  });
+
   it("rejects inline workflow skills", () => {
     const filePath = writeTempOperation([
       "name: invalid-skills-operation",

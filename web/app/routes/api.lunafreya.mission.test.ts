@@ -9,16 +9,33 @@ import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.
 import { createMission, deleteMission, getMission } from "@/lib/mission-store";
 import { writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 
-const { promptAsyncMock, sessionCreateMock, sessionStatusMock } = vi.hoisted(() => ({
+const {
+  ownerSessionCreateMock,
+  ownerSessionMessagesMock,
+  promptAsyncMock,
+  sessionCreateMock,
+  sessionStatusMock,
+} = vi.hoisted(() => ({
+  ownerSessionCreateMock: vi.fn(),
+  ownerSessionMessagesMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
   sessionStatusMock: vi.fn(),
 }));
 
 vi.mock("@/lib/opencode-client", () => ({
+  createProjectOpencodeClient: () => ({
+    session: {
+      create: ownerSessionCreateMock,
+      messages: ownerSessionMessagesMock,
+      promptAsync: promptAsyncMock,
+      status: sessionStatusMock,
+    },
+  }),
   getOpencodeClient: () => ({
     session: {
       create: sessionCreateMock,
+      messages: ownerSessionMessagesMock,
       promptAsync: promptAsyncMock,
       status: sessionStatusMock,
     },
@@ -31,6 +48,7 @@ import { action as startAction } from "./api.lunafreya.mission.start";
 const tempRoots: string[] = [];
 const missionIds: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
+const originalFetch = globalThis.fetch;
 const repoRoot = getProjectRoot();
 
 function createTempRoot(): string {
@@ -58,8 +76,8 @@ function createTempRoot(): string {
   execSync('git commit -m "init"', { cwd: join(root, "external-alpha"), stdio: "ignore" });
   writeFileSync(
     join(root, "config", "settings.yaml"),
-    ['language: ja', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-    "utf-8",
+    ["language: ja", 'execution_workspace_root: ".worktrees"', ""].join("\n"),
+    "utf-8"
   );
   writeFileSync(
     join(root, "projects", "alpha", "project.yaml"),
@@ -69,12 +87,12 @@ function createTempRoot(): string {
       'root_path: "../../external-alpha"',
       'default_base_branch: "main"',
       'serena_project: "alpha"',
-      'instruction_files:',
+      "instruction_files:",
       '  - path: "../../external-alpha/AGENTS.md"',
-      '    enabled: true',
-      '',
+      "    enabled: true",
+      "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
 
   mkdirSync(join(root, "builtins", "ja", "facets", "jobs"), { recursive: true });
@@ -90,7 +108,7 @@ function createTempRoot(): string {
       "Structure the response as calm, high-signal guidance.",
       "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
 
   mkdirSync(join(root, "builtins", "ja", "facets", "skills", "oracle-notes"), {
@@ -101,14 +119,14 @@ function createTempRoot(): string {
     [
       "---",
       "name: oracle-notes",
-      'description: Read when you need Lunafreya-specific long-horizon guidance.',
+      "description: Read when you need Lunafreya-specific long-horizon guidance.",
       "---",
       "# Oracle Notes",
       "",
       "Consider the longer-term implications before committing to a direction.",
       "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
 
   mkdirSync(join(root, "projects", "alpha", "facets", "skills", "domain-notes"), {
@@ -119,14 +137,14 @@ function createTempRoot(): string {
     [
       "---",
       "name: alpha-domain-notes",
-      'description: Use the Alpha project conventions and existing module boundaries.',
+      "description: Use the Alpha project conventions and existing module boundaries.",
       "---",
       "# Alpha Domain Notes",
       "",
       "Use the Alpha project conventions and existing module boundaries.",
       "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
 
   mkdirSync(join(root, "skills", "project-manage"), { recursive: true });
@@ -135,14 +153,14 @@ function createTempRoot(): string {
     [
       "---",
       "name: project-manage",
-      'description: Manage project execution work.',
+      "description: Manage project execution work.",
       "---",
       "# Project Manage",
       "",
       "Manage project execution work.",
       "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
 
   return root;
@@ -165,9 +183,9 @@ function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
         ],
       },
       null,
-      2,
+      2
     )}\n`,
-    "utf-8",
+    "utf-8"
   );
   writeFileSync(
     join(root, "runtime", "tmux-transport-dispatcher.json"),
@@ -180,9 +198,9 @@ function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
         startedAt: "2026-04-28T00:00:00.000Z",
       },
       null,
-      2,
+      2
     )}\n`,
-    "utf-8",
+    "utf-8"
   );
 }
 
@@ -192,6 +210,7 @@ async function readJson<T>(response: Response): Promise<T> {
 
 afterEach(() => {
   vi.clearAllMocks();
+  globalThis.fetch = originalFetch;
   for (const missionId of missionIds.splice(0)) {
     deleteMission(missionId);
   }
@@ -214,8 +233,12 @@ describe("Lunafreya mission routing", () => {
   it("returns an operation terminology error when the hidden Lunafreya operation is unavailable", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
-    rmSync(join(root, "builtins", "ja", "operations", "lunafreya-autonomous.yaml"), { force: true });
-    rmSync(join(root, "builtins", "en", "operations", "lunafreya-autonomous.yaml"), { force: true });
+    rmSync(join(root, "builtins", "ja", "operations", "lunafreya-autonomous.yaml"), {
+      force: true,
+    });
+    rmSync(join(root, "builtins", "en", "operations", "lunafreya-autonomous.yaml"), {
+      force: true,
+    });
 
     const response = await startAction({
       request: new Request("http://localhost/api/lunafreya/mission/start", {
@@ -239,8 +262,13 @@ describe("Lunafreya mission routing", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
 
     const response = await startAction({
@@ -266,8 +294,13 @@ describe("Lunafreya mission routing", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
     writeHealthyTmuxTransportBootstrapArtifacts(root);
     sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-tmux-start" } });
@@ -313,18 +346,27 @@ describe("Lunafreya mission routing", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
     writeHealthyTmuxTransportBootstrapArtifacts(root);
 
-    const activeMission = createMission(`mission-luna-active-${crypto.randomUUID()}`, "session-luna-active", {
-      title: "Active Lunafreya mission",
-      objective: "Hold tmux write focus",
-      executionProjectId: "alpha",
-      primaryAgentId: "lunafreya",
-      surfaceId: "lunafreya",
-    });
+    const activeMission = createMission(
+      `mission-luna-active-${crypto.randomUUID()}`,
+      "session-luna-active",
+      {
+        title: "Active Lunafreya mission",
+        objective: "Hold tmux write focus",
+        executionProjectId: "alpha",
+        primaryAgentId: "lunafreya",
+        surfaceId: "lunafreya",
+      }
+    );
     missionIds.push(activeMission.id);
     writeTmuxActiveMission(root, {
       missionId: activeMission.id,
@@ -389,7 +431,7 @@ describe("Lunafreya mission routing", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${data.missionId}:lunafreya`,
-      }),
+      })
     );
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
@@ -435,7 +477,7 @@ describe("Lunafreya mission routing", () => {
     expect(promptAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
         agent: "lunafreya",
-      }),
+      })
     );
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
@@ -457,7 +499,7 @@ describe("Lunafreya mission routing", () => {
     writeFileSync(
       join(root, "config", "shared-skills.yaml"),
       ["selected_skill_ids:", '  - "project-manage"', ""].join("\n"),
-      "utf-8",
+      "utf-8"
     );
     sessionCreateMock.mockResolvedValue({ data: { id: "session-lunafreya-shared" } });
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-lunafreya-shared" } });
@@ -518,10 +560,7 @@ describe("Lunafreya mission routing", () => {
         body: JSON.stringify({
           missionId,
           message: "Now weigh the long-term risks too.",
-          selectedSkillIds: [
-            "builtin:ja:skills/oracle-notes",
-            "project:alpha:skills/domain-notes",
-          ],
+          selectedSkillIds: ["builtin:ja:skills/oracle-notes", "project:alpha:skills/domain-notes"],
         }),
       }),
     } as never);
@@ -533,16 +572,13 @@ describe("Lunafreya mission routing", () => {
     expect(promptAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
         agent: "lunafreya",
-      }),
+      })
     );
 
     const mission = getMission(missionId);
     expect(mission?.lunafreyaFacetSelection).toMatchObject({
       selectedJobId: "builtin:ja:jobs/luna-strategist.md",
-      selectedSkillIds: [
-        "builtin:ja:skills/oracle-notes",
-        "project:alpha:skills/domain-notes",
-      ],
+      selectedSkillIds: ["builtin:ja:skills/oracle-notes", "project:alpha:skills/domain-notes"],
     });
 
     const promptText = promptAsyncMock.mock.calls[0]?.[0]?.parts?.[0]?.text as string;
@@ -563,20 +599,36 @@ describe("Lunafreya mission routing", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
     writeHealthyTmuxTransportBootstrapArtifacts(root);
 
-    const mission = createMission(`mission-luna-tmux-${crypto.randomUUID()}`, "session-lunafreya-existing", {
-      title: "Lunafreya tmux mission",
-      objective: "Resume through tmux outbox",
-      surfaceId: "lunafreya",
-      primaryAgentId: "lunafreya",
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const mission = createMission(
+      `mission-luna-tmux-${crypto.randomUUID()}`,
+      "session-lunafreya-existing",
+      {
+        title: "Lunafreya tmux mission",
+        objective: "Resume through tmux outbox",
+        surfaceId: "lunafreya",
+        primaryAgentId: "lunafreya",
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(mission.id);
+    globalThis.fetch = vi.fn(async (input) => {
+      expect(String(input)).toBe("http://127.0.0.1:4402/session/session-lunafreya-existing");
+      return new Response(JSON.stringify({ id: "session-lunafreya-existing" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
 
     const response = await continueAction({
       request: new Request("http://localhost/api/lunafreya/mission/continue", {
@@ -593,6 +645,8 @@ describe("Lunafreya mission routing", () => {
     await expect(readJson<{ lunafreyaSessionId: string }>(response)).resolves.toEqual({
       lunafreyaSessionId: "session-lunafreya-existing",
     });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(ownerSessionMessagesMock).not.toHaveBeenCalled();
     expect(sessionCreateMock).not.toHaveBeenCalled();
     expect(promptAsyncMock).not.toHaveBeenCalled();
 
@@ -608,30 +662,103 @@ describe("Lunafreya mission routing", () => {
     });
   });
 
+  it("recreates an unreadable tmux-resident Lunafreya session on continue", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeFileSync(
+      join(root, "config", "settings.yaml"),
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
+    );
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+
+    const mission = createMission(
+      `mission-luna-tmux-recreate-${crypto.randomUUID()}`,
+      "session-lunafreya-stale",
+      {
+        title: "Lunafreya tmux stale mission",
+        objective: "Resume with a recreated owner session",
+        surfaceId: "lunafreya",
+        primaryAgentId: "lunafreya",
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
+    missionIds.push(mission.id);
+    globalThis.fetch = vi.fn(async (input) => {
+      expect(String(input)).toBe("http://127.0.0.1:4402/session/session-lunafreya-stale");
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    ownerSessionCreateMock.mockResolvedValueOnce({ data: { id: "session-lunafreya-recreated" } });
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/lunafreya/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume with a recreated owner session.",
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    await expect(readJson<{ lunafreyaSessionId: string }>(response)).resolves.toEqual({
+      lunafreyaSessionId: "session-lunafreya-recreated",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(ownerSessionMessagesMock).not.toHaveBeenCalled();
+    expect(ownerSessionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: root,
+        title: `mission:${mission.id}:lunafreya`,
+      })
+    );
+    expect(getMission(mission.id)?.primarySessionId).toBe("session-lunafreya-recreated");
+  });
+
   it("blocks tmux-resident Lunafreya mission continue when another writable mission is still busy", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
     writeHealthyTmuxTransportBootstrapArtifacts(root);
 
-    const activeMission = createMission(`mission-luna-active-${crypto.randomUUID()}`, "session-luna-active", {
-      title: "Active Lunafreya mission",
-      objective: "Hold tmux write focus",
-      executionProjectId: "alpha",
-      primaryAgentId: "lunafreya",
-      surfaceId: "lunafreya",
-    });
-    const targetMission = createMission(`mission-luna-target-${crypto.randomUUID()}`, "session-luna-target", {
-      title: "Target Lunafreya mission",
-      objective: "Attempt to resume while another mission is busy",
-      executionProjectId: "alpha",
-      primaryAgentId: "lunafreya",
-      surfaceId: "lunafreya",
-    });
+    const activeMission = createMission(
+      `mission-luna-active-${crypto.randomUUID()}`,
+      "session-luna-active",
+      {
+        title: "Active Lunafreya mission",
+        objective: "Hold tmux write focus",
+        executionProjectId: "alpha",
+        primaryAgentId: "lunafreya",
+        surfaceId: "lunafreya",
+      }
+    );
+    const targetMission = createMission(
+      `mission-luna-target-${crypto.randomUUID()}`,
+      "session-luna-target",
+      {
+        title: "Target Lunafreya mission",
+        objective: "Attempt to resume while another mission is busy",
+        executionProjectId: "alpha",
+        primaryAgentId: "lunafreya",
+        surfaceId: "lunafreya",
+      }
+    );
     missionIds.push(activeMission.id, targetMission.id);
     writeTmuxActiveMission(root, {
       missionId: activeMission.id,
@@ -697,7 +824,7 @@ describe("Lunafreya mission routing", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${mission.id}:lunafreya`,
-      }),
+      })
     );
     expect(getMission(mission.id)?.primarySessionId).toBe("session-lunafreya-recreated");
   });
@@ -707,8 +834,13 @@ describe("Lunafreya mission routing", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
 
     const mission = createMission(`mission-luna-tmux-${crypto.randomUUID()}`, "session-luna-tmux", {
@@ -723,8 +855,13 @@ describe("Lunafreya mission routing", () => {
 
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "app-owned"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "app-owned"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
 
     const response = await continueAction({
@@ -781,9 +918,9 @@ describe("Lunafreya mission routing", () => {
           activityLog: [],
         },
         null,
-        2,
+        2
       )}\n`,
-      "utf-8",
+      "utf-8"
     );
 
     const response = await continueAction({

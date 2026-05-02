@@ -1,18 +1,11 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getProjectRoot } from "@/lib/get-project-root.server";
-import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
 import { resolveLunafreyaFacetSelection } from "@/lib/lunafreya-facet-selection.server";
+import { DEFAULT_LUNAFREYA_JOB_LABEL } from "@/lib/lunafreya-prompt-context";
 import { getManagedSessionTitle } from "@/lib/managed-session-titles";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
 import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
-import {
-  claimPrimaryAgentTmuxMissionWriteFocus,
-  MissionTransportNotReadyError,
-  queueResolvedPrimaryAgentTmuxMissionWrite,
-  requireReadyMissionTransport,
-  TmuxMissionWriteConflictError,
-} from "@/lib/primary-agent-mission-transport.server";
 import {
   appendMissionActivity,
   clearMissionSessions,
@@ -25,10 +18,18 @@ import {
 } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
 import { getOpencodeClient } from "@/lib/opencode-client";
-import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
 import { readOperationLanguage } from "@/lib/operation-definition/language";
+import { buildBuiltinOperationRef } from "@/lib/operation-definition/operation-catalog";
+import {
+  claimPrimaryAgentTmuxMissionWriteFocus,
+  MissionTransportNotReadyError,
+  queueResolvedPrimaryAgentTmuxMissionWrite,
+  requireReadyMissionTransport,
+  TmuxMissionWriteConflictError,
+} from "@/lib/primary-agent-mission-transport.server";
 import { composeUserToPrimaryAgentPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
+import { resolveOwnerEndpointTarget } from "@/lib/session-owner-routing.server";
 import type { AgentId, ModelSelection } from "@/lib/types/mission";
 
 function listBuiltinLanguages(language: string): string[] {
@@ -38,7 +39,7 @@ function listBuiltinLanguages(language: string): string[] {
 function resolveLunafreyaOperationRef(root: string, language: string): string {
   const fileName = "lunafreya-autonomous.yaml";
   const preferredLanguage = listBuiltinLanguages(language).find((candidate) =>
-    existsSync(join(root, "builtins", candidate, "operations", fileName)),
+    existsSync(join(root, "builtins", candidate, "operations", fileName))
   );
 
   if (!preferredLanguage) {
@@ -50,7 +51,7 @@ function resolveLunafreyaOperationRef(root: string, language: string): string {
 
 function sameSelection(
   left: { selectedJobId?: string; selectedSkillIds: string[] } | null | undefined,
-  right: { selectedJobId?: string; selectedSkillIds: string[] },
+  right: { selectedJobId?: string; selectedSkillIds: string[] }
 ): boolean {
   if ((left?.selectedJobId ?? undefined) !== (right.selectedJobId ?? undefined)) {
     return false;
@@ -72,6 +73,29 @@ function buildSelectionUpdateBody(input: {
     `Job: ${input.selectedJobLabel ?? DEFAULT_LUNAFREYA_JOB_LABEL}`,
     `Skills: ${input.selectedSkillLabels.join(", ") || "none"}`,
   ].join("\n");
+}
+
+async function canResolveSessionOnEndpoint(
+  endpointUrl: string | null | undefined,
+  sessionId: string
+): Promise<boolean> {
+  if (!endpointUrl) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(new URL(`/session/${encodeURIComponent(sessionId)}`, endpointUrl));
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function canReadStoredSession(
+  endpointUrl: string | null | undefined,
+  sessionId: string
+): Promise<boolean> {
+  return canResolveSessionOnEndpoint(endpointUrl, sessionId);
 }
 
 export const action = async ({ request }: { request: Request }) => {
@@ -135,7 +159,7 @@ export const action = async ({ request }: { request: Request }) => {
   if (!mission.executionProjectId) {
     return Response.json(
       { error: "Mission requires an execution project before it can be resumed." },
-      { status: 409 },
+      { status: 409 }
     );
   }
 
@@ -153,7 +177,7 @@ export const action = async ({ request }: { request: Request }) => {
   const nextSelectedSkillIds = hasSelectedSkillIds
     ? Array.isArray(body.selectedSkillIds)
       ? body.selectedSkillIds.filter(
-          (id): id is string => typeof id === "string" && id.trim().length > 0,
+          (id): id is string => typeof id === "string" && id.trim().length > 0
         )
       : []
     : currentSelection.selectedSkillIds;
@@ -166,14 +190,19 @@ export const action = async ({ request }: { request: Request }) => {
       appRoot,
       transportMode: mission.transportMode,
     });
-    const client = getOpencodeClient();
+    const transportClient = getOpencodeClient();
     if (transportStatus.transportMode === "tmux-resident") {
       await claimPrimaryAgentTmuxMissionWriteFocus({
         appRoot,
-        client,
+        client: transportClient,
         missionId,
       });
     }
+    const ownerEndpointTarget =
+      transportStatus.transportMode === "tmux-resident"
+        ? resolveOwnerEndpointTarget("lunafreya", `mission continue ${missionId}`)
+        : null;
+    const client = ownerEndpointTarget?.client ?? transportClient;
     const executionRoot = resolveMissionExecutionRoot({
       appRoot,
       mission,
@@ -225,6 +254,14 @@ export const action = async ({ request }: { request: Request }) => {
     setAgentModels(missionId, agentModels);
 
     let sessionId = getMissionPrimarySessionId(mission);
+    if (
+      sessionId &&
+      transportStatus.transportMode === "tmux-resident" &&
+      !(await canReadStoredSession(ownerEndpointTarget?.endpointUrl, sessionId))
+    ) {
+      sessionId = null;
+    }
+
     if (!sessionId) {
       const sessionResult = await client.session.create({
         directory: executionRoot.sessionHostRoot,

@@ -34,6 +34,8 @@ Pick the smallest template that matches the artifact you are creating. Remove al
 - Do not ask for routine User-facing progress updates unless the workflow explicitly requires checkpoints, approvals, or interactive monitoring.
 - Put step-specific placeholder usage or command references here.
 - Supported dynamic placeholders in instructions currently include `{{ output("<step>", "latest", "<artifact>") }}` for prior workflow artifacts, `{{ setting("language", "name") }}` for configured report-language wording, `{{ root("app_root") }}` for app-owned paths, and `{{ root("execution_root") }}` for mission execution-target paths.
+- Prefer file-backed instructions when the procedure is long, uses several placeholders, or is followed by step-level siblings such as `output_contracts`, `policies`, `delegation`, or `rules`.
+- When you do keep a multiline `inline: |`, re-check indentation after the block so sibling step fields remain siblings of `instruction:` instead of becoming nested keys inside the content source.
 
 ## skills
 

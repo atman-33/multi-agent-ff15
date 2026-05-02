@@ -62,7 +62,7 @@ Treat validator failures as blocking before you move on to higher-level runtime 
 17. The canonical completion transport is `taskId + next + message`.
 18. `delegation.allowed_workers` is the authored upper bound. Runtime intersects it with the mission allowed worker set to determine the effective child-task targets.
 19. Delegated worker prompts are composed from `delegation.worker_*` sources rather than the parent step's job and instruction.
-20. Supported instruction placeholders must resolve during prompt composition. `{{ output("step", "selector", "file") }}` must resolve to an existing mission-scoped file, `{{ setting("language", "name") }}` must use a supported setting key and mode pair, and `{{ root("app_root") }}` / `{{ root("execution_root") }}` must use a supported root scope with the required mission context. Treat unresolved, malformed, or unsupported placeholders as blocking failures.
+20. Supported instruction placeholders must resolve during prompt composition. `{{ output("step", "selector", "file") }}` must reference a declared `output_contracts.report[].name` for that step and later resolve to an existing mission-scoped file, `{{ setting("language", "name") }}` must use a supported setting key and mode pair, and `{{ root("app_root") }}` / `{{ root("execution_root") }}` must use a supported root scope with the required mission context. Treat unresolved, malformed, undeclared, or unsupported placeholders as blocking failures.
 21. Output-contract facets must contain exactly one `## Format` section followed by exactly one `## Rule` section.
 
 ## Autonomous Delegation Pattern
@@ -85,5 +85,8 @@ Treat validator failures as blocking before you move on to higher-level runtime 
 - Run the bundled validator on each concrete workflow file before you finish.
 - Resolve every facet path relative to the operation YAML file.
 - Keep reusable content in facet files and step-specific content inline.
+- Prefer file-backed instructions over long inline blocks, especially when step-level siblings such as `output_contracts`, `policies`, `delegation`, or `rules` follow the instruction.
+- After any multiline `inline: |`, re-check indentation so sibling step fields are not nested into the content-source object.
 - Verify every `next` target exists or is one of `COMPLETE` or `ABORT`.
 - Re-check any authored instruction placeholder such as `output(...)`, `setting("language", "name")`, or `root("execution_root")` against the runtime contract it expects.
+- If a worker step hands off to a Noctis step that consumes outputs, inspect the next-step prompt path too, not only the current step.

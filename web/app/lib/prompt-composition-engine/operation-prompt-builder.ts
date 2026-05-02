@@ -26,6 +26,10 @@ import {
   joinXmlSections,
 } from "./prompt-xml";
 
+import {
+  resolveDelegatedWorkerFacets,
+  resolveStepFacets,
+} from "@/lib/operation-definition/facet-loader";
 const OUTPUT_PLACEHOLDER_PATTERN =
   /\{\{\s*output\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
 const SETTING_PLACEHOLDER_PATTERN =
@@ -85,6 +89,77 @@ function buildOutputContractGuidance(_operation: OperationDefinition, outputPath
     "- The file contents must follow the `Format` below",
     "- Do not complete the step until the file exists",
   ].join("\n");
+}
+
+function validateInstructionPlaceholders(input: {
+  content: string;
+  operation: OperationDefinition;
+  operationState: OperationState;
+  missionId: string;
+}): void {
+  if (!input.content.includes("{{")) {
+    return;
+  }
+
+  resolveInstructionPlaceholders({
+    content: input.content,
+    operation: input.operation,
+    operationState: input.operationState,
+    missionId: input.missionId,
+  });
+}
+
+function validateStepPromptPlaceholderContracts(input: {
+  operation: OperationDefinition;
+  operationState: OperationState;
+  missionId: string;
+  step: StepDefinition;
+}): void {
+  const facets = resolveStepFacets(input.operation, input.step, readAppConfig(getProjectRoot()).language);
+
+  if (facets.instruction) {
+    validateInstructionPlaceholders({
+      content: facets.instruction,
+      operation: input.operation,
+      operationState: input.operationState,
+      missionId: input.missionId,
+    });
+  }
+
+  for (const policy of facets.policies) {
+    validateInstructionPlaceholders({
+      content: policy,
+      operation: input.operation,
+      operationState: input.operationState,
+      missionId: input.missionId,
+    });
+  }
+
+  if (input.step.agent === "noctis" && input.step.delegation) {
+    const delegatedFacets = resolveDelegatedWorkerFacets(
+      input.operation,
+      input.step,
+      readAppConfig(getProjectRoot()).language,
+    );
+
+    if (delegatedFacets.instruction) {
+      validateInstructionPlaceholders({
+        content: delegatedFacets.instruction,
+        operation: input.operation,
+        operationState: input.operationState,
+        missionId: input.missionId,
+      });
+    }
+
+    for (const policy of delegatedFacets.policies) {
+      validateInstructionPlaceholders({
+        content: policy,
+        operation: input.operation,
+        operationState: input.operationState,
+        missionId: input.missionId,
+      });
+    }
+  }
 }
 
 function resolveOutputContract(
@@ -528,6 +603,15 @@ export function buildDelegatedWorkerInstruction(input: {
   }
 
   return joinXmlSections(sections);
+}
+
+export function validateStepPromptPlaceholders(input: {
+  operation: OperationDefinition;
+  operationState: OperationState;
+  missionId: string;
+  step: StepDefinition;
+}): void {
+  validateStepPromptPlaceholderContracts(input);
 }
 
 export function buildActivationInstruction(input: {

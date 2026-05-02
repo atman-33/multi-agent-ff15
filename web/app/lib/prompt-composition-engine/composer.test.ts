@@ -898,6 +898,48 @@ describe("prompt composition engine", () => {
     ).toThrow(/## Format.*## Rule/i);
   });
 
+  it("fails debug preview generation when a next-step output placeholder references an undeclared file", () => {
+    const root = createTempRoot();
+    seedProjectConfig(root);
+    writeFileSync(
+      join(root, "builtins", "ja", "operations", "invalid-output-reference.yaml"),
+      [
+        "name: invalid-output-reference",
+        "description: Invalid output placeholder fixture",
+        "initial_step: plan",
+        "steps:",
+        "  - name: plan",
+        "    agent: noctis",
+        "    instruction:",
+        "      inline: Plan the work.",
+        "    rules:",
+        "      - condition: Ready",
+        "        next: implement",
+        "  - name: implement",
+        "    agent: ignis",
+        "    instruction:",
+        "      inline: Carry out the work.",
+        "    rules:",
+        "      - condition: Done",
+        "        next: finalize",
+        "  - name: finalize",
+        "    agent: noctis",
+        "    instruction:",
+        '      inline: Read {{ output("implement", "latest", "missing-review.md") }} before finalizing.',
+        "    rules: []",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    expect(() =>
+      buildOperationDebugBundle({
+        missionId: "mission-invalid-output-reference",
+        operationRef: builtinOperationRef("invalid-output-reference"),
+      }),
+    ).toThrow(/undeclared output file "missing-review\.md"/i);
+  });
+
   it("builds an autonomous Noctis prompt with delegation guidance", () => {
     const root = createTempRoot();
     seedProjectConfig(root);

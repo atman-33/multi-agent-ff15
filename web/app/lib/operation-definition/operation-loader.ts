@@ -32,6 +32,169 @@ function normalizeStepAgent(raw: unknown, stepName: string): StepDefinition["age
   return agent;
 }
 
+const CONTENT_SOURCE_KEYS = new Set(["file", "inline"]);
+const OUTPUT_CONTRACT_KEYS = new Set(["report"]);
+const OUTPUT_CONTRACT_REPORT_KEYS = new Set(["name", "format"]);
+const DELEGATION_KEYS = new Set([
+  "allowed_workers",
+  "worker_job",
+  "worker_instruction",
+  "worker_skills",
+  "worker_policies",
+]);
+const STEP_KEYS = new Set([
+  "name",
+  "agent",
+  "job",
+  "instruction",
+  "skills",
+  "policies",
+  "output_contracts",
+  "delegation",
+  "rules",
+]);
+const OPERATION_KEYS = new Set([
+  "name",
+  "description",
+  "initial_step",
+  "jobs",
+  "instructions",
+  "skills",
+  "policies",
+  "steps",
+]);
+const RULE_KEYS = new Set(["condition", "next"]);
+
+function assertNoUnexpectedKeys(
+  record: Record<string, unknown>,
+  fieldLabel: string,
+  allowedKeys: ReadonlySet<string>,
+  guidance: string,
+): void {
+  const unexpectedKeys = Object.keys(record).filter((key) => !allowedKeys.has(key));
+  if (unexpectedKeys.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `${fieldLabel} contains unexpected field(s): ${unexpectedKeys.join(", ")}. ${guidance}`,
+  );
+}
+
+const OUTPUT_PLACEHOLDER_PATTERN =
+  /\{\{\s*output\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const SETTING_PLACEHOLDER_PATTERN =
+  /\{\{\s*setting\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const ROOT_PLACEHOLDER_PATTERN = /\{\{\s*root\(\s*"([^"]+)"\s*\)\s*\}\}/g;
+
+function collectOutputPlaceholders(content: string): Array<{
+  stepName: string;
+  selector: string;
+  fileName: string;
+}> {
+  if (!content.includes("{{")) {
+    return [];
+  }
+
+  const matches: Array<{ stepName: string; selector: string; fileName: string }> = [];
+  for (const match of content.matchAll(OUTPUT_PLACEHOLDER_PATTERN)) {
+    matches.push({
+      stepName: match[1],
+      selector: match[2],
+      fileName: match[3],
+    });
+  }
+
+  return matches;
+}
+
+function validatePlaceholderSyntax(content: string, fieldLabel: string): void {
+  if (content.includes("{{ output(")) {
+    const matches = Array.from(content.matchAll(OUTPUT_PLACEHOLDER_PATTERN));
+    const malformed = content.includes("{{ output(") && matches.length === 0;
+    if (malformed) {
+      throw new Error(
+        `${fieldLabel} contains invalid output placeholder syntax. Use {{ output("step", "selector", "file") }}.`,
+      );
+    }
+  }
+
+  if (content.includes("{{ setting(")) {
+    const matches = Array.from(content.matchAll(SETTING_PLACEHOLDER_PATTERN));
+    if (matches.length === 0) {
+      throw new Error(
+        `${fieldLabel} contains invalid setting placeholder syntax. Use {{ setting("key", "mode") }}.`,
+      );
+    }
+    for (const match of matches) {
+      if (match[1] !== "language") {
+        throw new Error(`${fieldLabel} contains unsupported setting placeholder key "${match[1]}".`);
+      }
+      if (match[2] !== "name") {
+        throw new Error(
+          `${fieldLabel} contains unsupported setting placeholder mode "${match[2]}" for key "${match[1]}".`,
+        );
+      }
+    }
+  }
+
+  if (content.includes("{{ root(")) {
+    const matches = Array.from(content.matchAll(ROOT_PLACEHOLDER_PATTERN));
+    if (matches.length === 0) {
+      throw new Error(
+        `${fieldLabel} contains invalid root placeholder syntax. Use {{ root("scope") }}.`,
+      );
+    }
+    for (const match of matches) {
+      if (match[1] !== "app_root" && match[1] !== "execution_root") {
+        throw new Error(`${fieldLabel} contains unsupported root placeholder scope "${match[1]}".`);
+      }
+    }
+  }
+}
+
+function validateOutputPlaceholderReferences(
+  content: string,
+  fieldLabel: string,
+  declaredOutputsByStep: ReadonlyMap<string, ReadonlySet<string>>,
+): void {
+  validatePlaceholderSyntax(content, fieldLabel);
+
+  for (const placeholder of collectOutputPlaceholders(content)) {
+    const declaredFiles = declaredOutputsByStep.get(placeholder.stepName);
+    if (!declaredFiles) {
+      throw new Error(
+        `${fieldLabel} references unknown output step "${placeholder.stepName}" via output("${placeholder.stepName}", "${placeholder.selector}", "${placeholder.fileName}").`,
+      );
+    }
+
+    if (!declaredFiles.has(placeholder.fileName)) {
+      throw new Error(
+        `${fieldLabel} references undeclared output file "${placeholder.fileName}" for step "${placeholder.stepName}". Declare it in output_contracts.report or fix the placeholder.`,
+      );
+    }
+  }
+}
+
+function validateOperationPlaceholders(steps: StepDefinition[]): void {
+  const declaredOutputsByStep = new Map<string, ReadonlySet<string>>(
+    steps.map((step) => [
+      step.name,
+      new Set((step.output_contracts?.report ?? []).map((report) => report.name)),
+    ]),
+  );
+
+  for (const step of steps) {
+    if (step.instruction && "inline" in step.instruction && typeof step.instruction.inline === "string") {
+      validateOutputPlaceholderReferences(
+        step.instruction.inline,
+        `Operation step "${step.name}" field "instruction"`,
+        declaredOutputsByStep,
+      );
+    }
+  }
+}
+
 function normalizeAllowedWorkers(raw: unknown, fieldLabel: string): DelegationDefinition["allowed_workers"] {
   if (raw === undefined || raw === null) {
     return [];
@@ -56,6 +219,12 @@ function normalizeContentSource(raw: unknown, fieldLabel: string): ContentSource
   }
 
   const record = raw as Record<string, unknown>;
+  assertNoUnexpectedKeys(
+    record,
+    fieldLabel,
+    CONTENT_SOURCE_KEYS,
+    'Content sources support only "file" or "inline". Check indentation so sibling step fields are not nested inside the source object.',
+  );
   const file = typeof record.file === "string" ? record.file.trim() : "";
   const inline = typeof record.inline === "string" ? record.inline : "";
   const hasFile = file.length > 0;
@@ -128,6 +297,13 @@ function normalizeOutputContractReport(
     );
   }
 
+  assertNoUnexpectedKeys(
+    record,
+    `Operation step "${stepName}" output_contracts.report[${index}]`,
+    OUTPUT_CONTRACT_REPORT_KEYS,
+    'Output contract report entries support only "name" and "format".',
+  );
+
   const name = String(record.name ?? "").trim();
   if (!name) {
     throw new Error(
@@ -156,7 +332,15 @@ function normalizeOutputContracts(
     throw new Error(`Operation step "${stepName}" output_contracts must be an object.`);
   }
 
-  const report = (raw as Record<string, unknown>).report;
+  const record = raw as Record<string, unknown>;
+  assertNoUnexpectedKeys(
+    record,
+    `Operation step "${stepName}" output_contracts`,
+    OUTPUT_CONTRACT_KEYS,
+    'Step output_contracts currently supports only the "report" field.',
+  );
+
+  const report = record.report;
   if (report === undefined) {
     return undefined;
   }
@@ -188,6 +372,12 @@ function normalizeDelegation(
   }
 
   const record = raw as Record<string, unknown>;
+  assertNoUnexpectedKeys(
+    record,
+    `Operation step "${stepName}" delegation`,
+    DELEGATION_KEYS,
+    'Delegation supports only allowed_workers, worker_job, worker_instruction, worker_skills, and worker_policies.',
+  );
   return {
     allowed_workers: normalizeAllowedWorkers(
       record.allowed_workers,
@@ -215,15 +405,27 @@ function normalizeDelegation(
 function normalizeStep(raw: Record<string, unknown>): StepDefinition {
   const stepName = String(raw.name ?? "");
   validateNoLegacyStepFields(raw, stepName);
+  assertNoUnexpectedKeys(
+    raw,
+    `Operation step "${stepName || "(unnamed)"}"`,
+    STEP_KEYS,
+    'Steps support only name, agent, job, instruction, skills, policies, output_contracts, delegation, and rules.',
+  );
   const agent = normalizeStepAgent(raw.agent, stepName);
 
   const rules = Array.isArray(raw.rules)
-    ? (raw.rules as Record<string, unknown>[]).map(
-        (rule): RuleDefinition => ({
+    ? (raw.rules as Record<string, unknown>[]).map((rule, index): RuleDefinition => {
+        assertNoUnexpectedKeys(
+          rule,
+          `Operation step "${stepName}" rules[${index}]`,
+          RULE_KEYS,
+          'Rules support only "condition" and "next".',
+        );
+        return {
           condition: String(rule.condition ?? ""),
           next: String(rule.next ?? ""),
-        }),
-      )
+        };
+      })
     : [];
 
   return {
@@ -314,6 +516,12 @@ function loadOperationFromRecord(
   absolutePath: string,
 ): OperationDefinition {
   validateNoLegacyOperationFields(raw);
+  assertNoUnexpectedKeys(
+    raw,
+    "Operation schema",
+    OPERATION_KEYS,
+    'Operations support only name, description, initial_step, jobs, instructions, skills, policies, and steps.',
+  );
 
   const initialStep = String(raw.initial_step ?? "").trim();
   if (!initialStep) {
@@ -325,6 +533,7 @@ function loadOperationFromRecord(
   }
 
   const steps = (raw.steps as Record<string, unknown>[]).map(normalizeStep);
+  validateOperationPlaceholders(steps);
   const initialStepDefinition = steps.find((step) => step.name === initialStep);
 
   if (!initialStepDefinition) {

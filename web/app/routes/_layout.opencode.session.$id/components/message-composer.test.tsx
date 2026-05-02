@@ -3,10 +3,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/chat/prompt-composer", () => ({
-  PromptComposer: ({ topSlot, footerStart }: { topSlot?: ReactNode; footerStart?: ReactNode }) => (
-    <div>
+  PromptComposer: ({
+    topSlot,
+    footerStart,
+    helperText,
+    disableSendAction,
+  }: {
+    topSlot?: ReactNode;
+    footerStart?: ReactNode;
+    helperText?: ReactNode;
+    disableSendAction?: boolean;
+  }) => (
+    <div data-disable-send-action={disableSendAction ? "true" : "false"}>
       <div>{topSlot}</div>
       <div>{footerStart}</div>
+      <div>{helperText}</div>
     </div>
   ),
 }));
@@ -134,5 +145,19 @@ describe("opencode message composer", () => {
     expect(markup).toContain("Alpha Project");
     expect(markup).toContain("Beta Project");
     expect(markup).toContain("Managed by mission");
+  });
+
+  it("surfaces a disabled-send notice for tmux-resident sessions", () => {
+    const markup = renderToStaticMarkup(
+      <MessageComposer
+        sessionId="session-tmux"
+        disableSendAction={true}
+        helperText="Tmux mode is active. Send messages from the tmux pane instead."
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-disable-send-action="true"');
+    expect(markup).toContain("Tmux mode is active. Send messages from the tmux pane instead.");
   });
 });

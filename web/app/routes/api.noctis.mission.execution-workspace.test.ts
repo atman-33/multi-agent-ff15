@@ -3,7 +3,8 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } fro
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { getProjectRoot } from "@/lib/get-project-root.server";
+import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 import {
   createMission,
   deleteMission,
@@ -11,24 +12,26 @@ import {
   getMissionPrimarySessionId,
   setWorkerSession,
 } from "@/lib/mission-store";
-import { getProjectRoot } from "@/lib/get-project-root.server";
-import { listPrimaryAgentOutboxItems } from "@/lib/mission-primary-agent-outbox.server";
 import { readTmuxActiveMission, writeTmuxActiveMission } from "@/lib/tmux-active-mission.server";
 
 const {
   ownerSessionCreateMock,
   ownerSessionListMock,
+  ownerSessionMessagesMock,
   ownerSessionStatusMock,
   promptAsyncMock,
   sessionCreateMock,
+  sessionMessagesMock,
   sessionListMock,
   sessionStatusMock,
 } = vi.hoisted(() => ({
   ownerSessionCreateMock: vi.fn(),
   ownerSessionListMock: vi.fn(),
+  ownerSessionMessagesMock: vi.fn(),
   ownerSessionStatusMock: vi.fn(),
   promptAsyncMock: vi.fn(),
   sessionCreateMock: vi.fn(),
+  sessionMessagesMock: vi.fn(),
   sessionListMock: vi.fn(),
   sessionStatusMock: vi.fn(),
 }));
@@ -38,6 +41,7 @@ vi.mock("@/lib/opencode-client", () => ({
     session: {
       create: ownerSessionCreateMock,
       list: ownerSessionListMock,
+      messages: ownerSessionMessagesMock,
       promptAsync: promptAsyncMock,
       status: ownerSessionStatusMock,
     },
@@ -46,6 +50,7 @@ vi.mock("@/lib/opencode-client", () => ({
     session: {
       create: sessionCreateMock,
       list: sessionListMock,
+      messages: sessionMessagesMock,
       promptAsync: promptAsyncMock,
       status: sessionStatusMock,
     },
@@ -58,6 +63,7 @@ import { action as startAction } from "./api.noctis.mission.start";
 const tempRoots: string[] = [];
 const missionIds: string[] = [];
 const originalRootEnv = process.env.MULTI_AGENT_FF15_ROOT;
+const originalFetch = globalThis.fetch;
 const repoRoot = getProjectRoot();
 
 function initializeGitProject(projectRoot: string): void {
@@ -90,12 +96,12 @@ function createTempRoot(options?: {
   writeFileSync(
     join(root, "config", "settings.yaml"),
     [
-      'language: ja',
+      "language: ja",
       `transport_mode: "${options?.transportMode ?? "app-owned"}"`,
       'execution_workspace_root: ".worktrees"',
-      '',
+      "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
   writeFileSync(
     join(root, "projects", "alpha", "project.yaml"),
@@ -110,7 +116,7 @@ function createTempRoot(options?: {
       "    enabled: true",
       "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
   mkdirSync(join(root, "projects", "beta"), { recursive: true });
   writeFileSync(
@@ -122,7 +128,7 @@ function createTempRoot(options?: {
       'serena_project: "beta"',
       "",
     ].join("\n"),
-    "utf-8",
+    "utf-8"
   );
 
   return root;
@@ -145,9 +151,9 @@ function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
         ],
       },
       null,
-      2,
+      2
     )}\n`,
-    "utf-8",
+    "utf-8"
   );
   writeFileSync(
     join(root, "runtime", "tmux-transport-dispatcher.json"),
@@ -160,9 +166,9 @@ function writeHealthyTmuxTransportBootstrapArtifacts(root: string): void {
         startedAt: "2026-04-28T00:00:00.000Z",
       },
       null,
-      2,
+      2
     )}\n`,
-    "utf-8",
+    "utf-8"
   );
 }
 
@@ -172,6 +178,7 @@ async function readJson<T>(response: Response): Promise<T> {
 
 afterEach(() => {
   vi.clearAllMocks();
+  globalThis.fetch = originalFetch;
   for (const missionId of missionIds.splice(0)) {
     deleteMission(missionId);
   }
@@ -215,7 +222,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
 
     const mission = getMission(data.missionId);
     expect(mission?.executionProjectId).toBe("alpha");
-  expect(mission?.contextProjectIds).toEqual([]);
+    expect(mission?.contextProjectIds).toEqual([]);
     expect(mission?.baseBranch).toBe("main");
     expect(mission?.branch).toMatch(/^mission\//);
     expect(mission?.workspaceStatus).toBe("ready");
@@ -225,7 +232,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: process.env.MULTI_AGENT_FF15_ROOT,
         title: `mission:${data.missionId}:noctis`,
-      }),
+      })
     );
   });
 
@@ -303,7 +310,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${data.missionId}:noctis`,
-      }),
+      })
     );
 
     const queuedItems = listPrimaryAgentOutboxItems(data.missionId);
@@ -317,7 +324,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
         parts: [
           {
             type: "text",
-            text: expect.stringContaining("<user-request from=\"user\" to=\"noctis\">") as never,
+            text: expect.stringContaining('<user-request from="user" to="noctis">') as never,
           },
         ],
       },
@@ -328,10 +335,10 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         kind: "system_event",
         body: "Queued primary-agent tmux delivery.",
-      }),
+      })
     );
     expect(mission?.activityLog.map((entry) => entry.body).join("\n") ?? "").not.toContain(
-      "Start through tmux transport.",
+      "Start through tmux transport."
     );
   });
 
@@ -362,7 +369,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${data.missionId}:noctis`,
-      }),
+      })
     );
     expect(sessionCreateMock).not.toHaveBeenCalled();
   });
@@ -371,13 +378,17 @@ describe("Noctis mission execution workspace lifecycle", () => {
     const root = createTempRoot({ transportMode: "tmux-resident" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeHealthyTmuxTransportBootstrapArtifacts(root);
-    const activeMission = createMission(`mission-tmux-active-${crypto.randomUUID()}`, "session-active", {
-      title: "Active tmux mission",
-      objective: "Own the writable tmux focus",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const activeMission = createMission(
+      `mission-tmux-active-${crypto.randomUUID()}`,
+      "session-active",
+      {
+        title: "Active tmux mission",
+        objective: "Own the writable tmux focus",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(activeMission.id);
     writeTmuxActiveMission(root, {
       missionId: activeMission.id,
@@ -441,7 +452,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${data.missionId}:noctis`,
-      }),
+      })
     );
   });
 
@@ -479,7 +490,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${data.missionId}:noctis`,
-      }),
+      })
     );
   });
 
@@ -558,7 +569,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: process.env.MULTI_AGENT_FF15_ROOT,
         title: `mission:${missionId}:noctis`,
-      }),
+      })
     );
     expect(getMission(missionId)?.noctisSessionId).toBe("session-noctis-recreated");
     expect(getMission(missionId)?.workerSessions).toEqual({});
@@ -599,7 +610,7 @@ describe("Noctis mission execution workspace lifecycle", () => {
       expect.objectContaining({
         directory: root,
         title: `mission:${mission.id}:noctis`,
-      }),
+      })
     );
     expect(getMission(mission.id)?.noctisSessionId).toBe("session-noctis-direct-continued");
   });
@@ -665,9 +676,9 @@ describe("Noctis mission execution workspace lifecycle", () => {
           activityLog: [],
         },
         null,
-        2,
+        2
       )}\n`,
-      "utf-8",
+      "utf-8"
     );
 
     const response = await continueAction({
@@ -702,8 +713,13 @@ describe("Noctis mission execution workspace lifecycle", () => {
 
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "app-owned"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "app-owned"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
 
     const response = await continueAction({
@@ -728,20 +744,29 @@ describe("Noctis mission execution workspace lifecycle", () => {
   it("continues app-owned missions even after the global transport mode changes to tmux-resident", async () => {
     const root = createTempRoot({ transportMode: "app-owned" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
-    const mission = createMission(`mission-app-owned-snapshot-${crypto.randomUUID()}`, "session-app-owned", {
-      title: "App-owned snapshot mission",
-      objective: "Keep using the stored app-owned transport mode",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const mission = createMission(
+      `mission-app-owned-snapshot-${crypto.randomUUID()}`,
+      "session-app-owned",
+      {
+        title: "App-owned snapshot mission",
+        objective: "Keep using the stored app-owned transport mode",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(mission.id);
     promptAsyncMock.mockResolvedValue({ data: { id: "prompt-app-owned-continue" } });
 
     writeFileSync(
       join(root, "config", "settings.yaml"),
-      ['language: ja', 'transport_mode: "tmux-resident"', 'execution_workspace_root: ".worktrees"', ''].join("\n"),
-      "utf-8",
+      [
+        "language: ja",
+        'transport_mode: "tmux-resident"',
+        'execution_workspace_root: ".worktrees"',
+        "",
+      ].join("\n"),
+      "utf-8"
     );
 
     const response = await continueAction({
@@ -767,13 +792,17 @@ describe("Noctis mission execution workspace lifecycle", () => {
     const root = createTempRoot({ transportMode: "tmux-resident" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeHealthyTmuxTransportBootstrapArtifacts(root);
-    const mission = createMission(`mission-tmux-enqueue-${crypto.randomUUID()}`, "session-tmux-existing", {
-      title: "Tmux queued mission",
-      objective: "Resume through tmux outbox",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const mission = createMission(
+      `mission-tmux-enqueue-${crypto.randomUUID()}`,
+      "session-tmux-existing",
+      {
+        title: "Tmux queued mission",
+        objective: "Resume through tmux outbox",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(mission.id);
     ownerSessionListMock.mockResolvedValue({
       data: [
@@ -816,22 +845,97 @@ describe("Noctis mission execution workspace lifecycle", () => {
       },
     });
 
-    const activityBody = getMission(mission.id)?.activityLog.map((entry) => entry.body).join("\n") ?? "";
+    const activityBody =
+      getMission(mission.id)
+        ?.activityLog.map((entry) => entry.body)
+        .join("\n") ?? "";
     expect(activityBody).toContain("Queued primary-agent tmux delivery.");
     expect(activityBody).not.toContain("Resume through tmux transport.");
+  });
+
+  it("keeps a tmux-resident Noctis session when owner session metadata still resolves", async () => {
+    const root = createTempRoot({ transportMode: "tmux-resident" });
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    writeHealthyTmuxTransportBootstrapArtifacts(root);
+    const mission = createMission(
+      `mission-tmux-history-${crypto.randomUUID()}`,
+      "session-tmux-existing",
+      {
+        title: "Tmux continuity mission",
+        objective: "Resume without recreating a readable Noctis owner session",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
+    missionIds.push(mission.id);
+    ownerSessionListMock.mockResolvedValue({
+      data: [
+        {
+          id: "session-other",
+          title: "unrelated-session",
+        },
+      ],
+      error: null,
+    });
+    globalThis.fetch = vi.fn(async (input) => {
+      expect(String(input)).toBe("http://127.0.0.1:4401/session/session-tmux-existing");
+      return new Response(JSON.stringify({ id: "session-tmux-existing" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-owner-recreated" } });
+
+    const response = await continueAction({
+      request: new Request("http://localhost/api/noctis/mission/continue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          missionId: mission.id,
+          message: "Resume through tmux transport without recreating the owner session.",
+          allowedWorkers: [],
+        }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(200);
+    expect(await readJson<{ noctisSessionId: string }>(response)).toEqual({
+      noctisSessionId: "session-tmux-existing",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(ownerSessionMessagesMock).not.toHaveBeenCalled();
+    expect(ownerSessionCreateMock).not.toHaveBeenCalled();
+    expect(promptAsyncMock).not.toHaveBeenCalled();
+
+    const queuedItems = listPrimaryAgentOutboxItems(mission.id);
+    expect(queuedItems).toHaveLength(1);
+    expect(queuedItems[0]).toMatchObject({
+      status: "pending",
+      payload: {
+        agent: "noctis",
+        sessionId: "session-tmux-existing",
+        sessionTitle: `mission:${mission.id}:noctis`,
+      },
+    });
+    expect(getMissionPrimarySessionId(getMission(mission.id))).toBe("session-tmux-existing");
   });
 
   it("recreates a tmux-resident Noctis session on the owner endpoint when the stored session is missing", async () => {
     const root = createTempRoot({ transportMode: "tmux-resident" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeHealthyTmuxTransportBootstrapArtifacts(root);
-    const mission = createMission(`mission-tmux-rebind-${crypto.randomUUID()}`, "session-stale-default", {
-      title: "Tmux rebound mission",
-      objective: "Repair a stale Noctis owner session",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const mission = createMission(
+      `mission-tmux-rebind-${crypto.randomUUID()}`,
+      "session-stale-default",
+      {
+        title: "Tmux rebound mission",
+        objective: "Repair a stale Noctis owner session",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(mission.id);
     ownerSessionListMock
       .mockResolvedValueOnce({
@@ -852,6 +956,10 @@ describe("Noctis mission execution workspace lifecycle", () => {
         ],
         error: null,
       });
+    globalThis.fetch = vi.fn(async (input) => {
+      expect(String(input)).toBe("http://127.0.0.1:4401/session/session-stale-default");
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
     ownerSessionCreateMock.mockResolvedValue({ data: { id: "session-owner-recreated" } });
 
     const response = await continueAction({
@@ -870,11 +978,13 @@ describe("Noctis mission execution workspace lifecycle", () => {
     expect(await readJson<{ noctisSessionId: string }>(response)).toEqual({
       noctisSessionId: "session-owner-recreated",
     });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(ownerSessionMessagesMock).not.toHaveBeenCalled();
     expect(ownerSessionCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         directory: root,
         title: `mission:${mission.id}:noctis`,
-      }),
+      })
     );
     expect(sessionCreateMock).not.toHaveBeenCalled();
     expect(getMission(mission.id)?.noctisSessionId).toBe("session-owner-recreated");
@@ -925,20 +1035,28 @@ describe("Noctis mission execution workspace lifecycle", () => {
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeHealthyTmuxTransportBootstrapArtifacts(root);
 
-    const activeMission = createMission(`mission-tmux-active-${crypto.randomUUID()}`, "session-active", {
-      title: "Active tmux mission",
-      objective: "Own the writable tmux focus",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
-    const targetMission = createMission(`mission-tmux-target-${crypto.randomUUID()}`, "session-target", {
-      title: "Target tmux mission",
-      objective: "Attempt to continue while another mission is busy",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const activeMission = createMission(
+      `mission-tmux-active-${crypto.randomUUID()}`,
+      "session-active",
+      {
+        title: "Active tmux mission",
+        objective: "Own the writable tmux focus",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
+    const targetMission = createMission(
+      `mission-tmux-target-${crypto.randomUUID()}`,
+      "session-target",
+      {
+        title: "Target tmux mission",
+        objective: "Attempt to continue while another mission is busy",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(activeMission.id, targetMission.id);
     writeTmuxActiveMission(root, {
       missionId: activeMission.id,
@@ -975,20 +1093,28 @@ describe("Noctis mission execution workspace lifecycle", () => {
     const root = createTempRoot({ transportMode: "tmux-resident" });
     process.env.MULTI_AGENT_FF15_ROOT = root;
     writeHealthyTmuxTransportBootstrapArtifacts(root);
-    const activeMission = createMission(`mission-tmux-idle-${crypto.randomUUID()}`, "session-idle", {
-      title: "Idle tmux mission",
-      objective: "Yield writable focus when idle",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
-    const targetMission = createMission(`mission-tmux-target-${crypto.randomUUID()}`, "session-target", {
-      title: "Target tmux mission",
-      objective: "Take writable focus",
-      allowedWorkers: [],
-      executionProjectId: "alpha",
-      executionTargetMode: "execution_project",
-    });
+    const activeMission = createMission(
+      `mission-tmux-idle-${crypto.randomUUID()}`,
+      "session-idle",
+      {
+        title: "Idle tmux mission",
+        objective: "Yield writable focus when idle",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
+    const targetMission = createMission(
+      `mission-tmux-target-${crypto.randomUUID()}`,
+      "session-target",
+      {
+        title: "Target tmux mission",
+        objective: "Take writable focus",
+        allowedWorkers: [],
+        executionProjectId: "alpha",
+        executionTargetMode: "execution_project",
+      }
+    );
     missionIds.push(activeMission.id, targetMission.id);
     writeTmuxActiveMission(root, {
       missionId: activeMission.id,

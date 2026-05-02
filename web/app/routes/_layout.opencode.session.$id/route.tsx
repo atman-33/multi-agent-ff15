@@ -28,12 +28,17 @@ type SessionExecutionContext = {
   updatedAt: string | null;
 };
 
+type TransportMode = "app-owned" | "tmux-resident";
+
 type ManagedSessionInfo = {
   missionId: string;
   missionTitle: string;
   ownerAgent: string;
   ownerLabel: string;
 };
+
+const TMUX_SEND_BLOCK_MESSAGE =
+  "Tmux mode is active. Send messages from the tmux pane instead.";
 
 const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
   const params = useParams();
@@ -65,6 +70,7 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
     [sessionId, sessions],
   );
   const managedSession = (currentSession?.managedSession ?? null) as ManagedSessionInfo | null;
+  const isTmuxResident = loaderData.transportMode === "tmux-resident";
   const displayedExecutionContext = currentSession?.executionContext ?? executionContext;
   const currentSessionTitle = useMemo(() => {
     if (!sessionId) {
@@ -511,7 +517,9 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
           onToggleContextProjectId={handleToggleContextProjectId}
           onSend={handleSend}
           onAbort={handleAbort}
+          disableSendAction={isTmuxResident}
           disabled={isLoading || isAborting}
+          helperText={isTmuxResident ? TMUX_SEND_BLOCK_MESSAGE : undefined}
           isSessionRunning={isSessionRunning}
           isAborting={isAborting}
         />
@@ -543,14 +551,31 @@ const SessionRoute = ({ loaderData }: Route.ComponentProps) => {
 };
 
 export const loader = async ({ params, request }: Route.LoaderArgs) => {
+  const fallbackExecutionContext = {
+    executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
+    contextProjectIds: [],
+    updatedAt: null,
+  };
+  let transportMode: TransportMode = "app-owned";
+
+  try {
+    const url = new URL(request.url);
+    const configResponse = await fetch(`${url.origin}/api/config`);
+    if (configResponse.ok) {
+      const configData = (await configResponse.json()) as {
+        config?: { transportMode?: TransportMode };
+      };
+      transportMode = configData.config?.transportMode === "tmux-resident" ? "tmux-resident" : "app-owned";
+    }
+  } catch {
+    transportMode = "app-owned";
+  }
+
   if (!params.id) {
     return {
-      executionContext: {
-        executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
-        contextProjectIds: [],
-        updatedAt: null,
-      },
+      executionContext: fallbackExecutionContext,
       messages: [],
+      transportMode,
     };
   }
   try {
@@ -558,12 +583,9 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
     const response = await fetch(`${url.origin}/api/session/${params.id}`);
     if (!response.ok) {
       return {
-        executionContext: {
-          executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
-          contextProjectIds: [],
-          updatedAt: null,
-        },
+        executionContext: fallbackExecutionContext,
         messages: [],
+        transportMode,
       };
     }
     const data = (await response.json()) as {
@@ -571,21 +593,15 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
       messages: MessageInfo[];
     };
     return {
-      executionContext: data.executionContext ?? {
-        executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
-        contextProjectIds: [],
-        updatedAt: null,
-      },
+      executionContext: data.executionContext ?? fallbackExecutionContext,
       messages: data.messages ?? [],
+      transportMode,
     };
   } catch {
     return {
-      executionContext: {
-        executionProjectId: APP_ROOT_EXECUTION_PROJECT_ID,
-        contextProjectIds: [],
-        updatedAt: null,
-      },
+      executionContext: fallbackExecutionContext,
       messages: [],
+      transportMode,
     };
   }
 };

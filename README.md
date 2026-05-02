@@ -114,7 +114,7 @@ Credentials are stored in `~/.opencode/`.
 ./standby.sh
 ```
 
-The app runs at `http://localhost:13000`. Use `./standby.sh --attach` to attach to the tmux runtime when `transport_mode` is `tmux-resident`.
+The app runs at `http://localhost:13000`. When `transport_mode` is `tmux-resident`, interactive runs attach to the `ff15` tmux session by default. Use `./standby.sh --no-attach` to keep the current shell detached, or `./standby.sh --attach` to force attachment explicitly.
 
 ## Product Tour
 

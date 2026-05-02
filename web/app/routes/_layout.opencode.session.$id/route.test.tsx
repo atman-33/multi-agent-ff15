@@ -19,6 +19,7 @@ type TestLiveDraft = {
 
 const {
   fetchSessionStatusMock,
+  messageComposerState,
   routeContext,
   sessionChatRenderSnapshotMock,
   setServerSessionStateMock,
@@ -26,6 +27,9 @@ const {
   useSessionLiveThreadState,
 } = vi.hoisted(() => ({
   fetchSessionStatusMock: vi.fn(async () => "idle"),
+  messageComposerState: {
+    lastProps: null as null | Record<string, unknown>,
+  },
   routeContext: {
     outlet: {
       sessions: [
@@ -160,7 +164,17 @@ vi.mock("@/lib/session-status", async () => {
 });
 
 vi.mock("./components/message-composer", () => ({
-  default: () => <div data-message-composer="true" />,
+  default: (props: { disableSendAction?: boolean; helperText?: ReactNode }) => {
+    messageComposerState.lastProps = props as Record<string, unknown>;
+    return (
+      <div
+        data-disable-send-action={props.disableSendAction ? "true" : "false"}
+        data-message-composer="true"
+      >
+        {props.helperText}
+      </div>
+    );
+  },
 }));
 
 vi.mock("./components/message-list", () => ({
@@ -193,7 +207,12 @@ function createAssistantMessage(id: string, text: string): MessageInfo {
 function createLoaderData(overrides?: {
   executionContext?: TestExecutionContext;
   messages?: MessageInfo[];
-}): { executionContext: TestExecutionContext; messages: MessageInfo[] } {
+  transportMode?: "app-owned" | "tmux-resident";
+}): {
+  executionContext: TestExecutionContext;
+  messages: MessageInfo[];
+  transportMode: "app-owned" | "tmux-resident";
+} {
   return {
     executionContext: overrides?.executionContext ?? {
       contextProjectIds: [],
@@ -201,6 +220,7 @@ function createLoaderData(overrides?: {
       updatedAt: null,
     },
     messages: overrides?.messages ?? [],
+    transportMode: overrides?.transportMode ?? "app-owned",
   };
 }
 
@@ -268,6 +288,7 @@ describe("opencode session route", () => {
       streamingContent: "",
       streamingMessageId: null,
     };
+    messageComposerState.lastProps = null;
     useSessionLiveThreadMock.mockClear();
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   });
@@ -386,5 +407,23 @@ describe("opencode session route", () => {
     );
 
     expect(setServerSessionStateMock).toHaveBeenCalledWith("session-1", "busy");
+  });
+
+  it("blocks prompt sending in tmux-resident mode and shows guidance", async () => {
+    const SessionRoute = await loadSessionRoute();
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(SessionRoute, {
+          loaderData: createLoaderData({ transportMode: "tmux-resident" }),
+        }),
+      );
+    });
+
+    expect(container.innerHTML).toContain('data-disable-send-action="true"');
+    expect(container.textContent).toContain(
+      "Tmux mode is active. Send messages from the tmux pane instead.",
+    );
   });
 });
