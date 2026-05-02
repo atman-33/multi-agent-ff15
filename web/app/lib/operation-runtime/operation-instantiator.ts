@@ -5,8 +5,10 @@ import {
   findUnambiguousUserFacingOperationEntryForMessage,
   loadOperationByRef,
 } from "@/lib/operation-definition/operation-catalog";
-import { resolveStepFacets } from "@/lib/operation-definition/facet-loader";
-import { resolveDelegatedWorkerFacets } from "@/lib/operation-definition/facet-loader";
+import {
+  resolveDelegatedWorkerFacets,
+  resolveStepFacets,
+} from "@/lib/operation-definition/facet-loader";
 import type {
   OperationDefinition,
   ResolvedFacets,
@@ -18,6 +20,7 @@ import {
   buildDelegatedWorkerInstruction,
   buildOperationContextSummary,
   describeStepRole,
+  validateStepPromptPlaceholders,
 } from "@/lib/prompt-composition-engine/operation-prompt-builder";
 import {
   buildTextSection,
@@ -159,6 +162,14 @@ function buildActivationArtifact(input: {
     input.step.agent === "lunafreya"
       ? []
       : resolveSelectedSharedSkills(getProjectRoot()).validEntries;
+
+  validateStepPromptPlaceholders({
+    operation: input.operation,
+    operationState: input.operationState,
+    missionId: input.missionId,
+    step: input.step,
+  });
+
   const promptText = buildActivationInstruction({
     operation: input.operation,
     step: input.step,

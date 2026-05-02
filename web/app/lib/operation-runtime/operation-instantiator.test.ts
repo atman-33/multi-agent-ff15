@@ -144,13 +144,25 @@ function seedBrokenTransitionOperation(root: string): void {
       "    agent: ignis",
       "    instruction:",
       "      inline: Review the current implementation.",
+      "    output_contracts:",
+      "      report:",
+      "        - name: review.md",
+      "          format:",
+      "            inline: |",
+      "              ## Format",
+      "",
+      "              review",
+      "",
+      "              ## Rule",
+      "",
+      "              keep review output",
       "    rules:",
       "      - condition: Approved",
       "        next: finalize",
       "  - name: finalize",
       "    agent: noctis",
       "    instruction:",
-      '      inline: Read {{ output("implement", "latest", "missing-review.md") }} before finalizing.',
+      '      inline: Read {{ output("implement", "latest", "review.md") }} before finalizing.',
       "    rules: []",
       "",
     ].join("\n"),
@@ -493,7 +505,7 @@ describe("OperationInstantiator", () => {
         taskId: implementTaskId ?? "",
         next: "finalize",
       }),
-    ).toThrow(/undeclared file "missing-review\.md"/i);
+    ).toThrow(/Could not resolve latest output for step "implement"\./i);
 
     const savedState = getOperationState("mission-broken-transition");
     expect(savedState?.currentStep).toBe("implement");
@@ -503,6 +515,92 @@ describe("OperationInstantiator", () => {
       status: "completed",
       taskId,
     });
+    expect(savedState?.stepHistory).toHaveLength(1);
+  });
+
+  it("rejects transition into a step whose instruction placeholders are invalid even without prompt build side effects", () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    createMissionFixture("mission-invalid-finalize-placeholder");
+
+    const operationPath = join(root, "builtins", "ja", "operations", "invalid-finalize-placeholder.yaml");
+    writeFileSync(
+      operationPath,
+      [
+        "name: invalid-finalize-placeholder",
+        "description: Operation with invalid finalize placeholder",
+        "initial_step: plan",
+        "steps:",
+        "  - name: plan",
+        "    agent: noctis",
+        "    instruction:",
+        "      inline: Approve the handoff to implementation.",
+        "    rules:",
+        "      - condition: Ready for implementation",
+        "        next: implement",
+        "  - name: implement",
+        "    agent: ignis",
+        "    instruction:",
+        "      inline: Review the current implementation.",
+        "    output_contracts:",
+        "      report:",
+        "        - name: review.md",
+        "          format:",
+        "            inline: |",
+        "              ## Format",
+        "",
+        "              review",
+        "",
+        "              ## Rule",
+        "",
+        "              keep review output",
+        "    rules:",
+        "      - condition: Approved",
+        "        next: finalize",
+        "  - name: finalize",
+        "    agent: noctis",
+        "    instruction:",
+        '      inline: Read {{ output("implement", "latest", "review.md") }} before finalizing.',
+        "    rules: []",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const instantiator = createOperationInstantiator();
+    const activation = instantiator.activateOperation({
+      missionId: "mission-invalid-finalize-placeholder",
+      message: "Please run invalid-finalize-placeholder for this mission.",
+      selectedOperation: "builtin:ja:invalid-finalize-placeholder.yaml",
+    });
+
+    const taskId = activation.operationState?.stepHistory.at(-1)?.taskId;
+    expect(taskId).toBeTruthy();
+
+    instantiator.processStepReport({
+      missionId: "mission-invalid-finalize-placeholder",
+      reportBody: "Ready for implementation.",
+      fromAgent: "noctis",
+      taskId: taskId ?? "",
+      next: "implement",
+    });
+
+    const implementTaskId = getOperationState("mission-invalid-finalize-placeholder")?.stepHistory.at(-1)?.taskId;
+    expect(implementTaskId).toBeTruthy();
+
+    expect(() =>
+      instantiator.processStepReport({
+        missionId: "mission-invalid-finalize-placeholder",
+        reportBody: "Approved.",
+        fromAgent: "ignis",
+        taskId: implementTaskId ?? "",
+        next: "finalize",
+      }),
+    ).toThrow(/Could not resolve latest output for step "implement"\./i);
+
+    const savedState = getOperationState("mission-invalid-finalize-placeholder");
+    expect(savedState?.currentStep).toBe("implement");
+    expect(savedState?.status).toBe("running");
     expect(savedState?.stepHistory).toHaveLength(1);
   });
 });

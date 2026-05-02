@@ -19,6 +19,38 @@ try {
 const VALID_AGENTS = new Set(["noctis", "ignis", "gladiolus", "prompto"]);
 const TERMINAL_NEXT = new Set(["ABORT", "COMPLETE"]);
 const LEGACY_OPERATION_FIELDS = ["initial_movement", "movements", "max_movements", "handoff_mode"];
+const CONTENT_SOURCE_KEYS = new Set(["file", "inline"]);
+const OUTPUT_CONTRACT_KEYS = new Set(["report"]);
+const OUTPUT_CONTRACT_REPORT_KEYS = new Set(["name", "format"]);
+const DELEGATION_KEYS = new Set([
+  "allowed_workers",
+  "worker_job",
+  "worker_instruction",
+  "worker_skills",
+  "worker_policies",
+]);
+const STEP_KEYS = new Set([
+  "name",
+  "agent",
+  "job",
+  "instruction",
+  "skills",
+  "policies",
+  "output_contracts",
+  "delegation",
+  "rules",
+]);
+const OPERATION_KEYS = new Set([
+  "name",
+  "description",
+  "initial_step",
+  "jobs",
+  "instructions",
+  "skills",
+  "policies",
+  "steps",
+]);
+const RULE_KEYS = new Set(["condition", "next"]);
 const LEGACY_STEP_FIELD_MESSAGES = {
   edit: 'contains removed field "edit".',
   handoff_mode: 'contains removed field "handoff_mode".',
@@ -93,6 +125,110 @@ function isPlainObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function validateNoUnexpectedKeys(record, label, allowedKeys, guidance, errors) {
+  const unexpectedKeys = Object.keys(record).filter((key) => !allowedKeys.has(key));
+  if (unexpectedKeys.length === 0) {
+    return;
+  }
+
+  pushError(
+    errors,
+    `${label} contains unexpected field(s): ${unexpectedKeys.join(", ")}. ${guidance}`,
+  );
+}
+
+const OUTPUT_PLACEHOLDER_PATTERN = /\{\{\s*output\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const SETTING_PLACEHOLDER_PATTERN = /\{\{\s*setting\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)\s*\}\}/g;
+const ROOT_PLACEHOLDER_PATTERN = /\{\{\s*root\(\s*"([^"]+)"\s*\)\s*\}\}/g;
+
+function collectOutputPlaceholders(content) {
+  if (typeof content !== "string" || !content.includes("{{")) {
+    return [];
+  }
+
+  const matches = [];
+  for (const match of content.matchAll(OUTPUT_PLACEHOLDER_PATTERN)) {
+    matches.push({
+      stepName: match[1],
+      selector: match[2],
+      fileName: match[3],
+    });
+  }
+
+  return matches;
+}
+
+function validatePlaceholderSyntax(content, label, errors) {
+  if (typeof content !== "string" || !content.includes("{{")) {
+    return;
+  }
+
+  if (content.includes("{{ output(") && Array.from(content.matchAll(OUTPUT_PLACEHOLDER_PATTERN)).length === 0) {
+    pushError(
+      errors,
+      `${label} contains invalid output placeholder syntax. Use {{ output("step", "selector", "file") }}.`,
+    );
+  }
+
+  if (content.includes("{{ setting(")) {
+    const matches = Array.from(content.matchAll(SETTING_PLACEHOLDER_PATTERN));
+    if (matches.length === 0) {
+      pushError(
+        errors,
+        `${label} contains invalid setting placeholder syntax. Use {{ setting("key", "mode") }}.`,
+      );
+    }
+
+    for (const match of matches) {
+      if (match[1] !== "language") {
+        pushError(errors, `${label} contains unsupported setting placeholder key "${match[1]}".`);
+      }
+      if (match[2] !== "name") {
+        pushError(
+          errors,
+          `${label} contains unsupported setting placeholder mode "${match[2]}" for key "${match[1]}".`,
+        );
+      }
+    }
+  }
+
+  if (content.includes("{{ root(")) {
+    const matches = Array.from(content.matchAll(ROOT_PLACEHOLDER_PATTERN));
+    if (matches.length === 0) {
+      pushError(errors, `${label} contains invalid root placeholder syntax. Use {{ root("scope") }}.`);
+    }
+
+    for (const match of matches) {
+      if (match[1] !== "app_root" && match[1] !== "execution_root") {
+        pushError(errors, `${label} contains unsupported root placeholder scope "${match[1]}".`);
+      }
+    }
+  }
+}
+
+function validateOutputPlaceholdersInContent(content, label, declaredOutputsByStep, errors) {
+  validatePlaceholderSyntax(content, label, errors);
+
+  for (const placeholder of collectOutputPlaceholders(content)) {
+    if (!declaredOutputsByStep.has(placeholder.stepName)) {
+      pushError(
+        errors,
+        `${label} references unknown output step "${placeholder.stepName}" via output("${placeholder.stepName}", "${placeholder.selector}", "${placeholder.fileName}").`,
+      );
+      continue;
+    }
+
+    const declaredFiles = declaredOutputsByStep.get(placeholder.stepName) ?? new Set();
+    if (!declaredFiles.has(placeholder.fileName)) {
+      pushError(
+        errors,
+        `${label} references undeclared output file "${placeholder.fileName}" for step "${placeholder.stepName}". Declare it in output_contracts.report or fix the placeholder.`,
+      );
+    }
+  }
+}
+
+
 function validateContentSource(raw, label, operationDirectory, errors) {
   if (raw === undefined || raw === null) {
     return;
@@ -102,6 +238,14 @@ function validateContentSource(raw, label, operationDirectory, errors) {
     pushError(errors, `${label} must be an object with exactly one of "file" or "inline".`);
     return;
   }
+
+  validateNoUnexpectedKeys(
+    raw,
+    label,
+    CONTENT_SOURCE_KEYS,
+    'Content sources support only "file" or "inline". Check indentation so sibling step fields are not nested inside the source object.',
+    errors,
+  );
 
   const record = raw;
   const file = typeof record.file === "string" ? record.file.trim() : "";
@@ -147,6 +291,14 @@ function validateFileContentSource(raw, label, operationDirectory, errors) {
     return;
   }
 
+  validateNoUnexpectedKeys(
+    raw,
+    label,
+    new Set(["file"]),
+    'File-only sources support only the "file" field.',
+    errors,
+  );
+
   const record = raw;
   const file = typeof record.file === "string" ? record.file.trim() : "";
   const inline = typeof record.inline === "string" ? record.inline.trim() : "";
@@ -186,6 +338,14 @@ function validateDelegation(raw, stepName, agent, operationDirectory, errors) {
     pushError(errors, `Step "${stepName}" delegation must be an object.`);
     return false;
   }
+
+  validateNoUnexpectedKeys(
+    raw,
+    `Step "${stepName}" delegation`,
+    DELEGATION_KEYS,
+    'Delegation supports only allowed_workers, worker_job, worker_instruction, worker_skills, and worker_policies.',
+    errors,
+  );
 
   if (agent !== "noctis") {
     pushError(errors, `Step "${stepName}" delegation is only allowed on noctis steps.`);
@@ -247,6 +407,14 @@ function validateOutputContracts(raw, stepName, operationDirectory, errors) {
     return;
   }
 
+  validateNoUnexpectedKeys(
+    raw,
+    `Step "${stepName}" output_contracts`,
+    OUTPUT_CONTRACT_KEYS,
+    'Step output_contracts currently supports only the "report" field.',
+    errors,
+  );
+
   const report = raw.report;
   if (report === undefined || report === null) {
     return;
@@ -269,6 +437,14 @@ function validateOutputContracts(raw, stepName, operationDirectory, errors) {
         `Step "${stepName}" output_contracts.report[${index}] contains removed field "format_file". Use "format: { file: ... }" or "format: { inline: ... }" instead.`,
       );
     }
+
+    validateNoUnexpectedKeys(
+      entry,
+      `Step "${stepName}" output_contracts.report[${index}]`,
+      OUTPUT_CONTRACT_REPORT_KEYS,
+      'Output contract report entries support only "name" and "format".',
+      errors,
+    );
 
     const name = typeof entry.name === "string" ? entry.name.trim() : "";
     if (!name) {
@@ -305,6 +481,14 @@ function validateRules(raw, stepName, hasDelegation, agent, errors) {
       pushError(errors, `Step "${stepName}" rules[${index}] must be an object.`);
       return [];
     }
+
+    validateNoUnexpectedKeys(
+      rule,
+      `Step "${stepName}" rules[${index}]`,
+      RULE_KEYS,
+      'Rules support only "condition" and "next".',
+      errors,
+    );
 
     const condition = typeof rule.condition === "string" ? rule.condition.trim() : "";
     const next = typeof rule.next === "string" ? rule.next.trim() : "";
@@ -345,6 +529,14 @@ function validateOperationFile(filePath) {
     }
   }
 
+  validateNoUnexpectedKeys(
+    raw,
+    "Operation schema",
+    OPERATION_KEYS,
+    'Operations support only name, description, initial_step, jobs, instructions, skills, policies, and steps.',
+    errors,
+  );
+
   const initialStep = typeof raw.initial_step === "string" ? raw.initial_step.trim() : "";
   if (!initialStep) {
     pushError(errors, 'Operation must define a non-empty "initial_step".');
@@ -358,6 +550,7 @@ function validateOperationFile(filePath) {
   const stepNames = new Set();
   const stepAgents = new Map();
   const stepRuleTargets = new Map();
+  const declaredOutputsByStep = new Map();
 
   raw.steps.forEach((step, index) => {
     if (!isPlainObject(step)) {
@@ -388,6 +581,14 @@ function validateOperationFile(filePath) {
       }
     }
 
+    validateNoUnexpectedKeys(
+      step,
+      `Step "${stepName}"`,
+      STEP_KEYS,
+      'Steps support only name, agent, job, instruction, skills, policies, output_contracts, delegation, and rules.',
+      errors,
+    );
+
     validateContentSource(step.job, `Step "${stepName}" job`, operationDirectory, errors);
     validateContentSource(
       step.instruction,
@@ -398,6 +599,15 @@ function validateOperationFile(filePath) {
     validateFileContentSourceList(step.skills, `Step "${stepName}" skills`, operationDirectory, errors);
     validateContentSourceList(step.policies, `Step "${stepName}" policies`, operationDirectory, errors);
     validateOutputContracts(step.output_contracts, stepName, operationDirectory, errors);
+
+    const declaredOutputs = new Set(
+      Array.isArray(step.output_contracts?.report)
+        ? step.output_contracts.report
+            .map((entry) => (typeof entry?.name === "string" ? entry.name.trim() : ""))
+            .filter((name) => name.length > 0)
+        : [],
+    );
+    declaredOutputsByStep.set(stepName, declaredOutputs);
 
     const hasDelegation = validateDelegation(
       step.delegation,
@@ -439,6 +649,24 @@ function validateOperationFile(filePath) {
       if (!stepNames.has(next)) {
         pushError(errors, `Step "${stepName}" routes to an undefined next target: "${next}".`);
       }
+    }
+  }
+
+  for (const [stepName] of stepAgents.entries()) {
+    const step = raw.steps.find(
+      (candidate) => isPlainObject(candidate) && typeof candidate.name === "string" && candidate.name.trim() === stepName,
+    );
+    if (!step) {
+      continue;
+    }
+
+    if (isPlainObject(step.instruction) && typeof step.instruction.inline === "string") {
+      validateOutputPlaceholdersInContent(
+        step.instruction.inline,
+        `Step "${stepName}" instruction.inline`,
+        declaredOutputsByStep,
+        errors,
+      );
     }
   }
 

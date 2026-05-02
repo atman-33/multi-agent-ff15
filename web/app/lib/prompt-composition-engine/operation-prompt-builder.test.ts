@@ -534,6 +534,18 @@ function createInvalidSettingsPlaceholderFixture(placeholder: string, language =
       "steps:",
       "  - name: review",
       "    agent: noctis",
+      "    output_contracts:",
+      "      report:",
+      "        - name: review.md",
+      "          format:",
+      "            inline: |",
+      "              ## Format",
+      "",
+      "              review",
+      "",
+      "              ## Rule",
+      "",
+      "              keep review output",
       "    instruction:",
       `      inline: Resolve ${placeholder} before finishing.`,
       "    rules:",
@@ -932,6 +944,14 @@ describe("operation prompt builder", () => {
     ).toThrow(/could not resolve output placeholder/i);
   });
 
+  it("fails prompt generation when an output placeholder references an undeclared file", () => {
+    expect(() =>
+      loadOperationFromFile(
+        createInvalidSettingsPlaceholderFixture('{{ output("review", "latest", "missing-output.md") }}'),
+      ),
+    ).toThrow(/undeclared output file "missing-output\.md"/i);
+  });
+
   it("shows delegation-unavailable guidance when activation uses an empty effective worker set", () => {
     const operation = loadOperationFromFile(createInlinePromptFixture());
     const autonomousOperation = {
@@ -1180,102 +1200,28 @@ describe("operation prompt builder", () => {
   });
 
   it("fails prompt generation for unsupported setting placeholder keys", () => {
-    const operation = loadOperationFromFile(
-      createInvalidSettingsPlaceholderFixture('{{ setting("shared_skills_root", "name") }}'),
-    );
-    const step = operation.steps[0];
-
-    if (!step) {
-      throw new Error("review step not found");
-    }
-
-    const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createTestOperationState(operation);
-
     expect(() =>
-      buildActivationInstruction({
-        operation,
-        step,
-        operationState,
-        facets,
-        missionId: "mission-settings-invalid-key",
-        taskId: "task-settings-invalid-key",
-      }),
+      loadOperationFromFile(
+        createInvalidSettingsPlaceholderFixture('{{ setting("shared_skills_root", "name") }}'),
+      ),
     ).toThrow(/unsupported setting placeholder key/i);
   });
 
   it("fails prompt generation for malformed setting placeholders", () => {
-    const operation = loadOperationFromFile(
-      createInvalidSettingsPlaceholderFixture('{{ setting("language") }}'),
-    );
-    const step = operation.steps[0];
-
-    if (!step) {
-      throw new Error("review step not found");
-    }
-
-    const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createTestOperationState(operation);
-
     expect(() =>
-      buildActivationInstruction({
-        operation,
-        step,
-        operationState,
-        facets,
-        missionId: "mission-settings-invalid-syntax",
-        taskId: "task-settings-invalid-syntax",
-      }),
+      loadOperationFromFile(createInvalidSettingsPlaceholderFixture('{{ setting("language") }}')),
     ).toThrow(/invalid setting placeholder syntax/i);
   });
 
   it("fails prompt generation for unsupported root placeholder scopes", () => {
-    const operation = loadOperationFromFile(
-      createRootPlaceholderPromptFixture('{{ root("session_host_root") }}'),
-    );
-    const step = operation.steps[0];
-
-    if (!step) {
-      throw new Error("review step not found");
-    }
-
-    const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createTestOperationState(operation);
-
     expect(() =>
-      buildActivationInstruction({
-        operation,
-        step,
-        operationState,
-        facets,
-        missionId: "mission-root-invalid-scope",
-        taskId: "task-root-invalid-scope",
-      }),
+      loadOperationFromFile(createRootPlaceholderPromptFixture('{{ root("session_host_root") }}')),
     ).toThrow(/unsupported root placeholder scope/i);
   });
 
   it("fails prompt generation for malformed root placeholders", () => {
-    const operation = loadOperationFromFile(
-      createRootPlaceholderPromptFixture('{{ root("app_root", "extra") }}'),
-    );
-    const step = operation.steps[0];
-
-    if (!step) {
-      throw new Error("review step not found");
-    }
-
-    const facets = resolveStepFacets(operation, step, "ja");
-    const operationState = createTestOperationState(operation);
-
     expect(() =>
-      buildActivationInstruction({
-        operation,
-        step,
-        operationState,
-        facets,
-        missionId: "mission-root-invalid-syntax",
-        taskId: "task-root-invalid-syntax",
-      }),
+      loadOperationFromFile(createRootPlaceholderPromptFixture('{{ root("app_root", "extra") }}')),
     ).toThrow(/invalid root placeholder syntax/i);
   });
 });

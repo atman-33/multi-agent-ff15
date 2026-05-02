@@ -26,18 +26,24 @@ Create or revise operation workflows for this repository without breaking the ru
 3. Inspect the closest existing operation and neighboring facet files before drafting.
 4. When creating files from scratch, start from the matching templates in `./assets/`. Use the dedicated autonomous delegation template for rules-less Noctis-owned parent steps.
 5. Decide what should stay reusable in file-backed facets and what should remain step-local inline content.
-6. Edit the operation YAML and the required facet files.
-7. Run the bundled validator on every created or modified workflow YAML:
+6. Prefer file-backed instructions once a step procedure is long, uses multiple placeholders, or is followed by sibling fields such as `output_contracts`, `policies`, `delegation`, or `rules`.
+7. Edit the operation YAML and the required facet files.
+8. Run the bundled validator on every created or modified workflow YAML:
    - `node .opencode/skills/operation-customization/scripts/validate-operation-yaml.mjs <path-to-operation.yaml>`
    - You may pass multiple files or an operations directory.
-8. Validate any runtime-specific concerns that the script cannot prove, such as `output(...)`, `setting(...)`, and `root(...)` placeholders, debug-preview behavior, and delegated child-task return paths.
-9. Summarize created or changed files, workflow assumptions, validator results, and any unresolved ambiguity.
+9. Treat validator failures as blocking. Then verify runtime-facing placeholder behavior intentionally:
+   - Confirm every `{{ output("step", "selector", "file") }}` references a declared `output_contracts.report[].name` on that step.
+   - Confirm every `{{ setting(...) }}` and `{{ root(...) }}` uses a supported key/mode or scope.
+   - If a worker step hands off to a Noctis step that consumes outputs, validate the next-step prompt path too, not just the current step.
+10. Summarize created or changed files, workflow assumptions, validator results, and any unresolved ambiguity.
 
 ## Critical Parser Trap
 
 - For standard routed workflows, the `initial_step` may not route directly to `ABORT` or `COMPLETE`.
 - If the initial step needs a failure or blocked branch, route it to a named non-initial step and let that later step choose `ABORT` or `COMPLETE`.
 - Re-check copied template snippets against `references/operation-authoring.md` before finishing instead of trusting placeholder transitions verbatim.
+- Treat multiline `inline: |` blocks as a YAML nesting hazard. After any such block, explicitly re-check that sibling step fields such as `output_contracts`, `policies`, `delegation`, and `rules` are still aligned with `instruction:` rather than nested inside it.
+- A validator pass is necessary but not sufficient unless placeholder references and next-step prompt composition were also checked.
 
 ## Bundled Assets
 
@@ -53,7 +59,7 @@ Create or revise operation workflows for this repository without breaking the ru
 ## Bundled Script
 
 - Use [validate-operation-yaml.mjs](scripts/validate-operation-yaml.mjs) after authoring or editing operation YAML.
-- The validator checks YAML parseability, removed legacy fields, content-source shape, file-backed facet paths, step ownership, `next` targets, and the `initial_step` terminal-transition trap.
+- The validator checks YAML parseability, strict object shapes for workflow fields, file-backed facet paths, step ownership, `next` targets, the `initial_step` terminal-transition trap, and `output(...)` references against declared outputs.
 - Treat validator failures as blocking until resolved.
 
 ## Ask Only If Blocked
@@ -86,5 +92,6 @@ Create or revise operation workflows for this repository without breaking the ru
 - The bundled validator passes for every created or modified operation YAML.
 - New facet paths are relative to the operation YAML file.
 - The workflow can be resolved unambiguously from its source tree and file path, even if another workflow shares the same visible name.
-- Output names, placeholders, and transitions are internally consistent.
+- Every `output(...)` placeholder resolves to a declared workflow output and every `setting(...)` / `root(...)` placeholder uses a supported contract.
+- Any multiline inline instruction has been checked for accidental nesting of sibling step fields.
 - The result preserves runtime-mediated dispatch, same-step return for delegated child tasks, and the canonical completion contract.
