@@ -1,14 +1,7 @@
 import { getProjectRoot } from "@/lib/get-project-root.server";
 import { getManagedSessionTitle } from "@/lib/managed-session-titles";
-import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.server";
-import {
-  claimPrimaryAgentTmuxMissionWriteFocus,
-  MissionTransportNotReadyError,
-  queueResolvedPrimaryAgentTmuxMissionWrite,
-  requireReadyMissionTransport,
-  TmuxMissionWriteConflictError,
-} from "@/lib/primary-agent-mission-transport.server";
+import { getMissionCompatibilityIssue } from "@/lib/mission-runtime-compatibility.server";
 import {
   clearMissionSessions,
   getMission,
@@ -17,36 +10,58 @@ import {
   updateMissionExecutionContext,
 } from "@/lib/mission-store";
 import { isModelSelection, splitModelSelection } from "@/lib/model-variant-selection";
-import {
-  coerceAllowedWorkers,
-  getNoctisExecutionMode,
-} from "@/lib/noctis-working-party";
+import { coerceAllowedWorkers, getNoctisExecutionMode } from "@/lib/noctis-working-party";
 import { getOpencodeClient } from "@/lib/opencode-client";
+import {
+  claimPrimaryAgentTmuxMissionWriteFocus,
+  MissionTransportNotReadyError,
+  queueResolvedPrimaryAgentTmuxMissionWrite,
+  requireReadyMissionTransport,
+  TmuxMissionWriteConflictError,
+} from "@/lib/primary-agent-mission-transport.server";
 import { composeUserToNoctisPrompt } from "@/lib/prompt-composition-engine";
 import { type PromptPart, stringifyPromptParts } from "@/lib/prompt-parts";
-import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import { resolveOwnerEndpointTarget } from "@/lib/session-owner-routing.server";
+import { appendSessionPromptDebugLog } from "@/lib/session-prompt-debug.server";
 import type { Route } from "./+types/api.noctis.mission.continue";
 
-async function hasSessionOnClient(
-  client: ReturnType<typeof getOpencodeClient>,
-  sessionId: string,
+async function canResolveSessionOnEndpoint(
+  endpointUrl: string | null | undefined,
+  sessionId: string
 ): Promise<boolean> {
-  const listSessions = client.session.list;
-  if (typeof listSessions !== "function") {
+  if (!endpointUrl) {
     return false;
   }
 
   try {
-    const result = await listSessions();
-    if (result.error || !Array.isArray(result.data)) {
-      return false;
-    }
-
-    return result.data.some((session) => session?.id === sessionId);
+    const response = await fetch(new URL(`/session/${encodeURIComponent(sessionId)}`, endpointUrl));
+    return response.ok;
   } catch {
     return false;
   }
+}
+
+async function hasSessionOnClient(
+  client: ReturnType<typeof getOpencodeClient>,
+  sessionId: string,
+  endpointUrl: string | null | undefined
+): Promise<boolean> {
+  const listSessions = client.session.list;
+  if (typeof listSessions === "function") {
+    try {
+      const result = await listSessions();
+      if (!result.error && Array.isArray(result.data)) {
+        const hasExactMatch = result.data.some((session) => session?.id === sessionId);
+        if (hasExactMatch) {
+          return true;
+        }
+      }
+    } catch {
+      // Fall through to a direct continuity probe when the session list is incomplete.
+    }
+  }
+
+  return canResolveSessionOnEndpoint(endpointUrl, sessionId);
 }
 
 export const action = async ({ request }: Route.ActionArgs) => {
@@ -117,7 +132,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
   if (!mission.executionProjectId) {
     return Response.json(
       { error: "Mission requires an execution project before it can be resumed." },
-      { status: 409 },
+      { status: 409 }
     );
   }
 
@@ -138,10 +153,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
       appRoot,
       transportMode: mission.transportMode,
     });
-    const client =
+    const ownerEndpointTarget =
       transportStatus.transportMode === "tmux-resident"
-        ? resolveOwnerEndpointTarget(noctisAgentProfile, `mission continue ${missionId}`).client
-        : getOpencodeClient();
+        ? resolveOwnerEndpointTarget(noctisAgentProfile, `mission continue ${missionId}`)
+        : null;
+    const client = ownerEndpointTarget?.client ?? getOpencodeClient();
     if (transportStatus.transportMode === "tmux-resident") {
       await claimPrimaryAgentTmuxMissionWriteFocus({
         appRoot,
@@ -174,7 +190,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
     let sessionRecreated = false;
     const needsManagedSessionRecreation =
       !sessionId ||
-      (transportStatus.transportMode === "tmux-resident" && !(await hasSessionOnClient(client, sessionId)));
+      (transportStatus.transportMode === "tmux-resident" &&
+        !(await hasSessionOnClient(client, sessionId, ownerEndpointTarget?.endpointUrl)));
     if (needsManagedSessionRecreation) {
       const sessionResult = await client.session.create({
         directory: executionRoot.sessionHostRoot,
