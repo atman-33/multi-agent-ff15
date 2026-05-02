@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import {
   chmodSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -212,6 +213,64 @@ test("reports dispatcher status from --status even in app-owned mode", async () 
   assert.match(result.stdout, /Web server is not running\./);
   assert.match(result.stdout, /OpenCode server is running: http:\/\/127\.0\.0\.1:4096 \(PID: 1234\)/);
   assert.match(result.stdout, /Tmux transport is running: session ff15 \(dispatcher PID: 4321\)/);
+});
+
+test("attaches to ff15 by default in interactive tmux-resident mode", async () => {
+  const root = createTempRoot();
+  const tmuxLog = join(root, "tmux.log");
+  const runtimeLog = join(root, "tmux-runtime.log");
+  prepareAttachStartFixture(root);
+
+  const result = await runStandby(
+    root,
+    [],
+    { TMUX: "", TMUX_LOG: tmuxLog, TMUX_RUNTIME_LOG: runtimeLog },
+    { usePty: true },
+  );
+
+  assert.equal(result.code, 0, `${result.stderr}\n${result.stdout}`);
+  assert.match(result.stdout, /Reusing existing tmux transport runtime\./);
+  assert.match(result.stdout, /Attaching to tmux session ff15/);
+  assert.match(readFileSync(tmuxLog, "utf-8"), /attach-session -t ff15/);
+  assert.match(readFileSync(runtimeLog, "utf-8"), /^status$/m);
+  assert.doesNotMatch(readFileSync(runtimeLog, "utf-8"), /^start$/m);
+});
+
+test("does not auto-attach in tmux-resident mode without an interactive terminal", async () => {
+  const root = createTempRoot();
+  const tmuxLog = join(root, "tmux.log");
+  const runtimeLog = join(root, "tmux-runtime.log");
+  prepareAttachStartFixture(root);
+
+  const result = await runStandby(root, [], {
+    TMUX: "",
+    TMUX_LOG: tmuxLog,
+    TMUX_RUNTIME_LOG: runtimeLog,
+  });
+
+  assert.equal(result.code, 0, `${result.stderr}\n${result.stdout}`);
+  assert.doesNotMatch(result.stdout, /Attaching to tmux session ff15/);
+  assert.equal(existsSync(tmuxLog), false);
+  assert.match(readFileSync(runtimeLog, "utf-8"), /^start$/m);
+});
+
+test("stays detached when --no-attach is used in interactive tmux-resident mode", async () => {
+  const root = createTempRoot();
+  const tmuxLog = join(root, "tmux.log");
+  const runtimeLog = join(root, "tmux-runtime.log");
+  prepareAttachStartFixture(root);
+
+  const result = await runStandby(
+    root,
+    ["--no-attach"],
+    { TMUX: "", TMUX_LOG: tmuxLog, TMUX_RUNTIME_LOG: runtimeLog },
+    { usePty: true },
+  );
+
+  assert.equal(result.code, 0, `${result.stderr}\n${result.stdout}`);
+  assert.doesNotMatch(result.stdout, /Attaching to tmux session ff15/);
+  assert.equal(existsSync(tmuxLog), false);
+  assert.match(readFileSync(runtimeLog, "utf-8"), /^start$/m);
 });
 
 test("attaches to ff15 when --attach is used outside tmux", async () => {

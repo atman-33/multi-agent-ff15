@@ -14,6 +14,7 @@ APP_CONFIG_CONTROL_SCRIPT="scripts/app_config_control.mts"
 TMUX_TRANSPORT_CONTROL_SCRIPT="scripts/tmux_transport_runtime.mts"
 ACTION="start"
 RUN_BUILD=false
+ATTACH_MODE="auto"
 ATTACH_SESSION=false
 SERVER_STATE="stopped"
 SERVER_PID=""
@@ -41,7 +42,9 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
-    echo "      --attach   Attach to ff15 after startup (tmux-resident only)"
+    echo "      --attach   Force attach to ff15 after startup (tmux-resident only)"
+    echo "      --no-attach"
+    echo "                 Start without attaching in tmux-resident mode"
     echo "      --set-transport <mode>"
     echo "                 Persist transport_mode in config/settings.yaml"
     echo "      --stop     Stop the managed web server and app-owned OpenCode server"
@@ -51,6 +54,7 @@ show_help() {
     echo "Examples:"
     echo "  ./standby.sh"
     echo "  ./standby.sh --attach"
+    echo "  ./standby.sh --no-attach"
     echo "  ./standby.sh --build"
     echo "  ./standby.sh --set-transport tmux-resident"
     echo "  ./standby.sh --set-transport app-owned"
@@ -118,6 +122,10 @@ require_port_lookup() {
 
     log_warn "Required command not found: lsof or ss"
     exit 1
+}
+
+is_interactive_terminal() {
+    [ -t 0 ] && [ -t 1 ]
 }
 
 run_opencode_control() {
@@ -206,7 +214,11 @@ parse_args() {
                 shift
                 ;;
             --attach)
-                ATTACH_SESSION=true
+                ATTACH_MODE="force"
+                shift
+                ;;
+            --no-attach)
+                ATTACH_MODE="disable"
                 shift
                 ;;
             --stop)
@@ -245,8 +257,8 @@ parse_args() {
         exit 1
     fi
 
-    if [ "$ATTACH_SESSION" = true ] && [ "$ACTION" != "start" ]; then
-        log_warn "--attach can only be used when starting the web app."
+    if [ "$ATTACH_MODE" != "auto" ] && [ "$ACTION" != "start" ]; then
+        log_warn "--attach and --no-attach can only be used when starting the web app."
         show_help
         exit 1
     fi
@@ -731,7 +743,7 @@ open_browser() {
 }
 
 attach_tmux_session() {
-    if [ ! -t 0 ] || [ ! -t 1 ]; then
+    if ! is_interactive_terminal; then
         log_warn "Cannot attach tmux session without an interactive terminal."
         return 1
     fi
@@ -788,10 +800,26 @@ require_command node
 parse_args "$@"
 TRANSPORT_MODE="$(read_transport_mode)"
 
-if [ "$ATTACH_SESSION" = true ] && [ "$TRANSPORT_MODE" != "tmux-resident" ]; then
+if [ "$ATTACH_MODE" = "force" ] && [ "$TRANSPORT_MODE" != "tmux-resident" ]; then
     log_warn "--attach requires transport_mode=tmux-resident."
     exit 1
 fi
+
+case "$ATTACH_MODE" in
+    force)
+        ATTACH_SESSION=true
+        ;;
+    disable)
+        ATTACH_SESSION=false
+        ;;
+    auto)
+        if [ "$ACTION" = "start" ] && [ "$TRANSPORT_MODE" = "tmux-resident" ] && is_interactive_terminal; then
+            ATTACH_SESSION=true
+        else
+            ATTACH_SESSION=false
+        fi
+        ;;
+esac
 
 case "$ACTION" in
     set-transport)
