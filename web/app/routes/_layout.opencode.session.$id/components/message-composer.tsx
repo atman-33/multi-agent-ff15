@@ -1,5 +1,5 @@
 import { Bot, Check, ChevronsUpDown } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { Badge } from "@/components/ui/badge";
@@ -49,10 +49,12 @@ type Props = {
   ) => undefined | Promise<unknown>;
   onAbort?: () => void;
   disabled?: boolean;
+  disableSendAction?: boolean;
   isSessionRunning?: boolean;
   isAborting?: boolean;
   lockedAgent?: string;
   placeholder?: string;
+  helperText?: ReactNode;
   executionProjectOptions?: ProjectOption[];
   selectedExecutionProjectId?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
@@ -177,10 +179,12 @@ const MessageComposer = ({
   onSend,
   onAbort,
   disabled,
+  disableSendAction,
   isSessionRunning = false,
   isAborting = false,
   lockedAgent,
   placeholder,
+  helperText,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
   onSelectedExecutionProjectChange,
@@ -363,10 +367,12 @@ const MessageComposer = ({
       getSendOptions={getSendOptions}
       onAbort={onAbort}
       disabled={disabled}
+      disableSendAction={disableSendAction}
       showAbortAction={isSessionRunning}
       showAbortActionWhenComposing={false}
       isAborting={isAborting}
       placeholder={placeholder}
+      helperText={helperText}
       topSlot={topSlot}
       footerStart={
         <ComposerSelectionControls
