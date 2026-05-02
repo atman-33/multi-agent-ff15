@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.12.0] - 2026-05-01
+
+### Added
+- **Operation system and authoring surfaces** - Added operation catalog loading, prompt composition and preview/apply flows, built-in English and Japanese facets, jobs, output contracts, and Iris-facing authoring and debug tools for customizable workflows
+- **Lunafreya mission runtime** - Added Lunafreya mission routes, ambient banter, tmux transport runtime and dispatcher support, owned-session routing, mission output browsing, and execution workspace handling across the web app and scripts
+- **Project and server management tools** - Added project rename/delete helpers, shared skills configuration, OpenCode SDK Lab routes, and dedicated web/OpenCode server control helpers with tests
+
+### Changed
+- **Chat and mission UX** - Improved session rendering, draft persistence, message detail sheets, output detail routing, mission summaries, prompt inspection, and model selection flows across Noctis Team, OpenCode, and operations screens
+- **Setup and runtime plumbing** - Updated `first_setup.sh`, `standby.sh`, config templates, model definitions, and transport/bootstrap logic to support managed sessions, tmux-based missions, and browser-driven operations
+- **Agent and workflow assets** - Expanded Copilot/OpenCode prompts, skills, and agent definitions to cover PR assistance, TDD, architecture review, PRD flows, and operation customization workflows
+
+### Fixed
+- **Session and transport reliability** - Fixed owned-session reads, dispatch abort and cancellation handling, transport readiness, pending transcript resync, and mission recovery behavior in the tmux-backed runtime
+- **Configuration and server handling** - Fixed web origin resolution, local config bootstrap, API status/error handling, and server control flows for browser-first operation
+- **Message and report presentation** - Fixed live draft rendering, copy interactions, detail-sheet APIs, manual verification/report handling, and workflow message presentation edge cases
+
+### Deprecated
+- None
+
+### Removed
+- **Deprecated skill scaffolds and command aliases** - Removed superseded skill scaffolding assets and old `.opencode/command/*` paths after migrating to the consolidated `.opencode/commands/*` layout
+
+### Security
+- None
+
 ## [0.11.0] - 2026-03-24
 
 ### Added
