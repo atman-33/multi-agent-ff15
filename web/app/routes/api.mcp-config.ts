@@ -1,12 +1,16 @@
 import type { ActionFunctionArgs } from "react-router";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import { readMcpConfig, writeMcpServerEnabled } from "@/lib/mcp-config.server";
+import { getConfiguredMissionTransportStatus } from "@/lib/tmux-transport-bootstrap.server";
 
-export const loader = () => {
+export const loader = async () => {
   const { config, error } = readMcpConfig();
   if (error) {
     return Response.json({ error }, { status: 500 });
   }
-  return Response.json({ config });
+
+  const transportStatus = await getConfiguredMissionTransportStatus(getProjectRoot());
+  return Response.json({ config, transportStatus });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -31,7 +35,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    return Response.json(result);
+    const transportStatus = await getConfiguredMissionTransportStatus(getProjectRoot());
+    return Response.json({ ...result, transportStatus });
   } catch (error) {
     return Response.json({ error: String(error) }, { status: 500 });
   }

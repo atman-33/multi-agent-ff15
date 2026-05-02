@@ -41,6 +41,15 @@ vi.mock("@/components/ui/badge", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogContent: ({ children }: { children: ReactNode }) => <section>{children}</section>,
+  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+}));
+
 vi.mock("./components/tmux-monitor-pane", () => ({
   TmuxMonitorPaneCard: ({ pane }: { pane: { agentId: string; content: string } }) => (
     <div>
@@ -154,5 +163,45 @@ describe("tmux monitor route", () => {
     expect(markup).toContain("lg:grid-flow-col");
     expect(markup).toContain("lg:grid-rows-2");
     expect(markup).toContain("w-full");
+  });
+
+  it("renders a restart warning when the tmux transport is using stale config", () => {
+    const markup = renderToStaticMarkup(
+      <TestPage
+        loaderData={{
+          agentStatuses: {
+            gladiolus: "idle",
+            ignis: "idle",
+            iris: "idle",
+            lunafreya: "idle",
+            noctis: "busy",
+            prompto: "idle",
+          },
+          bootstrapStatus: {
+            agentCount: 6,
+            configState: "valid",
+            configStatePath: "/tmp/runtime/tmux-transport-config-state.json",
+            dispatcherPid: 4321,
+            dispatcherState: "valid",
+            dispatcherStatePath: "/tmp/runtime/tmux-transport-dispatcher.json",
+            endpointManifestPath: "/tmp/runtime/opencode-endpoints.json",
+            endpointManifestState: "valid",
+            error: null,
+            isReady: true,
+            lastStartedAt: "2026-05-01T00:00:00.000Z",
+            restartRequired: true,
+            warning: "The tmux transport is running with an outdated opencode.json configuration; restart required.",
+          },
+          panes: [],
+          transportMode: "tmux-resident",
+        } as never}
+      />, 
+    );
+
+    expect(markup).toContain("Restart Transport");
+    expect(markup).toContain("Confirm Restart Transport");
+    expect(markup).toContain("recreates the tmux session and interrupts in-flight OpenCode work");
+    expect(markup).toContain("restart required");
+    expect(markup).toContain("outdated opencode.json");
   });
 });

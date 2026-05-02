@@ -243,6 +243,7 @@ test.afterEach(() => {
 test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", async () => {
   const root = createTempRoot();
   installFakeTmux(root);
+  writeFileSync(join(root, "opencode.json"), JSON.stringify({ mcp: { alpha: { enabled: true } } }), "utf-8");
 
   const startedAt = Date.now();
   const startResult = await runRuntimeControl(root, ["start", "--root", root]);
@@ -251,8 +252,10 @@ test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", asy
 
   const manifestPath = join(root, "runtime", "opencode-endpoints.json");
   const dispatcherStatePath = join(root, "runtime", "tmux-transport-dispatcher.json");
+  const configStatePath = join(root, "runtime", "tmux-transport-config-state.json");
   assert.equal(existsSync(manifestPath), true);
   assert.equal(existsSync(dispatcherStatePath), true);
+  assert.equal(existsSync(configStatePath), true);
 
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
   assert.equal(manifest.version, 1);
@@ -266,6 +269,11 @@ test("starts a tmux agent roster, endpoint manifest, and dispatcher daemon", asy
   assert.equal(dispatcherState.owner, "standby");
   assert.equal(typeof dispatcherState.pid, "number");
   assert.equal(isProcessAlive(dispatcherState.pid), true);
+
+  const configState = JSON.parse(readFileSync(configStatePath, "utf-8"));
+  assert.equal(configState.version, 1);
+  assert.equal(typeof configState.appliedConfigHash, "string");
+  assert.equal(configState.appliedConfigHash.length > 0, true);
 
   const tmuxLog = readFileSync(join(root, "tmux.log"), "utf-8");
   assert.match(tmuxLog, /new-session/);

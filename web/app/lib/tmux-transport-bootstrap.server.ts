@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -6,6 +7,7 @@ import type { MissionTransportMode } from "@/lib/types/mission";
 
 export const TMUX_TRANSPORT_ENDPOINT_MANIFEST_FILE = "opencode-endpoints.json";
 export const TMUX_TRANSPORT_DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
+export const TMUX_TRANSPORT_CONFIG_STATE_FILE = "tmux-transport-config-state.json";
 
 type TmuxTransportEndpointManifest = {
   agents: Array<{
@@ -25,10 +27,18 @@ type TmuxTransportDispatcherState = {
   version: 1;
 };
 
+type TmuxTransportConfigState = {
+  appliedConfigHash: string;
+  updatedAt: string;
+  version: 1;
+};
+
 type RuntimeRecordState = "invalid" | "missing" | "valid";
 
 export type TmuxTransportBootstrapStatus = {
   agentCount: number;
+  configState: RuntimeRecordState;
+  configStatePath: string;
   dispatcherPid: number | null;
   dispatcherState: RuntimeRecordState;
   dispatcherStatePath: string;
@@ -37,6 +47,8 @@ export type TmuxTransportBootstrapStatus = {
   error: string | null;
   isReady: boolean;
   lastStartedAt: string | null;
+  restartRequired: boolean;
+  warning: string | null;
 };
 
 export type ConfiguredMissionTransportStatus = {
@@ -52,6 +64,14 @@ function getEndpointManifestPath(root: string): string {
 
 function getDispatcherStatePath(root: string): string {
   return join(root, "runtime", TMUX_TRANSPORT_DISPATCHER_STATE_FILE);
+}
+
+function getConfigStatePath(root: string): string {
+  return join(root, "runtime", TMUX_TRANSPORT_CONFIG_STATE_FILE);
+}
+
+function getOpencodeConfigPath(root: string): string {
+  return join(root, "opencode.json");
 }
 
 function parseEndpointManifest(value: unknown): TmuxTransportEndpointManifest | null {
@@ -123,6 +143,27 @@ function parseDispatcherState(value: unknown): TmuxTransportDispatcherState | nu
   };
 }
 
+function parseConfigState(value: unknown): TmuxTransportConfigState | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    record.version !== 1 ||
+    typeof record.appliedConfigHash !== "string" ||
+    typeof record.updatedAt !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    appliedConfigHash: record.appliedConfigHash,
+    updatedAt: record.updatedAt,
+    version: 1,
+  };
+}
+
 function readJsonRecord<T>(
   path: string,
   parse: (value: unknown) => T | null,
@@ -157,16 +198,33 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+function readCurrentConfigHash(root: string): string | null {
+  const configPath = getOpencodeConfigPath(root);
+  if (!existsSync(configPath)) {
+    return null;
+  }
+
+  try {
+    return createHash("sha256").update(readFileSync(configPath)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
 export async function getTmuxTransportBootstrapStatus(
   root: string,
 ): Promise<TmuxTransportBootstrapStatus> {
   const endpointManifestPath = getEndpointManifestPath(root);
   const dispatcherStatePath = getDispatcherStatePath(root);
+  const configStatePath = getConfigStatePath(root);
   const endpointManifest = readJsonRecord(endpointManifestPath, parseEndpointManifest);
+  const configState = readJsonRecord(configStatePath, parseConfigState);
 
   if (endpointManifest.state !== "valid" || !endpointManifest.record) {
     return {
       agentCount: 0,
+      configState: configState.state,
+      configStatePath,
       dispatcherPid: null,
       dispatcherState: "missing",
       dispatcherStatePath,
@@ -178,6 +236,8 @@ export async function getTmuxTransportBootstrapStatus(
           : `Missing tmux transport endpoint manifest at ${endpointManifestPath}`,
       isReady: false,
       lastStartedAt: null,
+      restartRequired: false,
+      warning: null,
     };
   }
 
@@ -185,6 +245,8 @@ export async function getTmuxTransportBootstrapStatus(
   if (dispatcherState.state !== "valid" || !dispatcherState.record) {
     return {
       agentCount: endpointManifest.record.agents.length,
+      configState: configState.state,
+      configStatePath,
       dispatcherPid: null,
       dispatcherState: dispatcherState.state,
       dispatcherStatePath,
@@ -196,12 +258,16 @@ export async function getTmuxTransportBootstrapStatus(
           : `Missing tmux transport dispatcher state at ${dispatcherStatePath}`,
       isReady: false,
       lastStartedAt: endpointManifest.record.startedAt,
+      restartRequired: false,
+      warning: null,
     };
   }
 
   if (!isProcessAlive(dispatcherState.record.pid)) {
     return {
       agentCount: endpointManifest.record.agents.length,
+      configState: configState.state,
+      configStatePath,
       dispatcherPid: dispatcherState.record.pid,
       dispatcherState: "invalid",
       dispatcherStatePath,
@@ -210,11 +276,22 @@ export async function getTmuxTransportBootstrapStatus(
       error: `Tmux transport dispatcher process ${dispatcherState.record.pid} is not running`,
       isReady: false,
       lastStartedAt: dispatcherState.record.startedAt,
+      restartRequired: false,
+      warning: null,
     };
   }
 
+  const currentConfigHash = readCurrentConfigHash(root);
+  const restartRequired =
+    currentConfigHash !== null &&
+    configState.state === "valid" &&
+    !!configState.record &&
+    configState.record.appliedConfigHash !== currentConfigHash;
+
   return {
     agentCount: endpointManifest.record.agents.length,
+    configState: configState.state,
+    configStatePath,
     dispatcherPid: dispatcherState.record.pid,
     dispatcherState: "valid",
     dispatcherStatePath,
@@ -223,6 +300,10 @@ export async function getTmuxTransportBootstrapStatus(
     error: null,
     isReady: true,
     lastStartedAt: dispatcherState.record.startedAt,
+    restartRequired,
+    warning: restartRequired
+      ? "The tmux transport is running with an outdated opencode.json configuration; restart required."
+      : null,
   };
 }
 

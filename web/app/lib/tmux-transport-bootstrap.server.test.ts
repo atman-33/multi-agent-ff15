@@ -70,6 +70,8 @@ describe("tmux-transport-bootstrap.server", () => {
   it("accepts a healthy dispatcher state file that includes runtime queue metadata", async () => {
     const root = createTempRoot();
 
+    writeFileSync(join(root, "opencode.json"), JSON.stringify({ mcp: { alpha: { enabled: true } } }), "utf-8");
+
     writeFileSync(
       join(root, "runtime", "opencode-endpoints.json"),
       `${JSON.stringify(
@@ -117,6 +119,70 @@ describe("tmux-transport-bootstrap.server", () => {
       endpointManifestState: "valid",
       error: null,
       isReady: true,
+      restartRequired: false,
+    });
+  });
+
+  it("marks the tmux transport for restart when opencode.json changed after startup", async () => {
+    const root = createTempRoot();
+
+    writeFileSync(join(root, "opencode.json"), JSON.stringify({ mcp: { alpha: { enabled: true } } }), "utf-8");
+    writeFileSync(
+      join(root, "runtime", "opencode-endpoints.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          startedAt: "2026-04-27T00:00:00.000Z",
+          agents: [
+            {
+              agentId: "noctis",
+              port: 4401,
+              url: "http://127.0.0.1:4401",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      join(root, "runtime", "tmux-transport-dispatcher.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          owner: "standby",
+          mode: "tmux-resident",
+          pid: process.pid,
+          startedAt: "2026-04-27T00:00:00.000Z",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      join(root, "runtime", "tmux-transport-config-state.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          appliedConfigHash: "old-config-hash",
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const status = await getTmuxTransportBootstrapStatus(root);
+
+    expect(status).toMatchObject({
+      dispatcherPid: process.pid,
+      error: null,
+      isReady: true,
+      restartRequired: true,
+      warning: expect.stringContaining("restart"),
     });
   });
 });

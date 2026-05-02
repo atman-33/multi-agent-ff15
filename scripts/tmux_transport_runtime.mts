@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,6 +16,7 @@ const DEFAULT_PORTS: Record<(typeof AGENT_IDS)[number], number> = {
 };
 const DISPATCHER_STATE_FILE = "tmux-transport-dispatcher.json";
 const ENDPOINT_MANIFEST_FILE = "opencode-endpoints.json";
+const CONFIG_STATE_FILE = "tmux-transport-config-state.json";
 const PORT_RANGE_START = 4401;
 const PORT_RANGE_END = 4499;
 const SESSION_NAME = "ff15";
@@ -62,6 +64,10 @@ function getEndpointManifestPath(root: string): string {
 
 function getDispatcherStatePath(root: string): string {
   return join(getRuntimeDir(root), DISPATCHER_STATE_FILE);
+}
+
+function getConfigStatePath(root: string): string {
+  return join(getRuntimeDir(root), CONFIG_STATE_FILE);
 }
 
 function runTmux(root: string, args: string[]): { code: number; stderr: string; stdout: string } {
@@ -112,6 +118,36 @@ function readDispatcherState(root: string): DispatcherStateRecord | null {
   } catch {
     return null;
   }
+}
+
+function readCurrentConfigHash(root: string): string | null {
+  const configPath = join(root, "opencode.json");
+  if (!existsSync(configPath)) {
+    return null;
+  }
+
+  try {
+    return createHash("sha256").update(readFileSync(configPath)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+function writeConfigState(root: string, appliedConfigHash: string): void {
+  mkdirSync(getRuntimeDir(root), { recursive: true });
+  writeFileSync(
+    getConfigStatePath(root),
+    `${JSON.stringify(
+      {
+        version: 1,
+        appliedConfigHash,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
 }
 
 async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
@@ -306,6 +342,10 @@ async function start(root: string): Promise<void> {
   ensureTmuxSession(root);
   const assignedPorts = await allocateAgentPorts();
   const agents = writeEndpointManifest(root, assignedPorts);
+  const currentConfigHash = readCurrentConfigHash(root);
+  if (currentConfigHash) {
+    writeConfigState(root, currentConfigHash);
+  }
   await launchAgentRoster(root, agents);
   const dispatcher = await ensureDispatcher(root);
 

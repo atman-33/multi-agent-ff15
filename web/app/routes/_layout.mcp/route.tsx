@@ -10,11 +10,24 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { getProjectRoot } from "@/lib/get-project-root.server";
 import { readMcpConfig, type McpServerEntry } from "@/lib/mcp-config.server";
+import {
+  getConfiguredMissionTransportStatus,
+  type ConfiguredMissionTransportStatus,
+} from "@/lib/tmux-transport-bootstrap.server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { PageContainer } from "@/components/page-container";
 import { cn } from "@/lib/utils";
@@ -25,21 +38,25 @@ interface McpConfigData {
     mcp?: Record<string, McpServerEntry>;
   } | null;
   error?: string;
+  transportStatus: ConfiguredMissionTransportStatus;
 }
 
 export const loader = async (_args: Route.LoaderArgs) => {
   const { config, error } = readMcpConfig();
+  const transportStatus = await getConfiguredMissionTransportStatus(getProjectRoot());
 
   return {
-    initialData: error ? null : ({ config } satisfies McpConfigData),
+    initialData: error ? null : ({ config, transportStatus } satisfies McpConfigData),
     initialFetchError: error ?? null,
   };
 };
 
-const McpPage = ({ loaderData }: Route.ComponentProps) => {
+export const McpPage = ({ loaderData }: Route.ComponentProps) => {
   const [data, setData] = useState<McpConfigData | null>(loaderData.initialData);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(loaderData.initialFetchError);
+  const [isRestartDialogOpen, setIsRestartDialogOpen] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
   const [savingNames, setSavingNames] = useState<Set<string>>(new Set());
   const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
 
@@ -116,6 +133,7 @@ const McpPage = ({ loaderData }: Route.ComponentProps) => {
         toast.error("Failed to save", { description: result.error });
         return;
       }
+      setData((prev) => (prev ? { ...prev, transportStatus: result.transportStatus } : prev));
       toast.success(nextEnabled ? "MCP server enabled" : "MCP server disabled", {
         description: name,
       });
@@ -157,8 +175,47 @@ const McpPage = ({ loaderData }: Route.ComponentProps) => {
     });
   };
 
+  const handleRestartTransport = async () => {
+    if (data?.transportStatus.transportMode !== "tmux-resident" || isRestarting) {
+      return;
+    }
+
+    setIsRestarting(true);
+
+    try {
+      const response = await fetch("/api/tmux-transport", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "restart" }),
+      });
+      const result = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? `HTTP ${response.status}`);
+      }
+
+      toast.success("Tmux transport restarted", {
+        description: "The ff15 tmux session was recreated with the latest opencode.json config.",
+      });
+      setIsRestartDialogOpen(false);
+      await fetchData();
+    } catch (error) {
+      toast.error("Failed to restart tmux transport", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsRestarting(false);
+    }
+  };
+
   const mcpEntries = Object.entries(data?.config?.mcp ?? {});
   const enabledCount = mcpEntries.filter(([, value]) => value.enabled).length;
+  const restartWarning =
+    data?.transportStatus.transportMode === "tmux-resident"
+      ? data.transportStatus.bootstrapStatus?.warning ?? null
+      : null;
 
   return (
     <PageContainer className="space-y-5" size="narrow">
@@ -191,6 +248,48 @@ const McpPage = ({ loaderData }: Route.ComponentProps) => {
           </AlertDescription>
         </Alert>
       )}
+
+      {restartWarning ? (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Restart required</AlertTitle>
+          <AlertDescription className="mt-1 flex flex-wrap items-center gap-3">
+            <span className="flex-1">{restartWarning}</span>
+            <Button disabled={isRestarting} onClick={() => setIsRestartDialogOpen(true)} size="sm">
+              {isRestarting ? "Restarting..." : "Restart Transport"}
+            </Button>
+            <a className="text-sm underline underline-offset-4" href="/monitor">
+              Open Tmux Monitor
+            </a>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Dialog open={isRestartDialogOpen} onOpenChange={setIsRestartDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Restart Transport</DialogTitle>
+            <DialogDescription>
+              Restarting ff15 tmux transport recreates the tmux session and interrupts in-flight
+              OpenCode work. Use this after MCP or agent configuration changes that require a
+              fresh tmux runtime.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              disabled={isRestarting}
+              onClick={() => setIsRestartDialogOpen(false)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button disabled={isRestarting} onClick={handleRestartTransport} type="button">
+              {isRestarting ? "Restarting..." : "Confirm Restart Transport"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {data && mcpEntries.length === 0 && (
         <Card>
