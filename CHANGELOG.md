@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.14.0] - 2026-05-06
+
+### Added
+- **Active worker step resume flow** - Added a resume action, API route, and runtime helpers so Noctis Team missions can continue the current worker step from the party status surface
+- **Mission action context menus** - Added a Radix-based context menu component with nested sub-items for richer mission and status actions
+- **Execution branch visibility** - Added working branch and execution project HEAD details to the Noctis Team mission screen so branch state is visible during runs
+
+### Changed
+- **Party status actions** - Updated the Noctis Team screen and party status panel to surface worker controls through the new context menu interaction model
+- **Operation runtime state** - Extended active-step tracking so resume actions can resolve the correct mission step and execution context
+
+### Fixed
+- None
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Security
+- None
+
 ## [0.13.0] - 2026-05-02
 
 ### Added
@@ -326,4 +350,5 @@ Initial release.
 [0.10.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0
 
+[0.14.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.12.0...v0.13.0
