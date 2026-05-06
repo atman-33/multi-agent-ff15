@@ -294,6 +294,15 @@ export function NoctisTeamScreen({
   const isLegacyMissionBlocked =
     resumeBlockedCode === "missing_execution_project";
   const isUnsupportedMission = resumeBlockedCode === "unsupported_mission_runtime";
+  const executionProjectBranchName = selectedExecutionProject?.branchName ?? null;
+  const missionWorkingBranch =
+    effectiveMissionId
+      ? isDirectExecutionMission
+        ? executionProjectBranchName
+        : missionDetail?.branch ?? null
+      : null;
+  const executionProjectHeadBranch =
+    effectiveMissionId && !isDirectExecutionMission ? executionProjectBranchName : null;
   const workspaceStatusLabel =
     isDirectExecutionMission
       ? "Registered project"
@@ -1328,7 +1337,12 @@ export function NoctisTeamScreen({
               ) : null}
 
               {surface.supportsPartyStatus ? (
-                <PartyStatusPanel members={partyMembers} speakingAgentId={speakingAgentId} />
+                <PartyStatusPanel
+                  members={partyMembers}
+                  missionId={effectiveMissionId}
+                  activeOperationState={activeOperationState}
+                  speakingAgentId={speakingAgentId}
+                />
               ) : (
                 <LunafreyaStatusPanel
                   contextUsage={primaryContextUsage}
@@ -1475,6 +1489,24 @@ export function NoctisTeamScreen({
                 <p className="font-medium text-sm">Execution mode</p>
                 <p className="text-muted-foreground text-sm">
                   {getMissionExecutionTargetModeLabel(missionExecutionTargetMode)}
+                </p>
+              </div>
+            ) : null}
+
+            {missionWorkingBranch ? (
+              <div className="space-y-1">
+                <p className="font-medium text-sm">Working branch</p>
+                <p className="break-all font-mono text-[11px] text-muted-foreground">
+                  {missionWorkingBranch}
+                </p>
+              </div>
+            ) : null}
+
+            {executionProjectHeadBranch && executionProjectHeadBranch !== missionWorkingBranch ? (
+              <div className="space-y-1">
+                <p className="font-medium text-sm">Execution project HEAD</p>
+                <p className="break-all font-mono text-[11px] text-muted-foreground">
+                  {executionProjectHeadBranch}
                 </p>
               </div>
             ) : null}

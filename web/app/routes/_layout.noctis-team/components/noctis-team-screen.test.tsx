@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MissionResumePayload } from "@/hooks/use-agent-session";
+import { createOperationState } from "@/lib/operation-runtime/state";
 
 const {
   projectRegistryStateMock,
@@ -10,6 +11,7 @@ const {
   matchMock,
   navigateMock,
   paramsMock,
+  partyStatusPropsSpy,
   toastErrorMock,
   toastSuccessMock,
 } = vi.hoisted(() => ({
@@ -19,6 +21,7 @@ const {
   matchMock: vi.fn(),
   navigateMock: vi.fn(),
   paramsMock: vi.fn(),
+  partyStatusPropsSpy: vi.fn(),
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
 }));
@@ -202,7 +205,10 @@ vi.mock("./mission-output-browser", () => ({
 }));
 
 vi.mock("./party-status-panel", () => ({
-  PartyStatusPanel: () => <div>party-status-panel</div>,
+  PartyStatusPanel: (props: Record<string, unknown>) => {
+    partyStatusPropsSpy(props);
+    return <div>party-status-panel</div>;
+  },
 }));
 
 vi.mock("./lunafreya-status-panel", () => ({
@@ -258,6 +264,7 @@ describe("noctis-team-screen", () => {
     paramsMock.mockReturnValue({});
     matchMock.mockReturnValue(null);
     lunafreyaStatusPropsSpy.mockReset();
+    partyStatusPropsSpy.mockReset();
     navigateMock.mockReset();
     toastErrorMock.mockReset();
     toastSuccessMock.mockReset();
@@ -370,6 +377,46 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("Assign Execution Project");
   });
 
+  it("passes mission resume context into the party status panel", () => {
+    const activeOperationState = createOperationState(
+      "review-cycle-test",
+      "implement",
+      "builtin:ja:review-cycle-test.yaml",
+    );
+    activeOperationState.currentStep = "implement";
+    activeOperationState.status = "waiting_for_report";
+    activeOperationState.stepHistory = [
+      {
+        step: "implement",
+        agent: "gladiolus",
+        taskId: "task-1",
+        status: "dispatched",
+        dispatchedAt: "2026-05-01T00:00:00.000Z",
+      },
+    ];
+
+    agentSessionStateMock.mockReturnValue({
+      ...agentSessionStateMock(),
+      activeOperationState,
+    });
+
+    renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    const props = partyStatusPropsSpy.mock.calls.at(-1)?.[0] as {
+      missionId?: string | null;
+      activeOperationState?: unknown;
+    };
+
+    expect(props.missionId).toBe("mission-1");
+    expect(props.activeOperationState).toBe(activeOperationState);
+  });
+
   it("passes only the latest retryable failed delivery into the chat area", () => {
     paramsMock.mockReturnValue({ id: "mission-1" });
 
@@ -479,6 +526,55 @@ describe("noctis-team-screen", () => {
     expect(markup).not.toContain("Workspace: Ready");
   });
 
+  it("shows the working branch in mission details for mission workspaces", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Working branch");
+    expect(markup).toContain("mission/20260401-mission-one");
+  });
+
+  it("shows the execution project head branch alongside mission workspace details", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+    projectRegistryStateMock.mockReturnValue({
+      data: {
+        projects: [
+          {
+            id: "core-repo",
+            displayName: "Core Repo",
+            path: "/repos/core",
+            branchName: "feature/active-work",
+          },
+          {
+            id: "docs-repo",
+            displayName: "Reference Docs",
+            path: "/repos/docs",
+          },
+        ],
+      },
+      error: null,
+      loading: false,
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Execution project HEAD");
+    expect(markup).toContain("feature/active-work");
+  });
+
   it("passes mission-start pending state to chat area and suppresses abort during startup", () => {
     agentSessionStateMock.mockReturnValue({
       messages: [],
@@ -583,6 +679,46 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("Registered project");
     expect(markup).toContain("This mission is using the execution project directly without a dedicated workspace.");
     expect(markup).toContain("/repos/core");
+  });
+
+  it("shows the execution project branch as the working branch in direct mode", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+    projectRegistryStateMock.mockReturnValue({
+      data: {
+        projects: [
+          {
+            id: "core-repo",
+            displayName: "Core Repo",
+            path: "/repos/core",
+            branchName: "feature/direct-mode",
+          },
+          {
+            id: "docs-repo",
+            displayName: "Reference Docs",
+            path: "/repos/docs",
+          },
+        ],
+      },
+      error: null,
+      loading: false,
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({
+          executionTargetMode: "execution_project",
+          branch: null,
+          baseBranch: null,
+          workspacePath: null,
+          workspaceStatus: null,
+        })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Working branch");
+    expect(markup).toContain("feature/direct-mode");
   });
 
   it("passes initial workflow progress into the chat area for existing missions", () => {
