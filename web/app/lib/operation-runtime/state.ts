@@ -3,7 +3,6 @@ import type {
   AgentId,
   DelegatedTaskRecord,
   OperationState,
-  StepHistoryEntry,
   WorkerAgentId,
 } from "@/lib/types/mission";
 import { getActiveStepRecord } from "./active-step";
