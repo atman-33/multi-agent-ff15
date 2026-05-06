@@ -526,6 +526,55 @@ describe("noctis-team-screen", () => {
     expect(markup).not.toContain("Workspace: Ready");
   });
 
+  it("shows the working branch in mission details for mission workspaces", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Working branch");
+    expect(markup).toContain("mission/20260401-mission-one");
+  });
+
+  it("shows the execution project head branch alongside mission workspace details", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+    projectRegistryStateMock.mockReturnValue({
+      data: {
+        projects: [
+          {
+            id: "core-repo",
+            displayName: "Core Repo",
+            path: "/repos/core",
+            branchName: "feature/active-work",
+          },
+          {
+            id: "docs-repo",
+            displayName: "Reference Docs",
+            path: "/repos/docs",
+          },
+        ],
+      },
+      error: null,
+      loading: false,
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission()}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Execution project HEAD");
+    expect(markup).toContain("feature/active-work");
+  });
+
   it("passes mission-start pending state to chat area and suppresses abort during startup", () => {
     agentSessionStateMock.mockReturnValue({
       messages: [],
@@ -630,6 +679,46 @@ describe("noctis-team-screen", () => {
     expect(markup).toContain("Registered project");
     expect(markup).toContain("This mission is using the execution project directly without a dedicated workspace.");
     expect(markup).toContain("/repos/core");
+  });
+
+  it("shows the execution project branch as the working branch in direct mode", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+    projectRegistryStateMock.mockReturnValue({
+      data: {
+        projects: [
+          {
+            id: "core-repo",
+            displayName: "Core Repo",
+            path: "/repos/core",
+            branchName: "feature/direct-mode",
+          },
+          {
+            id: "docs-repo",
+            displayName: "Reference Docs",
+            path: "/repos/docs",
+          },
+        ],
+      },
+      error: null,
+      loading: false,
+    });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({
+          executionTargetMode: "execution_project",
+          branch: null,
+          baseBranch: null,
+          workspacePath: null,
+          workspaceStatus: null,
+        })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Working branch");
+    expect(markup).toContain("feature/direct-mode");
   });
 
   it("passes initial workflow progress into the chat area for existing missions", () => {
