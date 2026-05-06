@@ -1328,7 +1328,12 @@ export function NoctisTeamScreen({
               ) : null}
 
               {surface.supportsPartyStatus ? (
-                <PartyStatusPanel members={partyMembers} speakingAgentId={speakingAgentId} />
+                <PartyStatusPanel
+                  members={partyMembers}
+                  missionId={effectiveMissionId}
+                  activeOperationState={activeOperationState}
+                  speakingAgentId={speakingAgentId}
+                />
               ) : (
                 <LunafreyaStatusPanel
                   contextUsage={primaryContextUsage}

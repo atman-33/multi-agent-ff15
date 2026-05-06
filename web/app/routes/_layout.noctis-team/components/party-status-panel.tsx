@@ -1,5 +1,6 @@
 import { Check, ChevronsUpDown, Cpu, Sparkles } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { normalizeBanterAgentId } from "@/lib/banter/runtime";
 import { areModelSelectionsEqual } from "@/lib/model-variant-selection";
@@ -25,11 +34,16 @@ import {
   isWorkingPartyMemberId,
   normalizeWorkingPartyMemberId,
 } from "@/lib/noctis-working-party";
+import { getActiveStepRecord } from "@/lib/operation-runtime/active-step";
 import type { PartyMember } from "@/lib/noctis-team-ui-types";
-import type { ModelSelection } from "@/lib/types/mission";
+import type { ModelSelection, OperationState } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import { CharacterCard } from "./character-card";
+import {
+  formatResumeActiveWorkerStepSuccessMessage,
+  resumeActiveWorkerStep,
+} from "./resume-active-worker-step";
 
 const PRESET_AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto"] as const;
 
@@ -175,12 +189,20 @@ AgentModelPicker.displayName = "AgentModelPicker";
 
 interface PartyStatusPanelProps {
   members: PartyMember[];
+  missionId?: string | null;
+  activeOperationState?: OperationState | null;
   speakingAgentId?: string | null;
 }
 
-export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatusPanelProps) => {
+export const PartyStatusPanel = ({
+  members,
+  missionId = null,
+  activeOperationState = null,
+  speakingAgentId = null,
+}: PartyStatusPanelProps) => {
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [presets, setPresets] = useState<ModelPreset[]>([]);
+  const [resumingAgentId, setResumingAgentId] = useState<PresetAgentId | null>(null);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const agentModels = useChatStore((state) => state.agentModels);
   const workingParty = useChatStore((state) => state.workingParty);
@@ -229,6 +251,37 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
     () => getCompactWorkingPartySummary(allowedWorkers),
     [allowedWorkers]
   );
+  const activeWorkerStepAgentId = useMemo(() => {
+    if (!missionId || !activeOperationState) {
+      return null;
+    }
+
+    const activeStepRecord = getActiveStepRecord(activeOperationState);
+    if (!activeStepRecord || activeStepRecord.agent === "noctis" || activeStepRecord.agent === "lunafreya") {
+      return null;
+    }
+
+    return normalizePartyAgentId(activeStepRecord.agent);
+  }, [activeOperationState, missionId]);
+
+  const handleResumeActiveWorkerStep = async (agentId: PresetAgentId) => {
+    if (!missionId || !isWorkingPartyMemberId(agentId) || agentId !== activeWorkerStepAgentId) {
+      return;
+    }
+
+    setResumingAgentId(agentId);
+    try {
+      const result = await resumeActiveWorkerStep({
+        missionId,
+        agentId,
+      });
+      toast.success(formatResumeActiveWorkerStepSuccessMessage(result));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to resume active worker step");
+    } finally {
+      setResumingAgentId((current) => (current === agentId ? null : current));
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -338,30 +391,58 @@ export const PartyStatusPanel = ({ members, speakingAgentId = null }: PartyStatu
 
           return (
             <div key={member.id}>
-              <CharacterCard
-                {...member}
-                agentId={normalizedAgentId ?? member.id}
-                isInParty={isWorker ? isInParty : true}
-                isSpeaking={normalizedAgentId === speakingAgentId}
-                statusAccessory={partyControl}
-                metaAccessory={
-                  <AgentModelPicker
-                    agentId={member.id}
-                    modelItems={modelItems}
-                    selectedModel={
-                      normalizedAgentId ? (agentModels[normalizedAgentId] ?? null) : null
-                    }
-                    variantsByModel={variantsByModel}
-                    onSelect={(model) => {
-                      if (!normalizedAgentId) {
-                        return;
-                      }
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <div>
+                    <CharacterCard
+                      {...member}
+                      agentId={normalizedAgentId ?? member.id}
+                      isInParty={isWorker ? isInParty : true}
+                      isSpeaking={normalizedAgentId === speakingAgentId}
+                      statusAccessory={partyControl}
+                      metaAccessory={
+                        <AgentModelPicker
+                          agentId={member.id}
+                          modelItems={modelItems}
+                          selectedModel={
+                            normalizedAgentId ? (agentModels[normalizedAgentId] ?? null) : null
+                          }
+                          variantsByModel={variantsByModel}
+                          onSelect={(model) => {
+                            if (!normalizedAgentId) {
+                              return;
+                            }
 
-                      setAgentModel(normalizedAgentId, model);
-                    }}
-                  />
-                }
-              />
+                            setAgentModel(normalizedAgentId, model);
+                          }}
+                        />
+                      }
+                    />
+                  </div>
+                </ContextMenuTrigger>
+
+                {isWorker ? (
+                  <ContextMenuContent>
+                    <ContextMenuLabel>Worker Actions</ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      aria-label={`Resume active worker step for ${member.name}`}
+                      disabled={
+                        normalizedAgentId !== activeWorkerStepAgentId || resumingAgentId !== null
+                      }
+                      onSelect={() => {
+                        if (!normalizedAgentId) {
+                          return;
+                        }
+
+                        void handleResumeActiveWorkerStep(normalizedAgentId);
+                      }}
+                    >
+                      Resume Active Step
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                ) : null}
+              </ContextMenu>
             </div>
           );
         })}
