@@ -44,6 +44,10 @@ import {
   formatResumeActiveWorkerStepSuccessMessage,
   resumeActiveWorkerStep,
 } from "./resume-active-worker-step";
+import {
+  formatSwitchMissionAgentPaneSessionSuccessMessage,
+  switchMissionAgentPaneSession,
+} from "./switch-pane-session";
 
 const PRESET_AGENT_IDS = ["noctis", "ignis", "gladiolus", "prompto"] as const;
 
@@ -192,6 +196,7 @@ interface PartyStatusPanelProps {
   missionId?: string | null;
   activeOperationState?: OperationState | null;
   speakingAgentId?: string | null;
+  hasMissionSessionByAgent?: Partial<Record<string, boolean>>;
 }
 
 export const PartyStatusPanel = ({
@@ -199,10 +204,12 @@ export const PartyStatusPanel = ({
   missionId = null,
   activeOperationState = null,
   speakingAgentId = null,
+  hasMissionSessionByAgent = {},
 }: PartyStatusPanelProps) => {
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [presets, setPresets] = useState<ModelPreset[]>([]);
   const [resumingAgentId, setResumingAgentId] = useState<PresetAgentId | null>(null);
+  const [switchingAgentId, setSwitchingAgentId] = useState<PresetAgentId | null>(null);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const agentModels = useChatStore((state) => state.agentModels);
   const workingParty = useChatStore((state) => state.workingParty);
@@ -257,7 +264,11 @@ export const PartyStatusPanel = ({
     }
 
     const activeStepRecord = getActiveStepRecord(activeOperationState);
-    if (!activeStepRecord || activeStepRecord.agent === "noctis" || activeStepRecord.agent === "lunafreya") {
+    if (
+      !activeStepRecord ||
+      activeStepRecord.agent === "noctis" ||
+      activeStepRecord.agent === "lunafreya"
+    ) {
       return null;
     }
 
@@ -280,6 +291,25 @@ export const PartyStatusPanel = ({
       toast.error(error instanceof Error ? error.message : "Unable to resume active worker step");
     } finally {
       setResumingAgentId((current) => (current === agentId ? null : current));
+    }
+  };
+
+  const handleSwitchMissionPaneSession = async (agentId: PresetAgentId) => {
+    if (!missionId || !hasMissionSessionByAgent[agentId] || switchingAgentId !== null) {
+      return;
+    }
+
+    setSwitchingAgentId(agentId);
+    try {
+      const result = await switchMissionAgentPaneSession({
+        missionId,
+        agentId,
+      });
+      toast.success(formatSwitchMissionAgentPaneSessionSuccessMessage(result));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to switch pane session");
+    } finally {
+      setSwitchingAgentId((current) => (current === agentId ? null : current));
     }
   };
 
@@ -318,11 +348,17 @@ export const PartyStatusPanel = ({
             ? isWorkingPartyMemberId(workingPartyAgentId)
             : false;
           const isNoctis = normalizedAgentId === "noctis";
+          const hasMissionSession = Boolean(hasMissionSessionByAgent[member.id]);
           const isInParty = isNoctis
             ? true
             : workingPartyAgentId
               ? workingParty[workingPartyAgentId]
               : false;
+          const switchActionDisabled =
+            !missionId || !normalizedAgentId || !hasMissionSession || switchingAgentId !== null;
+          const switchActionLabel = !hasMissionSession
+            ? "Mission Session Unavailable"
+            : "Switch To Current Mission Session";
 
           const segmentBaseClass =
             "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";
@@ -421,10 +457,22 @@ export const PartyStatusPanel = ({
                   </div>
                 </ContextMenuTrigger>
 
-                {isWorker ? (
+                {normalizedAgentId ? (
                   <ContextMenuContent>
-                    <ContextMenuLabel>Worker Actions</ContextMenuLabel>
+                    <ContextMenuLabel>Agent Actions</ContextMenuLabel>
                     <ContextMenuSeparator />
+                    <ContextMenuItem
+                      aria-label={`Switch ${member.name} pane to current mission session`}
+                      disabled={switchActionDisabled}
+                      onSelect={() => {
+                        void handleSwitchMissionPaneSession(normalizedAgentId);
+                      }}
+                    >
+                      {switchActionLabel}
+                    </ContextMenuItem>
+                    {isWorker ? <ContextMenuSeparator /> : null}
+                    {isWorker ? <ContextMenuLabel>Worker Actions</ContextMenuLabel> : null}
+                    {isWorker ? <ContextMenuSeparator /> : null}
                     <ContextMenuItem
                       aria-label={`Resume active worker step for ${member.name}`}
                       disabled={

@@ -1,8 +1,17 @@
 import { BrainCircuit, Cpu, Info, Layers3, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { CompactModelVariantPicker } from "@/components/compact-model-variant-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +41,10 @@ import type { AgentContextUsage } from "@/lib/types/mission";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import { CharacterCard } from "./character-card";
+import {
+  formatSwitchMissionAgentPaneSessionSuccessMessage,
+  switchMissionAgentPaneSession,
+} from "./switch-pane-session";
 
 export type LunafreyaFacetOption = {
   id: string;
@@ -43,6 +56,8 @@ export type LunafreyaFacetOption = {
 
 type LunafreyaStatusPanelProps = {
   contextUsage?: AgentContextUsage | null;
+  missionId?: string | null;
+  hasMissionSession?: boolean;
   status: AgentStatus;
   isSpeaking?: boolean;
   selectedJobId: string | null;
@@ -63,7 +78,7 @@ const LUNAFREYA_CARD_COPY = {
 
 export function getSelectedSkillOptions(
   skillOptions: LunafreyaFacetOption[],
-  selectedSkillIds: string[],
+  selectedSkillIds: string[]
 ): LunafreyaFacetOption[] {
   const optionsById = new Map(skillOptions.map((option) => [option.id, option]));
 
@@ -127,7 +142,7 @@ export function LunafreyaSkillSelectorDialog({
         query,
         selectedOnly,
       }),
-    [query, selectedOnly, selectedSkillIds, skillOptions],
+    [query, selectedOnly, selectedSkillIds, skillOptions]
   );
 
   return (
@@ -138,10 +153,14 @@ export function LunafreyaSkillSelectorDialog({
             <div className="space-y-1">
               <DialogTitle>Manage Skills</DialogTitle>
               <DialogDescription>
-                Search available skills, review descriptions, and update Lunafreya&#39;s next-turn skill set.
+                Search available skills, review descriptions, and update Lunafreya&#39;s next-turn
+                skill set.
               </DialogDescription>
             </div>
-            <Badge className="rounded-full font-mono text-[10px] uppercase tracking-[0.16em]" variant="outline">
+            <Badge
+              className="rounded-full font-mono text-[10px] uppercase tracking-[0.16em]"
+              variant="outline"
+            >
               {`${selectedSkillIds.length} selected`}
             </Badge>
           </div>
@@ -207,14 +226,16 @@ export function LunafreyaSkillSelectorDialog({
                         "w-full rounded-lg border px-3 py-2 text-left transition-colors",
                         isSelected
                           ? "border-primary/40 bg-primary/10"
-                          : "border-border/50 bg-card/40 hover:bg-card/70",
+                          : "border-border/50 bg-card/40 hover:bg-card/70"
                       )}
                       onClick={() => onToggleSkillId(option.id)}
                       type="button"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-sm text-foreground/90">{option.label}</p>
+                          <p className="truncate font-medium text-sm text-foreground/90">
+                            {option.label}
+                          </p>
                           <p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
                             {option.sourceLabel}
                           </p>
@@ -226,7 +247,9 @@ export function LunafreyaSkillSelectorDialog({
                         ) : null}
                       </div>
                       {option.description ? (
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground/80">{option.description}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground/80">
+                          {option.description}
+                        </p>
                       ) : null}
                     </button>
                   );
@@ -242,6 +265,8 @@ export function LunafreyaSkillSelectorDialog({
 
 export function LunafreyaStatusPanel({
   contextUsage = null,
+  missionId = null,
+  hasMissionSession = false,
   status,
   isSpeaking = false,
   selectedJobId,
@@ -255,6 +280,7 @@ export function LunafreyaStatusPanel({
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const [isSkillSelectorOpen, setIsSkillSelectorOpen] = useState(false);
+  const [isSwitchingSession, setIsSwitchingSession] = useState(false);
   const [skillQuery, setSkillQuery] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
   const selectedModel = useChatStore((state) => state.agentModels.lunafreya ?? null);
@@ -285,10 +311,13 @@ export function LunafreyaStatusPanel({
     };
   }, []);
 
-  const modelItems = useMemo<ModelCatalogItem[]>(() => flattenProviderModels(providers), [providers]);
+  const modelItems = useMemo<ModelCatalogItem[]>(
+    () => flattenProviderModels(providers),
+    [providers]
+  );
   const selectedSkillOptions = useMemo(
     () => getSelectedSkillOptions(skillOptions, selectedSkillIds),
-    [selectedSkillIds, skillOptions],
+    [selectedSkillIds, skillOptions]
   );
 
   useEffect(() => {
@@ -300,6 +329,30 @@ export function LunafreyaStatusPanel({
     setSelectedOnly(false);
   }, [isSkillSelectorOpen]);
 
+  const switchActionDisabled = !missionId || !hasMissionSession || isSwitchingSession;
+  const switchActionLabel = !hasMissionSession
+    ? "Mission Session Unavailable"
+    : "Switch To Current Mission Session";
+
+  const handleSwitchMissionPaneSession = async () => {
+    if (!missionId || !hasMissionSession || isSwitchingSession) {
+      return;
+    }
+
+    setIsSwitchingSession(true);
+    try {
+      const result = await switchMissionAgentPaneSession({
+        missionId,
+        agentId: "lunafreya",
+      });
+      toast.success(formatSwitchMissionAgentPaneSessionSuccessMessage(result));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to switch pane session");
+    } finally {
+      setIsSwitchingSession(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2 border-border/50 border-b pb-2">
@@ -309,36 +362,56 @@ export function LunafreyaStatusPanel({
         </span>
       </div>
 
-      <CharacterCard
-        agentId="lunafreya"
-        contextUsage={contextUsage}
-        detail="Model and facet changes apply on the next User turn."
-        imageSrc="/images/lunafreya.png"
-        isInParty
-        isSpeaking={isSpeaking}
-        metaAccessory={
-          <CompactModelVariantPicker
-            ariaLabel="Select model for lunafreya"
-            contentAlign="end"
-            contentSide="bottom"
-            emptyLabel="model"
-            modelItems={modelItems}
-            onSelect={(model) => setAgentModel("lunafreya", model)}
-            selectedModel={selectedModel}
-            showProviderName={false}
-            triggerClassName={cn(
-              "h-6 w-full rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
-              selectedModel
-                ? "text-primary/80 hover:text-primary"
-                : "text-muted-foreground/50 hover:text-muted-foreground"
-            )}
-            triggerIcon={<Cpu className="h-2.5 w-2.5 shrink-0" />}
-            variantsByModel={variantsByModel}
-          />
-        }
-        {...LUNAFREYA_CARD_COPY}
-        status={status}
-      />
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div>
+            <CharacterCard
+              agentId="lunafreya"
+              contextUsage={contextUsage}
+              detail="Model and facet changes apply on the next User turn."
+              imageSrc="/images/lunafreya.png"
+              isInParty
+              isSpeaking={isSpeaking}
+              metaAccessory={
+                <CompactModelVariantPicker
+                  ariaLabel="Select model for lunafreya"
+                  contentAlign="end"
+                  contentSide="bottom"
+                  emptyLabel="model"
+                  modelItems={modelItems}
+                  onSelect={(model) => setAgentModel("lunafreya", model)}
+                  selectedModel={selectedModel}
+                  showProviderName={false}
+                  triggerClassName={cn(
+                    "h-6 w-full rounded-md border border-border/40 bg-background/20 px-2 font-mono text-[9px] uppercase tracking-[0.18em]",
+                    selectedModel
+                      ? "text-primary/80 hover:text-primary"
+                      : "text-muted-foreground/50 hover:text-muted-foreground"
+                  )}
+                  triggerIcon={<Cpu className="h-2.5 w-2.5 shrink-0" />}
+                  variantsByModel={variantsByModel}
+                />
+              }
+              {...LUNAFREYA_CARD_COPY}
+              status={status}
+            />
+          </div>
+        </ContextMenuTrigger>
+
+        <ContextMenuContent>
+          <ContextMenuLabel>Agent Actions</ContextMenuLabel>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            aria-label="Switch Lunafreya pane to current mission session"
+            disabled={switchActionDisabled}
+            onSelect={() => {
+              void handleSwitchMissionPaneSession();
+            }}
+          >
+            {switchActionLabel}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <div className="space-y-3 rounded-xl border border-border/50 bg-card/40 p-3">
         <div className="space-y-1">
@@ -432,7 +505,8 @@ export function LunafreyaStatusPanel({
               <div className="space-y-1">
                 <p className="text-sm text-foreground/85">No skills selected.</p>
                 <p className="text-xs text-muted-foreground/75">
-                  Use the selector to browse the catalog and activate the skills Lunafreya should use on the next User turn.
+                  Use the selector to browse the catalog and activate the skills Lunafreya should
+                  use on the next User turn.
                 </p>
               </div>
             )}

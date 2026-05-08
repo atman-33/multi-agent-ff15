@@ -2,10 +2,31 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { chatStoreStateMock, pickerPropsSpy, setAgentModelMock } = vi.hoisted(() => ({
+const {
+  chatStoreStateMock,
+  contextMenuItemPropsSpy,
+  formatSwitchMissionAgentPaneSessionSuccessMessageMock,
+  pickerPropsSpy,
+  setAgentModelMock,
+  switchMissionAgentPaneSessionMock,
+  toastErrorMock,
+  toastSuccessMock,
+} = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
+  contextMenuItemPropsSpy: vi.fn(),
+  formatSwitchMissionAgentPaneSessionSuccessMessageMock: vi.fn(),
   pickerPropsSpy: vi.fn(),
   setAgentModelMock: vi.fn(),
+  switchMissionAgentPaneSessionMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
 }));
 
 vi.mock("@/components/compact-model-variant-picker", () => ({
@@ -25,7 +46,9 @@ vi.mock("@/components/compact-model-variant-picker", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: { children?: ReactNode }) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
 vi.mock("@/components/ui/badge", () => ({
@@ -33,7 +56,8 @@ vi.mock("@/components/ui/badge", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
   DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -62,6 +86,37 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
 }));
 
+vi.mock("@/components/ui/context-menu", () => ({
+  ContextMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  ContextMenuContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  ContextMenuItem: ({
+    children,
+    disabled,
+    onSelect,
+    ...props
+  }: {
+    children?: ReactNode;
+    disabled?: boolean;
+    onSelect?: (event: { preventDefault: () => void }) => void;
+  }) => {
+    contextMenuItemPropsSpy({ children, disabled, onSelect, ...props });
+
+    return (
+      <button
+        data-disabled={disabled ? "true" : "false"}
+        disabled={disabled}
+        onClick={() => onSelect?.({ preventDefault: () => undefined })}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  },
+  ContextMenuLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  ContextMenuSeparator: () => <hr />,
+}));
+
 vi.mock("@/stores/chat-store", () => ({
   useChatStore: (
     selector: (state: {
@@ -71,6 +126,12 @@ vi.mock("@/stores/chat-store", () => ({
       setAgentModel: typeof setAgentModelMock;
     }) => unknown
   ) => selector(chatStoreStateMock()),
+}));
+
+vi.mock("./switch-pane-session", () => ({
+  formatSwitchMissionAgentPaneSessionSuccessMessage:
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock,
+  switchMissionAgentPaneSession: switchMissionAgentPaneSessionMock,
 }));
 
 vi.mock("./character-card", () => ({
@@ -90,8 +151,13 @@ import {
 
 describe("LunafreyaStatusPanel", () => {
   beforeEach(() => {
+    contextMenuItemPropsSpy.mockReset();
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReset();
     pickerPropsSpy.mockReset();
     setAgentModelMock.mockReset();
+    switchMissionAgentPaneSessionMock.mockReset();
+    toastErrorMock.mockReset();
+    toastSuccessMock.mockReset();
 
     chatStoreStateMock.mockReturnValue({
       agentModels: {
@@ -127,7 +193,7 @@ describe("LunafreyaStatusPanel", () => {
         selectedSkillIds: ["hydraean"],
         query: "hyd",
         selectedOnly: true,
-      }).map((option) => option.id),
+      }).map((option) => option.id)
     ).toEqual(["hydraean"]);
   });
 
@@ -164,12 +230,12 @@ describe("LunafreyaStatusPanel", () => {
     expect(markup).toContain("1 selected");
     expect(markup).toContain("Skills help");
     expect(markup).toContain(
-      "Skill changes are stored immediately and apply on Lunafreya&#x27;s next User turn.",
+      "Skill changes are stored immediately and apply on Lunafreya&#x27;s next User turn."
     );
     expect(markup).toContain("Open skills selector");
     expect(markup).not.toContain("Archive Index");
     expect(markup).not.toContain(
-      "Model and overlay edits are stored immediately and will be applied when User sends the next prompt.",
+      "Model and overlay edits are stored immediately and will be applied when User sends the next prompt."
     );
   });
 
@@ -192,7 +258,7 @@ describe("LunafreyaStatusPanel", () => {
         selectedJobId={null}
         selectedSkillIds={[]}
         status="idle"
-      />,
+      />
     );
 
     expect(markup).toContain("Job");
@@ -256,7 +322,7 @@ describe("LunafreyaStatusPanel", () => {
     expect(markup).toContain("model-picker:github-copilot/gpt-5.4:balanced");
     expect(markup).toContain("Model and facet changes apply on the next User turn.");
     expect(markup).not.toContain(
-      "Model and overlay edits are stored immediately and will be applied when User sends the next prompt.",
+      "Model and overlay edits are stored immediately and will be applied when User sends the next prompt."
     );
 
     const pickerProps = pickerPropsSpy.mock.calls[0]?.[0] as {
@@ -277,5 +343,107 @@ describe("LunafreyaStatusPanel", () => {
       modelID: "claude-sonnet-4",
       variant: "high",
     });
+  });
+
+  it("shows a current-mission pane session switch action when a Lunafreya mission session exists", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Lunafreya pane to current mission session"/
+    );
+    expect(markup).toContain("Switch To Current Mission Session");
+  });
+
+  it("keeps the current-mission pane session switch action enabled while Lunafreya is working", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="working"
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Lunafreya pane to current mission session"/
+    );
+  });
+
+  it("invokes pane session switching for Lunafreya when the current mission session exists", async () => {
+    const switchResult = {
+      agentId: "lunafreya",
+      missionId: "mission-luna",
+      sessionId: "session-luna",
+      sessionTitle: "mission:mission-luna:lunafreya",
+    };
+    switchMissionAgentPaneSessionMock.mockResolvedValue(switchResult);
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReturnValue(
+      "Switched Lunafreya to the current mission session."
+    );
+
+    renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Switch Lunafreya pane to current mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(switchMissionAgentPaneSessionMock).toHaveBeenCalledWith({
+      agentId: "lunafreya",
+      missionId: "mission-luna",
+    });
+    expect(formatSwitchMissionAgentPaneSessionSuccessMessageMock).toHaveBeenCalledWith(
+      switchResult
+    );
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      "Switched Lunafreya to the current mission session."
+    );
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 });

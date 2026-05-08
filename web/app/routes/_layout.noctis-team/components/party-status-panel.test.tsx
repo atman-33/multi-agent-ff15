@@ -5,8 +5,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import type { PartyMember } from "@/lib/noctis-team-ui-types";
 
-const { chatStoreStateMock } = vi.hoisted(() => ({
+const {
+  chatStoreStateMock,
+  contextMenuItemPropsSpy,
+  formatSwitchMissionAgentPaneSessionSuccessMessageMock,
+  switchMissionAgentPaneSessionMock,
+  toastErrorMock,
+  toastSuccessMock,
+} = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
+  contextMenuItemPropsSpy: vi.fn(),
+  formatSwitchMissionAgentPaneSessionSuccessMessageMock: vi.fn(),
+  switchMissionAgentPaneSessionMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
 }));
 
 vi.mock("@/components/compact-model-variant-picker", () => ({
@@ -14,7 +33,9 @@ vi.mock("@/components/compact-model-variant-picker", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: { children?: ReactNode }) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
 vi.mock("@/components/ui/command", () => ({
@@ -22,7 +43,9 @@ vi.mock("@/components/ui/command", () => ({
   CommandEmpty: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   CommandGroup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   CommandInput: (props: Record<string, unknown>) => <input {...props} />,
-  CommandItem: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  CommandItem: ({ children, ...props }: { children?: ReactNode }) => (
+    <div {...props}>{children}</div>
+  ),
   CommandList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
@@ -45,16 +68,20 @@ vi.mock("@/components/ui/context-menu", () => ({
     children?: ReactNode;
     disabled?: boolean;
     onSelect?: (event: { preventDefault: () => void }) => void;
-  }) => (
-    <button
-      data-disabled={disabled ? "true" : "false"}
-      disabled={disabled}
-      onClick={() => onSelect?.({ preventDefault: () => undefined })}
-      {...props}
-    >
-      {children}
-    </button>
-  ),
+  }) => {
+    contextMenuItemPropsSpy({ children, disabled, onSelect, ...props });
+
+    return (
+      <button
+        data-disabled={disabled ? "true" : "false"}
+        disabled={disabled}
+        onClick={() => onSelect?.({ preventDefault: () => undefined })}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  },
   ContextMenuLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   ContextMenuSeparator: () => <hr />,
 }));
@@ -67,8 +94,14 @@ vi.mock("@/stores/chat-store", () => ({
       setAgentModel: (agentId: string, model: unknown) => void;
       setAgentModels: (models: Record<string, unknown>) => void;
       setWorkingPartyMember: (agentId: string, included: boolean) => void;
-    }) => unknown,
+    }) => unknown
   ) => selector(chatStoreStateMock()),
+}));
+
+vi.mock("./switch-pane-session", () => ({
+  formatSwitchMissionAgentPaneSessionSuccessMessage:
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock,
+  switchMissionAgentPaneSession: switchMissionAgentPaneSessionMock,
 }));
 
 vi.mock("./character-card", () => ({
@@ -105,7 +138,11 @@ const partyMembers: PartyMember[] = [
 ];
 
 function createActiveOperationState(agent: "noctis" | "ignis" | "gladiolus" | "prompto") {
-  const state = createOperationState("review-cycle-test", "implement", "builtin:ja:review-cycle-test.yaml");
+  const state = createOperationState(
+    "review-cycle-test",
+    "implement",
+    "builtin:ja:review-cycle-test.yaml"
+  );
   state.currentStep = "implement";
   state.status = "waiting_for_report";
   state.stepHistory = [
@@ -122,6 +159,8 @@ function createActiveOperationState(agent: "noctis" | "ignis" | "gladiolus" | "p
 
 describe("PartyStatusPanel", () => {
   beforeEach(() => {
+    contextMenuItemPropsSpy.mockReset();
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReset();
     chatStoreStateMock.mockReturnValue({
       agentModels: {
         noctis: null,
@@ -138,6 +177,9 @@ describe("PartyStatusPanel", () => {
       setAgentModels: () => undefined,
       setWorkingPartyMember: () => undefined,
     });
+    switchMissionAgentPaneSessionMock.mockReset();
+    toastErrorMock.mockReset();
+    toastSuccessMock.mockReset();
   });
 
   it("enables resume only on the worker card that owns the active step", () => {
@@ -147,17 +189,17 @@ describe("PartyStatusPanel", () => {
         missionId="mission-123"
         activeOperationState={createActiveOperationState("gladiolus")}
         speakingAgentId={null}
-      />,
+      />
     );
 
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="false"[^>]*aria-label="Resume active worker step for Gladiolus"/,
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Resume active worker step for Gladiolus"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/
     );
   });
 
@@ -168,17 +210,99 @@ describe("PartyStatusPanel", () => {
         missionId="mission-123"
         activeOperationState={createActiveOperationState("noctis")}
         speakingAgentId={null}
-      />,
+      />
     );
 
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Gladiolus"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Gladiolus"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/
     );
+  });
+
+  it("shows current-mission pane session switching only when the agent card is switchable", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          noctis: true,
+          ignis: true,
+          gladiolus: true,
+          prompto: false,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Ignis pane to current mission session"/
+    );
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Gladiolus pane to current mission session"/
+    );
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Switch Prompto pane to current mission session"/
+    );
+    expect(markup).toContain("Mission Session Unavailable");
+  });
+
+  it("invokes pane session switching for an enabled party member action", async () => {
+    const switchResult = {
+      agentId: "ignis",
+      missionId: "mission-123",
+      sessionId: "session-ignis",
+      sessionTitle: "mission:mission-123:ignis",
+    };
+    switchMissionAgentPaneSessionMock.mockResolvedValue(switchResult);
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReturnValue(
+      "Switched Ignis to the current mission session."
+    );
+
+    renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Switch Ignis pane to current mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(switchMissionAgentPaneSessionMock).toHaveBeenCalledWith({
+      agentId: "ignis",
+      missionId: "mission-123",
+    });
+    expect(formatSwitchMissionAgentPaneSessionSuccessMessageMock).toHaveBeenCalledWith(
+      switchResult
+    );
+    expect(toastSuccessMock).toHaveBeenCalledWith("Switched Ignis to the current mission session.");
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 });
