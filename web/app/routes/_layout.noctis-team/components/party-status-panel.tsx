@@ -348,7 +348,9 @@ export const PartyStatusPanel = ({
             ? isWorkingPartyMemberId(workingPartyAgentId)
             : false;
           const isNoctis = normalizedAgentId === "noctis";
-          const hasMissionSession = Boolean(hasMissionSessionByAgent[member.id]);
+          const hasMissionSession = normalizedAgentId
+            ? Boolean(hasMissionSessionByAgent[normalizedAgentId])
+            : false;
           const isInParty = isNoctis
             ? true
             : workingPartyAgentId

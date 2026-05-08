@@ -252,6 +252,32 @@ describe("PartyStatusPanel", () => {
     expect(markup).toContain("Mission Session Unavailable");
   });
 
+  it("keeps the current-mission switch action enabled for the runtime Gladio member id", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={[
+          {
+            id: "gladio",
+            name: "Gladio",
+            role: "Executor",
+            status: "idle",
+            imageSrc: "/gladiolus.png",
+          },
+        ]}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          gladiolus: true,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Gladio pane to current mission session"/
+    );
+  });
+
   it("invokes pane session switching for an enabled party member action", async () => {
     const switchResult = {
       agentId: "ignis",
