@@ -7,14 +7,18 @@ import type { PartyMember } from "@/lib/noctis-team-ui-types";
 
 const {
   chatStoreStateMock,
+  continueMissionAgentSessionMock,
   contextMenuItemPropsSpy,
+  formatContinueMissionAgentSessionSuccessMessageMock,
   formatSwitchMissionAgentPaneSessionSuccessMessageMock,
   switchMissionAgentPaneSessionMock,
   toastErrorMock,
   toastSuccessMock,
 } = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
+  continueMissionAgentSessionMock: vi.fn(),
   contextMenuItemPropsSpy: vi.fn(),
+  formatContinueMissionAgentSessionSuccessMessageMock: vi.fn(),
   formatSwitchMissionAgentPaneSessionSuccessMessageMock: vi.fn(),
   switchMissionAgentPaneSessionMock: vi.fn(),
   toastErrorMock: vi.fn(),
@@ -104,6 +108,12 @@ vi.mock("./switch-pane-session", () => ({
   switchMissionAgentPaneSession: switchMissionAgentPaneSessionMock,
 }));
 
+vi.mock("./continue-mission-session", () => ({
+  continueMissionAgentSession: continueMissionAgentSessionMock,
+  formatContinueMissionAgentSessionSuccessMessage:
+    formatContinueMissionAgentSessionSuccessMessageMock,
+}));
+
 vi.mock("./character-card", () => ({
   CharacterCard: ({
     name,
@@ -159,7 +169,9 @@ function createActiveOperationState(agent: "noctis" | "ignis" | "gladiolus" | "p
 
 describe("PartyStatusPanel", () => {
   beforeEach(() => {
+    continueMissionAgentSessionMock.mockReset();
     contextMenuItemPropsSpy.mockReset();
+    formatContinueMissionAgentSessionSuccessMessageMock.mockReset();
     formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReset();
     chatStoreStateMock.mockReturnValue({
       agentModels: {
@@ -252,6 +264,25 @@ describe("PartyStatusPanel", () => {
     expect(markup).toContain("Mission Session Unavailable");
   });
 
+  it("shows a raw Continue action for party members with a managed mission session", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Send raw continue to Ignis mission session"/
+    );
+    expect(markup).toContain("Continue");
+  });
+
   it("shows the member name as the context menu header instead of generic action group labels", () => {
     const markup = renderToStaticMarkup(
       <PartyStatusPanel
@@ -266,7 +297,7 @@ describe("PartyStatusPanel", () => {
     );
 
     expect(markup).toMatch(
-      /<div>Ignis<\/div><hr\/><button[^>]*aria-label="Switch Ignis pane to current mission session"[^>]*>Switch To Current Mission Session<\/button><hr\/><button[^>]*aria-label="Resume active worker step for Ignis"[^>]*>Resume Active Step<\/button>/
+      /<div>Ignis<\/div><hr\/><button[^>]*aria-label="Switch Ignis pane to current mission session"[^>]*>Switch To Current Mission Session<\/button><hr\/><button[^>]*aria-label="Send raw continue to Ignis mission session"[^>]*>Continue<\/button><hr\/><button[^>]*aria-label="Resume active worker step for Ignis"[^>]*>Resume Active Step<\/button>/
     );
     expect(markup).not.toContain("Agent Actions");
     expect(markup).not.toContain("Worker Actions");
@@ -349,6 +380,55 @@ describe("PartyStatusPanel", () => {
       switchResult
     );
     expect(toastSuccessMock).toHaveBeenCalledWith("Switched Ignis to the current mission session.");
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("invokes raw continue delivery for an enabled party member action", async () => {
+    formatContinueMissionAgentSessionSuccessMessageMock.mockReturnValue(
+      "Sent raw continue to Ignis."
+    );
+    continueMissionAgentSessionMock.mockResolvedValue({
+      agentId: "ignis",
+      missionId: "mission-123",
+      sessionId: "session-ignis",
+    });
+
+    renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Send raw continue to Ignis mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(continueMissionAgentSessionMock).toHaveBeenCalledWith({
+      agentId: "ignis",
+      missionId: "mission-123",
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith("Sent raw continue to Ignis.");
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 });

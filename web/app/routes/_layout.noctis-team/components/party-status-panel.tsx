@@ -41,6 +41,10 @@ import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import { CharacterCard } from "./character-card";
 import {
+  continueMissionAgentSession,
+  formatContinueMissionAgentSessionSuccessMessage,
+} from "./continue-mission-session";
+import {
   formatResumeActiveWorkerStepSuccessMessage,
   resumeActiveWorkerStep,
 } from "./resume-active-worker-step";
@@ -208,6 +212,7 @@ export const PartyStatusPanel = ({
 }: PartyStatusPanelProps) => {
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [presets, setPresets] = useState<ModelPreset[]>([]);
+  const [continuingAgentId, setContinuingAgentId] = useState<PresetAgentId | null>(null);
   const [resumingAgentId, setResumingAgentId] = useState<PresetAgentId | null>(null);
   const [switchingAgentId, setSwitchingAgentId] = useState<PresetAgentId | null>(null);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
@@ -313,6 +318,25 @@ export const PartyStatusPanel = ({
     }
   };
 
+  const handleContinueMissionSession = async (agentId: PresetAgentId) => {
+    if (!missionId || !hasMissionSessionByAgent[agentId] || continuingAgentId !== null) {
+      return;
+    }
+
+    setContinuingAgentId(agentId);
+    try {
+      const result = await continueMissionAgentSession({
+        missionId,
+        agentId,
+      });
+      toast.success(formatContinueMissionAgentSessionSuccessMessage(result));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to send raw continue");
+    } finally {
+      setContinuingAgentId((current) => (current === agentId ? null : current));
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2 border-border/50 border-b pb-2">
@@ -361,6 +385,8 @@ export const PartyStatusPanel = ({
           const switchActionLabel = !hasMissionSession
             ? "Mission Session Unavailable"
             : "Switch To Current Mission Session";
+          const continueActionDisabled =
+            !missionId || !normalizedAgentId || !hasMissionSession || continuingAgentId !== null;
 
           const segmentBaseClass =
             "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";
@@ -471,6 +497,20 @@ export const PartyStatusPanel = ({
                       }}
                     >
                       {switchActionLabel}
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      aria-label={`Send raw continue to ${member.name} mission session`}
+                      disabled={continueActionDisabled}
+                      onSelect={() => {
+                        if (!normalizedAgentId) {
+                          return;
+                        }
+
+                        void handleContinueMissionSession(normalizedAgentId);
+                      }}
+                    >
+                      Continue
                     </ContextMenuItem>
                     {isWorker ? <ContextMenuSeparator /> : null}
                     <ContextMenuItem

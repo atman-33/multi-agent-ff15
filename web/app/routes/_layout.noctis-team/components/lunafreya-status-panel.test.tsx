@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   chatStoreStateMock,
+  continueMissionAgentSessionMock,
   contextMenuItemPropsSpy,
+  formatContinueMissionAgentSessionSuccessMessageMock,
   formatSwitchMissionAgentPaneSessionSuccessMessageMock,
   pickerPropsSpy,
   setAgentModelMock,
@@ -13,7 +15,9 @@ const {
   toastSuccessMock,
 } = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
+  continueMissionAgentSessionMock: vi.fn(),
   contextMenuItemPropsSpy: vi.fn(),
+  formatContinueMissionAgentSessionSuccessMessageMock: vi.fn(),
   formatSwitchMissionAgentPaneSessionSuccessMessageMock: vi.fn(),
   pickerPropsSpy: vi.fn(),
   setAgentModelMock: vi.fn(),
@@ -134,6 +138,12 @@ vi.mock("./switch-pane-session", () => ({
   switchMissionAgentPaneSession: switchMissionAgentPaneSessionMock,
 }));
 
+vi.mock("./continue-mission-session", () => ({
+  continueMissionAgentSession: continueMissionAgentSessionMock,
+  formatContinueMissionAgentSessionSuccessMessage:
+    formatContinueMissionAgentSessionSuccessMessageMock,
+}));
+
 vi.mock("./character-card", () => ({
   CharacterCard: ({ detail, metaAccessory }: { detail?: string; metaAccessory?: ReactNode }) => (
     <div>
@@ -151,7 +161,9 @@ import {
 
 describe("LunafreyaStatusPanel", () => {
   beforeEach(() => {
+    continueMissionAgentSessionMock.mockReset();
     contextMenuItemPropsSpy.mockReset();
+    formatContinueMissionAgentSessionSuccessMessageMock.mockReset();
     formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReset();
     pickerPropsSpy.mockReset();
     setAgentModelMock.mockReset();
@@ -367,6 +379,28 @@ describe("LunafreyaStatusPanel", () => {
     expect(markup).toContain("Switch To Current Mission Session");
   });
 
+  it("shows a raw Continue action when a Lunafreya mission session exists", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Send raw continue to Lunafreya mission session"/
+    );
+    expect(markup).toContain("Continue");
+  });
+
   it("shows the Lunafreya context menu header instead of a generic action group label", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaStatusPanel
@@ -464,6 +498,58 @@ describe("LunafreyaStatusPanel", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(
       "Switched Lunafreya to the current mission session."
     );
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("invokes raw continue delivery for Lunafreya when the current mission session exists", async () => {
+    formatContinueMissionAgentSessionSuccessMessageMock.mockReturnValue(
+      "Sent raw continue to Lunafreya."
+    );
+    continueMissionAgentSessionMock.mockResolvedValue({
+      agentId: "lunafreya",
+      missionId: "mission-luna",
+      sessionId: "session-luna",
+    });
+
+    renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Send raw continue to Lunafreya mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(continueMissionAgentSessionMock).toHaveBeenCalledWith({
+      agentId: "lunafreya",
+      missionId: "mission-luna",
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith("Sent raw continue to Lunafreya.");
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 });

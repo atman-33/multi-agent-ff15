@@ -42,6 +42,10 @@ import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import { CharacterCard } from "./character-card";
 import {
+  continueMissionAgentSession,
+  formatContinueMissionAgentSessionSuccessMessage,
+} from "./continue-mission-session";
+import {
   formatSwitchMissionAgentPaneSessionSuccessMessage,
   switchMissionAgentPaneSession,
 } from "./switch-pane-session";
@@ -280,6 +284,7 @@ export function LunafreyaStatusPanel({
   const [providers, setProviders] = useState<OpencodeProvider[]>([]);
   const [variantsByModel, setVariantsByModel] = useState<Record<string, string[]>>({});
   const [isSkillSelectorOpen, setIsSkillSelectorOpen] = useState(false);
+  const [isSendingContinue, setIsSendingContinue] = useState(false);
   const [isSwitchingSession, setIsSwitchingSession] = useState(false);
   const [skillQuery, setSkillQuery] = useState("");
   const [selectedOnly, setSelectedOnly] = useState(false);
@@ -333,6 +338,7 @@ export function LunafreyaStatusPanel({
   const switchActionLabel = !hasMissionSession
     ? "Mission Session Unavailable"
     : "Switch To Current Mission Session";
+  const continueActionDisabled = !missionId || !hasMissionSession || isSendingContinue;
 
   const handleSwitchMissionPaneSession = async () => {
     if (!missionId || !hasMissionSession || isSwitchingSession) {
@@ -350,6 +356,25 @@ export function LunafreyaStatusPanel({
       toast.error(error instanceof Error ? error.message : "Unable to switch pane session");
     } finally {
       setIsSwitchingSession(false);
+    }
+  };
+
+  const handleContinueMissionSession = async () => {
+    if (!missionId || !hasMissionSession || isSendingContinue) {
+      return;
+    }
+
+    setIsSendingContinue(true);
+    try {
+      const result = await continueMissionAgentSession({
+        missionId,
+        agentId: "lunafreya",
+      });
+      toast.success(formatContinueMissionAgentSessionSuccessMessage(result));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to send raw continue");
+    } finally {
+      setIsSendingContinue(false);
     }
   };
 
@@ -409,6 +434,16 @@ export function LunafreyaStatusPanel({
             }}
           >
             {switchActionLabel}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            aria-label="Send raw continue to Lunafreya mission session"
+            disabled={continueActionDisabled}
+            onSelect={() => {
+              void handleContinueMissionSession();
+            }}
+          >
+            Continue
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
