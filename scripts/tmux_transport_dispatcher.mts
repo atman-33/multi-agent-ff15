@@ -502,21 +502,8 @@ function readCatalogModelSelectionText(
 }
 
 function buildDispatchText(item: TmuxDispatchItem): string {
-  const header = [
-    `[tmux-dispatch] mission=${item.missionId}`,
-    `session=${item.payload.sessionId}`,
-    `agent=${item.payload.agent}`,
-  ].join(" ");
-
-  return [
-    header,
-    item.payload.model
-      ? `model=${item.payload.model.providerID}/${item.payload.model.modelID}`
-      : null,
-    item.payload.variant ? `variant=${item.payload.variant}` : null,
-    item.payload.system ?? null,
-    ...item.payload.parts.map((part) => part.text),
-  ]
+  return item.payload.parts
+    .map((part) => part.text)
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join("\n\n");
 }

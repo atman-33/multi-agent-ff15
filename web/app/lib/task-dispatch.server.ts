@@ -5,7 +5,6 @@ import { resolveMissionExecutionRoot } from "@/lib/mission-execution-workspace.s
 import {
   addTask,
   appendMissionMessage,
-  buildDelegationLedger,
   clearMissionSessions,
   getMission,
   setWorkerSession,
@@ -282,8 +281,6 @@ export async function dispatchTaskToWorker(input: {
     saveOperationState(input.missionId, operationState);
   };
 
-  const ledger = buildDelegationLedger(mission);
-
   const appendLog = (
     sessionId: string,
     deliveryStatus: "queued" | "sent" | "failed",
@@ -347,7 +344,6 @@ export async function dispatchTaskToWorker(input: {
           sessionId: existingSessionId,
           sessionTitle: tmuxWriteTarget.sessionTitle,
           parts: composed.payloadParts,
-          ...(tmuxWriteTarget.createdSession ? { system: ledger } : {}),
           ...(model ? { model } : {}),
           ...(variant ? { variant } : {}),
           activityBody: "Queued tmux worker delivery.",
@@ -441,7 +437,6 @@ export async function dispatchTaskToWorker(input: {
       sessionID: sessionId,
       parts: composed.payloadParts,
       agent: input.agentId,
-      system: ledger,
       ...(model ? { model } : {}),
       ...(variant ? { variant } : {}),
     });
