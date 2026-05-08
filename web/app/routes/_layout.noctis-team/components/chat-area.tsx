@@ -484,7 +484,7 @@ const MessageBubble = memo(
           ) : null
         }
         renderDetailSheet={({ open, onOpenChange }) =>
-          open ? (
+          (
             <MessageDetailSheet
               content={messageDisplay.displayContent}
               detailState={message.detailState}
@@ -497,7 +497,7 @@ const MessageBubble = memo(
               sessionId={sessionId}
               sender={message.sender}
             />
-          ) : null
+          )
         }
         senderLabel={senderLabel}
         timestamp={message.timestamp}

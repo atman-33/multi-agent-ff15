@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { SessionMessageDetailSheet } from "@/components/chat/session-message-detail-sheet";
 import { type WorkflowMessagePresentation } from "@/lib/chat-workflow-presentation";
 import { type SessionMessageDisplay } from "@/lib/session-message-presentation";
@@ -32,6 +33,18 @@ const MessageDetailSheet = ({
   messageDisplay,
   workflowPresentation,
 }: Props) => {
+  const [hasOpened, setHasOpened] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setHasOpened(true);
+    }
+  }, [open]);
+
+  if (!open && !hasOpened) {
+    return null;
+  }
+
   return (
     <SessionMessageDetailSheet
       content={content}
