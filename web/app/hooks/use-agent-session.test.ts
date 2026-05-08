@@ -902,6 +902,118 @@ describe("useAgentSession", () => {
     });
   });
 
+  it("requests compact transcript payloads for mission session history", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1") {
+        const headers = init?.headers;
+        const detailState =
+          headers instanceof Headers
+            ? headers.get("x-session-detail-state")
+            : Array.isArray(headers)
+              ? (headers.find(([name]) => name === "x-session-detail-state")?.[1] ?? null)
+              : (headers?.["x-session-detail-state" as keyof typeof headers] ?? null);
+
+        return createJsonResponse({
+          messages: [
+            detailState === "summary"
+              ? {
+                  info: {
+                    id: "message-1",
+                    role: "assistant",
+                    time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+                  },
+                  detailState: "summary",
+                  summary: {
+                    content: "**Analyzing PR content update**",
+                    detailContent: [
+                      "**Analyzing PR content update**",
+                      "",
+                      "The user's request suggests updating the PR content.",
+                    ].join("\n"),
+                    rawText: "**Analyzing PR content update**",
+                  },
+                  parts: [
+                    {
+                      type: "tool",
+                      tool: "read_file",
+                      state: { status: "completed" },
+                    },
+                  ],
+                }
+              : {
+                  info: {
+                    id: "message-1",
+                    role: "assistant",
+                    time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+                  },
+                  parts: [
+                    {
+                      type: "text",
+                      text: [
+                        "**Analyzing PR content update**",
+                        "",
+                        "The user's request suggests updating the PR content.",
+                      ].join("\n"),
+                    },
+                  ],
+                },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      messages: ["**Analyzing PR content update**"],
+    });
+    expect(
+      fetchMock.mock.calls.some(([, init]) => {
+        const headers = init?.headers;
+        if (headers instanceof Headers) {
+          return headers.get("x-session-detail-state") === "summary";
+        }
+        if (Array.isArray(headers)) {
+          return headers.some(
+            ([name, value]) => name === "x-session-detail-state" && value === "summary",
+          );
+        }
+
+        return headers?.["x-session-detail-state" as keyof typeof headers] === "summary";
+      }),
+    ).toBe(true);
+  });
+
   it("coalesces overlapping fire-and-forget history sync requests for the same session", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     const deferredSession = createDeferredResponse();

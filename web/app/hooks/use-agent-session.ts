@@ -801,7 +801,11 @@ async function loadSessionMessages(
   sessionId: string,
   primaryAgentId: MissionPrimaryAgentId,
 ): Promise<ChatMessage[]> {
-  const response = await fetch(`/api/session/${sessionId}`);
+  const response = await fetch(`/api/session/${sessionId}`, {
+    headers: {
+      "x-session-detail-state": "summary",
+    },
+  });
   if (!response.ok) {
     throw new Error(`session messages failed: ${response.status}`);
   }

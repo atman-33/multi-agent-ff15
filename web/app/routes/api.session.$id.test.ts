@@ -345,6 +345,136 @@ describe("api.session.$id", () => {
     expect(data.messages[1]?.info.selectionAdjustment).toBeUndefined();
   });
 
+  it("returns summary session parts when transcript history requests compact payloads", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-summary",
+            role: "assistant",
+            agent: "Noctis",
+            providerID: "github-copilot",
+            modelID: "gpt-5.4",
+            time: { created: Date.parse("2026-04-18T10:20:00.000Z") },
+          },
+          parts: [
+            {
+              type: "text",
+              text: [
+                "**Analyzing PR content update**",
+                "",
+                "The user's request suggests updating the PR content.",
+              ].join("\n"),
+            },
+            {
+              type: "tool",
+              tool: "read_file",
+              state: {
+                status: "completed",
+                input: { path: "README.md" },
+                output: "done",
+                error: "",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const response = await loader({
+      params: { id: "session-1" },
+      request: new Request("http://localhost/api/session/session-1?detailState=summary"),
+    } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      messages: Array<{
+        detailState: string;
+        summary?: {
+          content: string;
+          detailContent: string;
+          rawText: string;
+        };
+        parts: unknown[];
+      }>;
+    }>(response);
+
+    expect(data.messages[0]).toMatchObject({
+      detailState: "summary",
+      summary: {
+        content: "**Analyzing PR content update**\n\nThe user's request suggests updating the PR content.",
+      },
+      parts: [
+        {
+          type: "tool",
+          tool: "read_file",
+          state: {
+            status: "completed",
+          },
+        },
+      ],
+    });
+  });
+
+  it("accepts a summary detail-state header for compact transcript payloads", async () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "assistant-summary-header",
+            role: "assistant",
+            agent: "Noctis",
+            providerID: "github-copilot",
+            modelID: "gpt-5.4",
+            time: { created: Date.parse("2026-04-18T10:21:00.000Z") },
+          },
+          parts: [
+            {
+              type: "text",
+              text: "**Structuring the PR body**\n\nNeed a concise summary.",
+            },
+            {
+              type: "tool",
+              tool: "apply_patch",
+              state: {
+                status: "completed",
+                input: { file: "README.md" },
+                output: "patched",
+                error: "",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const response = await loader({
+      params: { id: "session-1" },
+      request: new Request("http://localhost/api/session/session-1", {
+        headers: { "x-session-detail-state": "summary" },
+      }),
+    } as never);
+    expect(response.status).toBe(200);
+
+    const data = await readJson<{
+      messages: Array<{
+        detailState: string;
+        summary?: {
+          content: string;
+        };
+      }>;
+    }>(response);
+
+    expect(data.messages[0]).toMatchObject({
+      detailState: "summary",
+      summary: {
+        content: "**Structuring the PR body**\n\nNeed a concise summary.",
+      },
+    });
+  });
+
   it("returns full session parts for transcript-first history responses", async () => {
     process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
     sessionMessagesMock.mockResolvedValue({
