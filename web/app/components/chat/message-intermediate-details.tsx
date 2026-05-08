@@ -304,20 +304,24 @@ export function MessageIntermediateDetailsToggle({
     <>
       <div className="mt-3 border-t border-white/10 pt-3">
         <button
-          className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+          className="flex w-full min-w-0 items-start gap-2 rounded-md px-1 py-0.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
           onClick={onToggle}
           type="button"
         >
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 transition-transform duration-300 ease-out",
+              "h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-out",
               expanded ? "rotate-180" : "rotate-0"
             )}
           />
-          <span className="font-medium">
-            {expanded ? "Hide intermediate details" : "Show intermediate details"}
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">
+              {expanded ? "Hide intermediate details" : "Show intermediate details"}
+            </span>
+            <span className="mt-0.5 block wrap-anywhere text-[10px] leading-4 text-muted-foreground/70">
+              {detailSummary}
+            </span>
           </span>
-          <span className="text-[10px] text-muted-foreground/70">{detailSummary}</span>
         </button>
       </div>
 

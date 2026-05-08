@@ -764,6 +764,7 @@
 }
 .markdown-body p {
   @apply my-2 leading-relaxed text-foreground/90;
+  overflow-wrap: anywhere;
 }
 .markdown-body ul {
   @apply list-disc pl-6 my-2;
@@ -773,6 +774,7 @@
 }
 .markdown-body li {
   @apply my-1;
+  overflow-wrap: anywhere;
 }
 .markdown-body table {
   @apply w-full border-collapse my-4 text-sm;
@@ -785,12 +787,20 @@
 }
 .markdown-body code {
   @apply bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono text-primary;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .markdown-body pre {
   @apply bg-muted/60 border border-border/50 p-4 rounded-lg overflow-x-auto my-4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .markdown-body pre code {
   @apply bg-transparent p-0 text-foreground/90;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
 }
 .markdown-body blockquote {
   @apply border-l-4 border-primary/40 pl-4 italic my-4 text-muted-foreground bg-primary/5 py-1 rounded-r-lg;

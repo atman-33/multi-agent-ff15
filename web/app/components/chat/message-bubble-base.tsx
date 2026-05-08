@@ -9,6 +9,7 @@ type Props = {
   timestamp: Date;
   avatar?: ReactNode;
   senderMetaClassName?: string;
+  contentColumnMaxWidthClassName?: string;
   contentColumnClassName?: string;
   bubbleClassName: string;
   body: ReactNode;
@@ -24,6 +25,7 @@ export function MessageBubbleBase({
   timestamp,
   avatar,
   senderMetaClassName,
+  contentColumnMaxWidthClassName,
   contentColumnClassName,
   bubbleClassName,
   body,
@@ -56,25 +58,29 @@ export function MessageBubbleBase({
 
       <div
         className={cn(
-          "flex min-w-0 max-w-[84%] flex-col",
+          "flex min-w-0 flex-col",
+          contentColumnMaxWidthClassName ?? "max-w-[84%]",
           align === "end" ? "items-end" : "items-start",
           contentColumnClassName
         )}
       >
         <div
           className={cn(
-            "mb-1 flex items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-widest",
+            "mb-1 inline-flex max-w-full min-w-0 items-center gap-2 px-1 font-mono text-[10px] uppercase tracking-widest",
+            align === "end" ? "self-end justify-end text-right" : "self-start justify-start text-left",
             align === "end" ? "text-primary/70" : "text-muted-foreground/65",
             senderMetaClassName
           )}
         >
-          <span className="font-semibold">{senderLabel}</span>
-          {senderMetaSupplement}
-          {timestamp.toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })}
+          <span className="shrink-0 font-semibold">{senderLabel}</span>
+          {senderMetaSupplement ? <span className="shrink-0">{senderMetaSupplement}</span> : null}
+          <span className="shrink-0 tabular-nums">
+            {timestamp.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+          </span>
         </div>
 
         <div

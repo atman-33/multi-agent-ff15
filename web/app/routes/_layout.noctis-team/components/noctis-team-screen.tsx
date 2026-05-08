@@ -1179,7 +1179,7 @@ export function NoctisTeamScreen({
         orientation="horizontal"
         className="relative h-full min-h-0 w-full overflow-hidden"
       >
-        <ResizablePanel defaultSize={20}>
+        <ResizablePanel className="min-w-0" defaultSize={20}>
           <div className="flex h-full min-h-0 min-w-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
             <div className="w-full border-border/50 border-b p-3">
               <div className="mb-3 flex w-full items-start justify-between gap-2">
@@ -1302,7 +1302,7 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
 
-        <ResizablePanel defaultSize={50}>
+        <ResizablePanel className="min-w-0" defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
               composerDraftKey={buildMissionComposerDraftKey(surface.id, effectiveMissionId)}
@@ -1403,7 +1403,7 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
 
-        <ResizablePanel defaultSize={30}>
+        <ResizablePanel className="min-w-0" defaultSize={30}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 border-border/50 border-b p-3">
               {missionStatusAlert ? (

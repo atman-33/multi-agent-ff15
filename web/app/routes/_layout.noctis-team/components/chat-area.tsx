@@ -405,6 +405,7 @@ const MessageBubble = memo(
     const isPrimaryAgent = message.sender === primaryAgentId;
     const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
+    const contentColumnClassName = isOutgoing ? "ml-10" : avatarSrc ? undefined : "ml-10";
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const copyContent = messageDisplay.displayContent.trim() ? messageDisplay.displayContent : "";
@@ -438,6 +439,8 @@ const MessageBubble = memo(
             />
           ) : undefined
         }
+        contentColumnClassName={contentColumnClassName}
+        contentColumnMaxWidthClassName="max-w-[calc(100%_-_5rem)]"
         bubbleClassName={
           isOutgoing
             ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
