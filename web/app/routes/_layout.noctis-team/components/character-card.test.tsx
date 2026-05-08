@@ -70,7 +70,11 @@ describe("CharacterCard", () => {
     );
 
     expect(markup).toContain('data-step-owner="true"');
-    expect(markup).toContain("ring-2");
-    expect(markup).toContain("ring-offset-1");
+    expect(markup).toContain('data-step-owner-shell="true"');
+    expect(markup).toContain('data-step-owner-layer="aura"');
+    expect(markup).toContain('data-step-owner-layer="vivid"');
+    expect(markup).toContain('data-step-owner-layer="main"');
+    expect(markup).not.toContain('data-step-owner-orbit="true"');
+    expect(markup).not.toContain("step-owner-orbit-svg");
   });
 });
