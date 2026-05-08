@@ -18,6 +18,7 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
+import { WorkspaceLaunchActions } from "@/components/workspace-launch-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,6 +45,7 @@ import {
   EXECUTION_MODE_TOGGLE_LABEL,
   EXECUTION_MODE_TOOLTIP_COPY,
 } from "@/lib/mission-execution-target-mode";
+import type { VSCodePreference } from "@/lib/vscode-preferences";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -92,10 +94,13 @@ interface ChatAreaProps {
     label: string;
   }>;
   selectedExecutionProjectId?: string | null;
+  executionProjectLaunchPath?: string | null;
+  executionProjectVSCodePreference?: VSCodePreference;
   selectedExecutionTargetMode?: MissionExecutionTargetMode;
   executionProjectHint?: string | null;
   executionProjectError?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
+  onExecutionProjectVSCodePreferenceChange?: (preference: VSCodePreference) => void;
   onSelectedExecutionTargetModeChange?: (mode: MissionExecutionTargetMode) => void;
   missionExecutionLabel?: string | null;
   contextProjects: Array<{
@@ -782,10 +787,13 @@ export const ChatArea = ({
   showExecutionProjectSelector = false,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
+  executionProjectLaunchPath = null,
+  executionProjectVSCodePreference = "auto",
   selectedExecutionTargetMode = DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   executionProjectHint = null,
   executionProjectError = null,
   onSelectedExecutionProjectChange,
+  onExecutionProjectVSCodePreferenceChange,
   onSelectedExecutionTargetModeChange,
   missionExecutionLabel = null,
   contextProjects,
@@ -1140,22 +1148,34 @@ export const ChatArea = ({
                           </Tooltip>
                         ) : null}
                       </div>
-                      <Select
-                        disabled={isMissionStartPending}
-                        value={selectedExecutionProjectId ?? undefined}
-                        onValueChange={onSelectedExecutionProjectChange}
-                      >
-                        <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-                          <SelectValue placeholder="Choose a project" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {executionProjectOptions.map((project) => (
-                            <SelectItem key={project.value} value={project.value}>
-                              {project.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Select
+                            disabled={isMissionStartPending}
+                            value={selectedExecutionProjectId ?? undefined}
+                            onValueChange={onSelectedExecutionProjectChange}
+                          >
+                            <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                              <SelectValue placeholder="Choose a project" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {executionProjectOptions.map((project) => (
+                                <SelectItem key={project.value} value={project.value}>
+                                  {project.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {executionProjectLaunchPath ? (
+                          <WorkspaceLaunchActions
+                            path={executionProjectLaunchPath}
+                            vscodePreference={executionProjectVSCodePreference}
+                            onVSCodePreferenceChange={onExecutionProjectVSCodePreferenceChange}
+                          />
+                        ) : null}
+                      </div>
                       {executionProjectError ? (
                         <p className="text-[11px] text-destructive">{executionProjectError}</p>
                       ) : null}

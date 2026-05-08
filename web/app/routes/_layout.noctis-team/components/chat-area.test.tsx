@@ -150,6 +150,8 @@ describe("chat-area", () => {
           { value: "docs-repo", label: "Reference Docs" },
         ]}
         selectedExecutionProjectId="core-repo"
+        executionProjectLaunchPath="/home/atman/repos/core-repo"
+        executionProjectVSCodePreference="auto"
         executionProjectHint="Secondary context starts with Projects page presets."
         selectedExecutionTargetMode="execution_project"
         contextProjects={[
@@ -159,6 +161,7 @@ describe("chat-area", () => {
         ]}
         contextActionLabel="Mission Context"
         onContextAction={() => undefined}
+        onExecutionProjectVSCodePreferenceChange={() => undefined}
         availableOperations={[]}
         selectedOperation={null}
         activeOperationState={null}
@@ -179,6 +182,8 @@ describe("chat-area", () => {
     expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
+    expect(markup).toContain("Open folder");
+    expect(markup).toContain("Open in VS Code (Auto -&gt; WSL)");
     expect(markup).toContain("Dedicated workspace");
     expect(markup).toContain("Execution mode help");
     expect(markup).toContain("Work directly in the registered project folder");

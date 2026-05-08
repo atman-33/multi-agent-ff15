@@ -276,6 +276,12 @@ export function NoctisTeamScreen({
     null;
   const selectedExecutionProject =
     availableProjects.find((project) => project.id === effectiveExecutionProjectId) ?? null;
+  const newMissionExecutionProjectLaunchPreferenceKey = !effectiveMissionId
+    ? (selectedExecutionProject?.id ?? null)
+    : null;
+  const newMissionExecutionProjectVSCodePreference = newMissionExecutionProjectLaunchPreferenceKey
+    ? (vscodePreferences[newMissionExecutionProjectLaunchPreferenceKey] ?? "auto")
+    : "auto";
   const missionExecutionTargetMode = normalizeMissionExecutionTargetMode(
     missionDetail?.executionTargetMode ?? undefined,
     missionDetail?.executionProjectId ?? undefined
@@ -1320,12 +1326,21 @@ export function NoctisTeamScreen({
                 label: project.displayName,
               }))}
               selectedExecutionProjectId={effectiveExecutionProjectId}
+              executionProjectLaunchPath={!effectiveMissionId ? (selectedExecutionProject?.path ?? null) : null}
+              executionProjectVSCodePreference={newMissionExecutionProjectVSCodePreference}
               selectedExecutionTargetMode={effectiveExecutionTargetMode}
               executionProjectHint={newMissionContextHint}
               executionProjectError={projectRegistryError}
               onSelectedExecutionProjectChange={(projectId) =>
                 setDraftExecutionProjectId(projectId)
               }
+              onExecutionProjectVSCodePreferenceChange={(preference) => {
+                if (!newMissionExecutionProjectLaunchPreferenceKey) {
+                  return;
+                }
+
+                updateVSCodePreference(newMissionExecutionProjectLaunchPreferenceKey, preference);
+              }}
               onSelectedExecutionTargetModeChange={
                 !effectiveMissionId ? setDraftExecutionTargetMode : undefined
               }
@@ -1531,21 +1546,42 @@ export function NoctisTeamScreen({
             {!missionDetail?.executionProjectId ? (
               <div className="space-y-2">
                 <p className="font-medium text-sm">Execution project</p>
-                <Select
-                  value={draftExecutionProjectId ?? undefined}
-                  onValueChange={(value) => setDraftExecutionProjectId(value || null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProjects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      value={draftExecutionProjectId ?? undefined}
+                      onValueChange={(value) => setDraftExecutionProjectId(value || null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProjects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {!effectiveMissionId && selectedExecutionProject?.path ? (
+                    <WorkspaceLaunchActions
+                      path={selectedExecutionProject.path}
+                      vscodePreference={newMissionExecutionProjectVSCodePreference}
+                      onVSCodePreferenceChange={(preference) => {
+                        if (!newMissionExecutionProjectLaunchPreferenceKey) {
+                          return;
+                        }
+
+                        updateVSCodePreference(
+                          newMissionExecutionProjectLaunchPreferenceKey,
+                          preference,
+                        );
+                      }}
+                    />
+                  ) : null}
+                </div>
               </div>
             ) : (
               <div className="space-y-1">
