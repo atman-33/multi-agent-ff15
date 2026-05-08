@@ -401,6 +401,27 @@ describe("LunafreyaStatusPanel", () => {
     expect(markup).toContain("Continue");
   });
 
+  it("keeps raw Continue enabled even when the Lunafreya session is not yet known locally", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession={false}
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Send raw continue to Lunafreya mission session"/
+    );
+  });
+
   it("shows the Lunafreya context menu header instead of a generic action group label", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaStatusPanel
@@ -551,5 +572,49 @@ describe("LunafreyaStatusPanel", () => {
     });
     expect(toastSuccessMock).toHaveBeenCalledWith("Sent raw continue to Lunafreya.");
     expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the route error when raw continue is attempted before the Lunafreya session is known locally", async () => {
+    continueMissionAgentSessionMock.mockRejectedValue(new Error("Mission session not found"));
+
+    renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession={false}
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Send raw continue to Lunafreya mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(continueMissionAgentSessionMock).toHaveBeenCalledWith({
+      agentId: "lunafreya",
+      missionId: "mission-luna",
+    });
+    expect(toastErrorMock).toHaveBeenCalledWith("Mission session not found");
   });
 });

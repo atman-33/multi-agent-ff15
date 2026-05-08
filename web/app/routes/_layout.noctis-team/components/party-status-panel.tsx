@@ -319,7 +319,7 @@ export const PartyStatusPanel = ({
   };
 
   const handleContinueMissionSession = async (agentId: PresetAgentId) => {
-    if (!missionId || !hasMissionSessionByAgent[agentId] || continuingAgentId !== null) {
+    if (!missionId || continuingAgentId !== null) {
       return;
     }
 
@@ -386,7 +386,7 @@ export const PartyStatusPanel = ({
             ? "Mission Session Unavailable"
             : "Switch To Current Mission Session";
           const continueActionDisabled =
-            !missionId || !normalizedAgentId || !hasMissionSession || continuingAgentId !== null;
+            !missionId || !normalizedAgentId || continuingAgentId !== null;
 
           const segmentBaseClass =
             "h-6 rounded-full border px-0 font-mono text-[8px] font-semibold uppercase tracking-[0.16em] transition-all";

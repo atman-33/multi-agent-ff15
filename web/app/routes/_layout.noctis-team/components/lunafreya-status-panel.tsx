@@ -338,7 +338,7 @@ export function LunafreyaStatusPanel({
   const switchActionLabel = !hasMissionSession
     ? "Mission Session Unavailable"
     : "Switch To Current Mission Session";
-  const continueActionDisabled = !missionId || !hasMissionSession || isSendingContinue;
+  const continueActionDisabled = !missionId || isSendingContinue;
 
   const handleSwitchMissionPaneSession = async () => {
     if (!missionId || !hasMissionSession || isSwitchingSession) {
@@ -360,7 +360,7 @@ export function LunafreyaStatusPanel({
   };
 
   const handleContinueMissionSession = async () => {
-    if (!missionId || !hasMissionSession || isSendingContinue) {
+    if (!missionId || isSendingContinue) {
       return;
     }
 

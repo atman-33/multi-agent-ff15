@@ -283,6 +283,22 @@ describe("PartyStatusPanel", () => {
     expect(markup).toContain("Continue");
   });
 
+  it("keeps raw Continue enabled even when the party member session is not yet known locally", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{}}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Send raw continue to Ignis mission session"/
+    );
+  });
+
   it("shows the member name as the context menu header instead of generic action group labels", () => {
     const markup = renderToStaticMarkup(
       <PartyStatusPanel
@@ -430,5 +446,44 @@ describe("PartyStatusPanel", () => {
     });
     expect(toastSuccessMock).toHaveBeenCalledWith("Sent raw continue to Ignis.");
     expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the route error when raw continue is attempted before the party member session is known locally", async () => {
+    continueMissionAgentSessionMock.mockRejectedValue(new Error("Mission session not found"));
+
+    renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{}}
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Send raw continue to Ignis mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(continueMissionAgentSessionMock).toHaveBeenCalledWith({
+      agentId: "ignis",
+      missionId: "mission-123",
+    });
+    expect(toastErrorMock).toHaveBeenCalledWith("Mission session not found");
   });
 });
