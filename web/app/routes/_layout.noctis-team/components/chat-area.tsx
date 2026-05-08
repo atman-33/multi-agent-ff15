@@ -182,6 +182,7 @@ function toSessionPresentationMessage(message: ChatMessage): SessionPresentation
     kind: message.kind,
     content: message.content,
     detailContent: message.detailContent,
+    detailState: message.detailState,
     rawText: message.rawText,
     parts: message.parts,
     timestamp: message.timestamp,

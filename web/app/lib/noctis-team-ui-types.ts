@@ -1,4 +1,8 @@
-import type { MessageDetailState, MessagePart } from "@/lib/opencode-session-types";
+import type {
+  MessageDetailState,
+  MessageErrorInfo,
+  MessagePart,
+} from "@/lib/opencode-session-types";
 import type { AgentContextUsage, ActivityActorId, MissionActivityKind } from "@/lib/types/mission";
 
 export type AgentStatus = "idle" | "working" | "success" | "blocked";
@@ -21,6 +25,7 @@ export interface ChatMessage {
   content: string;
   detailContent?: string;
   detailState?: MessageDetailState;
+  errorInfo?: MessageErrorInfo;
   rawText?: string;
   parts?: MessagePart[];
   timestamp: Date;

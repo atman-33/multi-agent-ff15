@@ -9,6 +9,10 @@ const { sessionChatRenderSnapshotMock } = vi.hoisted(() => ({
   sessionChatRenderSnapshotMock: vi.fn(),
 }));
 
+const { messageDetailSheetMock } = vi.hoisted(() => ({
+  messageDetailSheetMock: vi.fn(),
+}));
+
 vi.hoisted(() => {
   const maybeWindow = globalThis as typeof globalThis & {
     window?: typeof globalThis & { __vite_plugin_react_preamble_installed__?: boolean };
@@ -118,18 +122,27 @@ vi.mock("@/stores/chat-store", () => ({
 
 vi.mock("./message-detail-sheet", () => ({
   default: ({
+    detailState,
     onOpenChange,
     open,
   }: {
+    detailState?: string;
     onOpenChange: (open: boolean) => void;
     open: boolean;
-  }) => (
-    <div data-message-detail-sheet={open ? "open" : "closed"}>
-      <button onClick={() => onOpenChange(false)} type="button">
-        Close detail
-      </button>
-    </div>
-  ),
+  }) => {
+    messageDetailSheetMock({ detailState, open });
+
+    return (
+      <div
+        data-detail-state={detailState ?? ""}
+        data-message-detail-sheet={open ? "open" : "closed"}
+      >
+        <button onClick={() => onOpenChange(false)} type="button">
+          Close detail
+        </button>
+      </div>
+    );
+  },
 }));
 
 import { ChatArea } from "./chat-area";
@@ -172,6 +185,7 @@ describe("chat-area detail sheet presence", () => {
   let root: Root | null;
 
   beforeEach(() => {
+    messageDetailSheetMock.mockReset();
     sessionChatRenderSnapshotMock.mockReset();
     sessionChatRenderSnapshotMock.mockReturnValue({
       autoFollowKey: "message",
@@ -239,5 +253,44 @@ describe("chat-area detail sheet presence", () => {
     });
 
     expect(container.innerHTML).toContain('data-message-detail-sheet="closed"');
+  });
+
+  it("passes summary detail state through to the mission detail sheet", async () => {
+    sessionChatRenderSnapshotMock.mockReturnValue({
+      autoFollowKey: "message",
+      inspectabilityBoundaries: [],
+      scrollSignal: "none",
+      renderedMessages: [
+        {
+          ...createRenderedMessage(),
+          detailState: "summary",
+        },
+      ],
+      streamingMessage: null,
+      showPendingIndicator: false,
+    });
+
+    await act(async () => {
+      root?.render(
+        <ChatArea
+          messages={[]}
+          isResponding={false}
+          sessionId="session-1"
+          primaryAgentId="noctis"
+          contextProjects={[]}
+          availableOperations={[]}
+          selectedOperation={null}
+          activeOperationState={null}
+          isOperationSelectionLocked={false}
+          onSelectedOperationChange={() => undefined}
+          onSend={() => undefined}
+        />,
+      );
+    });
+
+    expect(container.innerHTML).toContain('data-detail-state="summary"');
+    expect(messageDetailSheetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ detailState: "summary", open: false }),
+    );
   });
 });

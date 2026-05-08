@@ -216,6 +216,64 @@ describe("api.session.$id.messages.$messageId", () => {
     });
   });
 
+  it("keeps the raw user prompt payload for on-demand user transcript expansion", async () => {
+    listSessionRequestAnchorsMock.mockReturnValue({});
+    const rawPrompt = [
+      "<operation-prompt>",
+      "<instruction>",
+      "Work through the operation context carefully.",
+      "</instruction>",
+      "",
+      '<user-request from="user" to="iris">',
+      "Please inspect this workflow.",
+      "</user-request>",
+      "</operation-prompt>",
+    ].join("\n");
+
+    sessionMessagesMock.mockResolvedValue({
+      data: [
+        {
+          info: {
+            id: "user-1",
+            role: "user",
+            time: { created: Date.parse("2026-04-26T10:00:00.000Z") },
+          },
+          summary: {
+            content: "Please inspect this workflow.",
+            detailContent: "Please inspect this workflow.",
+            rawText: "Please inspect this workflow.",
+          },
+          detailState: "summary",
+          parts: [
+            {
+              type: "text",
+              text: rawPrompt,
+            },
+          ],
+        },
+      ],
+    });
+
+    const response = await loader({
+      params: { id: "session-1", messageId: "user-1" },
+    } as never);
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      message: expect.objectContaining({
+        detailState: "full",
+        info: expect.objectContaining({ id: "user-1", role: "user" }),
+        parts: [
+          {
+            type: "text",
+            text: rawPrompt,
+          },
+        ],
+      }),
+    });
+  });
+
   it("returns not found when the requested message is missing", async () => {
     listSessionRequestAnchorsMock.mockReturnValue({});
     sessionMessagesMock.mockResolvedValue({
