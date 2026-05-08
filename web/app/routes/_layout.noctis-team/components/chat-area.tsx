@@ -35,6 +35,7 @@ import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit
 import type {
   AbortSettlementPhase,
   MissionTranscriptPhase,
+  MissionTranscriptRetentionState,
 } from "@/hooks/use-agent-session";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
@@ -77,6 +78,7 @@ interface ChatAreaProps {
   sessionId?: string | null;
   composerDraftKey?: string | null;
   messages: ChatMessage[];
+  retainedHistory?: MissionTranscriptRetentionState;
   currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
   streamingContent?: string;
@@ -662,6 +664,7 @@ const TranscriptBody = memo(
     historyEmptyCallout,
     historyErrorCallout,
     historyLoadingCallout,
+    historyRetentionCallout,
     getExpandedDetailEntries,
     isConversationUnitExpanded,
     isStreaming,
@@ -677,6 +680,7 @@ const TranscriptBody = memo(
     historyEmptyCallout: ReactNode;
     historyErrorCallout: ReactNode;
     historyLoadingCallout: ReactNode;
+    historyRetentionCallout: ReactNode;
     getExpandedDetailEntries: (conversationUnitId: string) => Record<string, true>;
     isConversationUnitExpanded: (conversationUnitId: string) => boolean;
     isStreaming: boolean;
@@ -701,6 +705,7 @@ const TranscriptBody = memo(
       {historyLoadingCallout}
       {historyErrorCallout}
       {historyEmptyCallout}
+      {historyRetentionCallout}
 
       {topSpacerHeight > 0 ? (
         <div aria-hidden="true" style={{ height: `${topSpacerHeight}px` }} />
@@ -774,6 +779,7 @@ export const ChatArea = ({
   sessionId = null,
   composerDraftKey = null,
   messages,
+  retainedHistory,
   currentStreamingMessageId = null,
   streamingContent = "",
   historyErrorMessage = null,
@@ -826,6 +832,7 @@ export const ChatArea = ({
   const isAbortSettling = abortSettlementPhase !== "idle";
   const isTranscriptEmpty = historyPhase === "empty";
   const isTranscriptError = historyPhase === "error";
+  const isRetainedHistoryActive = retainedHistory?.isActive ?? false;
   const presentationMessages = useMemo(
     () => messages.map(toSessionPresentationMessage),
     [messages],
@@ -1009,6 +1016,26 @@ export const ChatArea = ({
         </div>
       ) : null,
     [historyErrorMessage, isTranscriptError],
+  );
+  const historyRetentionCallout = useMemo(
+    () =>
+      isRetainedHistoryActive ? (
+        <div className="rounded-xl border border-sky-400/25 bg-sky-400/8 px-3 py-2.5" role="status">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-100/85">
+            Recent History Only
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-foreground/80">
+            Only recent mission transcript history is currently retained in this live session.
+          </p>
+          {retainedHistory && retainedHistory.trimmedConversationUnitCount > 0 ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/85">
+              {retainedHistory.trimmedConversationUnitCount} earlier transcript turns are hidden until
+              transcript ownership resets.
+            </p>
+          ) : null}
+        </div>
+      ) : null,
+    [isRetainedHistoryActive, retainedHistory],
   );
   const abortSettlementCallout = isAbortSettling ? (
     <div
@@ -1307,6 +1334,7 @@ export const ChatArea = ({
           historyEmptyCallout={historyEmptyCallout}
           historyErrorCallout={historyErrorCallout}
           historyLoadingCallout={historyLoadingCallout}
+          historyRetentionCallout={historyRetentionCallout}
           isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
           isStreaming={isStreaming}
           onToggleConversationUnit={inspectability.toggleConversationUnit}

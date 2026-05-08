@@ -27,6 +27,11 @@ type HookProbeSnapshot = {
   isStreaming: boolean;
   abortSettlementPhase: string;
   messages: string[];
+  retainedHistory: {
+    isActive: boolean;
+    trimmedConversationUnitCount: number;
+    trimmedMessageCount: number;
+  };
   streamingContent: string;
   abort: () => Promise<void>;
   send: ReturnType<typeof useAgentSession>["send"];
@@ -136,6 +141,23 @@ function createAssistantMessage(id: string, text: string): MessageInfo {
   };
 }
 
+function createAssistantMessages(count: number, prefix = "Reply"): MessageInfo[] {
+  return Array.from({ length: count }, (_, index) =>
+    createAssistantMessage(`message-${index + 1}`, `${prefix} ${index + 1}`),
+  );
+}
+
+function createAssistantToolMessage(id: string): MessageInfo {
+  return {
+    info: {
+      id,
+      role: "assistant",
+      time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+    },
+    parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
+  };
+}
+
 function createAbortedAssistantMessage(id: string): MessageInfo {
   return {
     info: {
@@ -227,6 +249,7 @@ function HookProbe({
       isStreaming: state.isStreaming,
       abortSettlementPhase: state.abortSettlementPhase,
       messages: state.messages.map((message) => message.content),
+      retainedHistory: state.retainedHistory,
       streamingContent: state.streamingContent,
       abort: state.abort,
       send: state.send,
@@ -242,6 +265,7 @@ function HookProbe({
     state.isStreaming,
     state.liveDraft,
     state.messages,
+    state.retainedHistory,
     state.streamingContent,
     state.send,
   ]);
@@ -439,6 +463,230 @@ describe("useAgentSession", () => {
       isLoadingHistory: false,
       messages: ["Mission two reply"],
       streamingContent: "",
+    });
+  });
+
+  it("retains only the most recent mission transcript window when preloaded history exceeds the cap", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const preloadedMessages = createAssistantMessages(170);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: preloadedMessages,
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    const readySnapshot = requireSnapshot(latestSnapshot, "Expected preloaded retention snapshot.");
+
+    expect(readySnapshot.messages).toHaveLength(120);
+    expect(readySnapshot.messages[0]).toBe("Reply 51");
+    expect(readySnapshot.messages.at(-1)).toBe("Reply 170");
+    expect(readySnapshot.retainedHistory).toEqual({
+      isActive: true,
+      trimmedConversationUnitCount: 50,
+      trimmedMessageCount: 50,
+    });
+  });
+
+  it("retains only the most recent mission transcript window after authoritative history sync", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const persistedMessages = createAssistantMessages(170);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1") {
+        return createJsonResponse({ messages: persistedMessages });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    const readySnapshot = requireSnapshot(latestSnapshot, "Expected synced retention snapshot.");
+
+    expect(readySnapshot.messages).toHaveLength(120);
+    expect(readySnapshot.messages[0]).toBe("Reply 51");
+    expect(readySnapshot.messages.at(-1)).toBe("Reply 170");
+    expect(readySnapshot.retainedHistory).toEqual({
+      isActive: true,
+      trimmedConversationUnitCount: 50,
+      trimmedMessageCount: 50,
+    });
+  });
+
+  it("retains complete conversation units when grouped assistant activity crosses the cap", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const preloadedMessages = [
+      ...createAssistantMessages(160),
+      createAssistantToolMessage("message-161"),
+      createAssistantMessage("message-162", "Grouped reply"),
+    ];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: preloadedMessages,
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    const readySnapshot = requireSnapshot(
+      latestSnapshot,
+      "Expected grouped retention snapshot.",
+    );
+
+    expect(readySnapshot.messages).toHaveLength(121);
+    expect(readySnapshot.messages[0]).toBe("Reply 42");
+    expect(readySnapshot.messages.slice(-2)).toEqual(["", "Grouped reply"]);
+    expect(readySnapshot.retainedHistory).toEqual({
+      isActive: true,
+      trimmedConversationUnitCount: 41,
+      trimmedMessageCount: 41,
+    });
+  });
+
+  it("clears retained-history mode when transcript ownership changes to a new mission", async () => {
+    const missionOne = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const missionTwo = createMission({ missionId: "mission-2", primarySessionId: "session-2" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(missionOne));
+      }
+
+      if (url === "/api/noctis/missions/mission-2/runtime") {
+        return createJsonResponse(createRuntimePayload(missionTwo));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: createAssistantMessages(170),
+          initialMissionData: missionOne,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    const firstMissionSnapshot = requireSnapshot(
+      latestSnapshot,
+      "Expected first mission retention snapshot.",
+    );
+
+    expect(firstMissionSnapshot.retainedHistory.isActive).toBe(true);
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-2",
+          initialMessageInfos: [createAssistantMessage("message-201", "Mission two reply")],
+          initialMissionData: missionTwo,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+    const secondMissionSnapshot = requireSnapshot(
+      latestSnapshot,
+      "Expected second mission retention snapshot.",
+    );
+
+    expect(secondMissionSnapshot.messages).toEqual(["Mission two reply"]);
+    expect(secondMissionSnapshot.retainedHistory).toEqual({
+      isActive: false,
+      trimmedConversationUnitCount: 0,
+      trimmedMessageCount: 0,
     });
   });
 
@@ -2312,6 +2560,66 @@ describe("useAgentSession", () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/noctis/mission/continue")).toBe(
       true,
     );
+  });
+
+  it("retains only the most recent mission transcript window after optimistic user and error appends exceed the cap", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const preloadedMessages = createAssistantMessages(159);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/noctis/mission/continue") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { missionId?: string };
+        expect(body.missionId).toBe("mission-1");
+        return createJsonResponse({ error: "Continue failed." }, { ok: false, status: 500 });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: preloadedMessages,
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      await latestSnapshot?.send([{ type: "text", text: "Retry request" }]);
+    });
+
+    await flushEffects();
+    const postSendSnapshot = requireSnapshot(latestSnapshot, "Expected post-send retention snapshot.");
+
+    expect(postSendSnapshot.messages).toHaveLength(120);
+    expect(postSendSnapshot.messages[0]).toBe("Reply 42");
+    expect(postSendSnapshot.messages).toContain("Retry request");
+    expect(postSendSnapshot.messages.at(-1)).toBe("Something went wrong. Continue failed.");
+    expect(postSendSnapshot.retainedHistory).toEqual({
+      isActive: true,
+      trimmedConversationUnitCount: 41,
+      trimmedMessageCount: 41,
+    });
   });
 
   it("backs off idle runtime polling after the primary stream is healthy", async () => {

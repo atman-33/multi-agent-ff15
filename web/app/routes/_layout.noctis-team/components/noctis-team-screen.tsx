@@ -229,6 +229,7 @@ export function NoctisTeamScreen({
   const {
     sessionId,
     messages,
+    retainedHistory,
     liveDraft,
     streamingMessageId,
     streamingContent,
@@ -1320,6 +1321,7 @@ export function NoctisTeamScreen({
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
+              retainedHistory={retainedHistory}
               showExecutionProjectSelector={!effectiveMissionId}
               executionProjectOptions={availableProjects.map((project) => ({
                 value: project.id,
