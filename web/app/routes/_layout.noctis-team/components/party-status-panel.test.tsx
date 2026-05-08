@@ -252,6 +252,26 @@ describe("PartyStatusPanel", () => {
     expect(markup).toContain("Mission Session Unavailable");
   });
 
+  it("shows the member name as the context menu header instead of generic action group labels", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("gladiolus")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<div>Ignis<\/div><hr\/><button[^>]*aria-label="Switch Ignis pane to current mission session"[^>]*>Switch To Current Mission Session<\/button><hr\/><button[^>]*aria-label="Resume active worker step for Ignis"[^>]*>Resume Active Step<\/button>/
+    );
+    expect(markup).not.toContain("Agent Actions");
+    expect(markup).not.toContain("Worker Actions");
+  });
+
   it("keeps the current-mission switch action enabled for the runtime Gladio member id", () => {
     const markup = renderToStaticMarkup(
       <PartyStatusPanel

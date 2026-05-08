@@ -367,6 +367,26 @@ describe("LunafreyaStatusPanel", () => {
     expect(markup).toContain("Switch To Current Mission Session");
   });
 
+  it("shows the Lunafreya context menu header instead of a generic action group label", () => {
+    const markup = renderToStaticMarkup(
+      <LunafreyaStatusPanel
+        hasMissionSession
+        jobOptions={[]}
+        missionId="mission-luna"
+        skillOptions={[]}
+        onClearSkillIds={() => undefined}
+        onSelectedJobIdChange={() => undefined}
+        onToggleSkillId={() => undefined}
+        selectedJobId={null}
+        selectedSkillIds={[]}
+        status="idle"
+      />
+    );
+
+    expect(markup).toContain("Lunafreya");
+    expect(markup).not.toContain("Agent Actions");
+  });
+
   it("keeps the current-mission pane session switch action enabled while Lunafreya is working", () => {
     const markup = renderToStaticMarkup(
       <LunafreyaStatusPanel

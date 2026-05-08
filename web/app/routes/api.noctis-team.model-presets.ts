@@ -20,7 +20,32 @@ type ModeConfig = {
   _description?: string;
 } & Partial<Record<PresetAgentId, { model?: string; variant?: string }>>;
 
+function humanizeVariant(variant: string): string {
+  switch (variant) {
+    case "low":
+      return "Low";
+    case "medium":
+      return "Medium";
+    case "high":
+      return "High";
+    case "xhigh":
+      return "XHigh";
+    default:
+      return variant.charAt(0).toUpperCase() + variant.slice(1);
+  }
+}
+
 function humanizeModeName(modeId: string): string {
+  const gpt5MiniMatch = modeId.match(/^gpt5mini-(low|medium|high|xhigh)$/);
+  if (gpt5MiniMatch) {
+    return `GPT-5 Mini ${humanizeVariant(gpt5MiniMatch[1])}`;
+  }
+
+  const gpt54Match = modeId.match(/^gpt5\.4-(low|medium|high|xhigh)$/);
+  if (gpt54Match) {
+    return `GPT-5.4 ${humanizeVariant(gpt54Match[1])}`;
+  }
+
   if (modeId === "fullpower") {
     return "Full Power";
   }

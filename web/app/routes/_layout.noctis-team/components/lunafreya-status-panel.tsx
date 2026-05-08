@@ -399,7 +399,7 @@ export function LunafreyaStatusPanel({
         </ContextMenuTrigger>
 
         <ContextMenuContent>
-          <ContextMenuLabel>Agent Actions</ContextMenuLabel>
+          <ContextMenuLabel>{LUNAFREYA_CARD_COPY.name}</ContextMenuLabel>
           <ContextMenuSeparator />
           <ContextMenuItem
             aria-label="Switch Lunafreya pane to current mission session"

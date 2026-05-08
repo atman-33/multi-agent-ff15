@@ -461,7 +461,7 @@ export const PartyStatusPanel = ({
 
                 {normalizedAgentId ? (
                   <ContextMenuContent>
-                    <ContextMenuLabel>Agent Actions</ContextMenuLabel>
+                    <ContextMenuLabel>{member.name}</ContextMenuLabel>
                     <ContextMenuSeparator />
                     <ContextMenuItem
                       aria-label={`Switch ${member.name} pane to current mission session`}
@@ -472,8 +472,6 @@ export const PartyStatusPanel = ({
                     >
                       {switchActionLabel}
                     </ContextMenuItem>
-                    {isWorker ? <ContextMenuSeparator /> : null}
-                    {isWorker ? <ContextMenuLabel>Worker Actions</ContextMenuLabel> : null}
                     {isWorker ? <ContextMenuSeparator /> : null}
                     <ContextMenuItem
                       aria-label={`Resume active worker step for ${member.name}`}
