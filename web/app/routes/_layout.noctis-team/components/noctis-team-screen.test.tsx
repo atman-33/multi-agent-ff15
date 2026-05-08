@@ -52,6 +52,16 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
 }));
 
+vi.mock("@/components/workspace-launch-actions", () => ({
+  WorkspaceLaunchActions: ({
+    path,
+    vscodePreference,
+  }: {
+    path: string;
+    vscodePreference: string;
+  }) => <div>{`workspace-launch-actions:${path}:${vscodePreference}`}</div>,
+}));
+
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children }: { children?: ReactNode; open?: boolean }) => <div>{children}</div>,
   DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -105,6 +115,8 @@ vi.mock("./chat-area", () => ({
     composerDraftKey,
     showExecutionProjectSelector,
     selectedExecutionProjectId,
+    executionProjectLaunchPath,
+    executionProjectVSCodePreference,
     selectedExecutionTargetMode,
     executionProjectHint,
     executionProjectOptions,
@@ -128,6 +140,8 @@ vi.mock("./chat-area", () => ({
     composerDraftKey?: string | null;
     showExecutionProjectSelector?: boolean;
     selectedExecutionProjectId?: string | null;
+    executionProjectLaunchPath?: string | null;
+    executionProjectVSCodePreference?: string | null;
     selectedExecutionTargetMode?: string | null;
     executionProjectHint?: string | null;
     executionProjectOptions?: Array<{ value: string; label: string }>;
@@ -180,6 +194,9 @@ vi.mock("./chat-area", () => ({
       ) : null}
       {showExecutionProjectSelector ? (
         <div>{`execution-selector:${selectedExecutionProjectId ?? "none"}`}</div>
+      ) : null}
+      {executionProjectLaunchPath ? (
+        <div>{`execution-launch:${executionProjectLaunchPath}:${executionProjectVSCodePreference ?? "auto"}`}</div>
       ) : null}
       {showExecutionProjectSelector ? (
         <div>{`execution-mode:${selectedExecutionTargetMode ?? "none"}`}</div>
@@ -320,12 +337,21 @@ describe("noctis-team-screen", () => {
 
     expect(markup).toContain("composer-draft-key:mission-surface:noctis_team:new");
     expect(markup).toContain("execution-selector:core-repo");
+    expect(markup).toContain("execution-launch:/repos/core:auto");
     expect(markup).toContain("execution-mode:execution_project");
     expect(markup).toContain("execution-options:Core Repo,Reference Docs");
     expect(markup).toContain("Context projects start empty for new missions.");
     expect(markup).toContain("context:None");
     expect(markup).toContain("context-action:Mission Context");
     expect(markup).not.toContain("Mission Setup");
+  });
+
+  it("renders execution project launch actions in the new-mission context dialog", () => {
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen activeMissionId={null} initialMissionData={null} language="other" />,
+    );
+
+    expect(markup).toContain("workspace-launch-actions:/repos/core:auto");
   });
 
   it("passes temporary mission streaming content through to the chat area", () => {

@@ -5,8 +5,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOperationState } from "@/lib/operation-runtime/state";
 import type { PartyMember } from "@/lib/noctis-team-ui-types";
 
-const { chatStoreStateMock } = vi.hoisted(() => ({
+const {
+  chatStoreStateMock,
+  continueMissionAgentSessionMock,
+  contextMenuItemPropsSpy,
+  formatContinueMissionAgentSessionSuccessMessageMock,
+  formatSwitchMissionAgentPaneSessionSuccessMessageMock,
+  switchMissionAgentPaneSessionMock,
+  toastErrorMock,
+  toastSuccessMock,
+} = vi.hoisted(() => ({
   chatStoreStateMock: vi.fn(),
+  continueMissionAgentSessionMock: vi.fn(),
+  contextMenuItemPropsSpy: vi.fn(),
+  formatContinueMissionAgentSessionSuccessMessageMock: vi.fn(),
+  formatSwitchMissionAgentPaneSessionSuccessMessageMock: vi.fn(),
+  switchMissionAgentPaneSessionMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
 }));
 
 vi.mock("@/components/compact-model-variant-picker", () => ({
@@ -14,7 +37,9 @@ vi.mock("@/components/compact-model-variant-picker", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: { children?: ReactNode }) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
 vi.mock("@/components/ui/command", () => ({
@@ -22,7 +47,9 @@ vi.mock("@/components/ui/command", () => ({
   CommandEmpty: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   CommandGroup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   CommandInput: (props: Record<string, unknown>) => <input {...props} />,
-  CommandItem: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  CommandItem: ({ children, ...props }: { children?: ReactNode }) => (
+    <div {...props}>{children}</div>
+  ),
   CommandList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
@@ -45,16 +72,20 @@ vi.mock("@/components/ui/context-menu", () => ({
     children?: ReactNode;
     disabled?: boolean;
     onSelect?: (event: { preventDefault: () => void }) => void;
-  }) => (
-    <button
-      data-disabled={disabled ? "true" : "false"}
-      disabled={disabled}
-      onClick={() => onSelect?.({ preventDefault: () => undefined })}
-      {...props}
-    >
-      {children}
-    </button>
-  ),
+  }) => {
+    contextMenuItemPropsSpy({ children, disabled, onSelect, ...props });
+
+    return (
+      <button
+        data-disabled={disabled ? "true" : "false"}
+        disabled={disabled}
+        onClick={() => onSelect?.({ preventDefault: () => undefined })}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  },
   ContextMenuLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   ContextMenuSeparator: () => <hr />,
 }));
@@ -67,21 +98,35 @@ vi.mock("@/stores/chat-store", () => ({
       setAgentModel: (agentId: string, model: unknown) => void;
       setAgentModels: (models: Record<string, unknown>) => void;
       setWorkingPartyMember: (agentId: string, included: boolean) => void;
-    }) => unknown,
+    }) => unknown
   ) => selector(chatStoreStateMock()),
+}));
+
+vi.mock("./switch-pane-session", () => ({
+  formatSwitchMissionAgentPaneSessionSuccessMessage:
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock,
+  switchMissionAgentPaneSession: switchMissionAgentPaneSessionMock,
+}));
+
+vi.mock("./continue-mission-session", () => ({
+  continueMissionAgentSession: continueMissionAgentSessionMock,
+  formatContinueMissionAgentSessionSuccessMessage:
+    formatContinueMissionAgentSessionSuccessMessageMock,
 }));
 
 vi.mock("./character-card", () => ({
   CharacterCard: ({
+    isStepOwner,
     name,
     statusAccessory,
     metaAccessory,
   }: {
+    isStepOwner?: boolean;
     name: string;
     statusAccessory?: ReactNode;
     metaAccessory?: ReactNode;
   }) => (
-    <section>
+    <section data-step-owner={isStepOwner ? "true" : undefined}>
       <h2>{name}</h2>
       {statusAccessory}
       {metaAccessory}
@@ -105,7 +150,11 @@ const partyMembers: PartyMember[] = [
 ];
 
 function createActiveOperationState(agent: "noctis" | "ignis" | "gladiolus" | "prompto") {
-  const state = createOperationState("review-cycle-test", "implement", "builtin:ja:review-cycle-test.yaml");
+  const state = createOperationState(
+    "review-cycle-test",
+    "implement",
+    "builtin:ja:review-cycle-test.yaml"
+  );
   state.currentStep = "implement";
   state.status = "waiting_for_report";
   state.stepHistory = [
@@ -122,6 +171,10 @@ function createActiveOperationState(agent: "noctis" | "ignis" | "gladiolus" | "p
 
 describe("PartyStatusPanel", () => {
   beforeEach(() => {
+    continueMissionAgentSessionMock.mockReset();
+    contextMenuItemPropsSpy.mockReset();
+    formatContinueMissionAgentSessionSuccessMessageMock.mockReset();
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReset();
     chatStoreStateMock.mockReturnValue({
       agentModels: {
         noctis: null,
@@ -138,6 +191,9 @@ describe("PartyStatusPanel", () => {
       setAgentModels: () => undefined,
       setWorkingPartyMember: () => undefined,
     });
+    switchMissionAgentPaneSessionMock.mockReset();
+    toastErrorMock.mockReset();
+    toastSuccessMock.mockReset();
   });
 
   it("enables resume only on the worker card that owns the active step", () => {
@@ -147,17 +203,17 @@ describe("PartyStatusPanel", () => {
         missionId="mission-123"
         activeOperationState={createActiveOperationState("gladiolus")}
         speakingAgentId={null}
-      />,
+      />
     );
 
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="false"[^>]*aria-label="Resume active worker step for Gladiolus"/,
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Resume active worker step for Gladiolus"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/
     );
   });
 
@@ -168,17 +224,284 @@ describe("PartyStatusPanel", () => {
         missionId="mission-123"
         activeOperationState={createActiveOperationState("noctis")}
         speakingAgentId={null}
-      />,
+      />
     );
 
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Ignis"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Gladiolus"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Gladiolus"/
     );
     expect(markup).toMatch(
-      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/,
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/
     );
+  });
+
+  it("marks the primary agent card as the active step owner when Noctis owns the step", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+      />
+    );
+
+    expect(markup).toMatch(/<section data-step-owner="true"><h2>Noctis<\/h2>/);
+    expect(markup).not.toMatch(/<section data-step-owner="true"><h2>Ignis<\/h2>/);
+    expect(markup).not.toMatch(/<section data-step-owner="true"><h2>Gladiolus<\/h2>/);
+    expect(markup).not.toMatch(/<section data-step-owner="true"><h2>Prompto<\/h2>/);
+  });
+
+  it("shows current-mission pane session switching only when the agent card is switchable", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          noctis: true,
+          ignis: true,
+          gladiolus: true,
+          prompto: false,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Ignis pane to current mission session"/
+    );
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Gladiolus pane to current mission session"/
+    );
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="true"[^>]*aria-label="Switch Prompto pane to current mission session"/
+    );
+    expect(markup).toContain("Mission Session Unavailable");
+  });
+
+  it("shows a raw Continue action for party members with a managed mission session", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Send raw continue to Ignis mission session"/
+    );
+    expect(markup).toContain("Continue");
+  });
+
+  it("keeps raw Continue enabled even when the party member session is not yet known locally", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{}}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Send raw continue to Ignis mission session"/
+    );
+  });
+
+  it("shows the member name as the context menu header instead of generic action group labels", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("gladiolus")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<div>Ignis<\/div><hr\/><button[^>]*aria-label="Switch Ignis pane to current mission session"[^>]*>Switch To Current Mission Session<\/button><hr\/><button[^>]*aria-label="Send raw continue to Ignis mission session"[^>]*>Continue<\/button><hr\/><button[^>]*aria-label="Resume active worker step for Ignis"[^>]*>Resume Active Step<\/button>/
+    );
+    expect(markup).not.toContain("Agent Actions");
+    expect(markup).not.toContain("Worker Actions");
+  });
+
+  it("keeps the current-mission switch action enabled for the runtime Gladio member id", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={[
+          {
+            id: "gladio",
+            name: "Gladio",
+            role: "Executor",
+            status: "idle",
+            imageSrc: "/gladiolus.png",
+          },
+        ]}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          gladiolus: true,
+        }}
+      />
+    );
+
+    expect(markup).toMatch(
+      /<button[^>]*data-disabled="false"[^>]*aria-label="Switch Gladio pane to current mission session"/
+    );
+  });
+
+  it("invokes pane session switching for an enabled party member action", async () => {
+    const switchResult = {
+      agentId: "ignis",
+      missionId: "mission-123",
+      sessionId: "session-ignis",
+      sessionTitle: "mission:mission-123:ignis",
+    };
+    switchMissionAgentPaneSessionMock.mockResolvedValue(switchResult);
+    formatSwitchMissionAgentPaneSessionSuccessMessageMock.mockReturnValue(
+      "Switched Ignis to the current mission session."
+    );
+
+    renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Switch Ignis pane to current mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(switchMissionAgentPaneSessionMock).toHaveBeenCalledWith({
+      agentId: "ignis",
+      missionId: "mission-123",
+    });
+    expect(formatSwitchMissionAgentPaneSessionSuccessMessageMock).toHaveBeenCalledWith(
+      switchResult
+    );
+    expect(toastSuccessMock).toHaveBeenCalledWith("Switched Ignis to the current mission session.");
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("invokes raw continue delivery for an enabled party member action", async () => {
+    formatContinueMissionAgentSessionSuccessMessageMock.mockReturnValue(
+      "Sent raw continue to Ignis."
+    );
+    continueMissionAgentSessionMock.mockResolvedValue({
+      agentId: "ignis",
+      missionId: "mission-123",
+      sessionId: "session-ignis",
+    });
+
+    renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{
+          ignis: true,
+        }}
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Send raw continue to Ignis mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(continueMissionAgentSessionMock).toHaveBeenCalledWith({
+      agentId: "ignis",
+      missionId: "mission-123",
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith("Sent raw continue to Ignis.");
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the route error when raw continue is attempted before the party member session is known locally", async () => {
+    continueMissionAgentSessionMock.mockRejectedValue(new Error("Mission session not found"));
+
+    renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+        hasMissionSessionByAgent={{}}
+      />
+    );
+
+    const actionProps = contextMenuItemPropsSpy.mock.calls
+      .map(([props]) => props)
+      .find(
+        (props) =>
+          typeof props === "object" &&
+          props !== null &&
+          (props as { "aria-label"?: string })["aria-label"] ===
+            "Send raw continue to Ignis mission session"
+      ) as
+      | {
+          onSelect?: (event: { preventDefault: () => void }) => void;
+        }
+      | undefined;
+
+    expect(actionProps).toBeTruthy();
+    actionProps?.onSelect?.({ preventDefault: () => undefined });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(continueMissionAgentSessionMock).toHaveBeenCalledWith({
+      agentId: "ignis",
+      missionId: "mission-123",
+    });
+    expect(toastErrorMock).toHaveBeenCalledWith("Mission session not found");
   });
 });

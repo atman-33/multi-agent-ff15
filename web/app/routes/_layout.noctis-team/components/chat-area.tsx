@@ -18,6 +18,7 @@ import {
 } from "@/components/chat/message-intermediate-details";
 import { PromptComposer } from "@/components/chat/prompt-composer";
 import { ChatThreadFrame } from "@/components/chat/thread-frame";
+import { WorkspaceLaunchActions } from "@/components/workspace-launch-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -34,6 +35,7 @@ import { useConversationUnitInspectability } from "@/hooks/use-conversation-unit
 import type {
   AbortSettlementPhase,
   MissionTranscriptPhase,
+  MissionTranscriptRetentionState,
 } from "@/hooks/use-agent-session";
 import { useSessionChatRenderSnapshot } from "@/hooks/use-session-chat-render-snapshot";
 import { getAgentTheme } from "@/lib/agent-theme";
@@ -44,6 +46,7 @@ import {
   EXECUTION_MODE_TOGGLE_LABEL,
   EXECUTION_MODE_TOOLTIP_COPY,
 } from "@/lib/mission-execution-target-mode";
+import type { VSCodePreference } from "@/lib/vscode-preferences";
 import { getAllowedWorkers, getWorkingPartySummary } from "@/lib/noctis-working-party";
 import {
   DEFAULT_AUTONOMOUS_OPERATION_LABEL,
@@ -75,6 +78,7 @@ interface ChatAreaProps {
   sessionId?: string | null;
   composerDraftKey?: string | null;
   messages: ChatMessage[];
+  retainedHistory?: MissionTranscriptRetentionState;
   currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
   streamingContent?: string;
@@ -92,10 +96,13 @@ interface ChatAreaProps {
     label: string;
   }>;
   selectedExecutionProjectId?: string | null;
+  executionProjectLaunchPath?: string | null;
+  executionProjectVSCodePreference?: VSCodePreference;
   selectedExecutionTargetMode?: MissionExecutionTargetMode;
   executionProjectHint?: string | null;
   executionProjectError?: string | null;
   onSelectedExecutionProjectChange?: (projectId: string) => void;
+  onExecutionProjectVSCodePreferenceChange?: (preference: VSCodePreference) => void;
   onSelectedExecutionTargetModeChange?: (mode: MissionExecutionTargetMode) => void;
   missionExecutionLabel?: string | null;
   contextProjects: Array<{
@@ -477,7 +484,7 @@ const MessageBubble = memo(
           ) : null
         }
         renderDetailSheet={({ open, onOpenChange }) =>
-          open ? (
+          (
             <MessageDetailSheet
               content={messageDisplay.displayContent}
               detailState={message.detailState}
@@ -490,7 +497,7 @@ const MessageBubble = memo(
               sessionId={sessionId}
               sender={message.sender}
             />
-          ) : null
+          )
         }
         senderLabel={senderLabel}
         timestamp={message.timestamp}
@@ -657,6 +664,7 @@ const TranscriptBody = memo(
     historyEmptyCallout,
     historyErrorCallout,
     historyLoadingCallout,
+    historyRetentionCallout,
     getExpandedDetailEntries,
     isConversationUnitExpanded,
     isStreaming,
@@ -672,6 +680,7 @@ const TranscriptBody = memo(
     historyEmptyCallout: ReactNode;
     historyErrorCallout: ReactNode;
     historyLoadingCallout: ReactNode;
+    historyRetentionCallout: ReactNode;
     getExpandedDetailEntries: (conversationUnitId: string) => Record<string, true>;
     isConversationUnitExpanded: (conversationUnitId: string) => boolean;
     isStreaming: boolean;
@@ -696,6 +705,7 @@ const TranscriptBody = memo(
       {historyLoadingCallout}
       {historyErrorCallout}
       {historyEmptyCallout}
+      {historyRetentionCallout}
 
       {topSpacerHeight > 0 ? (
         <div aria-hidden="true" style={{ height: `${topSpacerHeight}px` }} />
@@ -769,6 +779,7 @@ export const ChatArea = ({
   sessionId = null,
   composerDraftKey = null,
   messages,
+  retainedHistory,
   currentStreamingMessageId = null,
   streamingContent = "",
   historyErrorMessage = null,
@@ -782,10 +793,13 @@ export const ChatArea = ({
   showExecutionProjectSelector = false,
   executionProjectOptions = [],
   selectedExecutionProjectId = null,
+  executionProjectLaunchPath = null,
+  executionProjectVSCodePreference = "auto",
   selectedExecutionTargetMode = DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
   executionProjectHint = null,
   executionProjectError = null,
   onSelectedExecutionProjectChange,
+  onExecutionProjectVSCodePreferenceChange,
   onSelectedExecutionTargetModeChange,
   missionExecutionLabel = null,
   contextProjects,
@@ -818,6 +832,7 @@ export const ChatArea = ({
   const isAbortSettling = abortSettlementPhase !== "idle";
   const isTranscriptEmpty = historyPhase === "empty";
   const isTranscriptError = historyPhase === "error";
+  const isRetainedHistoryActive = retainedHistory?.isActive ?? false;
   const presentationMessages = useMemo(
     () => messages.map(toSessionPresentationMessage),
     [messages],
@@ -1002,6 +1017,26 @@ export const ChatArea = ({
       ) : null,
     [historyErrorMessage, isTranscriptError],
   );
+  const historyRetentionCallout = useMemo(
+    () =>
+      isRetainedHistoryActive ? (
+        <div className="rounded-xl border border-sky-400/25 bg-sky-400/8 px-3 py-2.5" role="status">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-100/85">
+            Recent History Only
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-foreground/80">
+            Only recent mission transcript history is currently retained in this live session.
+          </p>
+          {retainedHistory && retainedHistory.trimmedConversationUnitCount > 0 ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/85">
+              {retainedHistory.trimmedConversationUnitCount} earlier transcript turns are hidden until
+              transcript ownership resets.
+            </p>
+          ) : null}
+        </div>
+      ) : null,
+    [isRetainedHistoryActive, retainedHistory],
+  );
   const abortSettlementCallout = isAbortSettling ? (
     <div
       aria-atomic="true"
@@ -1140,22 +1175,34 @@ export const ChatArea = ({
                           </Tooltip>
                         ) : null}
                       </div>
-                      <Select
-                        disabled={isMissionStartPending}
-                        value={selectedExecutionProjectId ?? undefined}
-                        onValueChange={onSelectedExecutionProjectChange}
-                      >
-                        <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
-                          <SelectValue placeholder="Choose a project" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {executionProjectOptions.map((project) => (
-                            <SelectItem key={project.value} value={project.value}>
-                              {project.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Select
+                            disabled={isMissionStartPending}
+                            value={selectedExecutionProjectId ?? undefined}
+                            onValueChange={onSelectedExecutionProjectChange}
+                          >
+                            <SelectTrigger className="h-9 bg-background/70 font-mono text-xs uppercase tracking-[0.14em]">
+                              <SelectValue placeholder="Choose a project" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {executionProjectOptions.map((project) => (
+                                <SelectItem key={project.value} value={project.value}>
+                                  {project.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {executionProjectLaunchPath ? (
+                          <WorkspaceLaunchActions
+                            path={executionProjectLaunchPath}
+                            vscodePreference={executionProjectVSCodePreference}
+                            onVSCodePreferenceChange={onExecutionProjectVSCodePreferenceChange}
+                          />
+                        ) : null}
+                      </div>
                       {executionProjectError ? (
                         <p className="text-[11px] text-destructive">{executionProjectError}</p>
                       ) : null}
@@ -1287,6 +1334,7 @@ export const ChatArea = ({
           historyEmptyCallout={historyEmptyCallout}
           historyErrorCallout={historyErrorCallout}
           historyLoadingCallout={historyLoadingCallout}
+          historyRetentionCallout={historyRetentionCallout}
           isConversationUnitExpanded={inspectability.isConversationUnitExpanded}
           isStreaming={isStreaming}
           onToggleConversationUnit={inspectability.toggleConversationUnit}

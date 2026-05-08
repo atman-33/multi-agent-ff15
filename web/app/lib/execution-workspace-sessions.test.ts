@@ -214,6 +214,24 @@ describe("execution workspace sessions", () => {
     );
   });
 
+  it("does not prepend delegation-ledger system text to the first direct worker dispatch", async () => {
+    const root = createTempRoot();
+    process.env.MULTI_AGENT_FF15_ROOT = root;
+    const { missionId } = createExecutionMission(root);
+    sessionCreateMock.mockResolvedValue({ data: { id: "session-ignis" } });
+    promptAsyncMock.mockResolvedValue({ data: { id: "prompt-worker" } });
+
+    await dispatchTaskToWorker({
+      missionId,
+      agentId: "ignis",
+      message: "Handle the task without bootstrap metadata.",
+    });
+
+    const promptInput = promptAsyncMock.mock.calls.at(-1)?.[0];
+    expect(promptInput).toBeTruthy();
+    expect(promptInput).not.toHaveProperty("system");
+  });
+
   it("records directed handoff banter from the actual handoff source", async () => {
     const root = createTempRoot();
     process.env.MULTI_AGENT_FF15_ROOT = root;
@@ -422,6 +440,7 @@ describe("execution workspace sessions", () => {
         }),
       }),
     ]);
+    expect(listTmuxDispatchItems(missionId)[0]?.payload).not.toHaveProperty("system");
   });
 
   it("records queued transport state for tmux worker dispatches", async () => {

@@ -46,7 +46,7 @@
         "/bin/bash",
         "-l",
         "-c",
-        "uvx --from git+https://github.com/oraios/serena serena start-mcp-server --open-web-dashboard false --context ide-assistant"
+        "uvx --from git+https://github.com/oraios/serena serena start-mcp-server --open-web-dashboard false --context ide"
       ],
       "enabled": false
     }

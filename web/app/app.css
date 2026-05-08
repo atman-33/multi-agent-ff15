@@ -320,6 +320,14 @@
       opacity: 1;
     }
   }
+  @keyframes step-owner-orbit-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 
 /*
@@ -373,6 +381,55 @@
 }
 
 @layer components {
+  .step-owner-shell {
+    position: absolute;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  .step-owner-shell::after {
+    content: "";
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    top: -50%;
+    left: -50%;
+    animation: step-owner-orbit-spin 3.2s linear infinite;
+    background: conic-gradient(
+      from 78deg at 50% 50%,
+      transparent 0deg,
+      transparent 316deg,
+      color-mix(in srgb, var(--step-owner-orbit-color, rgba(224, 224, 255, 0.78)) 8%, transparent) 324deg,
+      color-mix(in srgb, var(--step-owner-orbit-color, rgba(224, 224, 255, 0.78)) 44%, transparent) 334deg,
+      color-mix(in srgb, var(--step-owner-orbit-color, rgba(224, 224, 255, 0.78)) 100%, transparent) 342deg,
+      color-mix(in srgb, var(--step-owner-orbit-color, rgba(224, 224, 255, 0.78)) 46%, transparent) 350deg,
+      color-mix(in srgb, var(--step-owner-orbit-color, rgba(224, 224, 255, 0.78)) 10%, transparent) 358deg,
+      transparent 360deg
+    );
+  }
+
+  .step-owner-layer-aura {
+    inset: -10px;
+    border-radius: 22px;
+    filter: blur(18px);
+    opacity: 0.42;
+  }
+
+  .step-owner-layer-vivid {
+    inset: -4px;
+    border-radius: 15px;
+    filter: blur(2.1px) brightness(1.28);
+    opacity: 0.8;
+  }
+
+  .step-owner-layer-main {
+    inset: -2px;
+    border-radius: 14px;
+    filter: blur(0.45px) brightness(1.12);
+    opacity: 0.92;
+  }
+
   .route-loading-progress::before {
     content: "";
     display: block;

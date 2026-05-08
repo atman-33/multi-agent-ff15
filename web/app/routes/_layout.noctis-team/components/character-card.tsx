@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAgentTheme } from "@/lib/agent-theme";
 import type { AgentStatus } from "@/lib/noctis-team-ui-types";
@@ -12,6 +12,7 @@ export interface CharacterCardProps {
   role: string;
   imageSrc: string;
   isInParty?: boolean;
+  isStepOwner?: boolean;
   isSpeaking?: boolean;
   statusAccessory?: ReactNode;
   status: AgentStatus;
@@ -79,6 +80,7 @@ export const CharacterCard = ({
   role,
   imageSrc,
   isInParty = true,
+  isStepOwner = false,
   isSpeaking = false,
   statusAccessory,
   status,
@@ -89,6 +91,8 @@ export const CharacterCard = ({
   const config = statusConfig[status];
   const theme = getAgentTheme(agentId ?? name);
   const isBenched = !isInParty && !isSpeaking;
+  const stepOwnerRingColor = theme?.ring ?? "rgba(224,224,255,0.45)";
+  const stepOwnerGlowColor = theme?.glowSoft ?? "rgba(224,224,255,0.14)";
   const portraitGlowStrong = theme?.ring ?? theme?.accentStrong ?? "rgba(224,224,255,0.55)";
   const portraitGlowSoft = theme?.glow ?? theme?.surfaceStrong ?? "rgba(224,224,255,0.24)";
   const imageFilter = isBenched
@@ -103,29 +107,61 @@ export const CharacterCard = ({
       ]
         .filter(Boolean)
         .join(" ");
+  const wrapperStyle: CSSProperties | undefined = isStepOwner
+    ? ({
+        "--step-owner-orbit-color": stepOwnerRingColor,
+        "--step-owner-orbit-glow": theme?.glow ?? stepOwnerGlowColor,
+      }) as CSSProperties
+    : undefined;
+  const cardStyle: CSSProperties | undefined = isSpeaking
+    ? ({
+        borderColor: theme?.ring ?? "rgba(125,211,252,0.45)",
+        background: theme?.surface ?? "rgba(14,165,233,0.08)",
+        boxShadow: `0 0 26px ${theme?.glowSoft ?? "rgba(125,211,252,0.18)"}`,
+      }) as CSSProperties
+    : undefined;
 
   return (
     <div
-      className={cn(
-        "relative flex flex-col gap-1.5 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-3 py-2",
-        "transition-all duration-500 backdrop-blur-sm",
-        isBenched && "border-border/25 bg-background/35",
-        status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
-        status === "success" &&
-          "border-[hsl(var(--success)/0.3)] shadow-lg shadow-[hsl(var(--success)/0.08)]",
-        status === "blocked" && "border-destructive/30"
-      )}
-      style={
-        isSpeaking
-          ? {
-              borderColor: theme?.ring ?? "rgba(125,211,252,0.45)",
-              background: theme?.surface ?? "rgba(14,165,233,0.08)",
-              boxShadow: `0 0 26px ${theme?.glowSoft ?? "rgba(125,211,252,0.18)"}`,
-            }
-          : undefined
-      }
+      data-step-owner={isStepOwner ? "true" : undefined}
+      className="relative"
+      style={wrapperStyle}
     >
-      <div className="flex min-w-0 flex-row items-center gap-3">
+      {isStepOwner ? (
+        <>
+          <span
+            aria-hidden="true"
+            className="step-owner-shell step-owner-layer-aura"
+            data-step-owner-shell="true"
+            data-step-owner-layer="aura"
+          />
+          <span
+            aria-hidden="true"
+            className="step-owner-shell step-owner-layer-vivid"
+            data-step-owner-shell="true"
+            data-step-owner-layer="vivid"
+          />
+          <span
+            aria-hidden="true"
+            className="step-owner-shell step-owner-layer-main"
+            data-step-owner-shell="true"
+            data-step-owner-layer="main"
+          />
+        </>
+      ) : null}
+      <div
+        className={cn(
+          "relative z-10 flex flex-col gap-1.5 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-3 py-2",
+          "transition-all duration-500 backdrop-blur-sm",
+          isBenched && "border-border/25 bg-background/35",
+          status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
+          status === "success" &&
+            "border-[hsl(var(--success)/0.3)] shadow-lg shadow-[hsl(var(--success)/0.08)]",
+          status === "blocked" && "border-destructive/30"
+        )}
+        style={cardStyle}
+      >
+        <div className="relative flex min-w-0 flex-row items-center gap-3">
         <div className="relative flex h-14 w-10 shrink-0 items-end justify-center">
           {status === "working" && !isBenched ? (
             <span
@@ -357,6 +393,7 @@ export const CharacterCard = ({
           >
             {config.label}
           </div>
+        </div>
         </div>
       </div>
     </div>

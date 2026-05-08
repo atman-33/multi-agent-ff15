@@ -150,6 +150,8 @@ describe("chat-area", () => {
           { value: "docs-repo", label: "Reference Docs" },
         ]}
         selectedExecutionProjectId="core-repo"
+        executionProjectLaunchPath="/home/atman/repos/core-repo"
+        executionProjectVSCodePreference="auto"
         executionProjectHint="Secondary context starts with Projects page presets."
         selectedExecutionTargetMode="execution_project"
         contextProjects={[
@@ -159,6 +161,7 @@ describe("chat-area", () => {
         ]}
         contextActionLabel="Mission Context"
         onContextAction={() => undefined}
+        onExecutionProjectVSCodePreferenceChange={() => undefined}
         availableOperations={[]}
         selectedOperation={null}
         activeOperationState={null}
@@ -179,6 +182,8 @@ describe("chat-area", () => {
     expect(markup).toContain("Mission Context");
     expect(markup).toContain("Execution project help");
     expect(markup).toContain("Secondary context starts with Projects page presets.");
+    expect(markup).toContain("Open folder");
+    expect(markup).toContain("Open in VS Code (Auto -&gt; WSL)");
     expect(markup).toContain("Dedicated workspace");
     expect(markup).toContain("Execution mode help");
     expect(markup).toContain("Work directly in the registered project folder");
@@ -656,6 +661,77 @@ describe("chat-area", () => {
     expect(markup).toContain("Transcript Load Failed");
     expect(markup).toContain("Unable to load mission transcript.");
     expect(markup).not.toContain("No Session History Yet");
+  });
+
+  it("shows a recent-history notice when older transcript turns are trimmed", () => {
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        retainedHistory={{
+          isActive: true,
+          trimmedConversationUnitCount: 50,
+          trimmedMessageCount: 50,
+        }}
+        historyPhase="ready"
+        isResponding={false}
+        missionExecutionLabel="Core Repo"
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={true}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Recent History Only");
+    expect(markup).toContain(
+      "Only recent mission transcript history is currently retained in this live session.",
+    );
+    expect(markup).toContain(
+      "50 earlier transcript turns are hidden until transcript ownership resets.",
+    );
+  });
+
+  it("keeps the active tail visible while the recent-history notice is active", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce(
+      buildSessionChatRenderSnapshot({
+        assistantPending: true,
+        messages: [],
+        streamingText: {
+          content: "Mission two is responding",
+          fallbackSender: "noctis",
+          fallbackSenderLabel: "Noctis",
+        },
+      }),
+    );
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        retainedHistory={{
+          isActive: true,
+          trimmedConversationUnitCount: 50,
+          trimmedMessageCount: 50,
+        }}
+        streamingContent="Mission two is responding"
+        isResponding={true}
+        isSessionActive={true}
+        isStreaming={true}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Recent History Only");
+    expect(markup).toContain("Mission two is responding");
+    expect(markup).toContain("animate-bounce");
   });
 
   it("renders temporary assistant streaming text through the shared snapshot while keeping the generic typing indicator visible", () => {

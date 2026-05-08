@@ -28,10 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  type MissionResumePayload,
-  useAgentSession,
-} from "@/hooks/use-agent-session";
+import { type MissionResumePayload, useAgentSession } from "@/hooks/use-agent-session";
 import { useProjectRegistry } from "@/hooks/use-project-registry";
 import { useSessionStatusFeed } from "@/hooks/use-session-status-feed";
 import { useVSCodePreferences } from "@/hooks/use-vscode-preferences";
@@ -63,10 +60,7 @@ import { ChatArea } from "./chat-area";
 import { LunafreyaStatusPanel, type LunafreyaFacetOption } from "./lunafreya-status-panel";
 import { MissionHistoryItem } from "./mission-history-item";
 import { MissionActivityLog } from "./mission-activity-log";
-import {
-  getMissionOutputKey,
-  MissionOutputBrowser,
-} from "./mission-output-browser";
+import { getMissionOutputKey, MissionOutputBrowser } from "./mission-output-browser";
 import {
   buildMissionOutputDetailKey,
   buildMissionOutputDetailPath,
@@ -106,7 +100,7 @@ export function NoctisTeamScreen({
 }: NoctisTeamScreenProps) {
   const surface = getMissionSurface(
     requestedSurfaceId ??
-      (initialMissionData?.surfaceId === "lunafreya" ? "lunafreya" : "noctis_team"),
+      (initialMissionData?.surfaceId === "lunafreya" ? "lunafreya" : "noctis_team")
   );
   const isLunafreyaSurface = surface.id === "lunafreya";
   const missionRouteBase = surface.routeBase;
@@ -117,7 +111,7 @@ export function NoctisTeamScreen({
   const navigate = useNavigate();
   const params = useParams();
   const outputDetailMatch = useMatch(
-    `${missionRouteBase}/mission/:id/output/:step/:taskId/:filename`,
+    `${missionRouteBase}/mission/:id/output/:step/:taskId/:filename`
   );
   const routeMissionId = params.id ?? null;
   const routeOutputStep = outputDetailMatch?.params.step ?? null;
@@ -126,11 +120,11 @@ export function NoctisTeamScreen({
   const effectiveMissionId = activeMissionId ?? routeMissionId;
   const outputDetailActive = resolveMissionOutputDetailActive(
     {
-    step: routeOutputStep,
-    taskId: routeOutputTaskId,
-    filename: routeOutputFilename,
+      step: routeOutputStep,
+      taskId: routeOutputTaskId,
+      filename: routeOutputFilename,
     },
-    visualOutputDetailActive,
+    visualOutputDetailActive
   );
 
   useEffect(() => {
@@ -156,25 +150,28 @@ export function NoctisTeamScreen({
   const [isBulkMissionActionPending, setIsBulkMissionActionPending] = useState(false);
   const [isRenamingMission, setIsRenamingMission] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>(
-    surface.supportsBanter ? "banter" : "activity",
+    surface.supportsBanter ? "banter" : "activity"
   );
   const [missionOutputs, setMissionOutputs] = useState<MissionOutputSummary[]>([]);
   const [isLoadingMissionOutputs, setIsLoadingMissionOutputs] = useState(false);
   const [missionOutputsError, setMissionOutputsError] = useState<string | null>(null);
-  const [missionDetail, setMissionDetail] = useState<MissionResumePayload | null>(initialMissionData ?? null);
+  const [missionDetail, setMissionDetail] = useState<MissionResumePayload | null>(
+    initialMissionData ?? null
+  );
   const [draftExecutionProjectId, setDraftExecutionProjectId] = useState<string | null>(
-    initialMissionData?.executionProjectId ?? null,
+    initialMissionData?.executionProjectId ?? null
   );
-  const [draftExecutionTargetMode, setDraftExecutionTargetMode] = useState<MissionExecutionTargetMode>(
-    initialMissionData
-      ? (normalizeMissionExecutionTargetMode(
-          initialMissionData.executionTargetMode ?? undefined,
-          initialMissionData.executionProjectId ?? undefined,
-        ) ?? "mission_workspace")
-      : DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE,
-  );
+  const [draftExecutionTargetMode, setDraftExecutionTargetMode] =
+    useState<MissionExecutionTargetMode>(
+      initialMissionData
+        ? (normalizeMissionExecutionTargetMode(
+            initialMissionData.executionTargetMode ?? undefined,
+            initialMissionData.executionProjectId ?? undefined
+          ) ?? "mission_workspace")
+        : DEFAULT_NEW_MISSION_EXECUTION_TARGET_MODE
+    );
   const [draftContextProjectIds, setDraftContextProjectIds] = useState<string[]>(
-    initialMissionData?.contextProjectIds ?? [],
+    initialMissionData?.contextProjectIds ?? []
   );
   const [hasLoadedDraftState, setHasLoadedDraftState] = useState(false);
   const [isContextDialogOpen, setIsContextDialogOpen] = useState(false);
@@ -182,28 +179,27 @@ export function NoctisTeamScreen({
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const [replayingTransportItemId, setReplayingTransportItemId] = useState<string | null>(null);
-  const [dismissedFailedDeliveryItemId, setDismissedFailedDeliveryItemId] = useState<string | null>(null);
+  const [dismissedFailedDeliveryItemId, setDismissedFailedDeliveryItemId] = useState<string | null>(
+    null
+  );
   const [lunafreyaJobOptions, setLunafreyaJobOptions] = useState<LunafreyaFacetOption[]>([]);
   const [lunafreyaSkillOptions, setLunafreyaSkillOptions] = useState<LunafreyaFacetOption[]>([]);
   const [selectedLunafreyaJobId, setSelectedLunafreyaJobId] = useState<string | null>(
-    initialMissionData?.lunafreyaFacetSelection?.selectedJobId ?? null,
+    initialMissionData?.lunafreyaFacetSelection?.selectedJobId ?? null
   );
   const [selectedLunafreyaSkillIds, setSelectedLunafreyaSkillIds] = useState<string[]>(
-    initialMissionData?.lunafreyaFacetSelection?.selectedSkillIds ?? [],
+    initialMissionData?.lunafreyaFacetSelection?.selectedSkillIds ?? []
   );
   const activeMissionIdRef = useRef<string | null>(effectiveMissionId);
   const previousMissionSummariesRef = useRef<MissionSummary[]>([]);
-  const {
-    data: projectRegistryData,
-    error: projectRegistryError,
-  } = useProjectRegistry();
+  const { data: projectRegistryData, error: projectRegistryError } = useProjectRegistry();
   const { vscodePreferences, updateVSCodePreference } = useVSCodePreferences();
   const availableProjects = projectRegistryData?.projects ?? [];
   const defaultExecutionProjectId = availableProjects[0]?.id ?? null;
   const effectiveExecutionTargetMode =
     normalizeMissionExecutionTargetMode(
       missionDetail?.executionTargetMode ?? undefined,
-      missionDetail?.executionProjectId ?? undefined,
+      missionDetail?.executionProjectId ?? undefined
     ) ?? draftExecutionTargetMode;
   const effectiveExecutionProjectId =
     missionDetail?.executionProjectId ??
@@ -225,13 +221,15 @@ export function NoctisTeamScreen({
     () =>
       effectiveContextProjectIds.map((projectId) => ({
         id: projectId,
-        label: availableProjects.find((project) => project.id === projectId)?.displayName ?? projectId,
+        label:
+          availableProjects.find((project) => project.id === projectId)?.displayName ?? projectId,
       })),
-    [availableProjects, effectiveContextProjectIds],
+    [availableProjects, effectiveContextProjectIds]
   );
   const {
     sessionId,
     messages,
+    retainedHistory,
     liveDraft,
     streamingMessageId,
     streamingContent,
@@ -273,50 +271,79 @@ export function NoctisTeamScreen({
   const currentOperationStep =
     activeOperationState?.currentStep ?? initialMissionData?.operationState?.currentStep ?? null;
   const effectiveWorkflowProgress =
-    workflowProgress ?? missionDetail?.workflowProgress ?? initialMissionData?.workflowProgress ?? null;
-  const selectedExecutionProject = availableProjects.find(
-    (project) => project.id === effectiveExecutionProjectId,
-  ) ?? null;
+    workflowProgress ??
+    missionDetail?.workflowProgress ??
+    initialMissionData?.workflowProgress ??
+    null;
+  const selectedExecutionProject =
+    availableProjects.find((project) => project.id === effectiveExecutionProjectId) ?? null;
+  const newMissionExecutionProjectLaunchPreferenceKey = !effectiveMissionId
+    ? (selectedExecutionProject?.id ?? null)
+    : null;
+  const newMissionExecutionProjectVSCodePreference = newMissionExecutionProjectLaunchPreferenceKey
+    ? (vscodePreferences[newMissionExecutionProjectLaunchPreferenceKey] ?? "auto")
+    : "auto";
   const missionExecutionTargetMode = normalizeMissionExecutionTargetMode(
     missionDetail?.executionTargetMode ?? undefined,
-    missionDetail?.executionProjectId ?? undefined,
+    missionDetail?.executionProjectId ?? undefined
   );
   const isDirectExecutionMission = missionExecutionTargetMode === "execution_project";
   const workspaceLaunchPreferenceKey =
-    missionDetail?.executionProjectId ?? effectiveExecutionProjectId ?? missionDetail?.workspacePath ?? null;
+    missionDetail?.executionProjectId ??
+    effectiveExecutionProjectId ??
+    missionDetail?.workspacePath ??
+    null;
   const workspaceVSCodePreference = workspaceLaunchPreferenceKey
     ? (vscodePreferences[workspaceLaunchPreferenceKey] ?? "auto")
     : "auto";
-  const newMissionContextHint =
-    "Context projects start empty for new missions.";
-  const resumeBlockedCode = effectiveMissionId ? missionDetail?.resumeBlockedCode ?? null : null;
-  const resumeBlockedReason = effectiveMissionId ? missionDetail?.resumeBlockedReason ?? null : null;
-  const isLegacyMissionBlocked =
-    resumeBlockedCode === "missing_execution_project";
+  const newMissionContextHint = "Context projects start empty for new missions.";
+  const resumeBlockedCode = effectiveMissionId ? (missionDetail?.resumeBlockedCode ?? null) : null;
+  const resumeBlockedReason = effectiveMissionId
+    ? (missionDetail?.resumeBlockedReason ?? null)
+    : null;
+  const hasMissionSessionByAgent = useMemo<Partial<Record<string, boolean>>>(() => {
+    if (!effectiveMissionId || !missionDetail) {
+      return {};
+    }
+
+    const primarySessionId =
+      missionDetail.primarySessionId ??
+      missionDetail.sessions.primary ??
+      missionDetail.sessions.noctis;
+    const resolvedPrimaryAgentId = missionDetail.primaryAgentId ?? primaryAgentId;
+
+    return {
+      ...(resolvedPrimaryAgentId ? { [resolvedPrimaryAgentId]: Boolean(primarySessionId) } : {}),
+      ignis: Boolean(missionDetail.sessions.ignis),
+      gladiolus: Boolean(missionDetail.sessions.gladiolus),
+      prompto: Boolean(missionDetail.sessions.prompto),
+    };
+  }, [effectiveMissionId, missionDetail, primaryAgentId]);
+  const isLegacyMissionBlocked = resumeBlockedCode === "missing_execution_project";
   const isUnsupportedMission = resumeBlockedCode === "unsupported_mission_runtime";
   const executionProjectBranchName = selectedExecutionProject?.branchName ?? null;
-  const missionWorkingBranch =
-    effectiveMissionId
-      ? isDirectExecutionMission
-        ? executionProjectBranchName
-        : missionDetail?.branch ?? null
-      : null;
+  const missionWorkingBranch = effectiveMissionId
+    ? isDirectExecutionMission
+      ? executionProjectBranchName
+      : (missionDetail?.branch ?? null)
+    : null;
   const executionProjectHeadBranch =
     effectiveMissionId && !isDirectExecutionMission ? executionProjectBranchName : null;
-  const workspaceStatusLabel =
-    isDirectExecutionMission
-      ? "Registered project"
-      : missionDetail?.workspaceStatus === "ready"
-        ? "Ready"
-        : missionDetail?.workspaceStatus === "deleted"
-          ? "Deleted"
-          : missionDetail?.workspaceStatus === "missing"
-            ? "Missing"
-            : "Not provisioned";
+  const workspaceStatusLabel = isDirectExecutionMission
+    ? "Registered project"
+    : missionDetail?.workspaceStatus === "ready"
+      ? "Ready"
+      : missionDetail?.workspaceStatus === "deleted"
+        ? "Deleted"
+        : missionDetail?.workspaceStatus === "missing"
+          ? "Missing"
+          : "Not provisioned";
   const displayedWorkspacePath = isDirectExecutionMission
-    ? selectedExecutionProject?.path ?? null
-    : missionDetail?.workspacePath ?? null;
-  const missionActionLabel = isLegacyMissionBlocked ? "Assign Execution Project" : "Mission Details";
+    ? (selectedExecutionProject?.path ?? null)
+    : (missionDetail?.workspacePath ?? null);
+  const missionActionLabel = isLegacyMissionBlocked
+    ? "Assign Execution Project"
+    : "Mission Details";
   const missionStatusAlert = isLegacyMissionBlocked
     ? {
         toneClassName: "border-amber-500/30 bg-amber-500/10 text-amber-100",
@@ -332,19 +359,20 @@ export function NoctisTeamScreen({
             "Mission uses an unsupported runtime format and can no longer be resumed.",
           actionLabel: "Mission Details",
         }
-    : !isDirectExecutionMission && missionDetail?.workspaceStatus === "deleted"
-      ? {
-          toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
-          message: "Workspace deleted. Resume will recreate a fresh workspace and sessions.",
-          actionLabel: "Mission Details",
-        }
-      : !isDirectExecutionMission && missionDetail?.workspaceStatus === "missing"
+      : !isDirectExecutionMission && missionDetail?.workspaceStatus === "deleted"
         ? {
             toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
-            message: "Workspace missing. Resume will recreate it from the persisted mission branch.",
+            message: "Workspace deleted. Resume will recreate a fresh workspace and sessions.",
             actionLabel: "Mission Details",
           }
-        : null;
+        : !isDirectExecutionMission && missionDetail?.workspaceStatus === "missing"
+          ? {
+              toneClassName: "border-border/60 bg-card/40 text-muted-foreground",
+              message:
+                "Workspace missing. Resume will recreate it from the persisted mission branch.",
+              actionLabel: "Mission Details",
+            }
+          : null;
   const latestRetryableFailedDelivery = useMemo(() => {
     if (!effectiveMissionId) {
       return null;
@@ -358,11 +386,16 @@ export function NoctisTeamScreen({
             entry.status === "failed" &&
             entry.payload.agent === primaryAgentId &&
             !entry.replay?.supersededByItemId &&
-            entry.id !== dismissedFailedDeliveryItemId,
+            entry.id !== dismissedFailedDeliveryItemId
         )
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null
     );
-  }, [dismissedFailedDeliveryItemId, effectiveMissionId, missionDetail?.primaryAgentOutbox, primaryAgentId]);
+  }, [
+    dismissedFailedDeliveryItemId,
+    effectiveMissionId,
+    missionDetail?.primaryAgentOutbox,
+    primaryAgentId,
+  ]);
   const isWorkspaceDeleteDisabled =
     isDirectExecutionMission ||
     !effectiveMissionId ||
@@ -427,8 +460,8 @@ export function NoctisTeamScreen({
       setDraftExecutionTargetMode(
         normalizeMissionExecutionTargetMode(
           missionDetail.executionTargetMode ?? undefined,
-          missionDetail.executionProjectId,
-        ) ?? "mission_workspace",
+          missionDetail.executionProjectId
+        ) ?? "mission_workspace"
       );
       return;
     }
@@ -564,7 +597,7 @@ export function NoctisTeamScreen({
           previousMissions: previousMissionSummariesRef.current,
           nextMissions,
           activeMissionId: activeMissionIdRef.current,
-        }),
+        })
       );
       previousMissionSummariesRef.current = nextMissions;
       setMissions(nextMissions);
@@ -594,7 +627,7 @@ export function NoctisTeamScreen({
     }
 
     setFreshMissionIds((currentFreshMissionIds) =>
-      currentFreshMissionIds.filter((missionId) => missionId !== effectiveMissionId),
+      currentFreshMissionIds.filter((missionId) => missionId !== effectiveMissionId)
     );
   }, [effectiveMissionId]);
 
@@ -657,11 +690,14 @@ export function NoctisTeamScreen({
   const selectedOutput = useMemo(
     () =>
       missionOutputs.find((output) => getMissionOutputKey(output) === selectedOutputKey) ?? null,
-    [missionOutputs, selectedOutputKey],
+    [missionOutputs, selectedOutputKey]
   );
 
   const visibleMissions = useMemo(
-    () => missions.filter((mission) => (missionView === "archived" ? mission.status === "archived" : mission.status !== "archived")),
+    () =>
+      missions.filter((mission) =>
+        missionView === "archived" ? mission.status === "archived" : mission.status !== "archived"
+      ),
     [missionView, missions]
   );
 
@@ -673,10 +709,18 @@ export function NoctisTeamScreen({
         }
 
         const isDisabled =
-          effectiveMissionId === mission.missionId && (isSessionActive || isStreaming || isLoadingHistory);
+          effectiveMissionId === mission.missionId &&
+          (isSessionActive || isStreaming || isLoadingHistory);
         return !isDisabled;
       }),
-    [effectiveMissionId, isLoadingHistory, isSessionActive, isStreaming, missionView, visibleMissions]
+    [
+      effectiveMissionId,
+      isLoadingHistory,
+      isSessionActive,
+      isStreaming,
+      missionView,
+      visibleMissions,
+    ]
   );
 
   const skippedVisibleMissionCount = visibleMissions.length - actionableVisibleMissions.length;
@@ -689,45 +733,50 @@ export function NoctisTeamScreen({
     setEditingMissionId(null);
   }, []);
 
-  const submitRenameMission = useCallback(async (missionId: string, nextTitle: string) => {
-    const title = nextTitle.trim();
-    if (!title) {
-      toast.error("Mission title cannot be empty");
-      return;
-    }
-
-    setIsRenamingMission(true);
-    try {
-      const response = await fetch(`${missionApiBase}/${missionId}/rename`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to rename mission");
+  const submitRenameMission = useCallback(
+    async (missionId: string, nextTitle: string) => {
+      const title = nextTitle.trim();
+      if (!title) {
+        toast.error("Mission title cannot be empty");
+        return;
       }
 
-      const data = (await response.json()) as {
-        mission?: { title?: string; updatedAt?: string };
-      };
-      const updatedTitle = data.mission?.title ?? title;
-      const updatedAt = data.mission?.updatedAt ?? new Date().toISOString();
+      setIsRenamingMission(true);
+      try {
+        const response = await fetch(`${missionApiBase}/${missionId}/rename`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
 
-      setMissions((current) =>
-        current.map((mission) =>
-          mission.missionId === missionId ? { ...mission, title: updatedTitle, updatedAt } : mission
-        )
-      );
-      setEditingMissionId(null);
-    } catch {
-      toast.error("Unable to rename mission", {
-        description: "Mission metadata could not be updated.",
-      });
-    } finally {
-      setIsRenamingMission(false);
-    }
-  }, [missionApiBase]);
+        if (!response.ok) {
+          throw new Error("Failed to rename mission");
+        }
+
+        const data = (await response.json()) as {
+          mission?: { title?: string; updatedAt?: string };
+        };
+        const updatedTitle = data.mission?.title ?? title;
+        const updatedAt = data.mission?.updatedAt ?? new Date().toISOString();
+
+        setMissions((current) =>
+          current.map((mission) =>
+            mission.missionId === missionId
+              ? { ...mission, title: updatedTitle, updatedAt }
+              : mission
+          )
+        );
+        setEditingMissionId(null);
+      } catch {
+        toast.error("Unable to rename mission", {
+          description: "Mission metadata could not be updated.",
+        });
+      } finally {
+        setIsRenamingMission(false);
+      }
+    },
+    [missionApiBase]
+  );
 
   const submitMissionArchive = useCallback(
     async (
@@ -775,7 +824,7 @@ export function NoctisTeamScreen({
             : {
                 active: currentCounts.active + 1,
                 archived: Math.max(0, currentCounts.archived - 1),
-              },
+              }
         );
         setEditingMissionId(null);
 
@@ -809,9 +858,12 @@ export function NoctisTeamScreen({
         return true;
       } catch {
         if (!options?.silent) {
-          toast.error(action === "archive" ? "Unable to archive mission" : "Unable to restore mission", {
-            description: "Mission metadata could not be updated.",
-          });
+          toast.error(
+            action === "archive" ? "Unable to archive mission" : "Unable to restore mission",
+            {
+              description: "Mission metadata could not be updated.",
+            }
+          );
         }
         return false;
       } finally {
@@ -821,13 +873,16 @@ export function NoctisTeamScreen({
     [effectiveMissionId, missionApiBase, missionRouteBase, navigate, surface.lastMissionStorageKey]
   );
 
-  const openBulkMissionDialog = useCallback((action: BulkMissionAction) => {
-    setBulkMissionDialog({
-      action,
-      count: actionableVisibleMissions.length,
-      skipped: skippedVisibleMissionCount,
-    });
-  }, [actionableVisibleMissions.length, skippedVisibleMissionCount]);
+  const openBulkMissionDialog = useCallback(
+    (action: BulkMissionAction) => {
+      setBulkMissionDialog({
+        action,
+        count: actionableVisibleMissions.length,
+        skipped: skippedVisibleMissionCount,
+      });
+    },
+    [actionableVisibleMissions.length, skippedVisibleMissionCount]
+  );
 
   const confirmBulkMissionAction = useCallback(async () => {
     if (!bulkMissionDialog) {
@@ -880,7 +935,9 @@ export function NoctisTeamScreen({
       .join(" ");
 
     toast.success(
-      bulkMissionDialog.action === "archive" ? "Visible missions archived" : "Visible missions restored",
+      bulkMissionDialog.action === "archive"
+        ? "Visible missions archived"
+        : "Visible missions restored",
       {
         description: details,
       }
@@ -903,7 +960,7 @@ export function NoctisTeamScreen({
       if (isUnsupportedMission) {
         toast.error(
           missionDetail?.resumeBlockedReason ??
-            "Mission uses an unsupported runtime format and can no longer be resumed.",
+            "Mission uses an unsupported runtime format and can no longer be resumed."
         );
         return;
       }
@@ -935,7 +992,7 @@ export function NoctisTeamScreen({
     setSelectedLunafreyaSkillIds((current) =>
       current.includes(skillId)
         ? current.filter((entry) => entry !== skillId)
-        : [...current, skillId],
+        : [...current, skillId]
     );
   }, []);
 
@@ -962,7 +1019,7 @@ export function NoctisTeamScreen({
     setDraftContextProjectIds((current) =>
       current.includes(projectId)
         ? current.filter((entry) => entry !== projectId)
-        : [...current, projectId],
+        : [...current, projectId]
     );
   }, []);
 
@@ -975,7 +1032,7 @@ export function NoctisTeamScreen({
 
     const normalizedContextProjectIds = normalizeContextProjectIds(
       executionProjectId,
-      draftContextProjectIds,
+      draftContextProjectIds
     );
 
     if (!effectiveMissionId) {
@@ -1006,7 +1063,7 @@ export function NoctisTeamScreen({
       setIsContextDialogOpen(false);
       await Promise.all([loadMissionDetail(), loadMissions()]);
       toast.success(
-        missionDetail?.executionProjectId ? "Mission context updated" : "Execution project assigned",
+        missionDetail?.executionProjectId ? "Mission context updated" : "Execution project assigned"
       );
     } catch (error) {
       toast.error("Unable to save mission context", {
@@ -1084,17 +1141,20 @@ export function NoctisTeamScreen({
         setReplayingTransportItemId(null);
       }
     },
-    [effectiveMissionId, loadMissionDetail, missionApiBase],
+    [effectiveMissionId, loadMissionDetail, missionApiBase]
   );
 
-  const handleSelectOutput = useCallback((output: MissionOutputSummary) => {
-    if (!effectiveMissionId) {
-      return;
-    }
+  const handleSelectOutput = useCallback(
+    (output: MissionOutputSummary) => {
+      if (!effectiveMissionId) {
+        return;
+      }
 
-    setInspectorTab("outputs");
-    navigate(buildMissionOutputDetailPath(effectiveMissionId, output, missionRouteBase));
-  }, [effectiveMissionId, missionRouteBase, navigate]);
+      setInspectorTab("outputs");
+      navigate(buildMissionOutputDetailPath(effectiveMissionId, output, missionRouteBase));
+    },
+    [effectiveMissionId, missionRouteBase, navigate]
+  );
 
   const handleInspectorTabChange = useCallback(
     (value: string) => {
@@ -1108,7 +1168,7 @@ export function NoctisTeamScreen({
         navigate(buildMissionPath(effectiveMissionId, missionRouteBase));
       }
     },
-    [effectiveMissionId, missionRouteBase, navigate, outputDetailActive],
+    [effectiveMissionId, missionRouteBase, navigate, outputDetailActive]
   );
 
   const activeInspectorTab = resolveMissionInspectorTab(inspectorTab, outputDetailActive);
@@ -1138,18 +1198,22 @@ export function NoctisTeamScreen({
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7"
-                      disabled={isBulkMissionActionPending || actionableVisibleMissions.length === 0}
+                      disabled={
+                        isBulkMissionActionPending || actionableVisibleMissions.length === 0
+                      }
                       title={
-                        missionView === "archived"
-                          ? "More restore actions"
-                          : "More archive actions"
+                        missionView === "archived" ? "More restore actions" : "More archive actions"
                       }
                     >
                       <Ellipsis className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onSelect={() => openBulkMissionDialog(missionView === "archived" ? "restore" : "archive") }>
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        openBulkMissionDialog(missionView === "archived" ? "restore" : "archive")
+                      }
+                    >
                       {missionView === "archived"
                         ? `Restore all visible (${actionableVisibleMissions.length})`
                         : `Archive all visible (${actionableVisibleMissions.length})`}
@@ -1201,7 +1265,9 @@ export function NoctisTeamScreen({
                   </div>
                 ) : visibleMissions.length === 0 ? (
                   <div className="rounded-lg border border-border/50 bg-card/40 p-3 font-mono text-[11px] text-muted-foreground/70">
-                    {missionView === "archived" ? "No archived missions." : "No saved missions yet."}
+                    {missionView === "archived"
+                      ? "No archived missions."
+                      : "No saved missions yet."}
                   </div>
                 ) : (
                   visibleMissions.map((mission) => (
@@ -1214,7 +1280,9 @@ export function NoctisTeamScreen({
                       isActive={effectiveMissionId === mission.missionId}
                       isArchivedView={missionView === "archived"}
                       isEditing={editingMissionId === mission.missionId}
-                      isArchivePending={archiveMissionId === mission.missionId || isBulkMissionActionPending}
+                      isArchivePending={
+                        archiveMissionId === mission.missionId || isBulkMissionActionPending
+                      }
                       isArchiveDisabled={
                         isBulkMissionActionPending ||
                         (missionView === "active" &&
@@ -1253,22 +1321,36 @@ export function NoctisTeamScreen({
               isSessionActive={isSessionActive}
               isStreaming={isStreaming}
               messages={messages}
+              retainedHistory={retainedHistory}
               showExecutionProjectSelector={!effectiveMissionId}
               executionProjectOptions={availableProjects.map((project) => ({
                 value: project.id,
                 label: project.displayName,
               }))}
               selectedExecutionProjectId={effectiveExecutionProjectId}
+              executionProjectLaunchPath={!effectiveMissionId ? (selectedExecutionProject?.path ?? null) : null}
+              executionProjectVSCodePreference={newMissionExecutionProjectVSCodePreference}
               selectedExecutionTargetMode={effectiveExecutionTargetMode}
               executionProjectHint={newMissionContextHint}
               executionProjectError={projectRegistryError}
-              onSelectedExecutionProjectChange={(projectId) => setDraftExecutionProjectId(projectId)}
+              onSelectedExecutionProjectChange={(projectId) =>
+                setDraftExecutionProjectId(projectId)
+              }
+              onExecutionProjectVSCodePreferenceChange={(preference) => {
+                if (!newMissionExecutionProjectLaunchPreferenceKey) {
+                  return;
+                }
+
+                updateVSCodePreference(newMissionExecutionProjectLaunchPreferenceKey, preference);
+              }}
               onSelectedExecutionTargetModeChange={
                 !effectiveMissionId ? setDraftExecutionTargetMode : undefined
               }
               missionExecutionLabel={
                 effectiveMissionId
-                  ? selectedExecutionProject?.displayName ?? missionDetail?.executionProjectId ?? "Not assigned"
+                  ? (selectedExecutionProject?.displayName ??
+                    missionDetail?.executionProjectId ??
+                    "Not assigned")
                   : null
               }
               contextProjects={contextProjects}
@@ -1288,9 +1370,7 @@ export function NoctisTeamScreen({
                 isSessionActive && !isAbortSettling && !isLoadingHistory && !isMissionStartPending
               }
               showWorkflowSelector={surface.supportsWorkflowSelector}
-              headerTitle={
-                isLunafreyaSurface ? "Oracle Mission Surface" : "Regalia Command Center"
-              }
+              headerTitle={isLunafreyaSurface ? "Oracle Mission Surface" : "Regalia Command Center"}
               headerSubtitle={
                 isLunafreyaSurface
                   ? "Lunafreya Nox Fleuret - Direct Line"
@@ -1304,7 +1384,8 @@ export function NoctisTeamScreen({
                   ? {
                       itemId: latestRetryableFailedDelivery.id,
                       failedAt:
-                        latestRetryableFailedDelivery.failure?.failedAt ?? latestRetryableFailedDelivery.updatedAt,
+                        latestRetryableFailedDelivery.failure?.failedAt ??
+                        latestRetryableFailedDelivery.updatedAt,
                       reason:
                         latestRetryableFailedDelivery.failure?.reason ??
                         "Unable to deliver the tmux request.",
@@ -1326,7 +1407,9 @@ export function NoctisTeamScreen({
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 border-border/50 border-b p-3">
               {missionStatusAlert ? (
-                <div className={cn("mb-3 rounded-lg border p-2.5", missionStatusAlert.toneClassName)}>
+                <div
+                  className={cn("mb-3 rounded-lg border p-2.5", missionStatusAlert.toneClassName)}
+                >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs">{missionStatusAlert.message}</p>
                     <Button type="button" variant="outline" size="sm" onClick={openContextDialog}>
@@ -1341,13 +1424,16 @@ export function NoctisTeamScreen({
                   members={partyMembers}
                   missionId={effectiveMissionId}
                   activeOperationState={activeOperationState}
+                  hasMissionSessionByAgent={hasMissionSessionByAgent}
                   speakingAgentId={speakingAgentId}
                 />
               ) : (
                 <LunafreyaStatusPanel
                   contextUsage={primaryContextUsage}
+                  hasMissionSession={Boolean(hasMissionSessionByAgent.lunafreya)}
                   isSpeaking={isStreaming || speakingAgentId === primaryAgentId}
                   jobOptions={lunafreyaJobOptions}
+                  missionId={effectiveMissionId}
                   skillOptions={lunafreyaSkillOptions}
                   onClearSkillIds={clearLunafreyaSkillIds}
                   onSelectedJobIdChange={setSelectedLunafreyaJobId}
@@ -1411,7 +1497,10 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
-      <Dialog open={bulkMissionDialog !== null} onOpenChange={(open) => (!open ? setBulkMissionDialog(null) : undefined)}>
+      <Dialog
+        open={bulkMissionDialog !== null}
+        onOpenChange={(open) => (!open ? setBulkMissionDialog(null) : undefined)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1459,21 +1548,42 @@ export function NoctisTeamScreen({
             {!missionDetail?.executionProjectId ? (
               <div className="space-y-2">
                 <p className="font-medium text-sm">Execution project</p>
-                <Select
-                  value={draftExecutionProjectId ?? undefined}
-                  onValueChange={(value) => setDraftExecutionProjectId(value || null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProjects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      value={draftExecutionProjectId ?? undefined}
+                      onValueChange={(value) => setDraftExecutionProjectId(value || null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProjects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {!effectiveMissionId && selectedExecutionProject?.path ? (
+                    <WorkspaceLaunchActions
+                      path={selectedExecutionProject.path}
+                      vscodePreference={newMissionExecutionProjectVSCodePreference}
+                      onVSCodePreferenceChange={(preference) => {
+                        if (!newMissionExecutionProjectLaunchPreferenceKey) {
+                          return;
+                        }
+
+                        updateVSCodePreference(
+                          newMissionExecutionProjectLaunchPreferenceKey,
+                          preference,
+                        );
+                      }}
+                    />
+                  ) : null}
+                </div>
               </div>
             ) : (
               <div className="space-y-1">
@@ -1520,13 +1630,16 @@ export function NoctisTeamScreen({
                 </p>
                 {isDirectExecutionMission ? (
                   <p className="text-xs text-muted-foreground/75">
-                    This mission is using the execution project directly without a dedicated workspace.
+                    This mission is using the execution project directly without a dedicated
+                    workspace.
                   </p>
                 ) : null}
                 {displayedWorkspacePath ? (
                   <WorkspaceLaunchActions
                     className="pt-1"
-                    disabled={!isDirectExecutionMission && missionDetail?.workspaceStatus !== "ready"}
+                    disabled={
+                      !isDirectExecutionMission && missionDetail?.workspaceStatus !== "ready"
+                    }
                     path={displayedWorkspacePath}
                     vscodePreference={workspaceVSCodePreference}
                     onVSCodePreferenceChange={(preference) => {
@@ -1545,7 +1658,10 @@ export function NoctisTeamScreen({
               <p className="font-medium text-sm">Context projects</p>
               <div className="flex flex-wrap gap-2.5">
                 {availableProjects
-                  .filter((project) => project.id !== (missionDetail?.executionProjectId ?? draftExecutionProjectId))
+                  .filter(
+                    (project) =>
+                      project.id !== (missionDetail?.executionProjectId ?? draftExecutionProjectId)
+                  )
                   .map((project) => {
                     const selected = draftContextProjectIds.includes(project.id);
                     return (
@@ -1557,7 +1673,7 @@ export function NoctisTeamScreen({
                           "rounded-full px-4",
                           selected
                             ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                            : "bg-background/70 text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                            : "bg-background/70 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
                         )}
                         variant="outline"
                         size="sm"
@@ -1588,7 +1704,11 @@ export function NoctisTeamScreen({
             <Button type="button" variant="outline" onClick={() => setIsContextDialogOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void saveMissionContext()} disabled={isSavingContext}>
+            <Button
+              type="button"
+              onClick={() => void saveMissionContext()}
+              disabled={isSavingContext}
+            >
               Save
             </Button>
           </DialogFooter>
