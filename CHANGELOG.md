@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [0.15.0] - 2026-05-08
+
+### Added
+- **Mission session recovery controls** - Added continue and pane-session switching actions, API routes, and server helpers so Noctis Team missions can recover agent sessions directly from the dashboard
+- **Mission transcript and detail inspection** - Added transcript retention updates, message detail-sheet presence handling, and execution project launch actions to expose more mission context in the team UI
+- **Step owner visibility** - Added step owner highlighting and visual effects on character cards so the active owner is easier to identify at a glance
+
+### Changed
+- **Noctis Team mission surfaces** - Updated the Noctis Team screen, Party panel, Lunafreya panel, chat area, and related labels to expose the new session controls and richer mission-state presentation
+- **Model and dispatch plumbing** - Updated agent model presets, Serena context wiring, and dispatch text construction to support the new mission flows more consistently
+
+### Fixed
+- **Mission switching reliability** - Fixed the current-mission switch action and enabled raw continue when the target session is not already known locally
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Security
+- None
+
 ## [0.14.0] - 2026-05-06
 
 ### Added
@@ -350,5 +374,6 @@ Initial release.
 [0.10.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0
 
+[0.15.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.12.0...v0.13.0
