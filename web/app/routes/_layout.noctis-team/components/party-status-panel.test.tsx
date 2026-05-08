@@ -116,15 +116,17 @@ vi.mock("./continue-mission-session", () => ({
 
 vi.mock("./character-card", () => ({
   CharacterCard: ({
+    isStepOwner,
     name,
     statusAccessory,
     metaAccessory,
   }: {
+    isStepOwner?: boolean;
     name: string;
     statusAccessory?: ReactNode;
     metaAccessory?: ReactNode;
   }) => (
-    <section>
+    <section data-step-owner={isStepOwner ? "true" : undefined}>
       <h2>{name}</h2>
       {statusAccessory}
       {metaAccessory}
@@ -234,6 +236,22 @@ describe("PartyStatusPanel", () => {
     expect(markup).toMatch(
       /<button[^>]*data-disabled="true"[^>]*aria-label="Resume active worker step for Prompto"/
     );
+  });
+
+  it("marks the primary agent card as the active step owner when Noctis owns the step", () => {
+    const markup = renderToStaticMarkup(
+      <PartyStatusPanel
+        members={partyMembers}
+        missionId="mission-123"
+        activeOperationState={createActiveOperationState("noctis")}
+        speakingAgentId={null}
+      />
+    );
+
+    expect(markup).toMatch(/<section data-step-owner="true"><h2>Noctis<\/h2>/);
+    expect(markup).not.toMatch(/<section data-step-owner="true"><h2>Ignis<\/h2>/);
+    expect(markup).not.toMatch(/<section data-step-owner="true"><h2>Gladiolus<\/h2>/);
+    expect(markup).not.toMatch(/<section data-step-owner="true"><h2>Prompto<\/h2>/);
   });
 
   it("shows current-mission pane session switching only when the agent card is switchable", () => {

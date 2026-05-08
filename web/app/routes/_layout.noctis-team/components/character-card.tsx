@@ -12,6 +12,7 @@ export interface CharacterCardProps {
   role: string;
   imageSrc: string;
   isInParty?: boolean;
+  isStepOwner?: boolean;
   isSpeaking?: boolean;
   statusAccessory?: ReactNode;
   status: AgentStatus;
@@ -79,6 +80,7 @@ export const CharacterCard = ({
   role,
   imageSrc,
   isInParty = true,
+  isStepOwner = false,
   isSpeaking = false,
   statusAccessory,
   status,
@@ -106,9 +108,11 @@ export const CharacterCard = ({
 
   return (
     <div
+      data-step-owner={isStepOwner ? "true" : undefined}
       className={cn(
         "relative flex flex-col gap-1.5 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-3 py-2",
         "transition-all duration-500 backdrop-blur-sm",
+        isStepOwner && "ring-2 ring-offset-1 ring-offset-background/40",
         isBenched && "border-border/25 bg-background/35",
         status === "working" && "border-primary/30 shadow-primary/10 shadow-lg",
         status === "success" &&
@@ -116,11 +120,27 @@ export const CharacterCard = ({
         status === "blocked" && "border-destructive/30"
       )}
       style={
-        isSpeaking
+        isSpeaking || isStepOwner
           ? {
-              borderColor: theme?.ring ?? "rgba(125,211,252,0.45)",
-              background: theme?.surface ?? "rgba(14,165,233,0.08)",
-              boxShadow: `0 0 26px ${theme?.glowSoft ?? "rgba(125,211,252,0.18)"}`,
+              borderColor: isSpeaking
+                ? (theme?.ring ?? "rgba(125,211,252,0.45)")
+                : (theme?.ring ?? "rgba(224,224,255,0.45)"),
+              background: isSpeaking
+                ? (theme?.surface ?? "rgba(14,165,233,0.08)")
+                : undefined,
+              boxShadow: [
+                isStepOwner
+                  ? `0 0 0 1px ${theme?.ring ?? "rgba(224,224,255,0.4)"}`
+                  : null,
+                isStepOwner
+                  ? `0 0 18px ${theme?.glowSoft ?? "rgba(224,224,255,0.14)"}`
+                  : null,
+                isSpeaking
+                  ? `0 0 26px ${theme?.glowSoft ?? "rgba(125,211,252,0.18)"}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(", "),
             }
           : undefined
       }

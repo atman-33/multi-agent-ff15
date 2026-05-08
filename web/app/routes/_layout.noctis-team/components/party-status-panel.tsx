@@ -263,22 +263,26 @@ export const PartyStatusPanel = ({
     () => getCompactWorkingPartySummary(allowedWorkers),
     [allowedWorkers]
   );
-  const activeWorkerStepAgentId = useMemo(() => {
+  const activeStepOwnerAgentId = useMemo(() => {
     if (!missionId || !activeOperationState) {
       return null;
     }
 
     const activeStepRecord = getActiveStepRecord(activeOperationState);
-    if (
-      !activeStepRecord ||
-      activeStepRecord.agent === "noctis" ||
-      activeStepRecord.agent === "lunafreya"
-    ) {
+    if (!activeStepRecord) {
       return null;
     }
 
     return normalizePartyAgentId(activeStepRecord.agent);
   }, [activeOperationState, missionId]);
+
+  const activeWorkerStepAgentId = useMemo(() => {
+    if (!activeStepOwnerAgentId || activeStepOwnerAgentId === "noctis") {
+      return null;
+    }
+
+    return activeStepOwnerAgentId;
+  }, [activeStepOwnerAgentId]);
 
   const handleResumeActiveWorkerStep = async (agentId: PresetAgentId) => {
     if (!missionId || !isWorkingPartyMemberId(agentId) || agentId !== activeWorkerStepAgentId) {
@@ -463,6 +467,7 @@ export const PartyStatusPanel = ({
                       agentId={normalizedAgentId ?? member.id}
                       isInParty={isWorker ? isInParty : true}
                       isSpeaking={normalizedAgentId === speakingAgentId}
+                      isStepOwner={normalizedAgentId === activeStepOwnerAgentId}
                       statusAccessory={partyControl}
                       metaAccessory={
                         <AgentModelPicker

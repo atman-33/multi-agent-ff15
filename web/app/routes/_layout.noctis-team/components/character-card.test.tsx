@@ -56,4 +56,21 @@ describe("CharacterCard", () => {
     expect(markup).not.toContain("Window");
     expect(markup).not.toContain("144,000");
   });
+
+  it("adds persistent owner highlighting when the card owns the active step", () => {
+    const markup = renderToStaticMarkup(
+      <CharacterCard
+        agentId="ignis"
+        imageSrc="/ignis.png"
+        isStepOwner
+        name="Ignis"
+        role="status"
+        status="idle"
+      />,
+    );
+
+    expect(markup).toContain('data-step-owner="true"');
+    expect(markup).toContain("ring-2");
+    expect(markup).toContain("ring-offset-1");
+  });
 });
