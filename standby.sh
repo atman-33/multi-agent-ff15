@@ -662,8 +662,6 @@ stop_managed_services() {
         web_status=$?
     fi
 
-    echo ""
-
     if [ "$TRANSPORT_MODE" = "tmux-resident" ]; then
         if stop_tmux_transport; then
             opencode_status=0
