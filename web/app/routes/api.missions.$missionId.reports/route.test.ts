@@ -367,8 +367,12 @@ describe("api.missions.$missionId.reports", () => {
       taskId: "step_manual-verification_1",
       taskStatus: "running",
     });
+    expect(mission.operationState).toBeTruthy();
+    if (!mission.operationState) {
+      throw new Error("Expected mission operation state to be initialized.");
+    }
     mission.operationState = {
-      ...mission.operationState!,
+      ...mission.operationState,
       currentStep: "manual-verification",
       status: "waiting_for_report",
       stepHistory: [

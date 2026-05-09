@@ -835,7 +835,9 @@ function compactMissionTranscriptMessages(messages: ChatMessage[]): ChatMessage[
     });
 
     senderSelections.forEach((selection) => {
-      selection.criticalIds.forEach((id) => retainedMessageIds.add(id));
+      selection.criticalIds.forEach((id) => {
+        retainedMessageIds.add(id);
+      });
 
       if (selection.lastVisibleId) {
         retainedMessageIds.add(selection.lastVisibleId);
@@ -3237,6 +3239,7 @@ export function useAgentSession({
     clearStreamingState,
     primaryAgentId,
     replaceSessionMessages,
+    transcriptMode,
     updateSessionMessages,
   ]);
 

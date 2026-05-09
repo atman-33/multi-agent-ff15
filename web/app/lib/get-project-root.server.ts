@@ -3,10 +3,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 function isProjectRoot(candidate: string | undefined): candidate is string {
+  if (!candidate) {
+    return false;
+  }
+
   return (
-    Boolean(candidate) &&
-    existsSync(join(candidate!, "scripts")) &&
-    (existsSync(join(candidate!, "package.json")) || existsSync(join(candidate!, "opencode.json")))
+    existsSync(join(candidate, "scripts")) &&
+    (existsSync(join(candidate, "package.json")) || existsSync(join(candidate, "opencode.json")))
   );
 }
 
