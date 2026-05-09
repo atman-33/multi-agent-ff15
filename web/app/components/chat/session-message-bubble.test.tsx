@@ -8,6 +8,7 @@ vi.mock("@/components/chat/message-bubble-base", () => ({
     avatar,
     body,
     copyContent,
+    details,
     renderDetailSheet,
     senderLabel,
     senderMetaSupplement,
@@ -15,6 +16,7 @@ vi.mock("@/components/chat/message-bubble-base", () => ({
     avatar?: React.ReactNode;
     body: React.ReactNode;
     copyContent: string;
+    details?: React.ReactNode;
     renderDetailSheet: (args: {
       open: boolean;
       onOpenChange: (open: boolean) => void;
@@ -27,6 +29,7 @@ vi.mock("@/components/chat/message-bubble-base", () => ({
       <div>{senderLabel}</div>
       <div>{senderMetaSupplement}</div>
       <div>{body}</div>
+      <div>{details}</div>
       <div>{`copy:${copyContent}`}</div>
       <div>{renderDetailSheet({ open: false, onOpenChange: () => undefined })}</div>
     </section>
@@ -40,7 +43,9 @@ vi.mock("@/components/chat/message-markdown", () => ({
 vi.mock("@/components/chat/message-intermediate-details", () => ({
   buildIntermediateDetailSummary: () => "",
   MessageIntermediateDetails: () => null,
-  MessageIntermediateDetailsToggle: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  MessageIntermediateDetailsToggle: ({ children }: { children: React.ReactNode }) => (
+    <div data-intermediate-toggle="true">{children}</div>
+  ),
 }));
 
 import { SessionMessageBubble } from "./session-message-bubble";
@@ -84,6 +89,76 @@ function createMessage(): RenderedSessionMessage {
       resolvedSenderIsUser: false,
       resolvedSenderLabel: "Hephaestus (Deep Agent)",
       workflowPresentation: null,
+    },
+  };
+}
+
+function createUserMessageWithPromptContext(): RenderedSessionMessage {
+  return {
+    ...createMessage(),
+    id: "user-1",
+    conversationUnitId: "user-1",
+    role: "user",
+    sender: "user",
+    senderLabel: "User",
+    kind: "user_message",
+    content: "こんにちは",
+    detailContent: "こんにちは",
+    rawText: [
+      "<operation-prompt>",
+      "<job>",
+      "# Strategic Advisor",
+      "</job>",
+      "<user-request from=\"user\" to=\"lunafreya\">",
+      "こんにちは",
+      "</user-request>",
+      "</operation-prompt>",
+    ].join("\n"),
+    parts: [{ type: "text", text: "こんにちは" }],
+    sourceMessageIds: ["user-1"],
+    detailRawText: "こんにちは",
+    messageDisplay: {
+      displayContent: "こんにちは",
+      promptContextSections: [
+        {
+          key: "job:0",
+          tagName: "job",
+          label: "Job",
+          content: "# Strategic Advisor",
+          preview: "Strategic Advisor",
+          source: "workflow",
+        },
+      ],
+      promptContextSource: "workflow",
+      rawWorkflowPrompt: "<operation-prompt>...</operation-prompt>",
+      rawPromptPayload: null,
+      reportDetails: null,
+      selectionAdjustment: null,
+      resolvedSender: "user",
+      resolvedSenderIsUser: true,
+      resolvedSenderLabel: "User",
+      workflowPresentation: null,
+    },
+  };
+}
+
+function createAssistantMessageWithPromptContext(): RenderedSessionMessage {
+  return {
+    ...createMessage(),
+    messageDisplay: {
+      ...createMessage().messageDisplay,
+      displayContent: "了解しました。",
+      promptContextSections: [
+        {
+          key: "instruction:0",
+          tagName: "instruction",
+          label: "Instruction",
+          content: "Respond with calm guidance.",
+          preview: "Respond with calm guidance.",
+          source: "workflow",
+        },
+      ],
+      promptContextSource: "workflow",
     },
   };
 }
@@ -153,5 +228,23 @@ describe("session-message-bubble", () => {
     expect(markup).not.toContain("Tool 1: shell");
     expect(markup).not.toContain("Thinking through follow-up steps.");
     expect(markup).not.toContain("tool output");
+  });
+
+  it("does not show intermediate details for user messages that only carry prompt context", () => {
+    const markup = renderToStaticMarkup(
+      <SessionMessageBubble message={createUserMessageWithPromptContext()} renderDetailSheet={() => null} />,
+    );
+
+    expect(markup).not.toContain('data-intermediate-toggle="true"');
+    expect(markup).toContain("こんにちは");
+  });
+
+  it("keeps intermediate details available for assistant messages with prompt context", () => {
+    const markup = renderToStaticMarkup(
+      <SessionMessageBubble message={createAssistantMessageWithPromptContext()} renderDetailSheet={() => null} />,
+    );
+
+    expect(markup).toContain('data-intermediate-toggle="true"');
+    expect(markup).toContain("了解しました。");
   });
 });

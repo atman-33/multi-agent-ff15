@@ -404,6 +404,7 @@ const MessageBubble = memo(
   }) => {
     const messageDisplay = message.messageDisplay;
     const isOutgoing = messageDisplay.resolvedSenderIsUser;
+    const visiblePromptContextSections = isOutgoing ? [] : messageDisplay.promptContextSections;
     const isPrimaryAgent = message.sender === primaryAgentId;
     const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
@@ -415,7 +416,7 @@ const MessageBubble = memo(
       reasoning.trim().length > 0 ||
       tools.length > 0 ||
       Boolean(messageDisplay.reportDetails?.trim()) ||
-      messageDisplay.promptContextSections.length > 0;
+      visiblePromptContextSections.length > 0;
     const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
     const detailSummary = useMemo(
       () =>
@@ -423,9 +424,9 @@ const MessageBubble = memo(
           reasoning,
           tools,
           messageDisplay.reportDetails,
-          messageDisplay.promptContextSections,
+          visiblePromptContextSections,
         ),
-      [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools],
+      [messageDisplay.reportDetails, reasoning, tools, visiblePromptContextSections],
     );
 
     return (
@@ -479,7 +480,7 @@ const MessageBubble = memo(
               <MessageIntermediateDetails
                 expandedDetailEntries={expandedDetailEntries}
                 onToggleDetail={(detailId) => onToggleDetail(message.conversationUnitId, detailId)}
-                promptContextSections={messageDisplay.promptContextSections}
+                promptContextSections={visiblePromptContextSections}
                 promptContextSource={messageDisplay.promptContextSource}
                 reasoning={reasoning}
                 reportDetails={messageDisplay.reportDetails}
