@@ -514,7 +514,10 @@ describe("execution workspace sessions", () => {
 
     const mission = getMission(missionId);
     expect(mission).toBeTruthy();
-    buildMissionResumePayload(mission!);
+    if (!mission) {
+      throw new Error("Expected mission to exist after dispatch submission.");
+    }
+    buildMissionResumePayload(mission);
 
     expect(getMission(missionId)?.messageLog).toContainEqual(
       expect.objectContaining({
@@ -845,7 +848,10 @@ describe("execution workspace sessions", () => {
 
     const mission = getMission(missionId);
     expect(mission).toBeTruthy();
-    buildMissionResumePayload(mission!);
+    if (!mission) {
+      throw new Error("Expected mission to exist after dispatch submission.");
+    }
+    buildMissionResumePayload(mission);
 
     expect(getMission(missionId)?.messageLog).toContainEqual(
       expect.objectContaining({

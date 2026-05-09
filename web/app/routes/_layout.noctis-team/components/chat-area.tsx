@@ -81,6 +81,7 @@ interface ChatAreaProps {
   retainedHistory?: MissionTranscriptRetentionState;
   currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
+  onStreamingMessageCommitted?: (messageId: string) => void;
   streamingContent?: string;
   historyErrorMessage?: string | null;
   historyPhase?: MissionTranscriptPhase;
@@ -182,6 +183,7 @@ function toSessionPresentationMessage(message: ChatMessage): SessionPresentation
     kind: message.kind,
     content: message.content,
     detailContent: message.detailContent,
+    detailState: message.detailState,
     rawText: message.rawText,
     parts: message.parts,
     timestamp: message.timestamp,
@@ -402,9 +404,11 @@ const MessageBubble = memo(
   }) => {
     const messageDisplay = message.messageDisplay;
     const isOutgoing = messageDisplay.resolvedSenderIsUser;
+    const visiblePromptContextSections = isOutgoing ? [] : messageDisplay.promptContextSections;
     const isPrimaryAgent = message.sender === primaryAgentId;
     const senderLabel = message.senderLabel;
     const avatarSrc = getSenderAvatar(message.sender);
+    const contentColumnClassName = isOutgoing ? "ml-10" : avatarSrc ? undefined : "ml-10";
     const reasoning = useMemo(() => extractReasoning(message.parts ?? []), [message.parts]);
     const tools = useMemo(() => extractTools(message.parts ?? []), [message.parts]);
     const copyContent = messageDisplay.displayContent.trim() ? messageDisplay.displayContent : "";
@@ -412,7 +416,7 @@ const MessageBubble = memo(
       reasoning.trim().length > 0 ||
       tools.length > 0 ||
       Boolean(messageDisplay.reportDetails?.trim()) ||
-      messageDisplay.promptContextSections.length > 0;
+      visiblePromptContextSections.length > 0;
     const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
     const detailSummary = useMemo(
       () =>
@@ -420,9 +424,9 @@ const MessageBubble = memo(
           reasoning,
           tools,
           messageDisplay.reportDetails,
-          messageDisplay.promptContextSections,
+          visiblePromptContextSections,
         ),
-      [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools],
+      [messageDisplay.reportDetails, reasoning, tools, visiblePromptContextSections],
     );
 
     return (
@@ -438,6 +442,8 @@ const MessageBubble = memo(
             />
           ) : undefined
         }
+        contentColumnClassName={contentColumnClassName}
+        contentColumnMaxWidthClassName="max-w-[calc(100%_-_5rem)]"
         bubbleClassName={
           isOutgoing
             ? "rounded-br-md border-primary/20 bg-primary/12 text-foreground"
@@ -474,7 +480,7 @@ const MessageBubble = memo(
               <MessageIntermediateDetails
                 expandedDetailEntries={expandedDetailEntries}
                 onToggleDetail={(detailId) => onToggleDetail(message.conversationUnitId, detailId)}
-                promptContextSections={messageDisplay.promptContextSections}
+                promptContextSections={visiblePromptContextSections}
                 promptContextSource={messageDisplay.promptContextSource}
                 reasoning={reasoning}
                 reportDetails={messageDisplay.reportDetails}
@@ -781,6 +787,7 @@ export const ChatArea = ({
   messages,
   retainedHistory,
   currentStreamingMessageId = null,
+  onStreamingMessageCommitted,
   streamingContent = "",
   historyErrorMessage = null,
   historyPhase = "idle",
@@ -869,6 +876,7 @@ export const ChatArea = ({
     currentStreamingMessageId,
     liveDraft: renderLiveDraft,
     messages: presentationMessages,
+    onStreamingMessageCommitted,
     streamingText,
   });
   const hasVisibleTranscriptContent =

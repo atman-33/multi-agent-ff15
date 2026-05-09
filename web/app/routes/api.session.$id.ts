@@ -7,7 +7,18 @@ import {
 import { listSessionRequestAnchors } from "@/lib/session-request-anchors.server";
 import type { Route } from "./+types/api.session.$id";
 
-export const loader = async ({ params }: Route.LoaderArgs) => {
+function resolveDetailState(request: Request | undefined): "full" | "summary" {
+  if (!request) {
+    return "full";
+  }
+
+  const detailState =
+    new URL(request.url).searchParams.get("detailState") ??
+    request.headers.get("x-session-detail-state");
+  return detailState === "summary" ? "summary" : "full";
+}
+
+export const loader = async ({ params, request }: Route.LoaderArgs) => {
   const sessionId = params.id;
   if (!sessionId) {
     return Response.json({ error: "Missing session id" }, { status: 400 });
@@ -24,7 +35,9 @@ export const loader = async ({ params }: Route.LoaderArgs) => {
     }
 
     const anchors = listSessionRequestAnchors(sessionId);
-    const messages = sanitizeSessionMessages((result.data ?? []) as RawSessionMessage[], anchors);
+    const messages = sanitizeSessionMessages((result.data ?? []) as RawSessionMessage[], anchors, {
+      detailState: resolveDetailState(request),
+    });
 
     return Response.json({ executionContext, messages });
   } catch {

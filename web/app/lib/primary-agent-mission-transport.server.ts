@@ -9,7 +9,7 @@ import {
   getMissionTransportStatus,
   type ConfiguredMissionTransportStatus,
 } from "./tmux-transport-bootstrap.server";
-import { getOpencodeClient } from "./opencode-client";
+import type { getOpencodeClient } from "./opencode-client";
 import type { MissionPrimaryAgentId, MissionTransportMode, ModelSelection } from "./types/mission";
 
 export class MissionTransportNotReadyError extends Error {

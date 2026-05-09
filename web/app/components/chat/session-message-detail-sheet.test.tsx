@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type { SessionMessageDisplay } from "@/lib/session-message-presentation";
 
 vi.mock("@/components/chat/message-detail-sheet-base", () => ({
   MessageDetailSheetBase: ({
@@ -69,5 +70,47 @@ Please inspect this workflow.
     expect(markup).toContain("/tmp/example.txt");
     expect(markup).toContain("Output");
     expect(markup).toContain("done");
+  });
+
+  it("falls back to raw text when the resolved message display omits raw payload metadata", () => {
+    const rawText = `
+<operation-prompt>
+<instruction>
+Work through the operation context carefully.
+</instruction>
+
+<user-request from="user" to="iris">
+Please inspect this workflow.
+</user-request>
+</operation-prompt>
+    `.trim();
+    const messageDisplay: SessionMessageDisplay = {
+      displayContent: "Please inspect this workflow.",
+      promptContextSections: [],
+      promptContextSource: null,
+      rawWorkflowPrompt: null,
+      rawPromptPayload: null,
+      reportDetails: null,
+      selectionAdjustment: null,
+      resolvedSender: "user",
+      resolvedSenderIsUser: true,
+      resolvedSenderLabel: "User",
+      workflowPresentation: null,
+    };
+
+    const markup = renderToStaticMarkup(
+      <SessionMessageDetailSheet
+        content="Please inspect this workflow."
+        fallbackSender="user"
+        fallbackSenderLabel="User"
+        messageDisplay={messageDisplay}
+        onOpenChange={() => undefined}
+        open={true}
+        rawTextContent={rawText}
+      />,
+    );
+
+    expect(markup).toContain("Raw Message Payload");
+    expect(markup).toContain("&lt;operation-prompt&gt;");
   });
 });

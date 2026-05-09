@@ -22,6 +22,7 @@ import {
 import {
   buildRenderedSessionMessages,
   normalizeSessionMessages,
+  resolveSessionMessageDisplay,
   type SessionPresentationMessage,
 } from "@/lib/session-message-presentation";
 import {
@@ -56,6 +57,8 @@ type StreamAgentEvent = Extract<AgentEvent, { type: "message.part.updated" }> & 
   sessionId?: string;
 };
 
+type MissionTranscriptMode = "compact" | "full";
+
 const PROGRESS_BANTER_DELAYS = {
   early: 4500,
   late: 10500,
@@ -70,6 +73,7 @@ const MISSION_RUNTIME_HIDDEN_POLL_MS = 30000;
 const MISSION_SETTLED_BANTER_COOLDOWN_MS = 30000;
 const MISSION_TRANSCRIPT_RETENTION_SOFT_LIMIT = 160;
 const MISSION_TRANSCRIPT_RETENTION_TARGET = 120;
+const EMPTY_PENDING_MISSION_MESSAGES: ChatMessage[] = [];
 
 const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
 const SPEAKING_INDICATOR_MS = 980;
@@ -371,6 +375,7 @@ export interface MissionSummary {
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
   activitySessionIds: string[];
+  hasRetainedWorkspace?: boolean;
 }
 
 export type MissionTransportStatus = "pending" | "submitted" | "failed" | "cancelled";
@@ -759,14 +764,146 @@ function applyMissionTranscriptRetention(
   };
 }
 
+function resolveMissionTranscriptMode(surfaceId: MissionSurfaceId): MissionTranscriptMode {
+  return surfaceId === "noctis_team" || surfaceId === "lunafreya" ? "compact" : "full";
+}
+
+function getCompactMissionMessageVisibleBody(message: ChatMessage): string {
+  const rawText =
+    typeof message.rawText === "string" && message.rawText.trim().length > 0
+      ? message.rawText
+      : message.content;
+
+  return resolveSessionMessageDisplay({
+    rawText,
+    fallbackSender: message.sender,
+    fallbackSenderLabel: getActivityActorLabel(message.sender),
+  }).displayContent.trim();
+}
+
+function isCriticalCompactMissionMessage(message: ChatMessage, visibleBody: string): boolean {
+  if (message.errorInfo) {
+    return true;
+  }
+
+  return /\bblocked\b/i.test(visibleBody || message.content || message.rawText || "");
+}
+
+function compactMissionTranscriptMessages(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length === 0) {
+    return messages;
+  }
+
+  const compacted: ChatMessage[] = [];
+  let assistantTurn: ChatMessage[] = [];
+  let hasSeenUserMessage = false;
+
+  const flushAssistantTurn = () => {
+    if (assistantTurn.length === 0) {
+      return;
+    }
+
+    const retainedMessageIds = new Set<string>();
+    const senderSelections = new Map<
+      ChatMessage["sender"],
+      {
+        criticalIds: string[];
+        lastVisibleId: string | null;
+        lastFallbackId: string | null;
+      }
+    >();
+
+    assistantTurn.forEach((message) => {
+      const selection = senderSelections.get(message.sender) ?? {
+        criticalIds: [],
+        lastVisibleId: null,
+        lastFallbackId: null,
+      };
+      const visibleBody = getCompactMissionMessageVisibleBody(message);
+
+      if (isCriticalCompactMissionMessage(message, visibleBody)) {
+        selection.criticalIds.push(message.id);
+      }
+
+      if (visibleBody) {
+        selection.lastVisibleId = message.id;
+      } else {
+        selection.lastFallbackId = message.id;
+      }
+
+      senderSelections.set(message.sender, selection);
+    });
+
+    senderSelections.forEach((selection) => {
+      selection.criticalIds.forEach((id) => {
+        retainedMessageIds.add(id);
+      });
+
+      if (selection.lastVisibleId) {
+        retainedMessageIds.add(selection.lastVisibleId);
+        return;
+      }
+
+      if (selection.lastFallbackId) {
+        retainedMessageIds.add(selection.lastFallbackId);
+      }
+    });
+
+    compacted.push(...assistantTurn.filter((message) => retainedMessageIds.has(message.id)));
+    assistantTurn = [];
+  };
+
+  messages.forEach((message) => {
+    if (message.sender === "user") {
+      hasSeenUserMessage = true;
+      flushAssistantTurn();
+      compacted.push(message);
+      return;
+    }
+
+    if (!hasSeenUserMessage) {
+      compacted.push(message);
+      return;
+    }
+
+    assistantTurn.push(message);
+  });
+
+  flushAssistantTurn();
+
+  return compacted;
+}
+
+function applyMissionTranscriptMode(
+  messages: ChatMessage[],
+  transcriptMode: MissionTranscriptMode,
+): ChatMessage[] {
+  return transcriptMode === "compact" ? compactMissionTranscriptMessages(messages) : messages;
+}
+
+function applyMissionTranscriptPolicy(
+  messages: ChatMessage[],
+  primaryAgentId: MissionPrimaryAgentId,
+  transcriptMode: MissionTranscriptMode,
+): {
+  messages: ChatMessage[];
+  retainedHistory: MissionTranscriptRetentionState;
+} {
+  return applyMissionTranscriptRetention(
+    applyMissionTranscriptMode(messages, transcriptMode),
+    primaryAgentId,
+  );
+}
+
 function toSessionChatMessages(
   messages: MessageInfo[],
   primaryAgentId: MissionPrimaryAgentId,
 ): ChatMessage[] {
-  return normalizeSessionMessages(messages, {
-    assistantSender: primaryAgentId,
-    assistantSenderLabel: getActivityActorLabel(primaryAgentId),
-  }).map((message) => {
+  const messageErrorsById = new Map(
+    messages.map((message) => [message.info.id, message.info.error] as const),
+  );
+
+  return normalizeSessionMessages(messages).map((message) => {
     const sender = message.sender ?? primaryAgentId;
 
     return {
@@ -778,6 +915,7 @@ function toSessionChatMessages(
       content: message.content,
       detailContent: message.detailContent,
       detailState: message.detailState,
+      errorInfo: messageErrorsById.get(message.id),
       rawText: message.rawText,
       parts: message.parts,
       timestamp: message.timestamp,
@@ -800,8 +938,15 @@ function getLatestAssistantMessageId(
 async function loadSessionMessages(
   sessionId: string,
   primaryAgentId: MissionPrimaryAgentId,
+  transcriptMode: MissionTranscriptMode,
 ): Promise<ChatMessage[]> {
-  const response = await fetch(`/api/session/${sessionId}`);
+  const response = await fetch(`/api/session/${sessionId}`, transcriptMode === "compact"
+    ? {
+        headers: {
+          "x-session-detail-state": "summary",
+        },
+      }
+    : undefined);
   if (!response.ok) {
     throw new Error(`session messages failed: ${response.status}`);
   }
@@ -818,6 +963,7 @@ function getInitialTranscriptRetentionState(
   initialMissionData: MissionResumePayload | null | undefined,
   initialMessageInfos: MessageInfo[] | null | undefined,
   primaryAgentId: MissionPrimaryAgentId,
+  transcriptMode: MissionTranscriptMode,
 ): MissionTranscriptRetentionState {
   if (
     activeMissionId &&
@@ -825,13 +971,66 @@ function getInitialTranscriptRetentionState(
     Array.isArray(initialMessageInfos) &&
     initialMessageInfos.length > 0
   ) {
-    return applyMissionTranscriptRetention(
+    return applyMissionTranscriptPolicy(
       toSessionChatMessages(initialMessageInfos, primaryAgentId),
       primaryAgentId,
+      transcriptMode,
     ).retainedHistory;
   }
 
   return EMPTY_MISSION_TRANSCRIPT_RETENTION_STATE;
+}
+
+function mergeOptimisticMissionMessages(
+  sessionMessages: ChatMessage[],
+  pendingMissionMessages: ChatMessage[],
+): ChatMessage[] {
+  if (pendingMissionMessages.length === 0) {
+    return sessionMessages;
+  }
+
+  const getComparableUserMessageKey = (message: ChatMessage): string | null => {
+    if (message.sender !== "user") {
+      return null;
+    }
+
+    const resolvedDisplay = resolveSessionMessageDisplay({
+      rawText: message.rawText ?? message.detailContent ?? message.content,
+      fallbackSender: message.sender,
+      fallbackSenderLabel: getActivityActorLabel(message.sender),
+    }).displayContent.trim();
+
+    return `${message.kind}:${resolvedDisplay}`;
+  };
+
+  const authoritativeUserMessageKeys = new Set(
+    sessionMessages
+      .map((message) => getComparableUserMessageKey(message))
+      .filter((key): key is string => key !== null),
+  );
+  const filteredPendingMissionMessages = pendingMissionMessages.filter((message) => {
+    const comparableKey = getComparableUserMessageKey(message);
+    return comparableKey === null || !authoritativeUserMessageKeys.has(comparableKey);
+  });
+
+  if (filteredPendingMissionMessages.length === 0) {
+    return sessionMessages;
+  }
+
+  const hasUserMessage = sessionMessages.some((message) => message.sender === "user");
+  const mergedMessages = hasUserMessage
+    ? [...sessionMessages, ...filteredPendingMissionMessages]
+    : [...filteredPendingMissionMessages, ...sessionMessages];
+  const seenMessageIds = new Set<string>();
+
+  return mergedMessages.filter((message) => {
+    if (seenMessageIds.has(message.id)) {
+      return false;
+    }
+
+    seenMessageIds.add(message.id);
+    return true;
+  });
 }
 
 function getInitialTranscriptMessages(
@@ -839,7 +1038,9 @@ function getInitialTranscriptMessages(
   initialMissionData: MissionResumePayload | null | undefined,
   initialMessageInfos: MessageInfo[] | null | undefined,
   initialMessages: ChatMessage[],
+  pendingMissionMessages: ChatMessage[],
   primaryAgentId: MissionPrimaryAgentId,
+  transcriptMode: MissionTranscriptMode,
 ): ChatMessage[] {
   if (
     activeMissionId &&
@@ -847,11 +1048,16 @@ function getInitialTranscriptMessages(
     Array.isArray(initialMessageInfos) &&
     initialMessageInfos.length > 0
   ) {
-    const preloadedMessages = applyMissionTranscriptRetention(
+    const preloadedMessages = applyMissionTranscriptPolicy(
       toSessionChatMessages(initialMessageInfos, primaryAgentId),
       primaryAgentId,
+      transcriptMode,
     ).messages;
     return preloadedMessages.length > 0 ? preloadedMessages : [];
+  }
+
+  if (activeMissionId && pendingMissionMessages.length > 0) {
+    return pendingMissionMessages;
   }
 
   return activeMissionId ? [] : initialMessages;
@@ -862,7 +1068,9 @@ function getInitialTranscriptState(
   initialMissionData: MissionResumePayload | null | undefined,
   initialMessageInfos: MessageInfo[] | null | undefined,
   initialMessages: ChatMessage[],
+  pendingMissionMessages: ChatMessage[],
   primaryAgentId: MissionPrimaryAgentId,
+  transcriptMode: MissionTranscriptMode,
 ): MissionTranscriptState {
   if (!activeMissionId) {
     return createMissionTranscriptState(null, "idle");
@@ -873,8 +1081,18 @@ function getInitialTranscriptState(
     initialMissionData,
     initialMessageInfos,
     initialMessages,
+    pendingMissionMessages,
     primaryAgentId,
+    transcriptMode,
   );
+
+  if (
+    activeMissionId &&
+    pendingMissionMessages.length > 0 &&
+    !(initialMissionData?.missionId === activeMissionId && Array.isArray(initialMessageInfos) && initialMessageInfos.length > 0)
+  ) {
+    return createMissionTranscriptState(activeMissionId, "loading");
+  }
 
   if (nextMessages.length === 0) {
     return createMissionTranscriptState(activeMissionId, "loading");
@@ -890,7 +1108,10 @@ function getVisibleMissionMessages(
   activeMissionId: string | null,
   sessionMessages: ChatMessage[],
   transcriptState: MissionTranscriptState,
+  pendingMissionMessages: ChatMessage[],
 ): ChatMessage[] {
+  const visibleMessages = mergeOptimisticMissionMessages(sessionMessages, pendingMissionMessages);
+
   if (!activeMissionId) {
     return sessionMessages;
   }
@@ -901,16 +1122,16 @@ function getVisibleMissionMessages(
 
   if (
     (transcriptState.phase === "loading" || transcriptState.phase === "pending") &&
-    sessionMessages.length > 0
+    visibleMessages.length > 0
   ) {
-    return sessionMessages;
+    return visibleMessages;
   }
 
-  if (transcriptState.phase !== "ready") {
+  if (transcriptState.phase !== "ready" && visibleMessages.length === 0) {
     return [];
   }
 
-  return sessionMessages;
+  return visibleMessages;
 }
 
 function getVisibleTranscriptState(
@@ -969,6 +1190,7 @@ export interface UseAgentSessionReturn {
   setSelectedOperation: (operationRef: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
+  clearStreaming: () => void;
 }
 
 export async function withMissionStartPending<T>(
@@ -999,6 +1221,7 @@ export function useAgentSession({
   const surfaceId =
     requestedSurfaceId ??
     (initialMissionData?.surfaceId === "lunafreya" ? "lunafreya" : "noctis_team");
+  const transcriptMode = resolveMissionTranscriptMode(surfaceId);
   const primaryAgentId: MissionPrimaryAgentId =
     initialMissionData?.primaryAgentId === "lunafreya" || surfaceId === "lunafreya"
       ? "lunafreya"
@@ -1015,6 +1238,10 @@ export function useAgentSession({
   const pendingMissionSessionId = useChatStore((state) =>
     activeMissionId ? (state.pendingMissionSessions[activeMissionId] ?? null) : null
   );
+  const pendingMissionMessageMap = useChatStore((state) => state.pendingMissionMessages);
+  const pendingMissionMessages = activeMissionId
+    ? (pendingMissionMessageMap[activeMissionId] ?? EMPTY_PENDING_MISSION_MESSAGES)
+    : EMPTY_PENDING_MISSION_MESSAGES;
   const initialNoctisSessionId =
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? (initialMissionData.sessions.primary ?? initialMissionData.sessions.noctis)
@@ -1029,7 +1256,9 @@ export function useAgentSession({
       initialMissionData,
       initialMessageInfos,
       initialMessages,
+      pendingMissionMessages,
       primaryAgentId,
+      transcriptMode,
     )
   );
   const [retainedHistory, setRetainedHistory] = useState<MissionTranscriptRetentionState>(() =>
@@ -1038,6 +1267,7 @@ export function useAgentSession({
       initialMissionData,
       initialMessageInfos,
       primaryAgentId,
+      transcriptMode,
     )
   );
   const [availableOperations, setAvailableOperations] = useState<OperationOption[]>([]);
@@ -1080,7 +1310,9 @@ export function useAgentSession({
       initialMissionData,
       initialMessageInfos,
       initialMessages,
+      pendingMissionMessages,
       primaryAgentId,
+      transcriptMode,
     )
   );
 
@@ -1104,8 +1336,14 @@ export function useAgentSession({
     createInitialWorkerSessionStates()
   );
   const messages = useMemo(
-    () => getVisibleMissionMessages(activeMissionId, sessionMessages, transcriptState),
-    [activeMissionId, sessionMessages, transcriptState]
+    () =>
+      getVisibleMissionMessages(
+        activeMissionId,
+        sessionMessages,
+        transcriptState,
+        pendingMissionMessages,
+      ),
+    [activeMissionId, pendingMissionMessages, sessionMessages, transcriptState]
   );
   const visibleTranscriptState = useMemo(
     () => getVisibleTranscriptState(activeMissionId, transcriptState),
@@ -1138,6 +1376,8 @@ export function useAgentSession({
   const setOptimisticSessionState = useChatStore((state) => state.setOptimisticSessionState);
   const setPendingMissionSession = useChatStore((state) => state.setPendingMissionSession);
   const clearPendingMissionSession = useChatStore((state) => state.clearPendingMissionSession);
+  const setPendingMissionMessages = useChatStore((state) => state.setPendingMissionMessages);
+  const clearPendingMissionMessages = useChatStore((state) => state.clearPendingMissionMessages);
 
   const clearStreamingState = useCallback(() => {
     streamingMessageIdRef.current = null;
@@ -1156,20 +1396,20 @@ export function useAgentSession({
 
   const replaceSessionMessages = useCallback(
     (nextMessages: ChatMessage[]): ChatMessage[] => {
-      const retained = applyMissionTranscriptRetention(nextMessages, primaryAgentId);
+      const retained = applyMissionTranscriptPolicy(nextMessages, primaryAgentId, transcriptMode);
       sessionMessagesRef.current = retained.messages;
       retainedHistoryRef.current = retained.retainedHistory;
       setSessionMessages(retained.messages);
       setRetainedHistory(retained.retainedHistory);
       return retained.messages;
     },
-    [primaryAgentId],
+    [primaryAgentId, transcriptMode],
   );
 
   const updateSessionMessages = useCallback(
     (updater: (current: ChatMessage[]) => ChatMessage[]): ChatMessage[] => {
       const nextMessages = updater(sessionMessagesRef.current);
-      const retained = applyMissionTranscriptRetention(nextMessages, primaryAgentId);
+      const retained = applyMissionTranscriptPolicy(nextMessages, primaryAgentId, transcriptMode);
       const nextRetainedHistory = retained.retainedHistory.isActive
         ? {
             isActive: true,
@@ -1190,7 +1430,7 @@ export function useAgentSession({
       setRetainedHistory(nextRetainedHistory);
       return retained.messages;
     },
-    [primaryAgentId],
+    [primaryAgentId, transcriptMode],
   );
 
   const beginAbortSettlement = useCallback(() => {
@@ -1492,28 +1732,42 @@ export function useAgentSession({
     const nextPrimarySessionId =
       initialNoctisSessionId ??
       (missionIdRef.current === activeMissionId ? previousPrimarySessionId : null);
+    const shouldPreserveStartedMissionTranscript =
+      activeMissionId !== null &&
+      missionIdRef.current === activeMissionId &&
+      initialMissionData?.missionId !== activeMissionId &&
+      (!Array.isArray(initialMessageInfos) || initialMessageInfos.length === 0) &&
+      sessionMessagesRef.current.length > 0;
+    const nextTranscriptMessages = shouldPreserveStartedMissionTranscript
+      ? sessionMessagesRef.current
+      : getInitialTranscriptMessages(
+          activeMissionId,
+          initialMissionData,
+          initialMessageInfos,
+          initialMessages,
+          pendingMissionMessages,
+          primaryAgentId,
+          transcriptMode,
+        );
+
     noctisSessionIdRef.current = nextPrimarySessionId;
     setNoctisSessionId(nextPrimarySessionId);
     setWorkerSessionIds(initialWorkerSessionIds);
     setDelegationLedger(null);
     clearStreamingState();
-    replaceSessionMessages(
-      getInitialTranscriptMessages(
-        activeMissionId,
-        initialMissionData,
-        initialMessageInfos,
-        initialMessages,
-        primaryAgentId,
-      )
-    );
+    replaceSessionMessages(nextTranscriptMessages);
     setTranscriptState(
-      getInitialTranscriptState(
-        activeMissionId,
-        initialMissionData,
-        initialMessageInfos,
-        initialMessages,
-        primaryAgentId,
-      )
+      shouldPreserveStartedMissionTranscript
+        ? createMissionTranscriptState(activeMissionId, "loading", null, nextPrimarySessionId)
+        : getInitialTranscriptState(
+            activeMissionId,
+            initialMissionData,
+            initialMessageInfos,
+            initialMessages,
+            pendingMissionMessages,
+            primaryAgentId,
+            transcriptMode,
+          )
     );
     clearAbortSettlement();
     hasHydratedNoctisSettledRef.current = false;
@@ -1539,7 +1793,9 @@ export function useAgentSession({
     initialMissionData,
     initialNoctisSessionId,
     initialWorkerSessionIds,
+    pendingMissionMessages,
     primaryAgentId,
+    transcriptMode,
     clearAbortSettlement,
     clearStreamingState,
     replaceSessionMessages,
@@ -1565,7 +1821,7 @@ export function useAgentSession({
       const syncStartedAt = Date.now();
 
       try {
-        const nextMessages = await loadSessionMessages(sessionId, primaryAgentId);
+        const nextMessages = await loadSessionMessages(sessionId, primaryAgentId, transcriptMode);
         const currentStreamingMessageId = streamingMessageIdRef.current;
         const latestAssistant = [...nextMessages]
           .reverse()
@@ -1583,8 +1839,22 @@ export function useAgentSession({
         const shouldClearSyncedLiveTail = Boolean(
           currentStreamingMessageId && containsStreamingMessageId,
         );
+        const hasAuthoritativeHistory = nextMessages.length > 0;
         const effectiveSessionStatus =
           useChatStore.getState().sessionStates[sessionId] ?? sessionStatusRef.current;
+        const nextTrackedStreamingMessageId = shouldKeepPendingTrackedReply
+          ? null
+          : (latestAssistant?.id ?? null);
+
+        if (transcriptMissionId && hasAuthoritativeHistory) {
+          clearPendingMissionMessages(transcriptMissionId);
+        }
+
+        const remainingPendingMissionMessages = transcriptMissionId
+          ? (hasAuthoritativeHistory
+              ? []
+              : (useChatStore.getState().pendingMissionMessages[transcriptMissionId] ?? []))
+          : [];
 
         const shouldPreserveCurrentMessages =
           shouldKeepPendingTrackedReply ||
@@ -1607,6 +1877,8 @@ export function useAgentSession({
         setTranscriptState(
           shouldKeepPendingTrackedReply
             ? createMissionTranscriptState(transcriptMissionId, "pending", null, sessionId)
+            : nextMessages.length === 0 && remainingPendingMissionMessages.length > 0
+              ? createMissionTranscriptState(transcriptMissionId, "loading", null, sessionId)
             : createMissionTranscriptState(
                 transcriptMissionId,
                 resolveMissionTranscriptPhase(retainedMessages),
@@ -1645,7 +1917,7 @@ export function useAgentSession({
           return;
         }
 
-        streamingMessageIdRef.current = shouldKeepPendingTrackedReply ? null : (latestAssistant?.id ?? null);
+        streamingMessageIdRef.current = nextTrackedStreamingMessageId;
       } catch (error) {
         appendMissionClientDebugLog({
           event: "session-history-sync",
@@ -1662,7 +1934,15 @@ export function useAgentSession({
         throw error;
       }
     },
-    [clearStreamingState, initialMessages, missionRouteBase, primaryAgentId, replaceSessionMessages]
+    [
+      clearStreamingState,
+      clearPendingMissionMessages,
+      initialMessages,
+      missionRouteBase,
+      primaryAgentId,
+      replaceSessionMessages,
+      transcriptMode,
+    ]
   );
 
   const requestSessionHistorySync = useCallback(
@@ -2540,6 +2820,7 @@ export function useAgentSession({
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
           setContextUsageByAgent(createInitialContextUsageByAgent());
           if (hasPreloadedMessages) {
+            clearPendingMissionMessages(activeMissionId);
             const preloadedMessages = replaceSessionMessages(
               toSessionChatMessages(initialMessageInfos ?? [], primaryAgentId),
             );
@@ -2650,6 +2931,7 @@ export function useAgentSession({
     activeMissionId,
     clearBanterEntries,
     clearPendingMissionSession,
+    clearPendingMissionMessages,
     clearProgressBanter,
     closeWorkerEventSources,
     initialMessages,
@@ -2760,6 +3042,7 @@ export function useAgentSession({
             setNoctisSessionId(sessionId);
             setOptimisticSessionState(sessionId, "busy");
             setPendingMissionSession(data.missionId, sessionId);
+            setPendingMissionMessages(data.missionId, [userMessage]);
 
             handleAgentEvent({ type: "session.created" });
             subscribeToSession(sessionId);
@@ -2839,6 +3122,10 @@ export function useAgentSession({
           speaker: primaryAgentId,
           kind: "assistant_message",
           content: errorText,
+          errorInfo: {
+            name: "MissionClientError",
+            message: errorText,
+          },
           rawText: errorText,
           parts: [
             {
@@ -2869,6 +3156,7 @@ export function useAgentSession({
       selectedOperation,
       selectedLunafreyaJobId,
       selectedLunafreyaSkillIds,
+      setPendingMissionMessages,
       setPendingMissionSession,
       setOptimisticSessionState,
       subscribeToSession,
@@ -2896,7 +3184,11 @@ export function useAgentSession({
         throw new Error(`abort failed: ${response.status}`);
       }
 
-      const nextMessages = await loadSessionMessages(sessionId, primaryAgentId).catch(() => null);
+      const nextMessages = await loadSessionMessages(
+        sessionId,
+        primaryAgentId,
+        transcriptMode,
+      ).catch(() => null);
 
       if (nextMessages && nextMessages.length > 0) {
         const retainedMessages = replaceSessionMessages(nextMessages);
@@ -2925,6 +3217,10 @@ export function useAgentSession({
         speaker: primaryAgentId,
         kind: "assistant_message",
         content: errorText,
+        errorInfo: {
+          name: "MissionClientError",
+          message: errorText,
+        },
         rawText: errorText,
         parts: [
           {
@@ -2943,6 +3239,7 @@ export function useAgentSession({
     clearStreamingState,
     primaryAgentId,
     replaceSessionMessages,
+    transcriptMode,
     updateSessionMessages,
   ]);
 
@@ -2974,5 +3271,6 @@ export function useAgentSession({
     setSelectedOperation,
     send,
     abort,
+    clearStreaming: clearStreamingState,
   };
 }

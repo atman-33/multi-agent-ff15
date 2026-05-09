@@ -71,7 +71,7 @@ import {
 import { PartyStatusPanel } from "./party-status-panel";
 import { reconcileFreshMissionIds } from "./mission-summary-freshness";
 
-type BulkMissionAction = "archive" | "restore";
+type BulkMissionAction = "archive" | "restore" | "delete";
 
 type BulkMissionDialogState = {
   action: BulkMissionAction;
@@ -254,6 +254,7 @@ export function NoctisTeamScreen({
     setSelectedOperation,
     send,
     abort,
+    clearStreaming,
   } = useAgentSession({
     activeMissionId: effectiveMissionId,
     surfaceId: surface.id,
@@ -723,7 +724,14 @@ export function NoctisTeamScreen({
     ]
   );
 
+  const bulkDeleteVisibleMissions = useMemo(
+    () => visibleMissions.filter((mission) => !mission.hasRetainedWorkspace),
+    [visibleMissions]
+  );
+
   const skippedVisibleMissionCount = visibleMissions.length - actionableVisibleMissions.length;
+  const skippedBulkDeleteVisibleMissionCount =
+    visibleMissions.length - bulkDeleteVisibleMissions.length;
 
   const beginRenameMission = useCallback((mission: MissionSummary) => {
     setEditingMissionId(mission.missionId);
@@ -873,19 +881,133 @@ export function NoctisTeamScreen({
     [effectiveMissionId, missionApiBase, missionRouteBase, navigate, surface.lastMissionStorageKey]
   );
 
+  const submitArchivedMissionBulkDelete = useCallback(async () => {
+    setIsBulkMissionActionPending(true);
+    setBulkMissionDialog(null);
+
+    try {
+      const response = await fetch(`${missionApiBase}/bulk-delete`, {
+        method: "DELETE",
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        deletedCount?: number;
+        deletedMissionIds?: string[];
+        failedCount?: number;
+        skippedCount?: number;
+      };
+
+      if (!response.ok) {
+        throw new Error(`bulk delete failed: ${response.status}`);
+      }
+
+      const deletedMissionIds = Array.isArray(result.deletedMissionIds)
+        ? result.deletedMissionIds
+        : [];
+      const deletedMissionIdSet = new Set(deletedMissionIds);
+      const deletedCount = result.deletedCount ?? deletedMissionIds.length;
+      const skippedCount = result.skippedCount ?? 0;
+      const failedCount = result.failedCount ?? 0;
+
+      if (deletedMissionIdSet.size > 0) {
+        setMissions((current) =>
+          current.filter((mission) => !deletedMissionIdSet.has(mission.missionId))
+        );
+        setFreshMissionIds((current) =>
+          current.filter((missionId) => !deletedMissionIdSet.has(missionId))
+        );
+        setMissionCounts((currentCounts) => ({
+          active: currentCounts.active,
+          archived: Math.max(0, currentCounts.archived - deletedCount),
+        }));
+        setEditingMissionId((current) =>
+          current && deletedMissionIdSet.has(current) ? null : current
+        );
+      }
+
+      if (effectiveMissionId && deletedMissionIdSet.has(effectiveMissionId)) {
+        if (typeof window !== "undefined") {
+          const storedMissionId = window.localStorage.getItem(surface.lastMissionStorageKey);
+          if (storedMissionId === effectiveMissionId) {
+            window.localStorage.removeItem(surface.lastMissionStorageKey);
+          }
+        }
+
+        navigate(missionRouteBase, { replace: true, state: { skipMissionRestore: true } });
+      }
+
+      if (deletedCount === 0) {
+        const description = [
+          skippedCount > 0
+            ? `Skipped ${skippedCount} archived ${skippedCount === 1 ? "mission" : "missions"} with retained dedicated workspaces.`
+            : null,
+          failedCount > 0
+            ? `${failedCount} ${failedCount === 1 ? "delete" : "deletes"} failed.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        toast.error("No archived missions were deleted", {
+          description: description || "Mission metadata could not be updated.",
+        });
+        return;
+      }
+
+      const description = [
+        `Deleted ${deletedCount} archived ${deletedCount === 1 ? "mission" : "missions"}.`,
+        skippedCount > 0
+          ? `Skipped ${skippedCount} archived ${skippedCount === 1 ? "mission" : "missions"} with retained dedicated workspaces.`
+          : null,
+        failedCount > 0
+          ? `${failedCount} ${failedCount === 1 ? "delete" : "deletes"} failed.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      toast.success("Archived missions deleted", {
+        description,
+      });
+      await loadMissions();
+    } catch {
+      toast.error("Unable to delete archived missions", {
+        description: "Mission metadata could not be updated.",
+      });
+    } finally {
+      setIsBulkMissionActionPending(false);
+    }
+  }, [effectiveMissionId, loadMissions, missionApiBase, missionRouteBase, navigate, surface.lastMissionStorageKey]);
+
   const openBulkMissionDialog = useCallback(
     (action: BulkMissionAction) => {
+      const count =
+        action === "delete" ? bulkDeleteVisibleMissions.length : actionableVisibleMissions.length;
+      const skipped =
+        action === "delete"
+          ? skippedBulkDeleteVisibleMissionCount
+          : skippedVisibleMissionCount;
+
       setBulkMissionDialog({
         action,
-        count: actionableVisibleMissions.length,
-        skipped: skippedVisibleMissionCount,
+        count,
+        skipped,
       });
     },
-    [actionableVisibleMissions.length, skippedVisibleMissionCount]
+    [
+      actionableVisibleMissions.length,
+      bulkDeleteVisibleMissions.length,
+      skippedBulkDeleteVisibleMissionCount,
+      skippedVisibleMissionCount,
+    ]
   );
 
   const confirmBulkMissionAction = useCallback(async () => {
     if (!bulkMissionDialog) {
+      return;
+    }
+
+    if (bulkMissionDialog.action === "delete") {
+      await submitArchivedMissionBulkDelete();
       return;
     }
 
@@ -942,7 +1064,7 @@ export function NoctisTeamScreen({
         description: details,
       }
     );
-  }, [actionableVisibleMissions, bulkMissionDialog, submitMissionArchive]);
+  }, [actionableVisibleMissions, bulkMissionDialog, submitArchivedMissionBulkDelete, submitMissionArchive]);
 
   const handleSend = useCallback(
     async (parts: PromptPart[]) => {
@@ -1179,7 +1301,7 @@ export function NoctisTeamScreen({
         orientation="horizontal"
         className="relative h-full min-h-0 w-full overflow-hidden"
       >
-        <ResizablePanel defaultSize={20}>
+        <ResizablePanel className="min-w-0" defaultSize={20}>
           <div className="flex h-full min-h-0 min-w-0 flex-col border-border/50 border-r bg-background/30 backdrop-blur-sm">
             <div className="w-full border-border/50 border-b p-3">
               <div className="mb-3 flex w-full items-start justify-between gap-2">
@@ -1218,6 +1340,14 @@ export function NoctisTeamScreen({
                         ? `Restore all visible (${actionableVisibleMissions.length})`
                         : `Archive all visible (${actionableVisibleMissions.length})`}
                     </DropdownMenuItem>
+                    {missionView === "archived" ? (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => openBulkMissionDialog("delete")}
+                      >
+                        {`Delete archived missions (${bulkDeleteVisibleMissions.length})`}
+                      </DropdownMenuItem>
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -1302,7 +1432,7 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
 
-        <ResizablePanel defaultSize={50}>
+        <ResizablePanel className="min-w-0" defaultSize={50}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-border/50 border-r">
             <ChatArea
               composerDraftKey={buildMissionComposerDraftKey(surface.id, effectiveMissionId)}
@@ -1312,6 +1442,7 @@ export function NoctisTeamScreen({
               }
               currentStreamingMessageId={streamingMessageId}
               liveDraft={liveDraft}
+              onStreamingMessageCommitted={clearStreaming}
               streamingContent={streamingContent}
               historyErrorMessage={historyErrorMessage}
               historyPhase={historyPhase}
@@ -1403,7 +1534,7 @@ export function NoctisTeamScreen({
           </div>
         </ResizablePanel>
 
-        <ResizablePanel defaultSize={30}>
+        <ResizablePanel className="min-w-0" defaultSize={30}>
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 border-border/50 border-b p-3">
               {missionStatusAlert ? (
@@ -1506,14 +1637,20 @@ export function NoctisTeamScreen({
             <DialogTitle>
               {bulkMissionDialog?.action === "archive"
                 ? "Archive visible missions?"
-                : "Restore visible missions?"}
+                : bulkMissionDialog?.action === "delete"
+                  ? "Delete archived missions?"
+                  : "Restore visible missions?"}
             </DialogTitle>
             <DialogDescription>
               {bulkMissionDialog?.action === "archive"
                 ? `${bulkMissionDialog?.count ?? 0} visible missions will be archived.`
-                : `${bulkMissionDialog?.count ?? 0} visible missions will be restored.`}
+                : bulkMissionDialog?.action === "delete"
+                  ? `${bulkMissionDialog?.count ?? 0} archived missions will be permanently deleted.`
+                  : `${bulkMissionDialog?.count ?? 0} visible missions will be restored.`}
               {bulkMissionDialog && bulkMissionDialog.skipped > 0
-                ? ` ${bulkMissionDialog.skipped} active ${bulkMissionDialog.skipped === 1 ? "mission" : "missions"} will be skipped.`
+                ? bulkMissionDialog.action === "delete"
+                  ? ` ${bulkMissionDialog.skipped} archived ${bulkMissionDialog.skipped === 1 ? "mission" : "missions"} with retained dedicated workspaces will be skipped.`
+                  : ` ${bulkMissionDialog.skipped} active ${bulkMissionDialog.skipped === 1 ? "mission" : "missions"} will be skipped.`
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -1521,8 +1658,16 @@ export function NoctisTeamScreen({
             <Button type="button" variant="outline" onClick={() => setBulkMissionDialog(null)}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void confirmBulkMissionAction()}>
-              {bulkMissionDialog?.action === "archive" ? "Archive visible" : "Restore visible"}
+            <Button
+              type="button"
+              variant={bulkMissionDialog?.action === "delete" ? "destructive" : "default"}
+              onClick={() => void confirmBulkMissionAction()}
+            >
+              {bulkMissionDialog?.action === "archive"
+                ? "Archive visible"
+                : bulkMissionDialog?.action === "delete"
+                  ? "Delete archived"
+                  : "Restore visible"}
             </Button>
           </DialogFooter>
         </DialogContent>

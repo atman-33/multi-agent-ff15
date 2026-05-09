@@ -130,14 +130,75 @@ function createRuntimePayload(mission: MissionResumePayload) {
   };
 }
 
-function createAssistantMessage(id: string, text: string): MessageInfo {
+function stubMissionRuntimeFetch(mission: MissionResumePayload) {
+  const missionRouteBase =
+    mission.surfaceId === "lunafreya" || mission.primaryAgentId === "lunafreya"
+      ? "/api/lunafreya/missions"
+      : "/api/noctis/missions";
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (missionRouteBase === "/api/noctis/missions" && url.startsWith("/api/noctis/operations")) {
+      return createJsonResponse({ operations: [] });
+    }
+
+    if (url === `${missionRouteBase}/${mission.missionId}/runtime`) {
+      return createJsonResponse(createRuntimePayload(mission));
+    }
+
+    throw new Error(`Unhandled fetch: ${url}`);
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function createAssistantMessage(id: string, text: string, agent?: string): MessageInfo {
   return {
     info: {
       id,
       role: "assistant",
+      agent,
       time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
     },
     parts: [{ type: "text", text }],
+  };
+}
+
+function createUserMessage(id: string, text: string): MessageInfo {
+  return {
+    info: {
+      id,
+      role: "user",
+      time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+    },
+    parts: [{ type: "text", text }],
+  };
+}
+
+function createUserMessageWithPromptContext(id: string, text: string): MessageInfo {
+  return {
+    info: {
+      id,
+      role: "user",
+      time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+    },
+    parts: [
+      {
+        type: "text",
+        text: `
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<tooling-context>
+serena_project: multi-agent-ff15
+</tooling-context>
+
+${text}
+        `.trim(),
+      },
+    ],
   };
 }
 
@@ -147,22 +208,24 @@ function createAssistantMessages(count: number, prefix = "Reply"): MessageInfo[]
   );
 }
 
-function createAssistantToolMessage(id: string): MessageInfo {
+function createAssistantToolMessage(id: string, agent?: string): MessageInfo {
   return {
     info: {
       id,
       role: "assistant",
+      agent,
       time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
     },
     parts: [{ type: "tool", tool: "bash", state: { status: "completed" } }],
   };
 }
 
-function createAbortedAssistantMessage(id: string): MessageInfo {
+function createAbortedAssistantMessage(id: string, agent?: string): MessageInfo {
   return {
     info: {
       id,
       role: "assistant",
+      agent,
       error: {
         name: "MessageAbortedError",
         message: "Aborted",
@@ -203,6 +266,7 @@ function resetChatStore(): void {
     agentModels: {},
     currentSessionId: null,
     optimisticSessionStates: {},
+    pendingMissionMessages: {},
     pendingMissionSessions: {},
     selectedAgent: null,
     selectedModel: null,
@@ -391,7 +455,6 @@ describe("useAgentSession", () => {
       isLoadingHistory: false,
       messages: ["Mission one reply"],
     });
-
     await act(async () => {
       root?.render(
         createElement(HookProbe, {
@@ -900,6 +963,309 @@ describe("useAgentSession", () => {
       messages: ["Mission one reply", "Mission one follow-up reply"],
       streamingContent: "",
     });
+  });
+
+  it("keeps only the final visible assistant reply for a sender in compact mission history", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const initialMessageInfos = [
+      createUserMessage("user-1", "Please revise the PR body."),
+      createAssistantToolMessage("assistant-tool-1"),
+      createAssistantMessage("assistant-visible-1", "Revised the PR body."),
+    ];
+    stubMissionRuntimeFetch(mission);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos,
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Please revise the PR body.", "Revised the PR body."],
+    });
+  });
+
+  it("keeps a critical assistant outcome alongside a later visible reply in compact mission history", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    stubMissionRuntimeFetch(mission);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [
+            createUserMessage("user-1", "Try again."),
+            createAbortedAssistantMessage("assistant-aborted-1"),
+            createAssistantMessage("assistant-visible-1", "Recovered and completed the retry."),
+          ],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: [
+        "Try again.",
+        "Response interrupted: Aborted",
+        "Recovered and completed the retry.",
+      ],
+    });
+  });
+
+  it("keeps the final visible reply for each assistant sender in the same compact mission turn", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    stubMissionRuntimeFetch(mission);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [
+            createUserMessage("user-1", "Coordinate the update."),
+            createAssistantToolMessage("assistant-tool-noctis-1"),
+            createAssistantMessage("assistant-ignis-1", "Ignis verified the affected files.", "ignis"),
+            createAssistantMessage("assistant-noctis-1", "I applied the requested update.", "noctis"),
+          ],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: [
+        "Coordinate the update.",
+        "Ignis verified the affected files.",
+        "I applied the requested update.",
+      ],
+    });
+  });
+
+  it("keeps a single fallback assistant row when a compact mission turn has only intermediate activity", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    stubMissionRuntimeFetch(mission);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [
+            createUserMessage("user-1", "Check the current status."),
+            createAssistantToolMessage("assistant-tool-1"),
+            createAssistantToolMessage("assistant-tool-2"),
+          ],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Check the current status.", ""],
+    });
+  });
+
+  it("applies the same compact mission history rules on the Lunafreya surface", async () => {
+    const mission = createMission({
+      missionId: "mission-luna-1",
+      primarySessionId: "session-luna-1",
+      surfaceId: "lunafreya",
+      primaryAgentId: "lunafreya",
+      sessions: {
+        primary: "session-luna-1",
+        noctis: null,
+        ignis: null,
+        gladiolus: null,
+        prompto: null,
+      },
+    });
+    stubMissionRuntimeFetch(mission);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-luna-1",
+          initialMessageInfos: [
+            createUserMessage("user-1", "Summarize the latest notes."),
+            createAssistantToolMessage("assistant-tool-1", "lunafreya"),
+            createAssistantMessage(
+              "assistant-visible-1",
+              "I condensed the notes into a concise summary.",
+              "lunafreya",
+            ),
+          ],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      isLoadingHistory: false,
+      messages: ["Summarize the latest notes.", "I condensed the notes into a concise summary."],
+    });
+  });
+
+  it("requests compact transcript payloads for mission session history", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      if (url === "/api/session/session-1") {
+        const headers = init?.headers;
+        const detailState =
+          headers instanceof Headers
+            ? headers.get("x-session-detail-state")
+            : Array.isArray(headers)
+              ? (headers.find(([name]) => name === "x-session-detail-state")?.[1] ?? null)
+              : (headers?.["x-session-detail-state" as keyof typeof headers] ?? null);
+
+        return createJsonResponse({
+          messages: [
+            detailState === "summary"
+              ? {
+                  info: {
+                    id: "message-1",
+                    role: "assistant",
+                    time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+                  },
+                  detailState: "summary",
+                  summary: {
+                    content: "**Analyzing PR content update**",
+                    detailContent: [
+                      "**Analyzing PR content update**",
+                      "",
+                      "The user's request suggests updating the PR content.",
+                    ].join("\n"),
+                    rawText: "**Analyzing PR content update**",
+                  },
+                  parts: [
+                    {
+                      type: "tool",
+                      tool: "read_file",
+                      state: { status: "completed" },
+                    },
+                  ],
+                }
+              : {
+                  info: {
+                    id: "message-1",
+                    role: "assistant",
+                    time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+                  },
+                  parts: [
+                    {
+                      type: "text",
+                      text: [
+                        "**Analyzing PR content update**",
+                        "",
+                        "The user's request suggests updating the PR content.",
+                      ].join("\n"),
+                    },
+                  ],
+                },
+          ],
+        });
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(latestSnapshot).toMatchObject({
+      historyPhase: "ready",
+      messages: ["**Analyzing PR content update**"],
+    });
+    expect(
+      fetchMock.mock.calls.some(([, init]) => {
+        const headers = init?.headers;
+        if (headers instanceof Headers) {
+          return headers.get("x-session-detail-state") === "summary";
+        }
+        if (Array.isArray(headers)) {
+          return headers.some(
+            ([name, value]) => name === "x-session-detail-state" && value === "summary",
+          );
+        }
+
+        return headers?.["x-session-detail-state" as keyof typeof headers] === "summary";
+      }),
+    ).toBe(true);
   });
 
   it("coalesces overlapping fire-and-forget history sync requests for the same session", async () => {
@@ -1913,6 +2279,185 @@ describe("useAgentSession", () => {
       messages: ["Mission one reply"],
       streamingContent: "",
     });
+  });
+
+  it("keeps the newly sent user prompt visible across a route remount until authoritative history arrives", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const deferredSession = createDeferredResponse();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/mission/start") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { objective?: string };
+        expect(body.objective).toBe("Start mission");
+        return createJsonResponse({
+          missionId: "mission-1",
+          noctisSessionId: "session-1",
+          operationState: null,
+        });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: { "session-1": "busy" },
+        });
+      }
+
+      if (url === "/api/session/session-1") {
+        return deferredSession.promise;
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+    const observedMessageSnapshots: string[][] = [];
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: null,
+          initialMissionData: null,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+            observedMessageSnapshots.push([...snapshot.messages]);
+          },
+          selectedExecutionProjectId: "core-repo",
+        }),
+      );
+    });
+
+    let missionIdPromise: Promise<string | null> | null = null;
+    await act(async () => {
+      missionIdPromise = latestSnapshot?.send([{ type: "text", text: "Start mission" }]) ?? null;
+      await Promise.resolve();
+    });
+
+    expect(requireSnapshot(latestSnapshot, "Expected optimistic snapshot.").messages).toContain(
+      "Start mission",
+    );
+
+    const missionId = await missionIdPromise;
+    expect(missionId).toBe("mission-1");
+
+    await act(async () => {
+      root?.unmount();
+    });
+
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: null,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+            observedMessageSnapshots.push([...snapshot.messages]);
+          },
+        }),
+      );
+    });
+
+    await waitFor(
+      () => fetchMock.mock.calls.some(([input]) => String(input) === "/api/session/session-1"),
+    );
+
+    expect(requireSnapshot(latestSnapshot, "Expected transitioned snapshot.").messages).toContain(
+      "Start mission",
+    );
+
+    deferredSession.resolve(
+      createJsonResponse({
+        messages: [
+          createUserMessage("message-1", "Start mission"),
+          createAssistantMessage("message-2", "On it"),
+        ],
+      }),
+    );
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(requireSnapshot(latestSnapshot, "Expected authoritative snapshot.").messages).toEqual([
+      "Start mission",
+      "On it",
+    ]);
+    expect(
+      observedMessageSnapshots.some(
+        (messages) => messages.filter((message) => message === "Start mission").length > 1,
+      ),
+    ).toBe(false);
+  });
+
+  it("dedupes a pending optimistic user prompt once authoritative history already contains the same user message", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [
+            createUserMessageWithPromptContext("message-1", "Start mission"),
+            createAssistantMessage("message-2", "On it"),
+          ],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      useChatStore.getState().setPendingMissionMessages("mission-1", [
+        {
+          id: "optimistic-user-1",
+          sender: "user",
+          actor: "user",
+          speaker: "user",
+          kind: "user_message",
+          content: "Start mission",
+          detailContent: "Start mission",
+          rawText: "Start mission",
+          parts: [{ type: "text", text: "Start mission" }],
+          timestamp: new Date("2026-04-19T00:00:00.000Z"),
+          source: "session",
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    const snapshot = requireSnapshot(latestSnapshot, "Expected deduped snapshot.");
+
+    expect(snapshot.messages).toHaveLength(2);
+    expect(snapshot.messages.filter((message) => message.includes("Start mission"))).toHaveLength(1);
+    expect(snapshot.messages.at(-1)).toBe("On it");
   });
 
   it("treats a preloaded active mission transcript as ready immediately", async () => {

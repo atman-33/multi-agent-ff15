@@ -262,7 +262,20 @@ export function SessionMessageDetailSheet({
     ? resolvedMessageDisplay.displayContent
     : "";
   const hasVisibleBody = resolvedMessageDisplay.displayContent.trim().length > 0;
-  const rawMessagePayload = resolveRawMessagePayload(resolvedMessageDisplay);
+  const rawMessagePayload = useMemo(() => {
+    const resolvedPayload = resolveRawMessagePayload(resolvedMessageDisplay);
+    if (resolvedPayload?.trim()) {
+      return resolvedPayload;
+    }
+
+    const fallbackPayload = resolveSessionMessageDisplay({
+      rawText,
+      fallbackSender,
+      fallbackSenderLabel,
+    }).rawPromptPayload;
+
+    return fallbackPayload?.trim() ? fallbackPayload : null;
+  }, [fallbackSender, fallbackSenderLabel, rawText, resolvedMessageDisplay]);
   const hasIntermediateDetails =
     reasoning.trim().length > 0 ||
     tools.length > 0 ||

@@ -229,6 +229,33 @@ describe("chat-area", () => {
     expect(markup).toContain('data-disabled="yes"');
   });
 
+  it("passes the streaming commit callback to the render snapshot hook", () => {
+    const onStreamingMessageCommitted = vi.fn();
+
+    renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        currentStreamingMessageId="msg_streaming"
+        onStreamingMessageCommitted={onStreamingMessageCommitted}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentStreamingMessageId: "msg_streaming",
+        onStreamingMessageCommitted,
+      }),
+    );
+  });
+
   it("shows execution and context summary instead of operation help text after mission start", () => {
     const markup = renderToStaticMarkup(
       <ChatArea
@@ -921,6 +948,181 @@ describe("chat-area", () => {
 
     expect(markup).toContain('data-copy-content="Main reply."');
     expect(markup).not.toContain('data-copy-content="Main reply.\n\n## Reasoning');
+  });
+
+  it("does not render intermediate details for user transcript bubbles that only carry prompt context", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce({
+      autoFollowKey: "user-prompt-context-hidden",
+      confirmedInspectabilityBoundaries: [],
+      confirmedRenderedMessages: [],
+      input: {
+        assistantPending: false,
+        continuityAssistant: {
+          sender: "lunafreya",
+          senderLabel: "Lunafreya",
+        },
+        currentStreamingMessageId: null,
+        liveDraft: null,
+        messages: [],
+        streamingText: null,
+      },
+      inspectabilityBoundaries: [],
+      refreshKind: "initial",
+      renderedMessages: [
+        {
+          id: "user-1",
+          conversationUnitId: "user-1",
+          role: "user",
+          sender: "user",
+          senderLabel: "User",
+          kind: "user_message",
+          content: "こんにちは",
+          detailContent: "こんにちは",
+          rawText: [
+            "<operation-prompt>",
+            "<job>",
+            "# Strategic Advisor",
+            "</job>",
+            '<user-request from="user" to="lunafreya">',
+            "こんにちは",
+            "</user-request>",
+            "</operation-prompt>",
+          ].join("\n"),
+          parts: [{ type: "text", text: "こんにちは" }],
+          timestamp: new Date("2026-05-09T11:20:00.000Z"),
+          source: "session",
+          sourceMessageIds: ["user-1"],
+          detailRawText: "こんにちは",
+          messageDisplay: {
+            displayContent: "こんにちは",
+            promptContextSections: [
+              {
+                key: "job:0",
+                tagName: "job",
+                label: "Job",
+                content: "# Strategic Advisor",
+                preview: "Strategic Advisor",
+                source: "workflow",
+              },
+            ],
+            promptContextSource: "workflow",
+            rawWorkflowPrompt: "<operation-prompt>...</operation-prompt>",
+            rawPromptPayload: null,
+            reportDetails: null,
+            selectionAdjustment: null,
+            resolvedSender: "user",
+            resolvedSenderIsUser: true,
+            resolvedSenderLabel: "User",
+            workflowPresentation: null,
+          },
+        },
+      ],
+      scrollSignal: "none",
+      showPendingIndicator: false,
+      streamingMessage: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+        primaryAgentId="lunafreya"
+        primaryAgentLabel="Lunafreya"
+      />,
+    );
+
+    expect(markup).toContain("こんにちは");
+    expect(markup).not.toContain("Show intermediate details");
+  });
+
+  it("keeps intermediate details for assistant transcript bubbles with prompt context", () => {
+    sessionChatRenderSnapshotMock.mockReturnValueOnce({
+      autoFollowKey: "assistant-prompt-context-visible",
+      confirmedInspectabilityBoundaries: [],
+      confirmedRenderedMessages: [],
+      input: {
+        assistantPending: false,
+        continuityAssistant: {
+          sender: "lunafreya",
+          senderLabel: "Lunafreya",
+        },
+        currentStreamingMessageId: null,
+        liveDraft: null,
+        messages: [],
+        streamingText: null,
+      },
+      inspectabilityBoundaries: [],
+      refreshKind: "initial",
+      renderedMessages: [
+        {
+          id: "assistant-1",
+          conversationUnitId: "assistant-1",
+          role: "assistant",
+          sender: "lunafreya",
+          senderLabel: "Lunafreya",
+          kind: "assistant_message",
+          content: "了解しました。",
+          detailContent: "了解しました。",
+          rawText: "<operation-prompt>...</operation-prompt>",
+          parts: [{ type: "text", text: "了解しました。" }],
+          timestamp: new Date("2026-05-09T11:21:00.000Z"),
+          source: "session",
+          sourceMessageIds: ["assistant-1"],
+          detailRawText: "了解しました。",
+          messageDisplay: {
+            displayContent: "了解しました。",
+            promptContextSections: [
+              {
+                key: "instruction:0",
+                tagName: "instruction",
+                label: "Instruction",
+                content: "Respond with calm guidance.",
+                preview: "Respond with calm guidance.",
+                source: "workflow",
+              },
+            ],
+            promptContextSource: "workflow",
+            rawWorkflowPrompt: "<operation-prompt>...</operation-prompt>",
+            rawPromptPayload: null,
+            reportDetails: null,
+            selectionAdjustment: null,
+            resolvedSender: "lunafreya",
+            resolvedSenderIsUser: false,
+            resolvedSenderLabel: "Lunafreya",
+            workflowPresentation: null,
+          },
+        },
+      ],
+      scrollSignal: "none",
+      showPendingIndicator: false,
+      streamingMessage: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+        primaryAgentId="lunafreya"
+        primaryAgentLabel="Lunafreya"
+      />,
+    );
+
+    expect(markup).toContain("了解しました。");
+    expect(markup).toContain("Show intermediate details");
   });
 
   it("marks the shared snapshot as assistant-pending before visible live content arrives", () => {

@@ -35,6 +35,9 @@ export const SessionMessageBubble = memo(({
   renderDetailSheet,
 }: SessionMessageBubbleProps) => {
   const messageDisplay = message.messageDisplay;
+  const visiblePromptContextSections = messageDisplay.resolvedSenderIsUser
+    ? []
+    : messageDisplay.promptContextSections;
   const reasoning = useMemo(() => extractReasoning(message.parts), [message.parts]);
   const tools = useMemo(() => extractTools(message.parts), [message.parts]);
   const displayContent = showCursor
@@ -45,7 +48,7 @@ export const SessionMessageBubble = memo(({
     reasoning.trim().length > 0 ||
     tools.length > 0 ||
     Boolean(messageDisplay.reportDetails?.trim()) ||
-    messageDisplay.promptContextSections.length > 0;
+    visiblePromptContextSections.length > 0;
   const hasVisibleBody = messageDisplay.displayContent.trim().length > 0;
   const detailSummary = useMemo(
     () =>
@@ -53,9 +56,9 @@ export const SessionMessageBubble = memo(({
         reasoning,
         tools,
         messageDisplay.reportDetails,
-        messageDisplay.promptContextSections,
+        visiblePromptContextSections,
       ),
-    [messageDisplay.promptContextSections, messageDisplay.reportDetails, reasoning, tools],
+    [messageDisplay.reportDetails, reasoning, tools, visiblePromptContextSections],
   );
   const adjustmentIndicator =
     !messageDisplay.resolvedSenderIsUser && messageDisplay.selectionAdjustment ? (
@@ -69,7 +72,7 @@ export const SessionMessageBubble = memo(({
     !reasoning &&
     tools.length === 0 &&
     !messageDisplay.reportDetails &&
-    messageDisplay.promptContextSections.length === 0
+    visiblePromptContextSections.length === 0
   ) {
     return null;
   }
@@ -112,7 +115,7 @@ export const SessionMessageBubble = memo(({
             <MessageIntermediateDetails
               expandedDetailEntries={expandedDetailEntries}
               onToggleDetail={(detailId) => onToggleDetail(message.conversationUnitId, detailId)}
-              promptContextSections={messageDisplay.promptContextSections}
+              promptContextSections={visiblePromptContextSections}
               promptContextSource={messageDisplay.promptContextSource}
               reasoning={reasoning}
               reportDetails={messageDisplay.reportDetails}

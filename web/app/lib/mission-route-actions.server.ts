@@ -14,6 +14,9 @@ import {
   getMission,
   getMissionPrimarySessionId,
   getMissionSurfaceId,
+  hardDeleteMission,
+  hasRetainedMissionWorkspace,
+  listMissionSummaries,
   restoreMission,
   updateMissionExecutionContext,
   updateMissionMetadata,
@@ -27,6 +30,7 @@ function buildMissionSummaryPayload(input: {
   updatedAt: string;
   archivedAt?: string | null;
   status: MissionSummary["status"];
+  hasRetainedWorkspace?: boolean;
 }) {
   return {
     missionId: input.missionId,
@@ -36,6 +40,7 @@ function buildMissionSummaryPayload(input: {
     updatedAt: input.updatedAt,
     archivedAt: input.archivedAt ?? null,
     status: input.status,
+    hasRetainedWorkspace: input.hasRetainedWorkspace ?? false,
   };
 }
 
@@ -85,7 +90,55 @@ export async function handleMissionArchiveAction(input: {
       updatedAt: updatedMission.updatedAt,
       archivedAt: updatedMission.archivedAt ?? null,
       status: updatedMission.status,
+      hasRetainedWorkspace: hasRetainedMissionWorkspace(updatedMission),
     }),
+  });
+}
+
+export async function handleArchivedMissionBulkDeleteAction(input: {
+  request: Request;
+  surfaceId: MissionSurfaceId;
+}) {
+  if (input.request.method !== "DELETE") {
+    return Response.json({ error: "Method not allowed" }, { status: 405 });
+  }
+
+  const archivedMissionIds = listMissionSummaries({
+    view: "archived",
+    surfaceId: input.surfaceId,
+  }).map((mission) => mission.missionId);
+
+  const deletedMissionIds: string[] = [];
+  const skippedMissionIds: string[] = [];
+  const failedMissionIds: string[] = [];
+
+  for (const missionId of archivedMissionIds) {
+    const mission = resolveSurfaceMission(missionId, input.surfaceId);
+    if (!mission || mission.status !== "archived") {
+      continue;
+    }
+
+    if (hasRetainedMissionWorkspace(mission)) {
+      skippedMissionIds.push(missionId);
+      continue;
+    }
+
+    try {
+      hardDeleteMission(missionId);
+      deletedMissionIds.push(missionId);
+    } catch {
+      failedMissionIds.push(missionId);
+    }
+  }
+
+  return Response.json({
+    requestedCount: archivedMissionIds.length,
+    deletedMissionIds,
+    deletedCount: deletedMissionIds.length,
+    skippedMissionIds,
+    skippedCount: skippedMissionIds.length,
+    failedMissionIds,
+    failedCount: failedMissionIds.length,
   });
 }
 

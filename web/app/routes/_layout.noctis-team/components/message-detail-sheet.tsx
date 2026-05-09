@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SessionMessageDetailSheet } from "@/components/chat/session-message-detail-sheet";
-import { type WorkflowMessagePresentation } from "@/lib/chat-workflow-presentation";
-import { type SessionMessageDisplay } from "@/lib/session-message-presentation";
+import type { WorkflowMessagePresentation } from "@/lib/chat-workflow-presentation";
+import type { SessionMessageDisplay } from "@/lib/session-message-presentation";
 import { getActivityActorLabel } from "@/lib/team-message-format";
 import type { ActivityActorId } from "@/lib/types/mission";
 import type { MessageDetailState, MessagePart } from "@/lib/opencode-session-types";
