@@ -240,6 +240,7 @@ function resetChatStore(): void {
     agentModels: {},
     currentSessionId: null,
     optimisticSessionStates: {},
+    pendingMissionMessages: {},
     pendingMissionSessions: {},
     selectedAgent: null,
     selectedModel: null,
@@ -2254,7 +2255,7 @@ describe("useAgentSession", () => {
     });
   });
 
-  it("keeps the newly sent user prompt visible across the route transition into a started mission", async () => {
+  it("keeps the newly sent user prompt visible across a route remount until authoritative history arrives", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     const deferredSession = createDeferredResponse();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -2319,6 +2320,12 @@ describe("useAgentSession", () => {
     expect(missionId).toBe("mission-1");
 
     await act(async () => {
+      root?.unmount();
+    });
+
+    root = createRoot(container);
+
+    await act(async () => {
       root?.render(
         createElement(HookProbe, {
           activeMissionId: "mission-1",
@@ -2337,6 +2344,22 @@ describe("useAgentSession", () => {
     expect(requireSnapshot(latestSnapshot, "Expected transitioned snapshot.").messages).toContain(
       "Start mission",
     );
+
+    deferredSession.resolve(
+      createJsonResponse({
+        messages: [
+          createUserMessage("message-1", "Start mission"),
+          createAssistantMessage("message-2", "On it"),
+        ],
+      }),
+    );
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    expect(requireSnapshot(latestSnapshot, "Expected authoritative snapshot.").messages).toEqual([
+      "Start mission",
+      "On it",
+    ]);
   });
 
   it("treats a preloaded active mission transcript as ready immediately", async () => {

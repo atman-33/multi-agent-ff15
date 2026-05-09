@@ -73,6 +73,7 @@ const MISSION_RUNTIME_HIDDEN_POLL_MS = 30000;
 const MISSION_SETTLED_BANTER_COOLDOWN_MS = 30000;
 const MISSION_TRANSCRIPT_RETENTION_SOFT_LIMIT = 160;
 const MISSION_TRANSCRIPT_RETENTION_TARGET = 120;
+const EMPTY_PENDING_MISSION_MESSAGES: ChatMessage[] = [];
 
 const INITIAL_BANTER_REVEAL_DELAY_MS = 90;
 const SPEAKING_INDICATOR_MS = 980;
@@ -977,11 +978,36 @@ function getInitialTranscriptRetentionState(
   return EMPTY_MISSION_TRANSCRIPT_RETENTION_STATE;
 }
 
+function mergeOptimisticMissionMessages(
+  sessionMessages: ChatMessage[],
+  pendingMissionMessages: ChatMessage[],
+): ChatMessage[] {
+  if (pendingMissionMessages.length === 0) {
+    return sessionMessages;
+  }
+
+  const hasUserMessage = sessionMessages.some((message) => message.sender === "user");
+  const mergedMessages = hasUserMessage
+    ? [...sessionMessages, ...pendingMissionMessages]
+    : [...pendingMissionMessages, ...sessionMessages];
+  const seenMessageIds = new Set<string>();
+
+  return mergedMessages.filter((message) => {
+    if (seenMessageIds.has(message.id)) {
+      return false;
+    }
+
+    seenMessageIds.add(message.id);
+    return true;
+  });
+}
+
 function getInitialTranscriptMessages(
   activeMissionId: string | null,
   initialMissionData: MissionResumePayload | null | undefined,
   initialMessageInfos: MessageInfo[] | null | undefined,
   initialMessages: ChatMessage[],
+  pendingMissionMessages: ChatMessage[],
   primaryAgentId: MissionPrimaryAgentId,
   transcriptMode: MissionTranscriptMode,
 ): ChatMessage[] {
@@ -999,6 +1025,10 @@ function getInitialTranscriptMessages(
     return preloadedMessages.length > 0 ? preloadedMessages : [];
   }
 
+  if (activeMissionId && pendingMissionMessages.length > 0) {
+    return pendingMissionMessages;
+  }
+
   return activeMissionId ? [] : initialMessages;
 }
 
@@ -1007,6 +1037,7 @@ function getInitialTranscriptState(
   initialMissionData: MissionResumePayload | null | undefined,
   initialMessageInfos: MessageInfo[] | null | undefined,
   initialMessages: ChatMessage[],
+  pendingMissionMessages: ChatMessage[],
   primaryAgentId: MissionPrimaryAgentId,
   transcriptMode: MissionTranscriptMode,
 ): MissionTranscriptState {
@@ -1019,9 +1050,18 @@ function getInitialTranscriptState(
     initialMissionData,
     initialMessageInfos,
     initialMessages,
+    pendingMissionMessages,
     primaryAgentId,
     transcriptMode,
   );
+
+  if (
+    activeMissionId &&
+    pendingMissionMessages.length > 0 &&
+    !(initialMissionData?.missionId === activeMissionId && Array.isArray(initialMessageInfos) && initialMessageInfos.length > 0)
+  ) {
+    return createMissionTranscriptState(activeMissionId, "loading");
+  }
 
   if (nextMessages.length === 0) {
     return createMissionTranscriptState(activeMissionId, "loading");
@@ -1037,7 +1077,10 @@ function getVisibleMissionMessages(
   activeMissionId: string | null,
   sessionMessages: ChatMessage[],
   transcriptState: MissionTranscriptState,
+  pendingMissionMessages: ChatMessage[],
 ): ChatMessage[] {
+  const visibleMessages = mergeOptimisticMissionMessages(sessionMessages, pendingMissionMessages);
+
   if (!activeMissionId) {
     return sessionMessages;
   }
@@ -1048,16 +1091,16 @@ function getVisibleMissionMessages(
 
   if (
     (transcriptState.phase === "loading" || transcriptState.phase === "pending") &&
-    sessionMessages.length > 0
+    visibleMessages.length > 0
   ) {
-    return sessionMessages;
+    return visibleMessages;
   }
 
-  if (transcriptState.phase !== "ready") {
+  if (transcriptState.phase !== "ready" && visibleMessages.length === 0) {
     return [];
   }
 
-  return sessionMessages;
+  return visibleMessages;
 }
 
 function getVisibleTranscriptState(
@@ -1163,6 +1206,10 @@ export function useAgentSession({
   const pendingMissionSessionId = useChatStore((state) =>
     activeMissionId ? (state.pendingMissionSessions[activeMissionId] ?? null) : null
   );
+  const pendingMissionMessageMap = useChatStore((state) => state.pendingMissionMessages);
+  const pendingMissionMessages = activeMissionId
+    ? (pendingMissionMessageMap[activeMissionId] ?? EMPTY_PENDING_MISSION_MESSAGES)
+    : EMPTY_PENDING_MISSION_MESSAGES;
   const initialNoctisSessionId =
     activeMissionId && initialMissionData?.missionId === activeMissionId
       ? (initialMissionData.sessions.primary ?? initialMissionData.sessions.noctis)
@@ -1177,6 +1224,7 @@ export function useAgentSession({
       initialMissionData,
       initialMessageInfos,
       initialMessages,
+      pendingMissionMessages,
       primaryAgentId,
       transcriptMode,
     )
@@ -1230,6 +1278,7 @@ export function useAgentSession({
       initialMissionData,
       initialMessageInfos,
       initialMessages,
+      pendingMissionMessages,
       primaryAgentId,
       transcriptMode,
     )
@@ -1255,8 +1304,14 @@ export function useAgentSession({
     createInitialWorkerSessionStates()
   );
   const messages = useMemo(
-    () => getVisibleMissionMessages(activeMissionId, sessionMessages, transcriptState),
-    [activeMissionId, sessionMessages, transcriptState]
+    () =>
+      getVisibleMissionMessages(
+        activeMissionId,
+        sessionMessages,
+        transcriptState,
+        pendingMissionMessages,
+      ),
+    [activeMissionId, pendingMissionMessages, sessionMessages, transcriptState]
   );
   const visibleTranscriptState = useMemo(
     () => getVisibleTranscriptState(activeMissionId, transcriptState),
@@ -1289,6 +1344,8 @@ export function useAgentSession({
   const setOptimisticSessionState = useChatStore((state) => state.setOptimisticSessionState);
   const setPendingMissionSession = useChatStore((state) => state.setPendingMissionSession);
   const clearPendingMissionSession = useChatStore((state) => state.clearPendingMissionSession);
+  const setPendingMissionMessages = useChatStore((state) => state.setPendingMissionMessages);
+  const clearPendingMissionMessages = useChatStore((state) => state.clearPendingMissionMessages);
 
   const clearStreamingState = useCallback(() => {
     streamingMessageIdRef.current = null;
@@ -1656,6 +1713,7 @@ export function useAgentSession({
           initialMissionData,
           initialMessageInfos,
           initialMessages,
+          pendingMissionMessages,
           primaryAgentId,
           transcriptMode,
         );
@@ -1674,6 +1732,7 @@ export function useAgentSession({
             initialMissionData,
             initialMessageInfos,
             initialMessages,
+            pendingMissionMessages,
             primaryAgentId,
             transcriptMode,
           )
@@ -1702,6 +1761,7 @@ export function useAgentSession({
     initialMissionData,
     initialNoctisSessionId,
     initialWorkerSessionIds,
+    pendingMissionMessages,
     primaryAgentId,
     transcriptMode,
     clearAbortSettlement,
@@ -1747,8 +1807,19 @@ export function useAgentSession({
         const shouldClearSyncedLiveTail = Boolean(
           currentStreamingMessageId && containsStreamingMessageId,
         );
+        const hasAuthoritativeHistory = nextMessages.length > 0;
         const effectiveSessionStatus =
           useChatStore.getState().sessionStates[sessionId] ?? sessionStatusRef.current;
+
+        if (transcriptMissionId && hasAuthoritativeHistory) {
+          clearPendingMissionMessages(transcriptMissionId);
+        }
+
+        const remainingPendingMissionMessages = transcriptMissionId
+          ? (hasAuthoritativeHistory
+              ? []
+              : (useChatStore.getState().pendingMissionMessages[transcriptMissionId] ?? []))
+          : [];
 
         const shouldPreserveCurrentMessages =
           shouldKeepPendingTrackedReply ||
@@ -1771,6 +1842,8 @@ export function useAgentSession({
         setTranscriptState(
           shouldKeepPendingTrackedReply
             ? createMissionTranscriptState(transcriptMissionId, "pending", null, sessionId)
+            : nextMessages.length === 0 && remainingPendingMissionMessages.length > 0
+              ? createMissionTranscriptState(transcriptMissionId, "loading", null, sessionId)
             : createMissionTranscriptState(
                 transcriptMissionId,
                 resolveMissionTranscriptPhase(retainedMessages),
@@ -1828,6 +1901,7 @@ export function useAgentSession({
     },
     [
       clearStreamingState,
+      clearPendingMissionMessages,
       initialMessages,
       missionRouteBase,
       primaryAgentId,
@@ -2711,6 +2785,7 @@ export function useAgentSession({
           setWorkerSessionIds(toWorkerSessionIds(initialMissionData.sessions));
           setContextUsageByAgent(createInitialContextUsageByAgent());
           if (hasPreloadedMessages) {
+            clearPendingMissionMessages(activeMissionId);
             const preloadedMessages = replaceSessionMessages(
               toSessionChatMessages(initialMessageInfos ?? [], primaryAgentId),
             );
@@ -2821,6 +2896,7 @@ export function useAgentSession({
     activeMissionId,
     clearBanterEntries,
     clearPendingMissionSession,
+    clearPendingMissionMessages,
     clearProgressBanter,
     closeWorkerEventSources,
     initialMessages,
@@ -2931,6 +3007,7 @@ export function useAgentSession({
             setNoctisSessionId(sessionId);
             setOptimisticSessionState(sessionId, "busy");
             setPendingMissionSession(data.missionId, sessionId);
+            setPendingMissionMessages(data.missionId, [userMessage]);
 
             handleAgentEvent({ type: "session.created" });
             subscribeToSession(sessionId);
@@ -3044,6 +3121,7 @@ export function useAgentSession({
       selectedOperation,
       selectedLunafreyaJobId,
       selectedLunafreyaSkillIds,
+      setPendingMissionMessages,
       setPendingMissionSession,
       setOptimisticSessionState,
       subscribeToSession,

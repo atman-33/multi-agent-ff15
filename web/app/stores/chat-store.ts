@@ -4,6 +4,7 @@ import {
   type WorkingPartyMemberId,
   type WorkingPartyState,
 } from "@/lib/noctis-working-party";
+import type { ChatMessage } from "@/lib/noctis-team-ui-types";
 import type { SessionStatus } from "@/lib/session-status";
 import type { ModelSelection } from "@/lib/types/mission";
 
@@ -39,6 +40,9 @@ type ChatStore = {
   pendingMissionSessions: Record<string, string>;
   setPendingMissionSession: (missionId: string, sessionId: string) => void;
   clearPendingMissionSession: (missionId: string) => void;
+  pendingMissionMessages: Record<string, ChatMessage[]>;
+  setPendingMissionMessages: (missionId: string, messages: ChatMessage[]) => void;
+  clearPendingMissionMessages: (missionId: string) => void;
   serverSessionStates: Record<string, SessionStatus>;
   optimisticSessionStates: Record<string, SessionStatus>;
   sessionStates: Record<string, SessionStatus>;
@@ -377,6 +381,35 @@ export const useChatStore = create<ChatStore>((set) => ({
       const pendingMissionSessions = { ...current.pendingMissionSessions };
       delete pendingMissionSessions[missionId];
       return { pendingMissionSessions };
+    }),
+  pendingMissionMessages: {},
+  setPendingMissionMessages: (missionId, messages) =>
+    set((current) => {
+      const currentMessages = current.pendingMissionMessages[missionId] ?? [];
+      const isSameLength = currentMessages.length === messages.length;
+      const isSameMessages =
+        isSameLength && currentMessages.every((message, index) => message.id === messages[index]?.id);
+
+      if (isSameMessages) {
+        return current;
+      }
+
+      return {
+        pendingMissionMessages: {
+          ...current.pendingMissionMessages,
+          [missionId]: messages,
+        },
+      };
+    }),
+  clearPendingMissionMessages: (missionId) =>
+    set((current) => {
+      if (!(missionId in current.pendingMissionMessages)) {
+        return current;
+      }
+
+      const pendingMissionMessages = { ...current.pendingMissionMessages };
+      delete pendingMissionMessages[missionId];
+      return { pendingMissionMessages };
     }),
   serverSessionStates: {},
   optimisticSessionStates: {},
