@@ -627,14 +627,6 @@ function appendMissionClientDebugLog(input: MissionClientDebugEventInput): void 
   }).catch(() => undefined);
 }
 
-function logNoctisFlickerDebug(event: string, payload: Record<string, unknown>): void {
-  if (shouldSkipMissionClientDebugLog() || typeof window === "undefined") {
-    return;
-  }
-
-  console.info("[NoctisFlickerDebug]", event, payload);
-}
-
 function mergeSessionHistorySyncOptions(
   current: SessionHistorySyncOptions | undefined,
   next: SessionHistorySyncOptions | undefined,
@@ -1851,20 +1843,6 @@ export function useAgentSession({
           ? null
           : (latestAssistant?.id ?? null);
 
-        logNoctisFlickerDebug("history-sync", {
-          sessionId,
-          reason: options?.reason ?? "unspecified",
-          currentStreamingMessageId,
-          latestAssistantId: latestAssistant?.id ?? null,
-          latestAssistantPreview: (latestAssistant?.content ?? "").slice(0, 120),
-          containsStreamingMessageId,
-          shouldClearSyncedLiveTail,
-          preserveStreaming: Boolean(options?.preserveStreaming),
-          trackStreamingMessage: Boolean(options?.trackStreamingMessage),
-          nextTrackedStreamingMessageId,
-          messageCount: nextMessages.length,
-        });
-
         if (transcriptMissionId && hasAuthoritativeHistory) {
           clearPendingMissionMessages(transcriptMissionId);
         }
@@ -2091,16 +2069,6 @@ export function useAgentSession({
         const previousStreamingMessageId = streamingMessageIdRef.current;
         const nextStreamingMessageId = eventMessageId ?? previousStreamingMessageId;
         streamingMessageIdRef.current = nextStreamingMessageId ?? null;
-
-        logNoctisFlickerDebug("stream-event", {
-          eventType: event.type,
-          sessionId: eventSessionId ?? null,
-          eventMessageId: eventMessageId ?? null,
-          previousStreamingMessageId,
-          nextStreamingMessageId,
-          partType: eventPart?.type ?? (text ? "text" : null),
-          textPreview: (text ?? "").slice(0, 120),
-        });
 
         if (nextStreamingMessageId) {
           const nextPart = eventPart ?? (text ? { type: "text", text } : null);
