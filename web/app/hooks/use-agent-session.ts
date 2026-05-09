@@ -627,6 +627,14 @@ function appendMissionClientDebugLog(input: MissionClientDebugEventInput): void 
   }).catch(() => undefined);
 }
 
+function logNoctisFlickerDebug(event: string, payload: Record<string, unknown>): void {
+  if (shouldSkipMissionClientDebugLog() || typeof window === "undefined") {
+    return;
+  }
+
+  console.info("[NoctisFlickerDebug]", event, payload);
+}
+
 function mergeSessionHistorySyncOptions(
   current: SessionHistorySyncOptions | undefined,
   next: SessionHistorySyncOptions | undefined,
@@ -1187,6 +1195,7 @@ export interface UseAgentSessionReturn {
   setSelectedOperation: (operationRef: string | null) => void;
   send: (parts: PromptPart[]) => Promise<string | null>;
   abort: () => Promise<void>;
+  clearStreaming: () => void;
 }
 
 export async function withMissionStartPending<T>(
@@ -1838,6 +1847,23 @@ export function useAgentSession({
         const hasAuthoritativeHistory = nextMessages.length > 0;
         const effectiveSessionStatus =
           useChatStore.getState().sessionStates[sessionId] ?? sessionStatusRef.current;
+        const nextTrackedStreamingMessageId = shouldKeepPendingTrackedReply
+          ? null
+          : (latestAssistant?.id ?? null);
+
+        logNoctisFlickerDebug("history-sync", {
+          sessionId,
+          reason: options?.reason ?? "unspecified",
+          currentStreamingMessageId,
+          latestAssistantId: latestAssistant?.id ?? null,
+          latestAssistantPreview: (latestAssistant?.content ?? "").slice(0, 120),
+          containsStreamingMessageId,
+          shouldClearSyncedLiveTail,
+          preserveStreaming: Boolean(options?.preserveStreaming),
+          trackStreamingMessage: Boolean(options?.trackStreamingMessage),
+          nextTrackedStreamingMessageId,
+          messageCount: nextMessages.length,
+        });
 
         if (transcriptMissionId && hasAuthoritativeHistory) {
           clearPendingMissionMessages(transcriptMissionId);
@@ -1910,7 +1936,7 @@ export function useAgentSession({
           return;
         }
 
-        streamingMessageIdRef.current = shouldKeepPendingTrackedReply ? null : (latestAssistant?.id ?? null);
+        streamingMessageIdRef.current = nextTrackedStreamingMessageId;
       } catch (error) {
         appendMissionClientDebugLog({
           event: "session-history-sync",
@@ -2065,6 +2091,16 @@ export function useAgentSession({
         const previousStreamingMessageId = streamingMessageIdRef.current;
         const nextStreamingMessageId = eventMessageId ?? previousStreamingMessageId;
         streamingMessageIdRef.current = nextStreamingMessageId ?? null;
+
+        logNoctisFlickerDebug("stream-event", {
+          eventType: event.type,
+          sessionId: eventSessionId ?? null,
+          eventMessageId: eventMessageId ?? null,
+          previousStreamingMessageId,
+          nextStreamingMessageId,
+          partType: eventPart?.type ?? (text ? "text" : null),
+          textPreview: (text ?? "").slice(0, 120),
+        });
 
         if (nextStreamingMessageId) {
           const nextPart = eventPart ?? (text ? { type: "text", text } : null);
@@ -3263,5 +3299,6 @@ export function useAgentSession({
     setSelectedOperation,
     send,
     abort,
+    clearStreaming: clearStreamingState,
   };
 }

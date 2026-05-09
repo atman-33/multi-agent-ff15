@@ -229,6 +229,33 @@ describe("chat-area", () => {
     expect(markup).toContain('data-disabled="yes"');
   });
 
+  it("passes the streaming commit callback to the render snapshot hook", () => {
+    const onStreamingMessageCommitted = vi.fn();
+
+    renderToStaticMarkup(
+      <ChatArea
+        messages={[]}
+        isResponding={false}
+        currentStreamingMessageId="msg_streaming"
+        onStreamingMessageCommitted={onStreamingMessageCommitted}
+        contextProjects={[]}
+        availableOperations={[]}
+        selectedOperation={null}
+        activeOperationState={null}
+        isOperationSelectionLocked={false}
+        onSelectedOperationChange={() => undefined}
+        onSend={() => undefined}
+      />,
+    );
+
+    expect(sessionChatRenderSnapshotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentStreamingMessageId: "msg_streaming",
+        onStreamingMessageCommitted,
+      }),
+    );
+  });
+
   it("shows execution and context summary instead of operation help text after mission start", () => {
     const markup = renderToStaticMarkup(
       <ChatArea

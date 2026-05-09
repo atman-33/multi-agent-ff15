@@ -265,6 +265,72 @@ ${userPrompt}
     expect(snapshot.streamingMessage).toBeNull();
   });
 
+  it("suppresses a workflow Noctis task live draft instead of flashing a duplicate temporary Noctis bubble", () => {
+    const assistantReply = "おう、こんにちは。何か手伝えることあるか？教えてくれ。";
+    const rawPrompt = `
+<operation-prompt>
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<instruction>
+Respond as Noctis.
+</instruction>
+
+<task>
+${assistantReply}
+</task>
+</operation-prompt>
+    `.trim();
+
+    const snapshot = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+        messageId: "assistant-1",
+        parts: [{ text: rawPrompt, type: "text" }],
+      },
+      messages: [],
+      streamingText: {
+        content: rawPrompt,
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+      },
+    });
+
+    expect(snapshot.renderedMessages).toHaveLength(0);
+    expect(snapshot.streamingMessage).toBeNull();
+  });
+
+  it("keeps routed worker-report live drafts visible while suppressing internal assistant workflow prompts", () => {
+    const workerReport = "Implemented the requested change.";
+    const rawPrompt = `
+<operation-prompt>
+<instruction>
+Follow the handoff.
+</instruction>
+
+<worker-report from="ignis" to="noctis">
+${workerReport}
+</worker-report>
+</operation-prompt>
+    `.trim();
+
+    const snapshot = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+        messageId: "assistant-1",
+        parts: [{ text: rawPrompt, type: "text" }],
+      },
+      messages: [],
+    });
+
+    expect(snapshot.streamingMessage?.sender).toBe("ignis");
+    expect(snapshot.streamingMessage?.senderLabel).toBe("Ignis");
+    expect(snapshot.streamingMessage?.messageDisplay.displayContent).toBe(workerReport);
+  });
+
   it("reuses the tail Noctis intermediate bubble instead of rendering a second live Noctis bubble", () => {
     const snapshot = buildSessionChatRenderSnapshot({
       liveDraft: {

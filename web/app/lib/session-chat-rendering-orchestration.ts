@@ -51,6 +51,21 @@ export type SessionChatRenderSnapshot = {
 
 type LiveDraftInput = NonNullable<SessionChatRenderSnapshot["input"]["liveDraft"]>;
 
+function shouldSuppressWorkflowStreamingMessage(input: {
+  fallbackSender: SessionPresentationMessage["sender"];
+  messageDisplay: ReturnType<typeof resolveSessionMessageDisplay>;
+}): boolean {
+  if (!input.messageDisplay.rawWorkflowPrompt || !input.fallbackSender) {
+    return false;
+  }
+
+  if (input.messageDisplay.resolvedSenderIsUser) {
+    return input.fallbackSender !== "user";
+  }
+
+  return input.messageDisplay.resolvedSender === input.fallbackSender;
+}
+
 function buildStreamingMessage(input: {
   content: string;
   fallbackSender: SessionPresentationMessage["sender"];
@@ -66,7 +81,12 @@ function buildStreamingMessage(input: {
     fallbackSenderLabel: input.fallbackSenderLabel,
   });
 
-  if (messageDisplay.resolvedSenderIsUser && input.fallbackSender !== "user") {
+  if (
+    shouldSuppressWorkflowStreamingMessage({
+      fallbackSender: input.fallbackSender,
+      messageDisplay,
+    })
+  ) {
     return null;
   }
 
@@ -109,7 +129,12 @@ function buildStreamingMessageFromLiveDraft(
     fallbackSenderLabel: input.fallbackSenderLabel,
   });
 
-  if (messageDisplay.resolvedSenderIsUser && input.fallbackSender !== "user") {
+  if (
+    shouldSuppressWorkflowStreamingMessage({
+      fallbackSender: input.fallbackSender,
+      messageDisplay,
+    })
+  ) {
     return null;
   }
 

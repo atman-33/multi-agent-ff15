@@ -254,6 +254,7 @@ export function NoctisTeamScreen({
     setSelectedOperation,
     send,
     abort,
+    clearStreaming,
   } = useAgentSession({
     activeMissionId: effectiveMissionId,
     surfaceId: surface.id,
@@ -1312,6 +1313,7 @@ export function NoctisTeamScreen({
               }
               currentStreamingMessageId={streamingMessageId}
               liveDraft={liveDraft}
+              onStreamingMessageCommitted={clearStreaming}
               streamingContent={streamingContent}
               historyErrorMessage={historyErrorMessage}
               historyPhase={historyPhase}

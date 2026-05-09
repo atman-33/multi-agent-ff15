@@ -81,6 +81,7 @@ interface ChatAreaProps {
   retainedHistory?: MissionTranscriptRetentionState;
   currentStreamingMessageId?: string | null;
   liveDraft?: SessionLiveDraft | null;
+  onStreamingMessageCommitted?: (messageId: string) => void;
   streamingContent?: string;
   historyErrorMessage?: string | null;
   historyPhase?: MissionTranscriptPhase;
@@ -143,6 +144,18 @@ interface ChatAreaProps {
 const TRANSCRIPT_WINDOW_THRESHOLD = 40;
 const TRANSCRIPT_WINDOW_OVERSCAN = 4;
 const TRANSCRIPT_ESTIMATED_ROW_HEIGHT = 148;
+
+function shouldSkipNoctisFlickerConsoleLog(): boolean {
+  return typeof navigator !== "undefined" && /\bjsdom\b/i.test(navigator.userAgent);
+}
+
+function logNoctisFlickerConsole(event: string, payload: Record<string, unknown>): void {
+  if (shouldSkipNoctisFlickerConsoleLog() || typeof window === "undefined") {
+    return;
+  }
+
+  console.info("[NoctisFlickerDebug]", event, payload);
+}
 
 const SENDER_AVATARS: Partial<Record<ActivityActorId, string>> = {
   noctis: "/images/noctis.png",
@@ -785,6 +798,7 @@ export const ChatArea = ({
   messages,
   retainedHistory,
   currentStreamingMessageId = null,
+  onStreamingMessageCommitted,
   streamingContent = "",
   historyErrorMessage = null,
   historyPhase = "idle",
@@ -873,8 +887,53 @@ export const ChatArea = ({
     currentStreamingMessageId,
     liveDraft: renderLiveDraft,
     messages: presentationMessages,
+    onStreamingMessageCommitted,
     streamingText,
   });
+  useEffect(() => {
+    if (
+      !currentStreamingMessageId &&
+      !liveDraft &&
+      !streamingContent &&
+      !renderSnapshot.streamingMessage
+    ) {
+      return;
+    }
+
+    const lastRenderedAssistantMessage =
+      [...renderSnapshot.renderedMessages]
+        .reverse()
+        .find((message) => message.sender === primaryAgentId) ?? null;
+    const streamingDisplayContent =
+      renderSnapshot.streamingMessage?.messageDisplay.displayContent.trim() ?? "";
+    const authoritativeDisplayContent =
+      lastRenderedAssistantMessage?.messageDisplay.displayContent.trim() ?? "";
+
+    logNoctisFlickerConsole("render-snapshot", {
+      sessionId,
+      currentStreamingMessageId,
+      liveDraftMessageId: liveDraft?.messageId ?? null,
+      liveDraftPartTypes: liveDraft?.parts.map((part) => part.type) ?? [],
+      streamingContentLength: streamingContent.length,
+      authoritativeLastAssistantId: lastRenderedAssistantMessage?.conversationUnitId ?? null,
+      authoritativeLastAssistantPreview: authoritativeDisplayContent.slice(0, 120),
+      streamingConversationUnitId: renderSnapshot.streamingMessage?.conversationUnitId ?? null,
+      streamingPreview: streamingDisplayContent.slice(0, 120),
+      duplicateCandidate: Boolean(
+        streamingDisplayContent &&
+          authoritativeDisplayContent &&
+          streamingDisplayContent === authoritativeDisplayContent,
+      ),
+      showPendingIndicator: renderSnapshot.showPendingIndicator,
+    });
+  }, [
+    currentStreamingMessageId,
+    liveDraft,
+    primaryAgentId,
+    renderSnapshot,
+    sessionId,
+    streamingContent,
+  ]);
   const hasVisibleTranscriptContent =
     renderSnapshot.renderedMessages.length > 0 ||
     renderSnapshot.streamingMessage !== null ||
