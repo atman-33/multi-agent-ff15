@@ -42,7 +42,8 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -b, --build    Build the web app before launch"
-    echo "      --attach   Force attach to ff15 after startup (tmux-resident only)"
+    echo "      --attach-only"
+    echo "                 Attach to an existing ff15 tmux session only"
     echo "      --no-attach"
     echo "                 Start without attaching in tmux-resident mode"
     echo "      --set-transport <mode>"
@@ -53,7 +54,7 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  ./standby.sh"
-    echo "  ./standby.sh --attach"
+    echo "  ./standby.sh --attach-only"
     echo "  ./standby.sh --no-attach"
     echo "  ./standby.sh --build"
     echo "  ./standby.sh --set-transport tmux-resident"
@@ -198,7 +199,7 @@ set_action() {
     local next_action="$1"
 
     if [ "$ACTION" != "start" ] && [ "$ACTION" != "$next_action" ]; then
-        log_warn "Choose only one action: start, stop, status, or set-transport."
+        log_warn "Choose only one action: start, attach-only, stop, status, or set-transport."
         show_help
         exit 1
     fi
@@ -213,8 +214,8 @@ parse_args() {
                 RUN_BUILD=true
                 shift
                 ;;
-            --attach)
-                ATTACH_MODE="force"
+            --attach-only)
+                set_action "attach-only"
                 shift
                 ;;
             --no-attach)
@@ -258,7 +259,7 @@ parse_args() {
     fi
 
     if [ "$ATTACH_MODE" != "auto" ] && [ "$ACTION" != "start" ]; then
-        log_warn "--attach and --no-attach can only be used when starting the web app."
+        log_warn "--no-attach can only be used when starting the web app."
         show_help
         exit 1
     fi
@@ -756,6 +757,20 @@ attach_tmux_session() {
     tmux attach-session -t ff15
 }
 
+tmux_session_exists() {
+    tmux has-session -t ff15 >/dev/null 2>&1
+}
+
+attach_existing_tmux_session() {
+    if ! tmux_session_exists; then
+        log_warn "Tmux session ff15 is not running."
+        log_info "Start it with ./standby.sh first."
+        return 1
+    fi
+
+    attach_tmux_session
+}
+
 ensure_tmux_transport_ready() {
     local status_json
     local state
@@ -798,15 +813,7 @@ require_command node
 parse_args "$@"
 TRANSPORT_MODE="$(read_transport_mode)"
 
-if [ "$ATTACH_MODE" = "force" ] && [ "$TRANSPORT_MODE" != "tmux-resident" ]; then
-    log_warn "--attach requires transport_mode=tmux-resident."
-    exit 1
-fi
-
 case "$ATTACH_MODE" in
-    force)
-        ATTACH_SESSION=true
-        ;;
     disable)
         ATTACH_SESSION=false
         ;;
@@ -822,6 +829,14 @@ esac
 case "$ACTION" in
     set-transport)
         if set_transport_mode; then
+            exit 0
+        else
+            exit 1
+        fi
+        ;;
+    attach-only)
+        require_command tmux
+        if attach_existing_tmux_session; then
             exit 0
         else
             exit 1
