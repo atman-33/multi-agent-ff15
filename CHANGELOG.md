@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.16.0] - 2026-05-09
+
+### Added
+- **Archived mission bulk cleanup** - Added Noctis and Lunafreya bulk-delete endpoints with coverage so archived missions can be removed in batches while preserved dedicated workspaces stay intact
+- **Compact transcript metadata support** - Added session API support for summary detail-state handling, compact transcript payloads, and routed worker report envelopes used by the mission chat surfaces
+- **Richer transcript inspection** - Added clickable links in markdown code blocks and expanded message detail coverage for prompt-context-aware transcript inspection
+
+### Changed
+- **Session chat continuity** - Updated optimistic prompt persistence, pending mission message handling, compact transcript retention, and streaming orchestration so route transitions keep visible context stable
+- **Noctis Team chat presentation** - Refined message bubbles, detail sheets, markdown styling, and recent-history messaging so prompt context and live assistant activity are easier to follow
+- **Runtime and operation defaults** - Reorganized GPT-5 mini model presets, adjusted tmux attach and standby behavior, and aligned the English and Japanese openspec-dev builtins with the updated mission flow
+
+### Fixed
+- **Transcript reliability during live updates** - Fixed optimistic user-message deduplication and compact-history hydration edge cases so live mission transcripts settle cleanly after history sync
+- **Release check hygiene** - Fixed lint and type-safety issues in session hooks, mission transport helpers, project-root detection, and related tests that surfaced in the web checks pipeline
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Security
+- None
+
 ## [0.15.0] - 2026-05-08
 
 ### Added
@@ -374,6 +400,7 @@ Initial release.
 [0.10.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.8.0...v0.9.0
 
+[0.16.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/atman-33/multi-agent-ff15/compare/v0.12.0...v0.13.0
