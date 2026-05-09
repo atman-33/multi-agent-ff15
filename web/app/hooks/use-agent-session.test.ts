@@ -176,6 +176,32 @@ function createUserMessage(id: string, text: string): MessageInfo {
   };
 }
 
+function createUserMessageWithPromptContext(id: string, text: string): MessageInfo {
+  return {
+    info: {
+      id,
+      role: "user",
+      time: { created: Date.parse("2026-04-19T00:00:00.000Z") },
+    },
+    parts: [
+      {
+        type: "text",
+        text: `
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<tooling-context>
+serena_project: multi-agent-ff15
+</tooling-context>
+
+${text}
+        `.trim(),
+      },
+    ],
+  };
+}
+
 function createAssistantMessages(count: number, prefix = "Reply"): MessageInfo[] {
   return Array.from({ length: count }, (_, index) =>
     createAssistantMessage(`message-${index + 1}`, `${prefix} ${index + 1}`),
@@ -2291,6 +2317,7 @@ describe("useAgentSession", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     let latestSnapshot: HookProbeSnapshot | null = null;
+    const observedMessageSnapshots: string[][] = [];
 
     root = createRoot(container);
     await act(async () => {
@@ -2300,6 +2327,7 @@ describe("useAgentSession", () => {
           initialMissionData: null,
           onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
+            observedMessageSnapshots.push([...snapshot.messages]);
           },
           selectedExecutionProjectId: "core-repo",
         }),
@@ -2332,6 +2360,7 @@ describe("useAgentSession", () => {
           initialMissionData: null,
           onSnapshot: (snapshot: HookProbeSnapshot) => {
             latestSnapshot = snapshot;
+            observedMessageSnapshots.push([...snapshot.messages]);
           },
         }),
       );
@@ -2360,6 +2389,75 @@ describe("useAgentSession", () => {
       "Start mission",
       "On it",
     ]);
+    expect(
+      observedMessageSnapshots.some(
+        (messages) => messages.filter((message) => message === "Start mission").length > 1,
+      ),
+    ).toBe(false);
+  });
+
+  it("dedupes a pending optimistic user prompt once authoritative history already contains the same user message", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse(createRuntimePayload(mission));
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMessageInfos: [
+            createUserMessageWithPromptContext("message-1", "Start mission"),
+            createAssistantMessage("message-2", "On it"),
+          ],
+          initialMissionData: mission,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => latestSnapshot?.historyPhase === "ready");
+
+    await act(async () => {
+      useChatStore.getState().setPendingMissionMessages("mission-1", [
+        {
+          id: "optimistic-user-1",
+          sender: "user",
+          actor: "user",
+          speaker: "user",
+          kind: "user_message",
+          content: "Start mission",
+          detailContent: "Start mission",
+          rawText: "Start mission",
+          parts: [{ type: "text", text: "Start mission" }],
+          timestamp: new Date("2026-04-19T00:00:00.000Z"),
+          source: "session",
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    const snapshot = requireSnapshot(latestSnapshot, "Expected deduped snapshot.");
+
+    expect(snapshot.messages).toHaveLength(2);
+    expect(snapshot.messages.filter((message) => message.includes("Start mission"))).toHaveLength(1);
+    expect(snapshot.messages.at(-1)).toBe("On it");
   });
 
   it("treats a preloaded active mission transcript as ready immediately", async () => {

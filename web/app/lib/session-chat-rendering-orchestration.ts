@@ -66,6 +66,10 @@ function buildStreamingMessage(input: {
     fallbackSenderLabel: input.fallbackSenderLabel,
   });
 
+  if (messageDisplay.resolvedSenderIsUser && input.fallbackSender !== "user") {
+    return null;
+  }
+
   return {
     id: "streaming-assistant",
     conversationUnitId: "streaming-assistant",
@@ -104,6 +108,10 @@ function buildStreamingMessageFromLiveDraft(
     fallbackSender: input.fallbackSender,
     fallbackSenderLabel: input.fallbackSenderLabel,
   });
+
+  if (messageDisplay.resolvedSenderIsUser && input.fallbackSender !== "user") {
+    return null;
+  }
 
   return {
     id: messageId,
@@ -581,7 +589,9 @@ export function buildSessionChatRenderSnapshot({
         );
   const baseStreamingMessage = containsStreamingMessage(messages, currentStreamingMessageId)
     ? null
-    : buildStreamingMessageFromLiveDraft(liveDraft) ?? buildStreamingMessage(streamingText);
+    : liveDraft
+      ? buildStreamingMessageFromLiveDraft(liveDraft)
+      : buildStreamingMessage(streamingText);
   const foldedSnapshotState = foldIntermediateTailIntoStreamingMessage(
     confirmedRenderedMessages,
     baseStreamingMessage,

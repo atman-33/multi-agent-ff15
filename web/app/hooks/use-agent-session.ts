@@ -986,10 +986,38 @@ function mergeOptimisticMissionMessages(
     return sessionMessages;
   }
 
+  const getComparableUserMessageKey = (message: ChatMessage): string | null => {
+    if (message.sender !== "user") {
+      return null;
+    }
+
+    const resolvedDisplay = resolveSessionMessageDisplay({
+      rawText: message.rawText ?? message.detailContent ?? message.content,
+      fallbackSender: message.sender,
+      fallbackSenderLabel: getActivityActorLabel(message.sender),
+    }).displayContent.trim();
+
+    return `${message.kind}:${resolvedDisplay}`;
+  };
+
+  const authoritativeUserMessageKeys = new Set(
+    sessionMessages
+      .map((message) => getComparableUserMessageKey(message))
+      .filter((key): key is string => key !== null),
+  );
+  const filteredPendingMissionMessages = pendingMissionMessages.filter((message) => {
+    const comparableKey = getComparableUserMessageKey(message);
+    return comparableKey === null || !authoritativeUserMessageKeys.has(comparableKey);
+  });
+
+  if (filteredPendingMissionMessages.length === 0) {
+    return sessionMessages;
+  }
+
   const hasUserMessage = sessionMessages.some((message) => message.sender === "user");
   const mergedMessages = hasUserMessage
-    ? [...sessionMessages, ...pendingMissionMessages]
-    : [...pendingMissionMessages, ...sessionMessages];
+    ? [...sessionMessages, ...filteredPendingMissionMessages]
+    : [...filteredPendingMissionMessages, ...sessionMessages];
   const seenMessageIds = new Set<string>();
 
   return mergedMessages.filter((message) => {

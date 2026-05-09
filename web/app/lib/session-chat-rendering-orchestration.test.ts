@@ -213,6 +213,58 @@ Implemented the requested change.
     ]);
   });
 
+  it("suppresses a workflow user-request live draft instead of rendering a duplicate temporary user bubble", () => {
+    const userPrompt = "調査用 ping 1778290088554";
+    const rawPrompt = `
+<operation-prompt>
+<workspace-context>
+project_root: /tmp/example
+</workspace-context>
+
+<tooling-context>
+activate_project: /tmp/example
+</tooling-context>
+
+<user-request from="user" to="noctis">
+${userPrompt}
+</user-request>
+</operation-prompt>
+    `.trim();
+
+    const snapshot = buildSessionChatRenderSnapshot({
+      liveDraft: {
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+        messageId: "assistant-1",
+        parts: [{ text: rawPrompt, type: "text" }],
+      },
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          sender: "user",
+          senderLabel: "User",
+          kind: "user_message",
+          content: userPrompt,
+          detailContent: userPrompt,
+          rawText: userPrompt,
+          parts: [{ type: "text", text: userPrompt }],
+          timestamp: new Date("2026-05-09T10:29:00.000Z"),
+          source: "session",
+        },
+      ],
+      streamingText: {
+        content: rawPrompt,
+        fallbackSender: "noctis",
+        fallbackSenderLabel: "Noctis",
+      },
+    });
+
+    expect(snapshot.renderedMessages).toHaveLength(1);
+    expect(snapshot.renderedMessages[0]?.messageDisplay.displayContent).toBe(userPrompt);
+    expect(snapshot.streamingMessage).toBeNull();
+  });
+
   it("reuses the tail Noctis intermediate bubble instead of rendering a second live Noctis bubble", () => {
     const snapshot = buildSessionChatRenderSnapshot({
       liveDraft: {
