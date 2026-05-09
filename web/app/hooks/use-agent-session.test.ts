@@ -2254,6 +2254,91 @@ describe("useAgentSession", () => {
     });
   });
 
+  it("keeps the newly sent user prompt visible across the route transition into a started mission", async () => {
+    const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
+    const deferredSession = createDeferredResponse();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.startsWith("/api/noctis/operations")) {
+        return createJsonResponse({ operations: [] });
+      }
+
+      if (url === "/api/noctis/mission/start") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { objective?: string };
+        expect(body.objective).toBe("Start mission");
+        return createJsonResponse({
+          missionId: "mission-1",
+          noctisSessionId: "session-1",
+          operationState: null,
+        });
+      }
+
+      if (url === "/api/noctis/missions/mission-1/runtime") {
+        return createJsonResponse({
+          ...createRuntimePayload(mission),
+          sessionStatuses: { "session-1": "busy" },
+        });
+      }
+
+      if (url === "/api/session/session-1") {
+        return deferredSession.promise;
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let latestSnapshot: HookProbeSnapshot | null = null;
+
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: null,
+          initialMissionData: null,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+          selectedExecutionProjectId: "core-repo",
+        }),
+      );
+    });
+
+    let missionIdPromise: Promise<string | null> | null = null;
+    await act(async () => {
+      missionIdPromise = latestSnapshot?.send([{ type: "text", text: "Start mission" }]) ?? null;
+      await Promise.resolve();
+    });
+
+    expect(requireSnapshot(latestSnapshot, "Expected optimistic snapshot.").messages).toContain(
+      "Start mission",
+    );
+
+    const missionId = await missionIdPromise;
+    expect(missionId).toBe("mission-1");
+
+    await act(async () => {
+      root?.render(
+        createElement(HookProbe, {
+          activeMissionId: "mission-1",
+          initialMissionData: null,
+          onSnapshot: (snapshot: HookProbeSnapshot) => {
+            latestSnapshot = snapshot;
+          },
+        }),
+      );
+    });
+
+    await waitFor(
+      () => fetchMock.mock.calls.some(([input]) => String(input) === "/api/session/session-1"),
+    );
+
+    expect(requireSnapshot(latestSnapshot, "Expected transitioned snapshot.").messages).toContain(
+      "Start mission",
+    );
+  });
+
   it("treats a preloaded active mission transcript as ready immediately", async () => {
     const mission = createMission({ missionId: "mission-1", primarySessionId: "session-1" });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

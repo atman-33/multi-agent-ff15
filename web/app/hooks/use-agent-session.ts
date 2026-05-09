@@ -1643,30 +1643,40 @@ export function useAgentSession({
     const nextPrimarySessionId =
       initialNoctisSessionId ??
       (missionIdRef.current === activeMissionId ? previousPrimarySessionId : null);
+    const shouldPreserveStartedMissionTranscript =
+      activeMissionId !== null &&
+      missionIdRef.current === activeMissionId &&
+      initialMissionData?.missionId !== activeMissionId &&
+      (!Array.isArray(initialMessageInfos) || initialMessageInfos.length === 0) &&
+      sessionMessagesRef.current.length > 0;
+    const nextTranscriptMessages = shouldPreserveStartedMissionTranscript
+      ? sessionMessagesRef.current
+      : getInitialTranscriptMessages(
+          activeMissionId,
+          initialMissionData,
+          initialMessageInfos,
+          initialMessages,
+          primaryAgentId,
+          transcriptMode,
+        );
+
     noctisSessionIdRef.current = nextPrimarySessionId;
     setNoctisSessionId(nextPrimarySessionId);
     setWorkerSessionIds(initialWorkerSessionIds);
     setDelegationLedger(null);
     clearStreamingState();
-    replaceSessionMessages(
-      getInitialTranscriptMessages(
-        activeMissionId,
-        initialMissionData,
-        initialMessageInfos,
-        initialMessages,
-        primaryAgentId,
-        transcriptMode,
-      )
-    );
+    replaceSessionMessages(nextTranscriptMessages);
     setTranscriptState(
-      getInitialTranscriptState(
-        activeMissionId,
-        initialMissionData,
-        initialMessageInfos,
-        initialMessages,
-        primaryAgentId,
-        transcriptMode,
-      )
+      shouldPreserveStartedMissionTranscript
+        ? createMissionTranscriptState(activeMissionId, "loading", null, nextPrimarySessionId)
+        : getInitialTranscriptState(
+            activeMissionId,
+            initialMissionData,
+            initialMessageInfos,
+            initialMessages,
+            primaryAgentId,
+            transcriptMode,
+          )
     );
     clearAbortSettlement();
     hasHydratedNoctisSettledRef.current = false;
