@@ -11,6 +11,7 @@ import {
   getMissionSurfaceId,
   getMission,
   getMissionFilePath,
+  hardDeleteMission,
   listMissionSummaries,
   setWorkerSession,
 } from "./mission-store";
@@ -65,6 +66,24 @@ describe("mission store", () => {
     const reloaded = getMission(mission.id);
     expect(reloaded?.id).toBe(mission.id);
     expect(reloaded?.title).toBe("Canonical Mission");
+  });
+
+  it("hard deletes persisted mission data from disk", () => {
+    process.env.MULTI_AGENT_FF15_ROOT = createTempRoot();
+
+    const mission = createMission("mission-hard-delete", "session-hard-delete", {
+      title: "Disposable Mission",
+      objective: "Verify permanent deletion",
+    });
+    missionIds.push(mission.id);
+
+    const missionFilePath = getMissionFilePath(mission.id);
+    expect(existsSync(missionFilePath)).toBe(true);
+
+    hardDeleteMission(mission.id);
+
+    expect(existsSync(missionFilePath)).toBe(false);
+    expect(getMission(mission.id)).toBeUndefined();
   });
 
   it("persists execution workspace metadata and stable-deduped context projects", () => {

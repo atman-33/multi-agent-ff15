@@ -375,6 +375,7 @@ export interface MissionSummary {
   archivedAt?: string | null;
   status: "active" | "completed" | "archived";
   activitySessionIds: string[];
+  hasRetainedWorkspace?: boolean;
 }
 
 export type MissionTransportStatus = "pending" | "submitted" | "failed" | "cancelled";

@@ -346,6 +346,21 @@ describe("noctis-team-screen", () => {
     expect(markup).not.toContain("Mission Setup");
   });
 
+  it("shows archived bulk delete copy in the mission history overflow menu", () => {
+    paramsMock.mockReturnValue({ id: "mission-1" });
+
+    const markup = renderToStaticMarkup(
+      <NoctisTeamScreen
+        activeMissionId="mission-1"
+        initialMissionData={buildMission({ status: "archived" })}
+        language="other"
+      />,
+    );
+
+    expect(markup).toContain("Restore all visible (0)");
+    expect(markup).toContain("Delete archived missions (0)");
+  });
+
   it("renders execution project launch actions in the new-mission context dialog", () => {
     const markup = renderToStaticMarkup(
       <NoctisTeamScreen activeMissionId={null} initialMissionData={null} language="other" />,

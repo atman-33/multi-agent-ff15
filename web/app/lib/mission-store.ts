@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   normalizeContextProjectIds,
@@ -412,6 +412,7 @@ function toMissionSummary(mission: Mission): MissionSummary {
     archivedAt: mission.archivedAt,
     status: mission.status,
     activitySessionIds,
+    hasRetainedWorkspace: hasRetainedMissionWorkspace(mission),
     primarySessionId: getMissionPrimarySessionId(mission),
     latestPrimaryMessageId: mission.latestPrimaryMessageId ?? null,
     latestPrimaryMessageCreatedAt: mission.latestPrimaryMessageCreatedAt ?? null,
@@ -1040,6 +1041,24 @@ export function reconcileMissionTmuxDispatchStatuses(
 export function buildDelegationLedger(mission: Mission): string {
   const ledger: DelegationLedger = mission.delegationLedger;
   return JSON.stringify(ledger, null, 2);
+}
+
+export function hasRetainedMissionWorkspace(mission: Mission | null | undefined): boolean {
+  if (!mission || mission.executionTargetMode !== "mission_workspace") {
+    return false;
+  }
+
+  const workspacePath = normalizeOptionalString(mission.workspacePath);
+  if (!workspacePath || mission.workspaceStatus === "deleted") {
+    return false;
+  }
+
+  return existsSync(workspacePath);
+}
+
+export function hardDeleteMission(id: string): void {
+  store.delete(id);
+  rmSync(getMissionDir(id), { recursive: true, force: true });
 }
 
 export function deleteMission(id: string): void {

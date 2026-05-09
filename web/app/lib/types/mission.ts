@@ -310,6 +310,7 @@ export interface MissionSummary {
   archivedAt?: string | null;
   status: MissionStatus;
   activitySessionIds: string[];
+  hasRetainedWorkspace?: boolean;
   primarySessionId?: string | null;
   agentStatuses?: Partial<Record<AgentId, import("@/lib/session-status").SessionStatus>>;
   latestPrimaryMessageId?: string | null;
